@@ -2,6 +2,7 @@ import app from './final-platform.js';
 export {ControlPlane} from './platform.js';
 export {GeneratorControl} from './admin-runtime.js';
 import {renderAdmin} from './admin-page.js';
+import {secureLogin} from './secure-admin-auth.js';
 import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin} from './admin-runtime.js';
 import {readState,pickTopic,generateArticle,publishGenerated,auditGenerated} from './generator-core.js';
 
@@ -44,6 +45,7 @@ export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
     if(u.pathname==='/admin'||u.pathname==='/admin/')return renderAdmin(req,env);
+    if(u.pathname==='/api/admin/login'&&req.method==='POST')return secureLogin(req,env);
     if(u.pathname==='/api/admin/generate-now'&&req.method==='POST'){
       if(!(await isAdmin(req,env)))return json({error:'unauthorized'},401);
       return json(await runOnce(env,{manual:true}));
