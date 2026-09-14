@@ -30,5 +30,27 @@
   },
   "observability": {
     "enabled": true
-  }
+  },
+  "r2_buckets": [
+    {
+      "binding": "CONTENT_FINAL",
+      "bucket_name": "nooncoupons-content-v2"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CONTROL",
+        "class_name": "ControlPlane"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "platform-v1",
+      "new_sqlite_classes": [
+        "ControlPlane"
+      ]
+    }
+  ]
 }
