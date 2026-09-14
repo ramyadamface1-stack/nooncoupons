@@ -8,16 +8,6 @@
   ],
   "workers_dev": true,
   "minify": true,
-  "d1_databases": [
-    {
-      "binding": "CONTROL_DB"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "CONTENT"
-    }
-  ],
   "triggers": {
     "crons": [
       "*/5 * * * *"
