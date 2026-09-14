@@ -1,4 +1,5 @@
 import app from './visual-platform.js';
+export {ControlPlane} from './platform.js';
 
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 
