@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nooncoupons",
-  "main": "final-platform.js",
+  "main": "auto-platform.js",
   "compatibility_date": "2026-09-13",
   "compatibility_flags": [
     "nodejs_compat"
@@ -10,7 +10,7 @@
   "minify": true,
   "triggers": {
     "crons": [
-      "*/5 * * * *"
+      "* * * * *"
     ]
   },
   "vars": {
@@ -22,6 +22,7 @@
     "AI_FALLBACK_PROVIDER": "grok",
     "GEMINI_MODEL": "gemini-3.5-flash",
     "GROK_MODEL": "grok-4.3",
+    "GROQ_MODEL": "openai/gpt-oss-120b",
     "QUALITY_PUBLISH_THRESHOLD": "95",
     "MIN_ARTICLE_WORDS": "1000",
     "TARGET_ARTICLE_WORDS": "2000",
@@ -42,6 +43,10 @@
       {
         "name": "CONTROL",
         "class_name": "ControlPlane"
+      },
+      {
+        "name": "GENERATOR_CONTROL",
+        "class_name": "GeneratorControl"
       }
     ]
   },
@@ -50,6 +55,12 @@
       "tag": "platform-v1",
       "new_sqlite_classes": [
         "ControlPlane"
+      ]
+    },
+    {
+      "tag": "generator-v1",
+      "new_sqlite_classes": [
+        "GeneratorControl"
       ]
     }
   ]
