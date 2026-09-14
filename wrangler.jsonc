@@ -6,8 +6,6 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "minify": true,
-  "d1_databases": [{"binding": "CONTROL_DB_V2"}],
-  "r2_buckets": [{"binding": "CONTENT_V2"}],
   "triggers": {"crons": ["*/5 * * * *"]},
   "vars": {
     "SITE_ORIGIN": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
