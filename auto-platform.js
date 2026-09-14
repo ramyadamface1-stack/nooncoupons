@@ -1,7 +1,8 @@
 import app from './final-platform.js';
 export {ControlPlane} from './platform.js';
 export {GeneratorControl} from './admin-runtime.js';
-import {adminPage,handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin} from './admin-runtime.js';
+import {renderAdmin} from './admin-page.js';
+import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin} from './admin-runtime.js';
 import {readState,pickTopic,generateArticle,publishGenerated,auditGenerated} from './generator-core.js';
 
 const now=()=>new Date().toISOString();
@@ -42,7 +43,7 @@ async function runOnce(env,{manual=false}={}){
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
-    if(u.pathname==='/admin'||u.pathname==='/admin/')return adminPage(req,env);
+    if(u.pathname==='/admin'||u.pathname==='/admin/')return renderAdmin(req,env);
     if(u.pathname==='/api/admin/generate-now'&&req.method==='POST'){
       if(!(await isAdmin(req,env)))return json({error:'unauthorized'},401);
       return json(await runOnce(env,{manual:true}));
