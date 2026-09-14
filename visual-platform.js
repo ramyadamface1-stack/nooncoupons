@@ -1,4 +1,5 @@
 import app from './platform.js';
+export {ControlPlane} from './platform.js';
 import {couponSvg,featuredSvg,noonUrl} from './svg-engine.js';
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
