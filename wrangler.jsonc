@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nooncoupons",
-  "main": "site.js",
+  "main": "seo-layer.js",
   "compatibility_date": "2026-09-13",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
