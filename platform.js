@@ -1,6 +1,10 @@
 import publicApp from './seo-layer.js';
 import {QUALITY_CRITERIA, QUALITY_CRITERIA_COUNT} from './quality-criteria.js';
 import {SEED_ARTICLES} from './seed-articles.js';
+import {SEED_BATCH_A} from './seed-batch-a.js';
+import {SEED_BATCH_B} from './seed-batch-b.js';
+import {SEED_BATCH_C} from './seed-batch-c.js';
+const ALL_SEED_ARTICLES=[...SEED_ARTICLES,...SEED_BATCH_A,...SEED_BATCH_B,...SEED_BATCH_C];
 
 const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
 const LIVE_MARKETS=['SA','AE'];
@@ -36,7 +40,7 @@ async function seedIfNeeded(env){
   const s=await state(env);
   const existing=new Set((s.articles||[]).map(a=>a.slug));
   let seeded=0;
-  for(const a of SEED_ARTICLES){
+  for(const a of ALL_SEED_ARTICLES){
     if(existing.has(a.slug))continue;
     const audit=auditArticle({...a,minWords:1000});
     const rec={id:crypto.randomUUID(),slug:a.slug,title:a.title,metaDescription:a.metaDescription,country:a.country,coupon:a.coupon,status:'published',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:audit.evidenceCoverage,provider:'manual-openai-seed'};
@@ -44,7 +48,7 @@ async function seedIfNeeded(env){
     await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});
     existing.add(a.slug); seeded++;
   }
-  return {seeded,totalSeedArticles:SEED_ARTICLES.length};
+  return {seeded,totalSeedArticles:ALL_SEED_ARTICLES.length};
 }
 async function blogPage(env){
   await seedIfNeeded(env);
