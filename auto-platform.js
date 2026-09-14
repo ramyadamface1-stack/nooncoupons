@@ -2,10 +2,19 @@ import app from './final-platform.js';
 export {ControlPlane} from './platform.js';
 export {GeneratorControl} from './admin-runtime.js';
 import {adminPage,handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin} from './admin-runtime.js';
-import {readState,pickTopic,generateArticle,publishGenerated} from './generator-core.js';
+import {readState,pickTopic,generateArticle,publishGenerated,auditGenerated} from './generator-core.js';
 
 const now=()=>new Date().toISOString();
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+
+function hardenFallback(out,topic,cfg){
+  if(out.audit.productionReady||!String(out.provider).startsWith('local-fallback'))return out;
+  let h=String(out.article.html||'');
+  const extras=`<section class="coupon-action"><h2>جرّب الكود على السلة الفعلية</h2><p>انسخ الكود <strong>${topic.code}</strong> ثم افتح نون وتحقق من النتيجة داخل السلة قبل الدفع.</p><button type="button" data-copy-code="${topic.code}">نسخ الكود ${topic.code}</button> <a href="https://www.noon.com/" rel="noopener external sponsored">Try it on Noon</a></section>`;
+  if(!/https:\/\/www\.noon\.com\//i.test(h))h=h.replace(/<\/article>\s*$/i,extras+'</article>');
+  else if(!/data-copy-code/i.test(h))h=h.replace(/<\/article>\s*$/i,extras+'</article>');
+  out.article.html=h;out.audit=auditGenerated(out.article,topic,cfg);return out;
+}
 
 async function runOnce(env,{manual=false}={}){
   const cfg=await getGeneratorConfig(env);
@@ -16,7 +25,8 @@ async function runOnce(env,{manual=false}={}){
   try{
     const st=await readState(env),topic=pickTopic(st,attempt);
     if(!topic)throw new Error('topic_pool_exhausted');
-    const out=await generateArticle(env,topic,cfg,st,attempt);
+    let out=await generateArticle(env,topic,cfg,st,attempt);
+    out=hardenFallback(out,topic,cfg);
     if(!out.audit.productionReady)throw new Error('quality_gate_'+out.audit.score+'_words_'+out.audit.wordCount);
     const rec=await publishGenerated(env,out.article,topic,out.audit,out.provider);
     const next={attempts:attempt+1,published:Number(status.published||0)+1,failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:null,lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:out.provider,lastDurationMs:Date.now()-started};
