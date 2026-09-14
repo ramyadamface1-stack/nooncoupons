@@ -3,16 +3,12 @@
   "name": "nooncoupons",
   "main": "site.js",
   "compatibility_date": "2026-09-13",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "minify": true,
-  "triggers": {
-    "crons": [
-      "*/5 * * * *"
-    ]
-  },
+  "d1_databases": [{"binding": "CONTROL_DB_V2"}],
+  "r2_buckets": [{"binding": "CONTENT_V2"}],
+  "triggers": {"crons": ["*/5 * * * *"]},
   "vars": {
     "SITE_ORIGIN": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
     "SITE_NAME": "كوبونات نون",
@@ -28,7 +24,5 @@
     "AUTO_REPAIR_ROUNDS": "2",
     "INDEXNOW_ENABLED": "false"
   },
-  "observability": {
-    "enabled": true
-  }
+  "observability": {"enabled": true}
 }
