@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nooncoupons",
-  "main": "visual-platform.js",
+  "main": "final-platform.js",
   "compatibility_date": "2026-09-13",
   "compatibility_flags": [
     "nodejs_compat"
