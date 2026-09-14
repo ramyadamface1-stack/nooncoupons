@@ -1,2 +1,5 @@
 # Noon Coupons
-Cloudflare Worker bootstrap for Noon Saudi Arabia and UAE coupons. Egypt market is reserved but hidden until launch.
+
+Cloudflare-native Noon coupons platform for Saudi Arabia and UAE. Egypt is planned and hidden until launch.
+
+Current premium public release: v4.
