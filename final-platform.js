@@ -16,18 +16,28 @@ export default{
       const published=(s.articles||[]).filter(a=>a.status==='published');
       return json({
         ok:true,
+        version:'visual-v3',
         svgEngine:true,
-        visualsPerArticle:5,
+        featuredImagePerArticle:1,
+        couponVisualsPerArticle:5,
+        totalVisualsPerArticle:6,
         publishedArticles:published.length,
-        expectedSvgAssets:published.length*5,
+        expectedFeaturedImages:published.length,
+        expectedCouponSvgAssets:published.length*5,
+        expectedTotalVisualAssets:published.length*6,
         markets:[...new Set(published.map(a=>a.country))],
+        blogThumbnails:true,
+        articleFeaturedImages:true,
+        ogImages:true,
+        twitterImages:true,
+        imageSchema:true,
         cache:'Cloudflare Cache API + immutable browser cache',
         clickTarget:'https://www.noon.com/',
         templateText:{discount:'10% OFF',audience:'SAVE 10% • NEW & EXISTING USERS'},
         time:new Date().toISOString()
       });
     }
-    if(u.pathname.startsWith('/assets/coupon-svg/')&&req.method==='GET'){
+    if((u.pathname.startsWith('/assets/coupon-svg/')||u.pathname.startsWith('/assets/featured/'))&&req.method==='GET'){
       const cache=caches.default;
       const cached=await cache.match(req);
       if(cached)return cached;
