@@ -20,6 +20,7 @@ jobs:
           node --check quality-audit.js
           node --check quality-index.js
           node --check coupon-registry.js
+          node --check schema-validator.js
           node --check bulk-content-engine.js
           node --check bulk-generator.js
           node --check bulk-selftest.js
@@ -27,5 +28,8 @@ jobs:
           grep -Fq "coupon_registry_stale" coupon-registry.js
           grep -Fq "global_semantic_collision" quality-index.js
           grep -Fq "contextual-links" quality-index.js
+          grep -Fq "invalid_jsonld" schema-validator.js
+          grep -Fq "bulk_auto_brake_engaged" bulk-generator.js
+          grep -Fq "bulkSchemaGateVersion" bulk-generator.js
       - name: Audit 40 diversified bulk samples
         run: node bulk-selftest.js
