@@ -1,4 +1,5 @@
 import {buildBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO} from './bulk-content-engine.js';
+import {applyKeywordStrategy,KEYWORD_STRATEGY_INFO} from './keyword-strategy.js';
 import {auditSeoArticle,auditSummary} from './quality-audit.js';
 import {loadCluster,bootstrapGlobalIndex,globalGate,pickRelated,injectContextualLinks,addToCluster,flushClusters,clusterKey,GLOBAL_INDEX_INFO} from './quality-index.js';
 import {couponStatus,injectCouponFreshness,writeCouponFreshnessSnapshot,COUPON_REGISTRY_INFO} from './coupon-registry.js';
@@ -30,7 +31,7 @@ async function writeCatalogs(env,day,countBefore,records){
   const latest=await readJson(env,'bulk/latest.json',{version:2,articles:[]});
   const seen=new Set(records.map(r=>r.slug));
   const merged=[...records.slice().reverse(),...(latest.articles||[]).filter(r=>!seen.has(r.slug))].slice(0,MAX_LATEST);
-  await env.CONTENT_FINAL.put('bulk/latest.json',JSON.stringify({version:2,engine:BULK_ENGINE_INFO.version,qualityLayer:'global-quality-v1',indexationPolicy:INDEXATION_GATE_INFO.policy,updatedAt:now(),articles:merged}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+  await env.CONTENT_FINAL.put('bulk/latest.json',JSON.stringify({version:2,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,qualityLayer:'global-quality-v1',indexationPolicy:INDEXATION_GATE_INFO.policy,updatedAt:now(),articles:merged}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
 
   const groups=new Map();
   records.forEach((r,i)=>{const shard=Math.floor((countBefore+i)/SHARD_SIZE);if(!groups.has(shard))groups.set(shard,[]);groups.get(shard).push(r)});
@@ -39,12 +40,12 @@ async function writeCatalogs(env,day,countBefore,records){
     const current=await readJson(env,key,{version:2,day,shard,articles:[]});
     const have=new Set((current.articles||[]).map(r=>r.slug));
     const articles=[...(current.articles||[]),...items.filter(r=>!have.has(r.slug))];
-    await env.CONTENT_FINAL.put(key,JSON.stringify({version:2,engine:BULK_ENGINE_INFO.version,qualityLayer:'global-quality-v1',indexationPolicy:INDEXATION_GATE_INFO.policy,day,shard,updatedAt:now(),articles}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+    await env.CONTENT_FINAL.put(key,JSON.stringify({version:2,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,qualityLayer:'global-quality-v1',indexationPolicy:INDEXATION_GATE_INFO.policy,day,shard,updatedAt:now(),articles}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
   }
 
   const days=await readJson(env,'bulk/days.json',{version:2,days:[]});
   const newCount=countBefore+records.length;
-  const row={day,count:newCount,shards:Math.ceil(newCount/SHARD_SIZE),engine:BULK_ENGINE_INFO.version,qualityLayer:'global-quality-v1',indexationPolicy:INDEXATION_GATE_INFO.policy,updatedAt:now()};
+  const row={day,count:newCount,shards:Math.ceil(newCount/SHARD_SIZE),engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,qualityLayer:'global-quality-v1',indexationPolicy:INDEXATION_GATE_INFO.policy,updatedAt:now()};
   const next=[row,...(days.days||[]).filter(x=>x.day!==day)].sort((a,b)=>String(b.day).localeCompare(String(a.day))).slice(0,3650);
   await env.CONTENT_FINAL.put('bulk/days.json',JSON.stringify({version:2,updatedAt:now(),days:next}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
 }
@@ -55,8 +56,8 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   if(Number.isFinite(pauseUntil)&&pauseUntil>Date.now())return {ok:true,skipped:'bulk_auto_brake',records:[],patch:{bulkLastRun:now(),bulkLastError:null,bulkAutoPauseUntil:status.bulkAutoPauseUntil,bulkNoPassStreak:Number(status.bulkNoPassStreak||0)}};
 
   const day=now().slice(0,10),countBefore=String(status.bulkDay||'')===day?Math.max(0,Number(status.bulkPublishedToday||0)):0,target=Math.max(0,Math.min(5000,Number(dailyTarget??2000))),batch=Math.max(1,Math.min(5,Number(batchSize||3)));
-  if(target===0)return {ok:true,skipped:'bulk_paused',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:0,bulkLastRun:now(),bulkLastError:null,bulkEngine:BULK_ENGINE_INFO.version}};
-  if(countBefore>=target)return {ok:true,skipped:'daily_target_reached',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:target,bulkLastRun:now(),bulkLastError:null,bulkEngine:BULK_ENGINE_INFO.version}};
+  if(target===0)return {ok:true,skipped:'bulk_paused',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:0,bulkLastRun:now(),bulkLastError:null,bulkEngine:BULK_ENGINE_INFO.version,bulkKeywordStrategyVersion:KEYWORD_STRATEGY_INFO.version}};
+  if(countBefore>=target)return {ok:true,skipped:'daily_target_reached',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:target,bulkLastRun:now(),bulkLastError:null,bulkEngine:BULK_ENGINE_INFO.version,bulkKeywordStrategyVersion:KEYWORD_STRATEGY_INFO.version}};
 
   let bootstrap=null;
   if(Number(status.bulkGlobalIndexBootstrapVersion||0)!==GLOBAL_INDEX_INFO.version)bootstrap=await bootstrapGlobalIndex(env);
@@ -69,7 +70,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   while(records.length<batch&&countBefore+records.length<target&&tries<batch*18){
     const currentCursor=cursor++;
     tries++;
-    const topic=buildBulkTopic(currentCursor),coupon=couponStatus(topic);
+    const topic=applyKeywordStrategy(buildBulkTopic(currentCursor)),coupon=couponStatus(topic);
     if(!coupon.publishAllowed){rejectedCoupon++;continue}
 
     const cluster=await loadCluster(env,topic,clusterCache);
@@ -101,7 +102,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     const rec={
       slug:article.slug,title:article.title,metaDescription:article.metaDescription,country:topic.country,coupon:topic.code,status:'published',createdAt,updatedAt:createdAt,indexable:true,
       quality:audit.score,qualityGroups:audit.groups,qualityFloor:audit.groupFloor,qualityChecks:audit.measuredChecks,provider:BULK_ENGINE_INFO.version,
-      primaryKeyword:topic.kw,wordCount:audit.wordCount,signature:audit.signature,blueprint:article.blueprint,topicIndex:topic.topicIndex,
+      primaryKeyword:topic.kw,keywordStrategy:KEYWORD_STRATEGY_INFO.version,keywordWordCount:topic.keywordWordCount,searchIntentFamily:topic.searchIntentFamily,wordCount:audit.wordCount,signature:audit.signature,blueprint:article.blueprint,topicIndex:topic.topicIndex,
       category:topic.category,profileKey:topic.profileKey,intent:topic.intent,intentLabel:topic.intentLabel,useCase:topic.useCase,factor:topic.factor,scenario:topic.scenario,
       contentPolicy:'helpful-quality-first-global',p0:[],auditSummary:summary,
       globalQuality:{indexVersion:GLOBAL_INDEX_INFO.version,clusterKey:clusterKey(topic),indexSizeBefore:gg.indexSize,minDistance:gg.minDistance,maxKeywordSimilarity:gg.maxKeywordSimilarity,intentKey:gg.intentKey},
@@ -114,7 +115,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
 
     await env.CONTENT_FINAL.put(key,String(article.html||''),{
       httpMetadata:{contentType:'text/html; charset=utf-8'},
-      customMetadata:{t:enc(rec.title),m:enc(rec.metaDescription),c:rec.country,cp:rec.coupon,q:String(rec.quality),qf:String(rec.qualityFloor),qc:String(rec.qualityChecks),p:rec.provider,kw:enc(rec.primaryKeyword),sig:rec.signature,bp:String(rec.blueprint),at:createdAt,status:'published',qv:'global-quality-v1',cf:coupon.state,sg:String(SCHEMA_GATE_INFO.version),ig:String(INDEXATION_GATE_INFO.version),ix:'1',et:String(EDITORIAL_TRUST_INFO.version)}
+      customMetadata:{t:enc(rec.title),m:enc(rec.metaDescription),c:rec.country,cp:rec.coupon,q:String(rec.quality),qf:String(rec.qualityFloor),qc:String(rec.qualityChecks),p:rec.provider,kw:enc(rec.primaryKeyword),ks:KEYWORD_STRATEGY_INFO.version,sig:rec.signature,bp:String(rec.blueprint),at:createdAt,status:'published',qv:'global-quality-v1',cf:coupon.state,sg:String(SCHEMA_GATE_INFO.version),ig:String(INDEXATION_GATE_INFO.version),ix:'1',et:String(EDITORIAL_TRUST_INFO.version)}
     });
     records.push(rec);
     addToCluster(cluster,rec,topic);dirtyKeys.add(clusterKey(topic));
@@ -133,7 +134,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     bulkDay:day,bulkPublishedToday:countBefore+records.length,bulkPublishedTotal:total,bulkDailyTarget:target,bulkCursorV2:cursor,bulkLastRun:now(),
     bulkLastError:records.length?'':(autoPauseUntil?'bulk_auto_brake_engaged':'quality_gate_no_article_passed'),bulkLastSlug:last?.slug||status.bulkLastSlug||null,
     bulkLastQuality:last?.quality??status.bulkLastQuality??null,bulkLastQualityFloor:last?.qualityFloor??status.bulkLastQualityFloor??null,bulkLastWordCount:last?.wordCount??status.bulkLastWordCount??null,
-    bulkLastGroups:last?.qualityGroups||status.bulkLastGroups||null,bulkLastSignature:last?.signature||status.bulkLastSignature||null,bulkEngine:BULK_ENGINE_INFO.version,
+    bulkLastGroups:last?.qualityGroups||status.bulkLastGroups||null,bulkLastSignature:last?.signature||status.bulkLastSignature||null,bulkEngine:BULK_ENGINE_INFO.version,bulkKeywordStrategyVersion:KEYWORD_STRATEGY_INFO.version,
     bulkQualityLayer:'global-quality-v1',bulkGlobalIndexVersion:GLOBAL_INDEX_INFO.version,bulkCouponRegistryVersion:COUPON_REGISTRY_INFO.version,bulkSchemaGateVersion:SCHEMA_GATE_INFO.version,bulkIndexationGateVersion:INDEXATION_GATE_INFO.version,bulkEditorialTrustVersion:EDITORIAL_TRUST_INFO.version,
     bulkGlobalIndexBootstrapVersion:bootstrap?.complete?GLOBAL_INDEX_INFO.version:Number(status.bulkGlobalIndexBootstrapVersion||0),bulkGlobalIndexBootstrapAt:bootstrap?.bootstrappedAt||status.bulkGlobalIndexBootstrapAt||null,bulkGlobalIndexBootstrapArticles:bootstrap?.eligibleArticles??status.bulkGlobalIndexBootstrapArticles??null,bulkGlobalIndexBootstrapClusters:bootstrap?.clusterWrites??status.bulkGlobalIndexBootstrapClusters??null,
     bulkLastIndexationScore:last?.indexation?.score??status.bulkLastIndexationScore??null,bulkLastIndexable:last?.indexable??status.bulkLastIndexable??null,
@@ -144,7 +145,8 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     bulkRejectedQuality:Number(status.bulkRejectedQuality||0)+rejectedQuality,bulkRejectedDuplicate:Number(status.bulkRejectedDuplicate||0)+rejectedDuplicate,
     bulkRejectedGlobal:Number(status.bulkRejectedGlobal||0)+rejectedGlobal,bulkRejectedCoupon:Number(status.bulkRejectedCoupon||0)+rejectedCoupon,bulkRejectedLinks:Number(status.bulkRejectedLinks||0)+rejectedLinks,bulkRejectedSchema:Number(status.bulkRejectedSchema||0)+rejectedSchema,bulkRejectedIndexation:Number(status.bulkRejectedIndexation||0)+rejectedIndexation
   };
-  return {ok:true,engine:BULK_ENGINE_INFO.version,qualityLayer:'global-quality-v1',bootstrap,indexNow,records,tries,rejectedQuality,rejectedDuplicate,rejectedGlobal,rejectedCoupon,rejectedLinks,rejectedSchema,rejectedIndexation,freshnessSnapshot,patch};
+  return {ok:true,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,qualityLayer:'global-quality-v1',bootstrap,indexNow,records,tries,rejectedQuality,rejectedDuplicate,rejectedGlobal,rejectedCoupon,rejectedLinks,rejectedSchema,rejectedIndexation,freshnessSnapshot,patch};
 }
 
-export {buildBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO,SCHEMA_GATE_INFO,INDEXATION_GATE_INFO,EDITORIAL_TRUST_INFO,INDEXNOW_INFO};
+export {buildBulkTopic as buildRawBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO,SCHEMA_GATE_INFO,INDEXATION_GATE_INFO,EDITORIAL_TRUST_INFO,INDEXNOW_INFO,KEYWORD_STRATEGY_INFO};
+export const buildBulkTopic=(cursor=0)=>applyKeywordStrategy((awaitableBuild=>awaitableBuild)(buildRawBulkTopic(cursor)));
