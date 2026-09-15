@@ -3,6 +3,7 @@ import {signatureDistance} from './quality-audit.js';
 const VERSION=1;
 const MAX_CLUSTER_ENTRIES=25000;
 const MAX_RELATED=6;
+const BOOTSTRAP_MAX_DAYS=7;
 const STOP=new Set(['من','على','في','الى','إلى','عن','مع','عند','قبل','بعد','نون','السعودية','الامارات','الإمارات','كود','خصم','طريقة','شراء','استخدام','دليل','هل','يعمل']);
 
 const now=()=>new Date().toISOString();
@@ -34,6 +35,44 @@ export async function loadCluster(env,topic,cache=new Map()){
   try{const o=env?.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;if(o)data=await o.json()}catch{}
   if(!Array.isArray(data.entries))data.entries=[];
   cache.set(key,data);return data;
+}
+
+function compactEntry(rec){
+  if(!rec?.slug||!rec?.primaryKeyword||!rec?.country||!rec?.category)return null;
+  return {slug:rec.slug,title:rec.title||rec.primaryKeyword,primaryKeyword:rec.primaryKeyword,signature:rec.signature||null,country:rec.country,category:rec.category,intent:rec.intent||'',intentLabel:rec.intentLabel||'',intentKey:intentKey(rec),createdAt:rec.createdAt||rec.updatedAt||now()};
+}
+
+async function r2json(env,key,fallback){try{const o=env?.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
+
+export async function bootstrapGlobalIndex(env){
+  if(!env?.CONTENT_FINAL)return {version:VERSION,complete:false,error:'r2_missing'};
+  const manifestKey=`quality/global-index/v${VERSION}/bootstrap.json`;
+  const old=await r2json(env,manifestKey,null);
+  if(old?.complete&&Number(old.version)===VERSION)return old;
+  const daysIndex=await r2json(env,'bulk/days.json',{days:[]});
+  const days=(daysIndex.days||[]).slice(0,BOOTSTRAP_MAX_DAYS);
+  const groups=new Map();let scanned=0,eligible=0,shardsRead=0;
+  for(const d of days){
+    const shards=Math.max(0,Number(d.shards||Math.ceil(Number(d.count||0)/100)));
+    for(let shard=0;shard<shards;shard++){
+      const cat=await r2json(env,`bulk/day/${d.day}/${shard}.json`,{articles:[]});shardsRead++;
+      for(const rec of cat.articles||[]){
+        scanned++;const entry=compactEntry(rec);if(!entry)continue;eligible++;
+        const key=clusterKey(entry);if(!groups.has(key))groups.set(key,{topic:entry,entries:[]});groups.get(key).entries.push(entry);
+      }
+    }
+  }
+  let clusterWrites=0,indexed=0;
+  for(const [key,g] of groups){
+    const existing=await r2json(env,key,emptyCluster(g.topic));
+    const seen=new Set(),merged=[];
+    for(const e of [...g.entries,...(existing.entries||[])]){if(!e?.slug||seen.has(e.slug))continue;seen.add(e.slug);merged.push(e);if(merged.length>=MAX_CLUSTER_ENTRIES)break}
+    existing.version=VERSION;existing.country=g.topic.country;existing.category=g.topic.category;existing.updatedAt=now();existing.entries=merged;
+    await env.CONTENT_FINAL.put(key,JSON.stringify(existing),{httpMetadata:{contentType:'application/json; charset=utf-8'}});clusterWrites++;indexed+=g.entries.length;
+  }
+  const manifest={version:VERSION,complete:true,bootstrappedAt:now(),daysScanned:days.map(x=>x.day),daysAvailable:(daysIndex.days||[]).length,shardsRead,articlesScanned:scanned,eligibleArticles:eligible,indexedArticles:indexed,clusterWrites,maxDays:BOOTSTRAP_MAX_DAYS};
+  await env.CONTENT_FINAL.put(manifestKey,JSON.stringify(manifest),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+  return manifest;
 }
 
 export function globalGate(article,topic,audit,cluster){
@@ -88,4 +127,4 @@ export async function flushClusters(env,cache,dirtyKeys){
   for(const key of dirtyKeys){const c=cache.get(key);if(!c)continue;await env.CONTENT_FINAL.put(key,JSON.stringify(c),{httpMetadata:{contentType:'application/json; charset=utf-8'}})}
 }
 
-export const GLOBAL_INDEX_INFO={version:VERSION,maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:5,cannibalizationSimilarityMax:0.82,relatedLinksMax:MAX_RELATED};
+export const GLOBAL_INDEX_INFO={version:VERSION,maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:5,cannibalizationSimilarityMax:0.82,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS};
