@@ -16,10 +16,23 @@ jobs:
       - uses: actions/checkout@v4
       - name: Source checks
         run: |
+          node --check arabic-search.js
           node --check topic-hubs.js
           grep -Fq "search:'/topics/search/:query'" topic-hubs.js
-          grep -Fq "x-topic-search':'v1" topic-hubs.js
+          grep -Fq "x-topic-search':'v2" topic-hubs.js
+          grep -Fq "x-arabic-search':String(ARABIC_SEARCH_INFO.version)" topic-hubs.js
           grep -Fq "'&quot;'" topic-hubs.js
+          node --input-type=module - <<'JS'
+          import {normalizeArabicSearch,matchesArabicSearch,arabicSearchTokens,ARABIC_SEARCH_INFO} from './arabic-search.js';
+          if(normalizeArabicSearch('إكسسوارات أَجهزة')!=='اكسسوارات اجهزة')throw new Error('alef_or_diacritics_normalization_failed');
+          if(normalizeArabicSearch('على')!=='علي')throw new Error('alef_maqsura_normalization_failed');
+          if(!matchesArabicSearch('أفضل أجهزة منزلية على نون الإمارات','اجهزة'))throw new Error('hamza_insensitive_match_failed');
+          if(!matchesArabicSearch('دليل شراء جوالات من نون السعودية','السعودية جوالات'))throw new Error('multi_token_order_independent_match_failed');
+          if(matchesArabicSearch('دليل شراء جوالات من نون السعودية','السعودية لابتوبات'))throw new Error('all_tokens_requirement_failed');
+          if(arabicSearchTokens('نون نون السعودية').join('|')!=='نون|السعودية')throw new Error('token_dedupe_failed');
+          if(ARABIC_SEARCH_INFO.version!==1)throw new Error('search_version_failed');
+          console.log('ARABIC_SEARCH_UNIT_PASS');
+          JS
       - name: Live search checks
         shell: bash
         run: |
@@ -27,14 +40,15 @@ jobs:
           ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
           ready=0
           for i in $(seq 1 12); do
-            code="$(curl -sS -o /tmp/search.html -D /tmp/search.headers -w '%{http_code}' --max-time 20 "$ORIGIN/topics/search/%D9%86%D9%88%D9%86" || true)"
-            if [ "$code" = "200" ] && grep -Fq 'x-topic-search' /tmp/search.headers && grep -Fq 'data-topic-search' /tmp/search.html; then ready=1; break; fi
+            code="$(curl -sS -o /tmp/search.html -D /tmp/search.headers -w '%{http_code}' --max-time 20 "$ORIGIN/topics/search/%D8%A7%D8%AC%D9%87%D8%B2%D8%A9?search-ui=v4" || true)"
+            if [ "$code" = "200" ] && grep -Fqi 'x-topic-search: v2' /tmp/search.headers && grep -Fqi 'x-arabic-search: 1' /tmp/search.headers && grep -Fq 'data-topic-search' /tmp/search.html; then ready=1; break; fi
             sleep 5
           done
           [ "$ready" = 1 ]
           tr -d '\r' </tmp/search.headers | grep -iq '^x-robots-tag: noindex, follow$'
           grep -Fq 'نتائج البحث عن:' /tmp/search.html
+          grep -Fq 'بحث عربي مرن' /tmp/search.html
           grep -Fq '<meta name="robots" content="noindex,follow">' /tmp/search.html
-          curl -fsS --max-time 20 "$ORIGIN/topics/buying-guides?search-ui=v3" -o /tmp/hub.html
+          curl -fsS --max-time 20 "$ORIGIN/topics/buying-guides?search-ui=v4" -o /tmp/hub.html
           grep -Fq 'data-topic-search' /tmp/hub.html
           echo TOPIC_SEARCH_LIVE_PASS
