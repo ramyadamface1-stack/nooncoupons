@@ -1,5 +1,6 @@
 import app from './auto-platform.js';
 import {applyKeywordMap,keywordLanding,augmentKeywordSitemap,KEYWORD_MAP_VERSION} from './keyword-pages.js';
+import {topicLanding,topicSitemap,augmentWithTopicSitemap,topicNavHtml,TOPIC_HUB_INFO} from './topic-hubs.js';
 export {ControlPlane,GeneratorControl} from './auto-platform.js';
 
 const LEGACY_ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev';
@@ -51,7 +52,7 @@ async function enhanceArticle(req,env,res){
   const isAE=md.c==='AE',market=isAE?'الإمارات':'السعودية',lang=isAE?'ar-AE':'ar-SA';
   const canonical=origin+'/articles/'+enc(slug);
   const add=`<meta name="author" content="فريق تحرير كوبونات نون"><meta property="og:site_name" content="كوبونات نون"><meta property="article:published_time" content="${esc(published)}"><meta property="article:modified_time" content="${esc(modified)}"><meta property="article:section" content="نون ${market}"><link rel="alternate" hreflang="${lang}" href="${esc(canonical)}"><link rel="alternate" hreflang="x-default" href="${esc(canonical)}"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}">`;
-  return injectHead(res,add,'article-v4',lang);
+  return injectHead(res,add,'article-v5',lang);
 }
 
 async function enhanceBlog(req,env,res){
@@ -62,7 +63,7 @@ async function enhanceBlog(req,env,res){
     {'@type':'ItemList','@id':origin+'/blog#items',name:'أحدث أدلة كوبونات نون',numberOfItems:rows.length,itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+'/articles/'+enc(a.slug),name:a.title||a.primaryKeyword||a.slug}))}
   ]};
   const add=`<meta property="og:type" content="website"><meta property="og:site_name" content="كوبونات نون"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}"><script type="application/ld+json" data-schema="blog-collection">${safeJson(graph)}</script>`;
-  return injectHead(res,add,'blog-v4','ar');
+  return injectHead(res,add,'blog-v5','ar');
 }
 
 async function keywordLayer(req,env,res){
@@ -72,9 +73,18 @@ async function keywordLayer(req,env,res){
   if(!(type.includes('text/html')||type.includes('xml')))return res;
   let text=await res.text();
   if(type.includes('text/html'))text=applyKeywordMap(path,text,origin);
-  if(type.includes('xml'))text=augmentKeywordSitemap(path,text,origin);
-  const h=new Headers(res.headers);h.delete('content-length');h.set('x-keyword-map',KEYWORD_MAP_VERSION);
+  if(type.includes('xml')){text=augmentKeywordSitemap(path,text,origin);text=augmentWithTopicSitemap(path,text,origin)}
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-keyword-map',KEYWORD_MAP_VERSION);h.set('x-topic-hubs',String(TOPIC_HUB_INFO.version));
   return new Response(text,{status:res.status,statusText:res.statusText,headers:h});
+}
+
+async function topicNavLayer(req,res){
+  const path=new URL(req.url).pathname.replace(/\/+$/,'')||'/';
+  if(!['/','/blog'].includes(path)||!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
+  let html=await res.text();
+  if(!html.includes('id="premium-topic-hubs"'))html=html.replace(/<\/body>/i,topicNavHtml()+'</body>');
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-topic-nav','v1');
+  return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
 async function polishAndCanonicalize(req,env,res){
@@ -100,11 +110,14 @@ export default{
   async fetch(req,env,ctx){
     const runtimeEnv=requestOriginEnv(req,env);
     const u=new URL(req.url),path=u.pathname.replace(/\/+$/,'')||'/',origin=runtimeEnv.SITE_ORIGIN||u.origin;
-    let res=req.method==='GET'?keywordLanding(path,origin):null;
+    if(req.method==='GET'&&path==='/sitemap-topics.xml')return hardened(await polishAndCanonicalize(req,runtimeEnv,topicSitemap(origin)));
+    let res=req.method==='GET'?await topicLanding(path,origin,runtimeEnv):null;
+    if(!res)res=req.method==='GET'?keywordLanding(path,origin):null;
     if(!res)res=await app.fetch(req,runtimeEnv,ctx);
     if(req.method==='GET'&&u.pathname.startsWith('/articles/'))res=await enhanceArticle(req,runtimeEnv,res);
     else if(req.method==='GET'&&u.pathname==='/blog')res=await enhanceBlog(req,runtimeEnv,res);
     res=await keywordLayer(req,runtimeEnv,res);
+    res=await topicNavLayer(req,res);
     res=await polishAndCanonicalize(req,runtimeEnv,res);
     return hardened(res);
   },
