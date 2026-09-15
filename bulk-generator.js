@@ -121,7 +121,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   const batch=Math.max(1,Math.min(5,Number(batchSize||2)));
   if(countBefore>=target)return {ok:true,skipped:'daily_target_reached',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:target,bulkLastRun:now(),bulkLastError:null}};
 
-  let cursor=Math.max(0,Number(status.bulkCursor||0)),tries=0;
+  let cursor=Math.max(1000,Number(status.bulkCursor||0)),tries=0;
   const records=[];
   while(records.length<batch&&countBefore+records.length<target&&tries<batch*10){
     const currentCursor=cursor++;
