@@ -1,4 +1,5 @@
 import {GENERATOR_DEFAULTS,readState} from './generator-core-v2.js';
+import {runProgrammaticBatch} from './bulk-generator.js';
 
 const ADMIN_EMAIL='ramyshahin02@gmail.com';
 const now=()=>new Date().toISOString();
@@ -10,12 +11,14 @@ function cookie(req,name){const raw=req.headers.get('cookie')||'';for(const p of
 async function body(req){try{return await req.json()}catch{return {}}}
 async function gctl(env,path,init){const id=env.GENERATOR_CONTROL.idFromName('primary');return env.GENERATOR_CONTROL.get(id).fetch('https://generator.internal'+path,init)}
 async function ctl(env,path,init){const id=env.CONTROL.idFromName('primary');return env.CONTROL.get(id).fetch('https://control.internal'+path,init)}
+async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
 
 export async function getGeneratorConfig(env){return (await gctl(env,'/config')).json()}
 export async function getGeneratorStatus(env){return (await gctl(env,'/status')).json()}
 export async function updateGeneratorStatus(env,patch){return (await gctl(env,'/status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(patch)})).json()}
 export async function generatorLock(env,runId){return gctl(env,'/lock',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId})})}
 export async function generatorUnlock(env,runId){return gctl(env,'/unlock',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId})})}
+export async function bulkTick(env){const r=await gctl(env,'/bulk-tick',{method:'POST'});return r.json()}
 
 export class GeneratorControl{
   constructor(ctx,env){this.ctx=ctx;this.env=env}
@@ -32,7 +35,7 @@ export class GeneratorControl{
     if(dirty)await this.ctx.storage.put('config',c);
     return c;
   }
-  async status(){return (await this.ctx.storage.get('status'))||{attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[]}}
+  async status(){return (await this.ctx.storage.get('status'))||{attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkPublishedTotal:0,bulkPublishedToday:0,bulkCursor:0}}
   async fetch(req){
     const u=new URL(req.url),p=u.pathname;
     if(p==='/config'&&req.method==='GET')return json(await this.config());
@@ -50,6 +53,21 @@ export class GeneratorControl{
       const b=await req.json(),s={...(await this.status()),...b};
       s.recent=[{at:now(),ok:!b.lastError,slug:b.lastSlug||null,error:b.lastError||null},...(s.recent||[])].slice(0,100);
       await this.ctx.storage.put('status',s);return json(s);
+    }
+    if(p==='/bulk-tick'&&req.method==='POST'){
+      const status=await this.status(),runningAt=Date.parse(status.bulkRunningAt||'');
+      if(Number.isFinite(runningAt)&&Date.now()-runningAt<55000)return json({ok:true,skipped:'bulk_already_running',bulkPublishedToday:Number(status.bulkPublishedToday||0)});
+      const cfg=await this.config(),locked={...status,bulkRunningAt:now()};
+      await this.ctx.storage.put('status',locked);
+      try{
+        const out=await runProgrammaticBatch(this.env,cfg,locked,{dailyTarget:Number(this.env.BULK_DAILY_TARGET||2000),batchSize:Number(this.env.BULK_BATCH_SIZE||2)});
+        const next={...locked,...(out.patch||{}),bulkRunningAt:null};
+        await this.ctx.storage.put('status',next);
+        return json({...out,summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||this.env.BULK_DAILY_TARGET||2000),bulkCursor:Number(next.bulkCursor||0)}});
+      }catch(e){
+        const next={...locked,bulkRunningAt:null,bulkLastRun:now(),bulkLastError:String(e?.message||e)};
+        await this.ctx.storage.put('status',next);return json({ok:false,error:next.bulkLastError},500);
+      }
     }
     if(p==='/lock'&&req.method==='POST'){
       const b=await req.json(),lock=await this.ctx.storage.get('lock');
@@ -82,7 +100,8 @@ export async function handleAdminApi(req,env){
   }
   if(p==='/api/admin/status'){
     const [cfg,gs,st]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env),readState(env)]);
-    return json({articleCount:(st.articles||[]).length,publishedCount:(st.articles||[]).filter(x=>x.status==='published').length,workersAIReady:Boolean(env.AI),externalProviders:false,config:cfg,generator:gs});
+    const bulkTotal=Math.max(0,Number(gs.bulkPublishedTotal||0));
+    return json({articleCount:(st.articles||[]).length+bulkTotal,publishedCount:(st.articles||[]).filter(x=>x.status==='published').length+bulkTotal,workersAIReady:Boolean(env.AI),externalProviders:false,bulk:{publishedToday:Number(gs.bulkPublishedToday||0),publishedTotal:bulkTotal,dailyTarget:Number(gs.bulkDailyTarget||env.BULK_DAILY_TARGET||2000),lastRun:gs.bulkLastRun||null,lastError:gs.bulkLastError||null},config:cfg,generator:gs});
   }
   if(p==='/api/admin/generator'&&req.method==='POST'){
     const b=await body(req),allowed={};
@@ -90,11 +109,13 @@ export async function handleAdminApi(req,env){
     return gctl(env,'/config',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(allowed)});
   }
   if(p==='/api/admin/articles'){
-    const st=await readState(env);return json({articles:(st.articles||[]).sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')))});
+    const [st,latest]=await Promise.all([readState(env),r2json(env,'bulk/latest.json',{articles:[]})]);
+    const articles=[...(latest.articles||[]),...(st.articles||[])].sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
+    return json({articles:articles.slice(0,800),bulkLatestCount:(latest.articles||[]).length});
   }
   if(p==='/api/admin/article'&&req.method==='GET'){
     const slug=u.searchParams.get('slug')||'',st=await readState(env),rec=(st.articles||[]).find(x=>x.slug===slug);
-    if(!rec)return json({error:'not_found'},404);
+    if(!rec)return json({error:'not_found_for_editing',note:'Programmatic bulk articles are immutable in admin v1'},404);
     const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get('articles/'+slug+'.html'):null;return json({record:rec,html:o?await o.text():''});
   }
   if(p==='/api/admin/article'&&req.method==='PUT'){
