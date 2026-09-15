@@ -59,8 +59,9 @@ export default{
       const published=(s.articles||[]).filter(a=>a.status==='published');
       return json({
         ok:true,
-        version:'visual-v4',
+        version:'visual-v5-evidence-only',
         svgEngine:true,
+        evidenceOnlyOfferClaims:true,
         totalDesignsPerArticle:5,
         featuredUsesDesign:1,
         inArticleDesigns:[2,3,4,5],
@@ -78,7 +79,7 @@ export default{
         markets:[...new Set(published.map(a=>a.country))],
         cache:'Cloudflare Cache API + immutable browser cache',
         clickTarget:'https://www.noon.com/',
-        templateText:{discount:'10% OFF',audience:'SAVE 10% • NEW & EXISTING USERS'},
+        templateText:{headline:'PROMO CODE',disclaimer:'CHECK SAVINGS & ELIGIBILITY AT CHECKOUT'},
         searchDiscovery:{robots:true,rss:true,llms:true,indexNowEnabled:String(env.INDEXNOW_ENABLED||'false')==='true'},
         time:new Date().toISOString()
       });
