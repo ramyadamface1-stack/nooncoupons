@@ -1,0 +1,51 @@
+name: Verify Premium Navigation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Source checks
+        run: |
+          node --check premium-entry.js
+          node --check topic-hubs.js
+          grep -Fq 'article-topic-path' premium-entry.js
+          grep -Fq 'premium-blog-browser' premium-entry.js
+          grep -Fq "x-robots-tag','noindex, follow" premium-entry.js
+          grep -Fq 'articleTopicPathHtml' topic-hubs.js
+      - name: Live navigation checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ready=0
+          for i in $(seq 1 12); do
+            health="$(curl -fsS --max-time 15 "$ORIGIN/api/generator-health" || true)"
+            slug="$(python -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("bulk",{}).get("lastSlug") or "")' "$health" 2>/dev/null || true)"
+            [ -n "$slug" ] || { sleep 5; continue; }
+            urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
+            curl -fsS --max-time 20 "$ORIGIN/articles/$urlslug" -o /tmp/article.html || { sleep 5; continue; }
+            curl -fsS --max-time 20 "$ORIGIN/blog" -o /tmp/blog.html || { sleep 5; continue; }
+            if grep -Fq 'id="article-topic-path"' /tmp/article.html && grep -Fq 'id="premium-blog-browser"' /tmp/blog.html; then ready=1; break; fi
+            sleep 5
+          done
+          [ "$ready" = 1 ]
+          grep -Eq '/topics/(buying-guides|coupon-help|price-and-cart|returns-and-warranty|saudi|uae)' /tmp/article.html
+          grep -Fq 'market=SA' /tmp/blog.html
+          grep -Fq 'market=AE' /tmp/blog.html
+          grep -Fq 'topic=buying' /tmp/blog.html
+          grep -Fq 'topic=coupon' /tmp/blog.html
+          curl -fsS -D /tmp/headers.txt --max-time 20 "$ORIGIN/blog?market=SA&topic=buying&page=2" -o /tmp/filtered.html
+          tr -d '\r' </tmp/headers.txt | grep -iq '^x-robots-tag: noindex, follow$'
+          grep -Fq 'id="premium-blog-browser"' /tmp/filtered.html
+          grep -Fq 'صفحة 2' /tmp/filtered.html
+          echo PREMIUM_NAVIGATION_LIVE_PASS
