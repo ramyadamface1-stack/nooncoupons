@@ -16,14 +16,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Source and quality invariants
         run: |
-          for f in premium-entry.js auto-platform.js final-platform.js workers-ai-generator.js quality-criteria.js quality-audit.js quality-index.js coupon-registry.js schema-validator.js indexation-gate.js editorial-trust-layer.js indexnow.js bulk-content-engine.js bulk-generator.js legacy-upgrader-v2.js bulk-selftest.js generator-core-v2.js generator-core.js platform.js admin-runtime.js admin-page.js; do node --check "$f"; done
+          for f in public-entry.js premium-entry.js auto-platform.js final-platform.js workers-ai-generator.js quality-criteria.js quality-audit.js quality-index.js coupon-registry.js schema-validator.js indexation-gate.js editorial-trust-layer.js indexnow.js bulk-content-engine.js bulk-generator.js legacy-upgrader-v2.js bulk-selftest.js generator-core-v2.js generator-core.js platform.js admin-runtime.js admin-page.js; do node --check "$f"; done
           if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' auto-platform.js workers-ai-generator.js bulk-generator.js generator-core-v2.js platform.js admin-runtime.js; then
             echo 'EXTERNAL_AI_REFERENCE_FOUND_IN_ACTIVE_RUNTIME'; exit 1
           fi
-          grep -Fq '"main": "premium-entry.js"' wrangler.jsonc
+          grep -Fq '"main": "public-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "2000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "3"' wrangler.jsonc
           grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
+          grep -Fq "x-public-quality-ui','hidden-v1" public-entry.js
           grep -Fq 'blog-collection' premium-entry.js
           grep -Fq 'article:published_time' premium-entry.js
           grep -Fq 'submitIndexNow' bulk-generator.js
@@ -55,7 +56,7 @@ jobs:
           feed="$(curl -sS --max-time 15 "$ORIGIN/feed.xml" || true)"
           llms="$(curl -sS --max-time 15 "$ORIGIN/llms.txt" || true)"
           sitemap="$(curl -sS --max-time 15 "$ORIGIN/sitemap.xml" || true)"
-          blog="$(curl -sS --max-time 20 "$ORIGIN/blog" || true)"
+          blog="$(curl -sS -D /tmp/blog.headers --max-time 20 "$ORIGIN/blog?public-ui=hidden-v1" || true)"
           printf '%s\n' "$robots" >/tmp/robots.txt
           printf '%s\n' "$feed" >/tmp/feed.xml
           printf '%s\n' "$llms" >/tmp/llms.txt
@@ -97,12 +98,16 @@ jobs:
           grep -Fq 'data-schema="blog-collection"' /tmp/blog.html || rc=1
           grep -Fq 'ItemList' /tmp/blog.html || rc=1
           grep -Fq 'application/rss+xml' /tmp/blog.html || rc=1
+          tr -d '\r' </tmp/blog.headers | grep -iq '^x-public-quality-ui: hidden-v1$' || rc=1
+          if grep -Eq '<div class="meta">[[:space:]]*Quality[[:space:]]' /tmp/blog.html; then rc=1; fi
 
           bulk_slug="$(python -c 'import json; d=json.load(open("/tmp/generator-health.json")); print(d.get("bulk",{}).get("lastSlug") or "")')"
           if [ -n "$bulk_slug" ]; then
             urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$bulk_slug")"
-            curl -sS --max-time 20 "$ORIGIN/articles/$urlslug" -o /tmp/bulk-article.html || rc=1
-            for needle in 'Quality ' 'data-schema="article"' 'BreadcrumbList' 'class="direct-answer"' 'class="coupon-freshness"' 'class="contextual-links"' 'class="editorial-accountability"' 'max-image-preview:large' '/editorial-policy' '/coupon-verification' '/authors/editorial-team' '/disclaimer' 'name="author"' 'article:published_time' 'application/rss+xml'; do grep -Fq "$needle" /tmp/bulk-article.html || rc=1; done
+            curl -sS -D /tmp/bulk-article.headers --max-time 20 "$ORIGIN/articles/$urlslug?public-ui=hidden-v1" -o /tmp/bulk-article.html || rc=1
+            for needle in 'data-schema="article"' 'BreadcrumbList' 'class="direct-answer"' 'class="coupon-freshness"' 'class="contextual-links"' 'class="editorial-accountability"' 'max-image-preview:large' '/editorial-policy' '/coupon-verification' '/authors/editorial-team' '/disclaimer' 'name="author"' 'article:published_time' 'application/rss+xml'; do grep -Fq "$needle" /tmp/bulk-article.html || rc=1; done
+            tr -d '\r' </tmp/bulk-article.headers | grep -iq '^x-public-quality-ui: hidden-v1$' || rc=1
+            if grep -Fq 'class="quality-meta"' /tmp/bulk-article.html; then rc=1; fi
             if grep -Eqi 'amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir' /tmp/bulk-article.html; then rc=1; fi
           else rc=1; fi
 
@@ -130,6 +135,8 @@ jobs:
             /tmp/llms.txt
             /tmp/sitemap.xml
             /tmp/blog.html
+            /tmp/blog.headers
             /tmp/bulk-article.html
+            /tmp/bulk-article.headers
           if-no-files-found: ignore
           retention-days: 1
