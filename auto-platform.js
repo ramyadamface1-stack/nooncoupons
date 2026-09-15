@@ -12,6 +12,12 @@ const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
 async function ctl(env,path,init){const id=env.CONTROL.idFromName('primary');return env.CONTROL.get(id).fetch('https://control.internal'+path,init)}
 
+function aiUsage(status,callsUsed=0){
+  const day=now().slice(0,10);
+  const base=String(status?.workersAiDay||'')===day?Math.max(0,Number(status?.workersAiCallsToday||0)):0;
+  return {workersAiDay:day,workersAiCallsToday:base+Math.max(0,Number(callsUsed||0))};
+}
+
 function hardenFallback(out,topic,cfg){
   if(out.audit.productionReady||!String(out.provider).startsWith('local-fallback'))return out;
   let h=String(out.article.html||'');
@@ -37,41 +43,47 @@ async function runOnce(env,{manual=false}={}){
   const runId=crypto.randomUUID(),lock=await generatorLock(env,runId);
   if(lock.status===409)return {skipped:'already_running'};
   const started=Date.now(),status=await getGeneratorStatus(env),attempt=Number(status.attempts||0);
+  let workersAiCallsUsed=0;
   try{
     const st=await readState(env),topic=pickTopic(st,attempt);
     if(!topic)throw new Error('topic_pool_exhausted');
     let out=await generateArticle(env,topic,cfg,st,attempt);
 
-    // External providers are tried first. If all are unavailable/failed, use capped Cloudflare Workers AI.
     if(String(out.provider||'').startsWith('local-fallback')&&env.AI){
       try{
-        const wai=await generateWithWorkersAI(env,topic,cfg,st,attempt);
+        const wai=await generateWithWorkersAI(env,topic,cfg,st,attempt,status);
+        workersAiCallsUsed=Number(wai.callsUsed||0);
         if(!wai.skipped)out=wai;
-      }catch(e){out.lastProviderError=(out.lastProviderError?out.lastProviderError+' | ':'')+'workers-ai:'+String(e?.message||e)}
+        else out.lastProviderError=(out.lastProviderError?out.lastProviderError+' | ':'')+String(wai.reason||'workers_ai_skipped');
+      }catch(e){
+        workersAiCallsUsed=Number(e?.workersAiCallsUsed||0);
+        out.lastProviderError=(out.lastProviderError?out.lastProviderError+' | ':'')+'workers-ai:'+String(e?.message||e);
+      }
     }
 
     out=hardenFallback(out,topic,cfg);
+    const usage=aiUsage(status,workersAiCallsUsed);
 
-    // Never auto-publish deterministic fallback. Manual runs may save it as a draft for review.
     if(String(out.provider||'').startsWith('local-fallback')){
       if(manual){
         const rec=await saveFallbackDraft(env,out.article,topic,out.audit,out.provider);
-        const next={attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0)+1,failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:out.lastProviderError||null,lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:'local-fallback-draft',lastDurationMs:Date.now()-started};
+        const next={...usage,attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0)+1,failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:out.lastProviderError||null,lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:'local-fallback-draft',lastDurationMs:Date.now()-started};
         await updateGeneratorStatus(env,next);
         return {ok:true,draft:true,record:rec,audit:out.audit,provider:'local-fallback-draft',lastProviderError:out.lastProviderError||null};
       }
-      const next={attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:out.lastProviderError||'no_publishable_ai_provider',lastProvider:'local-fallback-blocked',lastDurationMs:Date.now()-started};
+      const next={...usage,attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:out.lastProviderError||'no_publishable_ai_provider',lastProvider:'local-fallback-blocked',lastDurationMs:Date.now()-started};
       await updateGeneratorStatus(env,next);
       return {ok:true,skipped:'local_fallback_not_published',reason:next.lastError};
     }
 
     if(!out.audit.productionReady)throw new Error('quality_gate_'+out.audit.score+'_words_'+out.audit.wordCount+(out.lastProviderError?'_provider_fallback':''));
     const rec=await publishGenerated(env,out.article,topic,out.audit,out.provider);
-    const next={attempts:attempt+1,published:Number(status.published||0)+1,drafted:Number(status.drafted||0),failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:null,lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:out.provider,lastDurationMs:Date.now()-started};
+    const next={...usage,attempts:attempt+1,published:Number(status.published||0)+1,drafted:Number(status.drafted||0),failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:null,lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:out.provider,lastDurationMs:Date.now()-started};
     await updateGeneratorStatus(env,next);
-    return {ok:true,record:rec,audit:out.audit,provider:out.provider,providerReadiness:out.providerReadiness,lastProviderError:out.lastProviderError||null};
+    return {ok:true,record:rec,audit:out.audit,provider:out.provider,providerReadiness:out.providerReadiness,lastProviderError:out.lastProviderError||null,workersAiCallsUsed};
   }catch(e){
-    const next={attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0)+1,lastRun:now(),lastError:String(e?.message||e),lastDurationMs:Date.now()-started};
+    const usage=aiUsage(status,workersAiCallsUsed||Number(e?.workersAiCallsUsed||0));
+    const next={...usage,attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0)+1,lastRun:now(),lastError:String(e?.message||e),lastDurationMs:Date.now()-started};
     await updateGeneratorStatus(env,next);
     return {ok:false,error:next.lastError};
   }finally{await generatorUnlock(env,runId)}
@@ -91,13 +103,13 @@ export default{
     }
     if(u.pathname==='/api/generator-health'){
       const [cfg,status,st]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env),readState(env)]);
-      const providers=providerReadiness(env),workersAI=workersAiBudget(env,st);
+      const providers=providerReadiness(env),workersAI=workersAiBudget(env,st,status);
       return json({
         ok:true,
-        version:'generator-2.1',
+        version:'generator-2.2',
         cron:'* * * * *',
         enabled:cfg.enabled,
-        publishPolicy:'external-ai-or-capped-workers-ai; local-fallback=draft/manual-only',
+        publishPolicy:'quality-gated AI only; local-fallback=draft/manual-only',
         preferredProvider:env.AI_PRIMARY_PROVIDER||'gemini',
         providers:{...providers,workersAI:workersAI.binding,anyAI:Boolean(providers.any||workersAI.binding)},
         workersAI,
