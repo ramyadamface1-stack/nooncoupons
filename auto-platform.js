@@ -5,7 +5,7 @@ import {renderAdmin} from './admin-page.js';
 import {secureLogin} from './secure-admin-auth.js';
 import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin} from './admin-runtime.js';
 import {readState,pickTopic,publishGenerated} from './generator-core-v2.js';
-import {generateWithWorkersAI,workersAiBudget} from './workers-ai-generator.js';
+import {generateWithWorkersAI,workersAiBudget,isWorkersAiFreeQuotaError} from './workers-ai-generator.js';
 
 const now=()=>new Date().toISOString();
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
@@ -34,7 +34,9 @@ async function runOnce(env,{manual=false}={}){
       return {ok:true,skipped:'workers_ai_binding_missing',budget};
     }
     if(!budget.available){
-      const reason=budget.remaining<=0?'workers_ai_daily_article_cap':'workers_ai_daily_call_cap';
+      const reason=budget.quotaBlocked?'workers_ai_free_quota_exhausted':budget.remaining<=0?'workers_ai_daily_article_cap':'workers_ai_daily_call_cap';
+      if(budget.quotaBlocked)return {ok:true,skipped:reason,budget,resumesAt:budget.quotaResetAt};
+      if(String(status.lastError||'')===reason&&String(status.workersAiDay||'')===now().slice(0,10))return {ok:true,skipped:reason,budget};
       const next={...aiUsage(status,0),attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:reason,lastOperationalState:'workers-ai-capped',lastDurationMs:Date.now()-started};
       await updateGeneratorStatus(env,next);
       return {ok:true,skipped:reason,budget};
@@ -63,17 +65,30 @@ async function runOnce(env,{manual=false}={}){
     return {ok:true,record:rec,audit:out.audit,provider:out.provider,workersAiCallsUsed,budget:out.budget};
   }catch(e){
     const usage=aiUsage(status,workersAiCallsUsed||Number(e?.workersAiCallsUsed||0));
-    const next={...usage,attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0)+1,lastRun:now(),lastError:String(e?.message||e),lastOperationalState:'workers-ai-error',lastDurationMs:Date.now()-started};
+    const quotaHit=isWorkersAiFreeQuotaError(e);
+    const next={
+      ...usage,
+      attempts:attempt+1,
+      published:Number(status.published||0),
+      drafted:Number(status.drafted||0),
+      failed:Number(status.failed||0)+(quotaHit?0:1),
+      skippedNoAI:Number(status.skippedNoAI||0)+(quotaHit?1:0),
+      lastRun:now(),
+      lastError:quotaHit?'workers_ai_free_quota_exhausted':String(e?.message||e),
+      lastOperationalState:quotaHit?'workers-ai-free-quota-exhausted':'workers-ai-error',
+      lastDurationMs:Date.now()-started,
+      ...(quotaHit?{workersAiQuotaDay:now().slice(0,10),workersAiQuotaBlockedAt:now()}: {})
+    };
     await updateGeneratorStatus(env,next);
-    return {ok:false,error:next.lastError};
+    return {ok:false,error:next.lastError,resumesAt:quotaHit?new Date(Date.UTC(new Date().getUTCFullYear(),new Date().getUTCMonth(),new Date().getUTCDate()+1)).toISOString():undefined};
   }finally{await generatorUnlock(env,runId)}
 }
 
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
-    if(u.pathname==='/api/ai/generate')return json({error:'legacy_external_generation_disabled',version:'generator-3.0-cloudflare-only',provider:'workers-ai',use:'/api/admin/generate-now'},410);
-    if(u.pathname==='/api/platform-health')return json({ok:true,version:'platform-1.1-cloudflare-only',generatorVersion:'generator-3.0-cloudflare-only',control:Boolean(env.CONTROL),r2:Boolean(env.CONTENT_FINAL),workersAI:Boolean(env.AI),ai:{provider:'workers-ai',externalProviders:false},time:now()});
+    if(u.pathname==='/api/ai/generate')return json({error:'legacy_external_generation_disabled',version:'generator-3.1-free-efficient',provider:'workers-ai',use:'/api/admin/generate-now'},410);
+    if(u.pathname==='/api/platform-health')return json({ok:true,version:'platform-1.2-cloudflare-efficient',generatorVersion:'generator-3.1-free-efficient',control:Boolean(env.CONTROL),r2:Boolean(env.CONTENT_FINAL),workersAI:Boolean(env.AI),ai:{provider:'workers-ai',externalProviders:false},time:now()});
     if(u.pathname==='/api/state'&&req.method==='GET'){
       const r=await app.fetch(req,env,ctx);
       if(!r.ok)return r;
@@ -96,7 +111,7 @@ export default{
         const d=await r.json();
         delete d.groqReady;
         d.workersAIReady=Boolean(env.AI);
-        d.generatorVersion='generator-3.0-cloudflare-only';
+        d.generatorVersion='generator-3.1-free-efficient';
         d.activeProvider='workers-ai';
         d.config={...(d.config||{}),model:env.WORKERS_AI_MODEL||'@cf/zai-org/glm-4.7-flash'};
         return json(d,r.status);
@@ -112,10 +127,10 @@ export default{
       const lastWorkersAiSuccess=workersAiArticles[0]||null;
       return json({
         ok:true,
-        version:'generator-3.0-cloudflare-only',
+        version:'generator-3.1-free-efficient',
         cron:'* * * * *',
         enabled:cfg.enabled,
-        publishPolicy:'cloudflare-workers-ai-only; quality>=threshold; 1000-2000 words; strict brand/country/coupon locks; no external providers; no automatic local fallback',
+        publishPolicy:'cloudflare-workers-ai-only; quota-aware auto resume; quality>=threshold; 1000-2000 words; strict brand/country/coupon locks; repair only when close to pass; no external providers',
         preferredProvider:'workers-ai',
         providers:{workersAI:workersAI.binding,anyAI:workersAI.binding,external:false},
         workersAI,
