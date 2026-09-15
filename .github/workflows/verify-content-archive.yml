@@ -1,0 +1,48 @@
+name: Verify Content Archive
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Source checks
+        run: |
+          node --check archive-pages.js
+          node --check premium-entry.js
+          grep -Fq "maxShardReadsPerPage:2" archive-pages.js
+          grep -Fq "x-content-archive':'v1" archive-pages.js
+          grep -Fq "archiveLanding(path,u,runtimeEnv)" premium-entry.js
+          grep -Fq '/blog/archive' premium-entry.js
+      - name: Live archive checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ready=0
+          for i in $(seq 1 12); do
+            code="$(curl -sS -o /tmp/archive.html -D /tmp/archive.headers -w '%{http_code}' --max-time 20 "$ORIGIN/blog/archive?archive-ui=v1" || true)"
+            if [ "$code" = "200" ] && grep -Fqi 'x-content-archive: v1' /tmp/archive.headers && grep -Fq 'أرشيف أدلة نون' /tmp/archive.html; then ready=1; break; fi
+            sleep 5
+          done
+          [ "$ready" = 1 ]
+          tr -d '\r' </tmp/archive.headers | grep -iq '^x-robots-tag: noindex, follow$'
+          grep -Fq '<meta name="robots" content="noindex,follow">' /tmp/archive.html
+          day="$(grep -oE '/blog/archive/[0-9]{4}-[0-9]{2}-[0-9]{2}' /tmp/archive.html | head -1 | sed 's#.*/##')"
+          [ -n "$day" ]
+          curl -fsS -D /tmp/day.headers --max-time 20 "$ORIGIN/blog/archive/$day?page=1&archive-ui=v1" -o /tmp/day.html
+          tr -d '\r' </tmp/day.headers | grep -iq '^x-content-archive: v1$'
+          tr -d '\r' </tmp/day.headers | grep -iq '^x-robots-tag: noindex, follow$'
+          grep -Fq 'مقال منشور في هذا اليوم' /tmp/day.html
+          grep -Fq '/articles/' /tmp/day.html
+          curl -fsS --max-time 20 "$ORIGIN/blog?archive-ui=v1" -o /tmp/blog.html
+          grep -Fq '/blog/archive' /tmp/blog.html
+          echo CONTENT_ARCHIVE_LIVE_PASS
