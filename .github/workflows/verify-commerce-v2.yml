@@ -1,0 +1,69 @@
+name: Verify Commerce Network V2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static checks
+        run: |
+          set -euo pipefail
+          node --check commerce-taxonomy.js
+          node --check commerce-pages.js
+          node --check commerce-entry.js
+          grep -Fq '"main": "commerce-entry.js"' wrangler.jsonc
+          grep -Fq "architecture:'market-category-brand-model-comparison-article'" commerce-taxonomy.js
+          grep -Fq "separateShoesAndBags:true" commerce-entry.js
+          grep -Fq "modelFamilyPages:true" commerce-entry.js
+      - name: Live commerce v2 checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ready=0
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 20 "$ORIGIN/api/commerce-health?v=2" -o /tmp/health.json 2>/dev/null; then
+              if grep -Fq 'market-category-brand-model-comparison-article' /tmp/health.json; then ready=1; break; fi
+            fi
+            sleep 6
+          done
+          [ "$ready" = 1 ]
+          curl -fsS --max-time 20 "$ORIGIN/saudi/categories?v=2" -o /tmp/categories.html
+          curl -fsS --max-time 20 "$ORIGIN/saudi/category/shoes?v=2" -o /tmp/shoes.html
+          curl -fsS --max-time 20 "$ORIGIN/uae/category/bags?v=2" -o /tmp/bags.html
+          curl -fsS --max-time 20 "$ORIGIN/saudi/category/mobiles?v=2" -o /tmp/mobiles.html
+          curl -fsS --max-time 20 "$ORIGIN/saudi/brand/apple?v=2" -o /tmp/apple.html
+          curl -fsS --max-time 20 "$ORIGIN/saudi/model/apple/iphone-pro?v=2" -o /tmp/model.html
+          curl -fsS --max-time 20 "$ORIGIN/uae/model/samsung/galaxy-s?v=2" -o /tmp/galaxy.html
+          curl -fsS --max-time 20 "$ORIGIN/saudi/compare/iphone-vs-galaxy?v=2" -o /tmp/compare.html
+          curl -fsS --max-time 20 "$ORIGIN/sitemap-commerce.xml?v=2" -o /tmp/commerce.xml
+          curl -fsS --max-time 20 "$ORIGIN/sitemap.xml?v=2" -o /tmp/root.xml
+          grep -Fq 'أقسام نون السعودية' /tmp/categories.html
+          grep -Fq 'الأحذية على نون السعودية' /tmp/shoes.html
+          grep -Fq 'الحقائب على نون الإمارات' /tmp/bags.html
+          grep -Fq 'براندات الجوالات' /tmp/mobiles.html
+          grep -Fq 'Apple iPhone على نون السعودية' /tmp/apple.html
+          grep -Fq 'iPhone Pro' /tmp/model.html
+          grep -Fq 'Galaxy S' /tmp/galaxy.html
+          grep -Fq 'آيفون أم Samsung Galaxy' /tmp/compare.html
+          grep -Fq '/saudi/model/apple/iphone-pro' /tmp/commerce.xml
+          grep -Fq '/uae/category/bags' /tmp/commerce.xml
+          grep -Fq '/sitemap-commerce.xml' /tmp/root.xml
+          health="$(curl -fsS --max-time 20 "$ORIGIN/api/generator-health")"
+          slug="$(python -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("bulk",{}).get("lastSlug") or "")' "$health")"
+          [ -n "$slug" ]
+          urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
+          curl -fsS --max-time 20 "$ORIGIN/articles/$urlslug?v=2" -o /tmp/article.html
+          grep -Fq 'article-commerce-path' /tmp/article.html
+          grep -Eq '/(saudi|uae)/category/' /tmp/article.html
+          grep -Fq '/categories' /tmp/article.html
+          echo COMMERCE_V2_LIVE_PASS
