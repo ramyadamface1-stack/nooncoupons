@@ -11,7 +11,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Syntax, quality gate and provider isolation checks
@@ -22,24 +22,27 @@ jobs:
           node --check quality-audit.js
           node --check bulk-content-engine.js
           node --check bulk-generator.js
+          node --check legacy-upgrader.js
           node --check bulk-selftest.js
           node --check generator-core-v2.js
           node --check generator-core.js
           node --check platform.js
           node --check admin-runtime.js
           node --check admin-page.js
-          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' auto-platform.js workers-ai-generator.js quality-audit.js bulk-content-engine.js bulk-generator.js generator-core-v2.js generator-core.js platform.js admin-runtime.js; then
+          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' auto-platform.js workers-ai-generator.js quality-audit.js bulk-content-engine.js bulk-generator.js legacy-upgrader.js generator-core-v2.js generator-core.js platform.js admin-runtime.js; then
             echo 'EXTERNAL_AI_REFERENCE_FOUND_IN_ACTIVE_RUNTIME'
             exit 1
           fi
           grep -Fq '@cf/zai-org/glm-4.7-flash' workers-ai-generator.js
           grep -Fq '@cf/google/gemma-4-26b-a4b-it' workers-ai-generator.js
           grep -Fq 'programmatic-cloudflare:v2-helpful' bulk-content-engine.js
+          grep -Fq 'programmatic-cloudflare:v2-legacy-upgrade' legacy-upgrader.js
           grep -Fq 'contentSignature' quality-audit.js
           grep -Fq '"BULK_DAILY_TARGET": "2000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "2"' wrangler.jsonc
+          grep -Fq '"LEGACY_UPGRADE_BATCH_SIZE": "4"' wrangler.jsonc
           node bulk-selftest.js >/tmp/bulk-selftest.log
-      - name: Verify deployed quality-first Worker
+      - name: Verify deployed quality-first Worker and legacy upgrade
         id: live
         shell: bash
         run: |
@@ -52,9 +55,9 @@ jobs:
             if grep -Fq -- "$needle" <<< "$text"; then echo "PASS $name"; else echo "FAIL $name :: $needle"; rc=1; fi
           }
           health=""
-          for i in $(seq 1 42); do
+          for i in $(seq 1 48); do
             health="$(curl -sS --max-time 20 "$ORIGIN/api/generator-health" 2>&1 || true)"
-            if python -c 'import json,sys; d=json.loads(sys.stdin.read()); b=d.get("bulk",{}); ok=d.get("version")=="generator-5.0-quality-first" and b.get("engine")=="programmatic-cloudflare:v2-helpful" and float(b.get("lastQualityFloor") or 0)>=88 and float(b.get("lastQuality") or 0)>=95; raise SystemExit(0 if ok else 1)' <<< "$health" 2>/dev/null; then break; fi
+            if python -c 'import json,sys; d=json.loads(sys.stdin.read()); b=d.get("bulk",{}); s=d.get("status",{}); ok=d.get("version")=="generator-5.0-quality-first" and b.get("engine")=="programmatic-cloudflare:v2-helpful" and float(b.get("lastQualityFloor") or 0)>=88 and float(b.get("lastQuality") or 0)>=95 and int(s.get("legacyUpgradeTotal") or 0)>0 and float(s.get("legacyUpgradeLastQuality") or 0)>=95 and float(s.get("legacyUpgradeLastQualityFloor") or 0)>=88; raise SystemExit(0 if ok else 1)' <<< "$health" 2>/dev/null; then break; fi
             sleep 10
           done
           platform="$(curl -sS --max-time 20 "$ORIGIN/api/platform-health" 2>&1 || true)"
@@ -75,8 +78,9 @@ jobs:
           check_contains bulk_batch "$health" '"batchSize": 2'
           python - <<'PY' /tmp/generator-health.json
           import json,sys
-          d=json.load(open(sys.argv[1])); b=d.get('bulk',{})
+          d=json.load(open(sys.argv[1])); b=d.get('bulk',{}); s=d.get('status',{})
           print('bulk=',json.dumps(b,ensure_ascii=False))
+          print('legacyUpgrade=',json.dumps({k:v for k,v in s.items() if k.startswith('legacyUpgrade')},ensure_ascii=False))
           assert d.get('version')=='generator-5.0-quality-first', d.get('version')
           assert b.get('engine')=='programmatic-cloudflare:v2-helpful', b
           assert int(b.get('dailyTarget',0))==2000, b
@@ -88,8 +92,13 @@ jobs:
           groups=b.get('lastGroups') or {}
           for g in ('seo','content','trust','aeo','geo','eeat','technical','uniqueness'):
               assert float(groups.get(g,0)) >= 88, (g,groups)
+          assert int(s.get('legacyUpgradeTotal') or 0) > 0, s
+          assert 95 <= float(s.get('legacyUpgradeLastQuality') or 0) <= 100, s
+          assert float(s.get('legacyUpgradeLastQualityFloor') or 0) >= 88, s
+          assert 1000 <= int(s.get('legacyUpgradeLastWordCount') or 0) <= 2000, s
+          assert s.get('legacyUpgradeLastSlug'), s
           PY
-          if [ "$?" -eq 0 ]; then echo 'PASS bulk_quality_live'; else echo 'FAIL bulk_quality_live'; rc=1; fi
+          if [ "$?" -eq 0 ]; then echo 'PASS quality_live_and_legacy_progress'; else echo 'FAIL quality_live_and_legacy_progress'; rc=1; fi
           echo '--- PLATFORM HEALTH ---'; cat /tmp/platform-health.json
           check_contains platform_version "$platform" 'platform-1.6-quality-first'
           check_contains platform_engine "$platform" 'programmatic-cloudflare:v2-helpful'
@@ -103,36 +112,45 @@ jobs:
           assert s.get('aiFallback') is None
           assert s.get('qualityThreshold')==95
           assert s.get('minWords')==1000
+          ai=[a for a in d.get('articles',[]) if str(a.get('provider','')).startswith('workers-ai:')]
+          upgraded=[a for a in d.get('articles',[]) if str(a.get('provider','')).startswith('programmatic-cloudflare:v2-legacy-upgrade')]
+          print('workers_ai_preserved=',len(ai),'legacy_upgraded_in_state=',len(upgraded))
+          assert len(ai)>=11
+          assert len(upgraded)>0
+          assert all(float(a.get('quality') or 0)>=95 for a in upgraded)
+          assert all(float(a.get('qualityFloor') or 0)>=88 for a in upgraded)
           PY
-          if [ "$?" -eq 0 ]; then echo 'PASS state_settings'; else echo 'FAIL state_settings'; rc=1; fi
-          code="$(curl -sS -o /tmp/legacy.json -w '%{http_code}' -X POST "$ORIGIN/api/ai/generate" || true)"
-          if [ "$code" = "410" ]; then echo 'PASS legacy_410'; else echo 'FAIL legacy_410'; rc=1; fi
+          if [ "$?" -eq 0 ]; then echo 'PASS state_and_preservation'; else echo 'FAIL state_and_preservation'; rc=1; fi
+          code="$(curl -sS -o /tmp/legacy-api.json -w '%{http_code}' -X POST "$ORIGIN/api/ai/generate" || true)"
+          if [ "$code" = "410" ]; then echo 'PASS legacy_external_api_410'; else echo 'FAIL legacy_external_api_410'; rc=1; fi
           check_contains bulk_sitemap "$sitemap" 'sitemap-articles-'
-          slug="$(python -c 'import json; d=json.load(open("/tmp/generator-health.json")); print(d.get("bulk",{}).get("lastSlug") or "")')"
-          if [ -n "$slug" ]; then
+          bulk_slug="$(python -c 'import json; d=json.load(open("/tmp/generator-health.json")); print(d.get("bulk",{}).get("lastSlug") or "")')"
+          legacy_slug="$(python -c 'import json; d=json.load(open("/tmp/generator-health.json")); print(d.get("status",{}).get("legacyUpgradeLastSlug") or "")')"
+          verify_article(){
+            label="$1"; slug="$2"; out="$3"
+            if [ -z "$slug" ]; then echo "FAIL $label :: missing slug"; rc=1; return; fi
             urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
-            if curl -sS --max-time 30 "$ORIGIN/blog" -o /tmp/blog.html && grep -q 'مدونة كوبونات نون' /tmp/blog.html && grep -Fq "$urlslug" /tmp/blog.html; then echo 'PASS bulk_blog'; else echo 'FAIL bulk_blog'; rc=1; fi
-            if curl -sS --max-time 30 "$ORIGIN/articles/$urlslug" -o /tmp/bulk-article.html; then
-              grep -Fq 'Quality ' /tmp/bulk-article.html || rc=1
-              grep -Fq 'data-schema="article"' /tmp/bulk-article.html || rc=1
-              grep -Fq 'BreadcrumbList' /tmp/bulk-article.html || rc=1
-              grep -Fq 'FAQPage' /tmp/bulk-article.html || rc=1
-              grep -Fq 'class="methodology accountability"' /tmp/bulk-article.html || rc=1
-              grep -Fq 'class="sources"' /tmp/bulk-article.html || rc=1
-              grep -Fq 'class="direct-answer"' /tmp/bulk-article.html || rc=1
-              grep -Fq 'aria-live="polite"' /tmp/bulk-article.html || rc=1
-              grep -Fq 'max-image-preview:large' /tmp/bulk-article.html || rc=1
-              images="$(grep -o '/assets/coupon-svg/' /tmp/bulk-article.html | wc -l | tr -d ' ')"
-              copies="$(grep -o 'data-copy-code=' /tmp/bulk-article.html | wc -l | tr -d ' ')"
-              if [ "$images" -ge 5 ] && [ "$copies" -ge 2 ]; then echo "PASS article_images_cta images=$images copies=$copies"; else echo "FAIL article_images_cta images=$images copies=$copies"; rc=1; fi
-              if grep -Eq 'الريال السعودي|الدرهم الإماراتي' /tmp/bulk-article.html; then echo 'PASS localized_currency'; else echo 'FAIL localized_currency'; rc=1; fi
-              if grep -Eqi 'amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir' /tmp/bulk-article.html; then echo 'FAIL competitor_leak'; rc=1; else echo 'PASS competitor_lock'; fi
-              echo 'PASS bulk_article_route'
-            else echo 'FAIL bulk_article_route'; rc=1; fi
-          else
-            echo 'FAIL bulk_blog :: missing lastSlug'; rc=1
-            echo 'FAIL bulk_article_route :: missing lastSlug'; rc=1
-          fi
+            if curl -sS --max-time 30 "$ORIGIN/articles/$urlslug" -o "$out"; then
+              grep -Fq 'Quality ' "$out" || rc=1
+              grep -Fq 'data-schema="article"' "$out" || rc=1
+              grep -Fq 'BreadcrumbList' "$out" || rc=1
+              grep -Fq 'FAQPage' "$out" || rc=1
+              grep -Fq 'class="methodology accountability"' "$out" || rc=1
+              grep -Fq 'class="sources"' "$out" || rc=1
+              grep -Fq 'class="direct-answer"' "$out" || rc=1
+              grep -Fq 'aria-live="polite"' "$out" || rc=1
+              grep -Fq 'max-image-preview:large' "$out" || rc=1
+              images="$(grep -o '/assets/coupon-svg/' "$out" | wc -l | tr -d ' ')"
+              copies="$(grep -o 'data-copy-code=' "$out" | wc -l | tr -d ' ')"
+              if [ "$images" -ge 5 ] && [ "$copies" -ge 2 ]; then echo "PASS $label assets images=$images copies=$copies"; else echo "FAIL $label assets images=$images copies=$copies"; rc=1; fi
+              if grep -Eq 'الريال السعودي|الدرهم الإماراتي' "$out"; then echo "PASS $label localized_currency"; else echo "FAIL $label localized_currency"; rc=1; fi
+              if grep -Eqi 'amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir' "$out"; then echo "FAIL $label competitor_leak"; rc=1; else echo "PASS $label competitor_lock"; fi
+              echo "PASS $label route"
+            else echo "FAIL $label route"; rc=1; fi
+          }
+          verify_article bulk_article "$bulk_slug" /tmp/bulk-article.html
+          verify_article upgraded_legacy_article "$legacy_slug" /tmp/upgraded-legacy-article.html
+          if curl -sS --max-time 30 "$ORIGIN/blog" -o /tmp/blog.html && grep -q 'مدونة كوبونات نون' /tmp/blog.html; then echo 'PASS blog'; else echo 'FAIL blog'; rc=1; fi
           echo "FINAL_RC=$rc"
           exit "$rc"
       - name: Upload diagnostics
@@ -146,9 +164,10 @@ jobs:
             /tmp/generator-health.json
             /tmp/platform-health.json
             /tmp/state.json
-            /tmp/legacy.json
+            /tmp/legacy-api.json
             /tmp/blog.html
             /tmp/bulk-article.html
+            /tmp/upgraded-legacy-article.html
             /tmp/sitemap.xml
           if-no-files-found: ignore
           retention-days: 1
