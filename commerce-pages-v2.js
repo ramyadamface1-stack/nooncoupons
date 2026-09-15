@@ -1,0 +1,228 @@
+import {
+  MARKETS,
+  CATEGORIES,
+  BRANDS,
+  COMPARISONS,
+  commerceMeta,
+  articleCommerceLinks,
+  commercePaths,
+  COMMERCE_TAXONOMY_INFO,
+} from './commerce-taxonomy.js';
+
+const CODES = ['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const enc = (s) => encodeURI(String(s || ''));
+const safeJson = (x) => JSON.stringify(x).replace(/</g, '\\u003c');
+
+const CSS = `
+*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#f8fafc;color:#111827}
+a{color:inherit}.w{width:min(1180px,92%);margin:auto}.hero{padding:44px 0;background:linear-gradient(135deg,#111827,#312e81);color:#fff}
+.hero h1{font-size:clamp(30px,5vw,50px);line-height:1.3;margin:14px 0}.hero p,.lead{line-height:1.9;color:#667085}.hero p{color:#e5e7eb;max-width:900px}.crumbs,.chips{display:flex;gap:8px;flex-wrap:wrap}.crumbs a{color:#ddd6fe}
+.section{padding:30px 0}.section h2{font-size:clamp(23px,3vw,32px)}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
+.card,.box{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:18px}.card h3{line-height:1.55;margin:8px 0}.card p{color:#667085;line-height:1.8}.card a{text-decoration:none}.read{color:#6d28d9;font-weight:900}
+.chips a{display:inline-block;background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:9px 13px;text-decoration:none;font-weight:800}.coupon{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;background:#fffbeb;border:1px solid #fde68a;border-radius:20px;padding:20px;margin:24px 0}
+.code{display:inline-block;background:#111827;color:#fff;border-radius:10px;padding:7px 11px;font-weight:900}.cta{display:inline-block;background:#facc15;text-decoration:none;font-weight:900;padding:13px 16px;border-radius:12px}.check{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.check .box{line-height:1.85}.spider{padding:28px 0;background:#111827;color:#fff}.empty{background:#fff;border:1px dashed #cbd5e1;border-radius:18px;padding:20px;color:#64748b}.table{width:100%;border-collapse:collapse;background:#fff}.table th,.table td{border:1px solid #e5e7eb;padding:12px;text-align:right;vertical-align:top}
+@media(max-width:900px){.grid,.grid4{grid-template-columns:1fr 1fr}}@media(max-width:620px){.grid,.grid4,.check,.coupon{grid-template-columns:1fr}}
+`;
+
+async function latestArticles(env) {
+  try {
+    const obj = await env.CONTENT_FINAL?.get('bulk/latest.json');
+    const data = obj ? await obj.json() : {articles: []};
+    return Array.isArray(data.articles) ? data.articles : [];
+  } catch {
+    return [];
+  }
+}
+
+function codeFor(seed) {
+  let n = 0;
+  for (const c of String(seed || '')) n = (n * 33 + c.charCodeAt(0)) >>> 0;
+  return CODES[n % CODES.length];
+}
+
+function marketRows(all, market) {
+  return all.filter((a) => a?.slug && a.indexable !== false && a.country === MARKETS[market].country);
+}
+
+function articleCard(a) {
+  return `<article class="card"><small>${a.country === 'AE' ? 'الإمارات' : 'السعودية'}</small><h3><a href="/articles/${enc(a.slug)}">${esc(a.title || a.primaryKeyword || a.slug)}</a></h3><p>${esc((a.metaDescription || '').slice(0,180))}</p><a class="read" href="/articles/${enc(a.slug)}">اقرأ الدليل ←</a></article>`;
+}
+
+function breadcrumbs(market, parts = []) {
+  let html = `<div class="crumbs"><a href="/">الرئيسية</a><span>←</span><a href="/${market}/categories">أقسام ${esc(MARKETS[market].name)}</a>`;
+  for (const p of parts) html += `<span>←</span>${p.path ? `<a href="${p.path}">${esc(p.label)}</a>` : `<span>${esc(p.label)}</span>`}`;
+  return html + '</div>';
+}
+
+function schema(origin, path, title, desc, rows) {
+  const segments = path.split('/').filter(Boolean);
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'CollectionPage',
+        '@id': origin + path + '#page',
+        url: origin + path,
+        name: title,
+        description: desc,
+        inLanguage: 'ar',
+        mainEntity: {
+          '@type': 'ItemList',
+          numberOfItems: rows.length,
+          itemListElement: rows.map((a, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+            url: origin + '/articles/' + enc(a.slug),
+            name: a.title || a.slug,
+          })),
+        },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: segments.map((segment, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          name: i === segments.length - 1 ? title : segment,
+          item: origin + '/' + segments.slice(0, i + 1).join('/'),
+        })),
+      },
+    ],
+  };
+}
+
+function pageHead(origin, path, title, desc, rows) {
+  return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | كوبونات نون</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin + path)}"><script type="application/ld+json">${safeJson(schema(origin,path,title,desc,rows))}</script><style>${CSS}</style>`;
+}
+
+function couponBox(market, key, label) {
+  const mk = MARKETS[market];
+  const code = codeFor(market + ':' + key);
+  return `<aside class="coupon"><div><small>كود من قائمة الموقع للتجربة</small><h2>جرّب <span class="code">${code}</span> مع ${esc(label)}</h2><p class="lead">لا نثبت نسبة خصم أو أهلية غير موثقة. ثبّت المنتج والبائع والسلة، جرّب الكود، ثم اعتبر إجمالي نون النهائي هو المرجع.</p></div><a class="cta" href="${mk.noon}" rel="noopener external sponsored">فتح ${esc(mk.name)}</a></aside>`;
+}
+
+function categoryGrid(market, current = '') {
+  return `<div class="grid4">${Object.entries(CATEGORIES).filter(([k]) => k !== current).map(([k,c]) => `<article class="card"><h3><a href="/${market}/category/${k}">${esc(c.label)}</a></h3><p>${esc(c.desc)}</p><a class="read" href="/${market}/category/${k}">افتح القسم ←</a></article>`).join('')}</div>`;
+}
+
+function brandGrid(market, current = '') {
+  return `<div class="grid4">${Object.entries(BRANDS).filter(([k]) => k !== current).map(([k,b]) => `<article class="card"><h3><a href="/${market}/brand/${k}">${esc(b.label)}</a></h3><p>${Object.values(b.models).map((x) => esc(x.label)).join(' · ')}</p><a class="read" href="/${market}/brand/${k}">صفحة البراند ←</a></article>`).join('')}</div>`;
+}
+
+function spider(market, current = '') {
+  const keys = ['mobiles','electronics','computers','gaming','home-kitchen','beauty','shoes','bags','sports','automotive'];
+  return `<section class="spider"><div class="w"><h2>تحرك داخل شبكة الموقع</h2><div class="chips"><a href="/">الرئيسية</a><a href="/${market}/categories">كل الأقسام</a>${keys.filter((k) => k !== current).map((k) => `<a href="/${market}/category/${k}">${esc(CATEGORIES[k].label)}</a>`).join('')}<a href="/blog">كل المقالات</a></div></div></section>`;
+}
+
+function htmlResponse(body, kind, headers = {}) {
+  return new Response(body, {headers: {'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=90,s-maxage=300','x-commerce-network':'v2','x-commerce-kind':kind,...headers}});
+}
+
+function shell(origin, path, title, desc, rows, hero, main, market, current = '') {
+  return `<!doctype html><html lang="ar" dir="rtl"><head>${pageHead(origin,path,title,desc,rows)}</head><body>${hero}<main class="w">${main}</main>${spider(market,current)}</body></html>`;
+}
+
+async function directoryPage(market, origin, env) {
+  const mk = MARKETS[market];
+  if (!mk) return null;
+  const rows = marketRows(await latestArticles(env), market).slice(0,18);
+  const path = `/${market}/categories`;
+  const title = `أقسام ${mk.name}`;
+  const desc = `دليل منظم لأقسام ${mk.name}: الجوالات والإلكترونيات والكمبيوتر والبيت والجمال والأحذية والحقائب وغيرها، مع ربط مباشر بالمقالات والكوبونات.`;
+  const hero = `<header class="hero"><div class="w">${breadcrumbs(market)}<h1>${title}</h1><p>${desc}</p><div class="chips"><a href="/${market}/category/mobiles">الجوالات</a><a href="/${market}/category/electronics">الإلكترونيات</a><a href="/${market}/category/shoes">الأحذية</a><a href="/${market}/category/bags">الحقائب</a></div></div></header>`;
+  const main = `<section class="section"><h2>كل الأقسام</h2>${categoryGrid(market)}</section>${couponBox(market,'directory','أي قسم')}<section class="section"><h2>أحدث الأدلة</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">تظهر أحدث المقالات هنا تلقائيًا.</div>'}</section>`;
+  return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market), 'directory');
+}
+
+async function categoryPage(market, key, origin, env) {
+  const mk = MARKETS[market], c = CATEGORIES[key];
+  if (!mk || !c) return null;
+  const all = marketRows(await latestArticles(env), market);
+  const rows = all.filter((a) => commerceMeta(a).categoryKey === key).slice(0,30);
+  const path = `/${market}/category/${key}`;
+  const title = `${c.label} على ${mk.name}`;
+  const desc = `${c.desc} الصفحة تربط القسم بالبراندات والموديلات والمقالات ذات الصلة وباقي شبكة الموقع.`;
+  const hero = `<header class="hero"><div class="w">${breadcrumbs(market,[{label:c.label}])}<h1>${title}</h1><p>${desc}</p></div></header>`;
+  const mobileBrands = key === 'mobiles' ? `<section class="section"><h2>براندات الجوالات</h2><p class="lead">من البراند انتقل إلى عائلة الموديل ثم المقارنات والمقالات.</p>${brandGrid(market)}</section>` : '';
+  const main = `${couponBox(market,key,c.label)}<section class="section"><h2>خطوات قرار الشراء</h2><div class="check"><div class="box"><strong>1. حدد الاستخدام</strong><br>اختيار المنتج يسبق اختيار الكوبون.</div><div class="box"><strong>2. ثبت النسخة</strong><br>قارن نفس السعة أو المقاس أو الإصدار.</div><div class="box"><strong>3. راجع البائع</strong><br>الضمان والإرجاع والشحن جزء من القرار.</div><div class="box"><strong>4. اختبر الكود</strong><br>قارن الإجمالي النهائي بعد تطبيقه.</div></div></section>${mobileBrands}<section class="section"><h2>مقالات ${c.label}</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">المقالات المتخصصة ستظهر تلقائيًا عند اجتياز بوابة الجودة.</div>'}</section><section class="section"><h2>أقسام مرتبطة</h2>${categoryGrid(market,key)}</section>`;
+  return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market,key), 'category', {'x-commerce-category':key});
+}
+
+async function brandPage(market, key, origin, env) {
+  const mk = MARKETS[market], b = BRANDS[key];
+  if (!mk || !b) return null;
+  const all = marketRows(await latestArticles(env), market);
+  const rows = all.filter((a) => commerceMeta(a).brandKey === key).slice(0,24);
+  const path = `/${market}/brand/${key}`;
+  const title = `${b.label} على ${mk.name}`;
+  const desc = `بوابة ${b.label}: عائلات الموديلات، أدلة الاختيار، المقارنات، الكوبون والمقالات المرتبطة داخل ${mk.name}.`;
+  const hero = `<header class="hero"><div class="w">${breadcrumbs(market,[{label:'الجوالات',path:`/${market}/category/mobiles`},{label:b.label}])}<h1>${title}</h1><p>${desc}</p></div></header>`;
+  const models = Object.entries(b.models).map(([modelKey,m]) => `<article class="card"><small>عائلة موديلات</small><h3><a href="/${market}/model/${key}/${modelKey}">${esc(m.label)}</a></h3><p>أدلة ومقارنات مرتبطة بعائلة ${esc(m.label)} بدون تجميد سعر أو مواصفة متغيرة.</p><a class="read" href="/${market}/model/${key}/${modelKey}">افتح العائلة ←</a></article>`).join('');
+  const comps = Object.entries(COMPARISONS).filter(([,c]) => c.a === key || c.b === key).map(([k,c]) => `<article class="card"><h3><a href="/${market}/compare/${k}">${esc(c.title)}</a></h3><a class="read" href="/${market}/compare/${k}">افتح المقارنة ←</a></article>`).join('');
+  const main = `${couponBox(market,'brand:'+key,b.label)}<section class="section"><h2>عائلات ${b.label}</h2><div class="grid">${models}</div></section><section class="section"><h2>مقارنات مرتبطة</h2><div class="grid">${comps || '<div class="empty">ستضاف المقارنات المناسبة هنا.</div>'}</div></section><section class="section"><h2>مقالات ${b.label}</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">تظهر المقالات تلقائيًا عند تطابق البراند بوضوح.</div>'}</section><section class="section"><h2>براندات أخرى</h2>${brandGrid(market,key)}</section>`;
+  return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market,'mobiles'), 'brand', {'x-commerce-brand':key});
+}
+
+async function modelPage(market, brandKey, modelKey, origin, env) {
+  const mk = MARKETS[market], b = BRANDS[brandKey], model = b?.models?.[modelKey];
+  if (!mk || !b || !model) return null;
+  const all = marketRows(await latestArticles(env), market);
+  const rows = all.filter((a) => { const meta = commerceMeta(a); return meta.brandKey === brandKey && meta.modelKey === modelKey; }).slice(0,24);
+  const path = `/${market}/model/${brandKey}/${modelKey}`;
+  const title = `${b.label} ${model.label} على ${mk.name}`;
+  const desc = `صفحة عائلة ${model.label}: أدلة شراء ومقارنة وبائع وكوبون ومقالات مرتبطة، بدون ادعاء سعر أو مواصفات متغيرة.`;
+  const hero = `<header class="hero"><div class="w">${breadcrumbs(market,[{label:'الجوالات',path:`/${market}/category/mobiles`},{label:b.label,path:`/${market}/brand/${brandKey}`},{label:model.label}])}<h1>${title}</h1><p>${desc}</p></div></header>`;
+  const siblings = Object.entries(b.models).filter(([k]) => k !== modelKey).map(([k,m]) => `<a href="/${market}/model/${brandKey}/${k}">${esc(m.label)}</a>`).join('');
+  const main = `${couponBox(market,'model:'+brandKey+':'+modelKey,`${b.short} ${model.label}`)}<section class="section"><h2>ما الذي تقارنه؟</h2><div class="check"><div class="box">السعة والنسخة الإقليمية وحالة الجهاز.</div><div class="box">البائع والضمان وسياسة الإرجاع والشحن.</div><div class="box">السعر النهائي لنفس السلة بعد تجربة الكود.</div><div class="box">الاحتياج الفعلي: تصوير أو ألعاب أو عمل أو استخدام يومي.</div></div></section><section class="section"><h2>مقالات ${model.label}</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">هذه الصفحة جاهزة لاستقبال المقالات المتخصصة تلقائيًا.</div>'}</section><section class="section"><h2>عائلات أخرى من ${b.label}</h2><div class="chips">${siblings}</div></section>`;
+  return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market,'mobiles'), 'model', {'x-commerce-brand':brandKey,'x-commerce-model':modelKey});
+}
+
+async function comparisonPage(market, key, origin, env) {
+  const mk = MARKETS[market], c = COMPARISONS[key];
+  if (!mk || !c) return null;
+  const A = BRANDS[c.a], B = BRANDS[c.b];
+  const all = marketRows(await latestArticles(env), market);
+  const rows = all.filter((a) => { const meta = commerceMeta(a); return meta.comparisonKey === key || meta.brandKey === c.a || meta.brandKey === c.b; }).slice(0,18);
+  const path = `/${market}/compare/${key}`;
+  const title = `${c.title} — ${mk.label}`;
+  const desc = `مقارنة قرار شراء بين ${A.label} و${B.label} على ${mk.name} حسب الاستخدام والنسخة والبائع والضمان والإجمالي النهائي.`;
+  const hero = `<header class="hero"><div class="w">${breadcrumbs(market,[{label:'الجوالات',path:`/${market}/category/mobiles`},{label:'المقارنات'}])}<h1>${title}</h1><p>${desc}</p><div class="chips"><a href="/${market}/brand/${c.a}">${esc(A.label)}</a><a href="/${market}/brand/${c.b}">${esc(B.label)}</a></div></div></header>`;
+  const main = `${couponBox(market,'compare:'+key,'الجوالات')}<section class="section"><h2>إطار المقارنة</h2><table class="table"><tr><th>المعيار</th><th>${esc(A.label)}</th><th>${esc(B.label)}</th></tr><tr><td>الاستخدام</td><td>حدد الأولوية قبل السعر.</td><td>قارن نفس الفئة ونفس الاستخدام.</td></tr><tr><td>النسخة والسعة</td><td>ثبت النسخة والسعة وحالة المنتج.</td><td>تأكد أن العرضين متكافئان.</td></tr><tr><td>البائع والضمان</td><td>راجع الإرجاع والضمان.</td><td>ضع خدمة ما بعد الشراء ضمن القرار.</td></tr><tr><td>الكوبون</td><td>جرّبه بعد تثبيت السلة.</td><td>قارن الإجمالي بعد الشحن.</td></tr></table></section><section class="section"><h2>مقالات مرتبطة</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">المقالات المقارنة ستظهر هنا تلقائيًا.</div>'}</section>`;
+  return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market,'mobiles'), 'comparison', {'x-commerce-comparison':key});
+}
+
+export async function commerceLanding(path, origin, env) {
+  let m = path.match(/^\/(saudi|uae)\/categories$/);
+  if (m) return directoryPage(m[1], origin, env);
+  m = path.match(/^\/(saudi|uae)\/category\/([a-z0-9-]+)$/);
+  if (m) return categoryPage(m[1],m[2],origin,env);
+  m = path.match(/^\/(saudi|uae)\/brand\/([a-z0-9-]+)$/);
+  if (m) return brandPage(m[1],m[2],origin,env);
+  m = path.match(/^\/(saudi|uae)\/model\/([a-z0-9-]+)\/([a-z0-9-]+)$/);
+  if (m) return modelPage(m[1],m[2],m[3],origin,env);
+  m = path.match(/^\/(saudi|uae)\/compare\/([a-z0-9-]+)$/);
+  if (m) return comparisonPage(m[1],m[2],origin,env);
+  return null;
+}
+
+export function commerceArticlePathHtml(article = {}) {
+  const links = articleCommerceLinks(article);
+  return `<section id="article-commerce-path" style="padding:30px 0;background:#eef2ff;border-top:1px solid #c7d2fe"><div style="width:min(940px,94%);margin:auto"><p style="font-weight:900;color:#6d28d9">استكمل داخل نفس شبكة الشراء</p><h2>القسم والبراند والمقالات المرتبطة</h2><div class="chips">${links.map((x) => `<a href="${x.path}">${esc(x.label)}</a>`).join('')}<a href="/blog">كل المقالات</a><a href="/">الرئيسية</a></div></div></section>`;
+}
+
+export function commerceNavHtml() {
+  const keys = ['mobiles','electronics','computers','gaming','home-kitchen','beauty','shoes','bags','sports','automotive'];
+  return `<section id="commerce-network-nav" style="padding:30px 0;background:#eef2ff"><div style="width:min(1180px,92%);margin:auto"><h2>تصفح أقسام نون</h2><p>ابدأ من السوق ثم القسم، وبعدها البراند والموديل والمقال المناسب.</p><div class="chips"><a href="/saudi/categories">نون السعودية</a><a href="/uae/categories">نون الإمارات</a>${keys.map((k) => `<a href="/saudi/category/${k}">${esc(CATEGORIES[k].label)}</a>`).join('')}</div></div></section>`;
+}
+
+export function commerceSitemap(origin) {
+  const urls = commercePaths().map((path) => `<url><loc>${esc(origin + path)}</loc></url>`).join('');
+  return new Response(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`, {headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public,max-age=300,s-maxage=300','x-commerce-network':'v2'}});
+}
+
+export function augmentCommerceSitemap(xml, origin) {
+  if (!/<\/sitemapindex>/i.test(xml) || xml.includes('/sitemap-commerce.xml')) return xml;
+  return xml.replace(/<\/sitemapindex>/i, `<sitemap><loc>${esc(origin)}/sitemap-commerce.xml</loc></sitemap></sitemapindex>`);
+}
+
+export {COMMERCE_TAXONOMY_INFO};
