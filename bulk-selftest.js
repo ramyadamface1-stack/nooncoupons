@@ -28,7 +28,7 @@ for(let n=0;n<40;n++){
   const auditRecent=[...(cluster.entries||[]),...recent];
   const audit=auditSeoArticle(article,topic,{...cfg,recent:auditRecent});
   const gg=globalGate(article,topic,audit,{entries:auditRecent});
-  const indexation=evaluateIndexation(article,topic,{globalGate:gg,contextualLinks:links.length,schemaGate,coupon});
+  const indexation=evaluateIndexation(article,topic,{globalGate:gg,contextualLinks:links.length,clusterSize:(cluster.entries||[]).length,schemaGate,coupon});
   const productionReady=audit.productionReady&&gg.pass&&schemaGate.pass&&indexation.indexable;
   const row={cursor,country:topic.country,category:topic.category,intent:topic.intent,keyword:topic.kw,score:audit.score,floor:audit.groupFloor,wordCount:audit.wordCount,productionReady,p0:audit.p0,failed:audit.failed,globalReasons:gg.reasons,indexationScore:indexation.score,indexationReasons:indexation.reasons,minSignatureDistance:Math.min(audit.minSignatureDistance,gg.minDistance),groups:audit.groups,links:links.length,schemaBlocks:schemaGate.blocks,faqQuestions:schemaGate.faqQuestions};
   console.log(JSON.stringify(row));
@@ -63,13 +63,16 @@ if(!/class="contextual-links"/.test(linked.html)||!/articles\/related-one/.test(
 const brokenSchema={...firstAccepted.article,html:firstAccepted.article.html.replace(/"@type":"FAQPage"/,'"@type":FAQPage')};
 if(validateStructuredData(brokenSchema).pass)throw new Error('invalid_schema_was_not_blocked');
 
-const broad=evaluateIndexation({...firstAccepted.article,primaryKeyword:'نون خصم'},firstAccepted.topic,{globalGate:{...duplicateGate,pass:true,indexSize:10},contextualLinks:3,schemaGate:{pass:true},coupon:{publishAllowed:true}});
+const broad=evaluateIndexation({...firstAccepted.article,primaryKeyword:'نون خصم'},firstAccepted.topic,{globalGate:{...duplicateGate,pass:true},contextualLinks:3,clusterSize:10,schemaGate:{pass:true},coupon:{publishAllowed:true}});
 if(broad.indexable||!broad.reasons.includes('intent_too_broad'))throw new Error('broad_intent_was_not_blocked:'+JSON.stringify(broad));
+const matureNoLinks=evaluateIndexation(firstAccepted.article,firstAccepted.topic,{globalGate:{...duplicateGate,pass:true},contextualLinks:0,clusterSize:4,schemaGate:{pass:true},coupon:{publishAllowed:true}});
+if(matureNoLinks.indexable||!matureNoLinks.reasons.includes('weak_cluster_support'))throw new Error('mature_cluster_without_links_was_not_blocked:'+JSON.stringify(matureNoLinks));
 
 console.log(JSON.stringify({engine:BULK_ENGINE_INFO,globalIndex:GLOBAL_INDEX_INFO,couponRegistry:COUPON_REGISTRY_INFO,schemaGate:SCHEMA_GATE_INFO,indexationGate:INDEXATION_GATE_INFO,editorialTrust:EDITORIAL_TRUST_INFO,ready,rejected,minScore,maxScore,minIndexation,minWords,maxWords,groupMins,clusters:clusters.size},null,2));
 if(BULK_ENGINE_INFO.topicSpace<1000000)throw new Error('topic_space_too_small');
 if(BULK_ENGINE_INFO.blueprints<10)throw new Error('blueprint_diversity_too_small');
-if(ready<28)throw new Error('too_few_quality_articles:'+ready);
+// Quality-first invariant: throughput may fall when stronger gates reject similar pages.
+if(ready<20)throw new Error('quality_yield_unexpectedly_low:'+ready);
 if(minScore<95)throw new Error('score_below_95:'+minScore);
 if(minIndexation<INDEXATION_GATE_INFO.minScore)throw new Error('indexation_below_min:'+minIndexation);
 if(Math.min(...Object.values(groupMins))<88)throw new Error('group_floor_below_88');
