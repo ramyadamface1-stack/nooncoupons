@@ -41,26 +41,23 @@ jobs:
           ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
           ready=0
           for i in $(seq 1 30); do
-            curl -fsS --max-time 20 "$ORIGIN/api/generator-health?v=commerce3" -o /tmp/generator.json || true
-            curl -fsS --max-time 20 "$ORIGIN/api/commerce-health?v=commerce3" -o /tmp/commerce.json || true
-            if python - <<'PY'
-          import json
-          try:
-              g=json.load(open('/tmp/generator.json'))
-              c=json.load(open('/tmp/commerce.json'))
-              b=g.get('bulk',{})
-              gt=c.get('generatorTaxonomy',{})
-              ok=(c.get('ok') is True and int(c.get('routes') or 0)==110 and
-                  gt.get('mode')=='explicit-generator-taxonomy' and int(gt.get('version') or 0)>=3 and
-                  int(b.get('dailyTarget') or 0)==2000 and int(b.get('batchSize') or 0)==2)
-              raise SystemExit(0 if ok else 1)
-          except Exception:
-              raise SystemExit(1)
-          PY
-            then ready=1; break; fi
+            curl -sS --max-time 20 "$ORIGIN/api/generator-health?v=commerce4" -o /tmp/generator.json || true
+            curl -sS --max-time 20 "$ORIGIN/api/commerce-health?v=commerce4" -o /tmp/commerce.json || true
+            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); assert c.get('ok') is True; assert int(c.get('routes') or 0)==110; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(b.get('dailyTarget') or 0)==2000; assert int(b.get('batchSize') or 0)==2" 2>/dev/null; then
+              ready=1
+              break
+            fi
+            echo "waiting for commerce runtime attempt=$i"
+            echo "generator=$(cat /tmp/generator.json 2>/dev/null | head -c 800 || true)"
+            echo "commerce=$(cat /tmp/commerce.json 2>/dev/null | head -c 800 || true)"
             sleep 6
           done
-          [ "$ready" = 1 ]
+          if [ "$ready" != 1 ]; then
+            echo "LIVE_RUNTIME_NOT_READY"
+            cat /tmp/generator.json 2>/dev/null || true
+            cat /tmp/commerce.json 2>/dev/null || true
+            exit 1
+          fi
 
           for path in \
             /saudi/categories \
@@ -75,12 +72,12 @@ jobs:
             /sitemap-commerce.xml \
             /api/generator-health \
             /api/commerce-health; do
-            code="$(curl -sS --max-time 20 -o /tmp/page -w '%{http_code}' "$ORIGIN$path?v=commerce3")"
+            code="$(curl -sS --max-time 20 -o /tmp/page -w '%{http_code}' "$ORIGIN$path?v=commerce4")"
             [ "$code" = "200" ]
           done
 
-          curl -fsS --max-time 20 "$ORIGIN/sitemap.xml?v=commerce3" -o /tmp/sitemap.xml
-          curl -fsS --max-time 20 "$ORIGIN/sitemap-commerce.xml?v=commerce3" -o /tmp/sitemap-commerce.xml
+          curl -fsS --max-time 20 "$ORIGIN/sitemap.xml?v=commerce4" -o /tmp/sitemap.xml
+          curl -fsS --max-time 20 "$ORIGIN/sitemap-commerce.xml?v=commerce4" -o /tmp/sitemap-commerce.xml
           for needle in '/saudi/category/shoes' '/uae/category/bags' '/saudi/brand/apple' '/saudi/model/apple/iphone-pro' '/saudi/compare/iphone-vs-galaxy'; do
             grep -Fq "$needle" /tmp/sitemap.xml
             grep -Fq "$needle" /tmp/sitemap-commerce.xml
