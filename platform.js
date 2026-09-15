@@ -1,113 +1,184 @@
 import publicApp from './seo-layer.js';
-import {QUALITY_CRITERIA, QUALITY_CRITERIA_COUNT} from './quality-criteria.js';
+import {QUALITY_CRITERIA_COUNT} from './quality-criteria.js';
 import {SEED_ARTICLES} from './seed-articles.js';
 import {SEED_BATCH_A} from './seed-batch-a.js';
 import {SEED_BATCH_B} from './seed-batch-b.js';
 import {SEED_BATCH_C} from './seed-batch-c.js';
-const ALL_SEED_ARTICLES=[...SEED_ARTICLES,...SEED_BATCH_A,...SEED_BATCH_B,...SEED_BATCH_C];
 
+const ALL_SEED_ARTICLES=[...SEED_ARTICLES,...SEED_BATCH_A,...SEED_BATCH_B,...SEED_BATCH_C];
 const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
 const LIVE_MARKETS=['SA','AE'];
 const now=()=>new Date().toISOString();
-const makeState=()=>({version:1,markets:{SA:{enabled:true,label:'السعودية'},AE:{enabled:true,label:'الإمارات'},EG:{enabled:false,label:'مصر'}},coupons:CODES.flatMap(code=>LIVE_MARKETS.map(country=>({id:country+'-'+code,code,country,status:'active',verified:false,priority:100,updatedAt:now()}))),articles:[],settings:{brand:'Noon',qualityThreshold:95,minWords:1000,targetWords:2000,aiPrimary:'gemini',aiFallback:'grok'},audit:[]});
-const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
-const html=(x,s=200)=>new Response(x,{status:s,headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex,nofollow'}});
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
 const wc=s=>String(s||'').replace(/<[^>]+>/g,' ').trim().split(/\s+/).filter(Boolean).length;
 const normKw=s=>String(s||'').toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').trim();
 const kwTokens=s=>new Set(normKw(s).split(/\s+/).filter(x=>x.length>2));
 const overlap=(a,b)=>{const A=kwTokens(a),B=kwTokens(b);let n=0;for(const x of A)if(B.has(x))n++;return n};
+const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const auth=(req,env)=>Boolean(env.ADMIN_TOKEN)&&req.headers.get('authorization')==='Bearer '+env.ADMIN_TOKEN;
+const makeState=()=>({
+  version:2,
+  markets:{SA:{enabled:true,label:'السعودية'},AE:{enabled:true,label:'الإمارات'},EG:{enabled:false,label:'مصر'}},
+  coupons:CODES.flatMap(code=>LIVE_MARKETS.map(country=>({id:country+'-'+code,code,country,status:'active',verified:false,priority:100,updatedAt:now()}))),
+  articles:[],
+  settings:{brand:'Noon',qualityThreshold:95,minWords:1000,targetWords:1500,aiPrimary:'workers-ai',aiFallback:null},
+  audit:[]
+});
+
 async function body(req){try{return await req.json()}catch{return {}}}
 async function ctl(env,path,init){const id=env.CONTROL.idFromName('primary');return env.CONTROL.get(id).fetch('https://control.internal'+path,init)}
 async function state(env){return (await ctl(env,'/state')).json()}
+function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
 function auditArticle(a){
-  const title=String(a.title||''), meta=String(a.metaDescription||''), content=String(a.html||''), plain=content.replace(/<[^>]+>/g,' '), country=String(a.country||''), coupon=String(a.coupon||''), primary=String(a.primaryKeyword||'');
-  const n=wc(content), checks=[]; const add=(name,pass,w=1,e='')=>checks.push({name,pass:!!pass,weight:w,evidence:e});
-  add('Article Identity',title.length>=20&&title.length<=70,2,title); add('Brand Relevance',/نون|Noon/i.test(title+' '+plain),2); add('Country Relevance',country==='SA'?/السعودية|Saudi/i.test(plain):country==='AE'?/الإمارات|UAE|Emirates/i.test(plain):false,2,country); add('Coupon Relevance',coupon?plain.includes(coupon):true,2,coupon);
-  add('Primary Keyword',primary?plain.toLowerCase().includes(primary.toLowerCase()):false,2,primary); add('Title SEO',title.length>=30&&title.length<=60,2); add('Meta Description',meta.length>=100&&meta.length<=165,2); add('URL / Slug',Boolean(a.slug&&String(a.slug).length<=120),1); add('H1 Optimization',/<h1\b/i.test(content),2); add('H2 Hierarchy',(content.match(/<h2\b/gi)||[]).length>=3,1); add('H3 Hierarchy',(content.match(/<h3\b/gi)||[]).length>=1,1); add('Content Length',n>=Number(a.minWords||1000),3,String(n));
-  add('FAQ Section',/FAQ|الأسئلة الشائعة|سؤال/i.test(content),1); add('Internal Linking',(content.match(/href=["']\//gi)||[]).length>=3,1); add('External Linking',(content.match(/href=["']https?:\/\//gi)||[]).length>=1,1); add('Schema Markup',/application\/ld\+json/i.test(content),2); add('Coupon Copy Button',/data-copy|clipboard|نسخ الكود/i.test(content),2); add('Try-It CTA',/جرّب|استخدم الكود|Try/i.test(content),1); add('Accessibility',/alt=|aria-|<label/i.test(content),1);
-  const unsupported=/(\d{1,2}%|خصم\s*\d+|حتى\s*\d+)/g.test(plain)&&!/مصدر|وفق|شروط|موثق/i.test(plain); add('Unsupported Claims',!unsupported,5,unsupported?'numeric discount claim needs evidence':'clean'); const leakage=/amazon|temu|shein|namshi|أمازون|شي إن|تيمو/i.test(plain); add('Cross-Brand Isolation',!leakage,4); add('Country Lock',country==='SA'?!/نون الإمارات|UAE Noon/i.test(plain):country==='AE'?!/نون السعودية|Saudi Noon/i.test(plain):false,4); add('Brand Lock',!leakage,4); add('Language Purity',!/(Lorem ipsum|As an AI|I cannot)/i.test(plain),2);
-  const total=checks.reduce((s,c)=>s+c.weight,0), passed=checks.reduce((s,c)=>s+(c.pass?c.weight:0),0), score=Math.round(passed/total*1000)/10; const p0=checks.filter(c=>!c.pass&&['Unsupported Claims','Cross-Brand Isolation','Country Lock','Brand Lock'].includes(c.name)).map(c=>c.name); const p1=checks.filter(c=>!c.pass&&!p0.includes(c.name)&&c.weight>=2).map(c=>c.name); return {score,p0,p1,measuredChecks:checks.length,totalCriteria:QUALITY_CRITERIA_COUNT,evidenceCoverage:Math.round(checks.length/QUALITY_CRITERIA_COUNT*1000)/10,checks,productionReady:p0.length===0&&score>=95&&n>=Number(a.minWords||1000)};
+  const title=String(a.title||''),meta=String(a.metaDescription||''),content=String(a.html||''),plain=content.replace(/<[^>]+>/g,' '),country=String(a.country||''),coupon=String(a.coupon||''),primary=String(a.primaryKeyword||'');
+  const n=wc(content),checks=[];const add=(name,pass,weight=1)=>checks.push({name,pass:!!pass,weight});
+  add('Article Identity',title.length>=20&&title.length<=70,2);
+  add('Brand Relevance',/نون|Noon/i.test(title+' '+plain),2);
+  add('Country Relevance',country==='SA'?/السعودية|Saudi/i.test(plain):country==='AE'?/الإمارات|UAE|Emirates/i.test(plain):false,2);
+  add('Coupon Relevance',coupon?plain.includes(coupon):true,2);
+  add('Primary Keyword',primary?normKw(plain).includes(normKw(primary)):false,2);
+  add('Title SEO',title.length>=30&&title.length<=68,2);
+  add('Meta Description',meta.length>=95&&meta.length<=165,2);
+  add('URL / Slug',Boolean(a.slug&&String(a.slug).length<=120),1);
+  add('H1 Optimization',(content.match(/<h1\b/gi)||[]).length===1,2);
+  add('H2 Hierarchy',(content.match(/<h2\b/gi)||[]).length>=6,2);
+  add('H3 Hierarchy',(content.match(/<h3\b/gi)||[]).length>=1,1);
+  add('Content Length',n>=Number(a.minWords||1000)&&n<=2000,4);
+  add('FAQ Section',/FAQ|الأسئلة الشائعة|سؤال/i.test(content),2);
+  add('Internal Linking',(content.match(/href=["']\//gi)||[]).length>=3,1);
+  add('External Linking',/https:\/\/www\.noon\.com\//i.test(content),1);
+  add('Schema Markup',/application\/ld\+json/i.test(content),2);
+  add('Coupon Copy Button',/data-copy-code|clipboard|نسخ الكود/i.test(content),2);
+  add('Try-It CTA',/جرّب|استخدم الكود|Try/i.test(content),1);
+  const unsupported=/(\d{1,2}%|خصم\s*\d+|حتى\s*\d+)/g.test(plain)&&!/مصدر|وفق|شروط|موثق|السلة/i.test(plain);
+  add('Unsupported Claims',!unsupported,5);
+  const leakage=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|extra|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i.test(plain);
+  add('Cross-Brand Isolation',!leakage,5);
+  const wrongCountry=country==='SA'?/(نون\s*)?(الإمارات|الامارات)|\bUAE\b|Emirates/i.test(plain):country==='AE'?/(نون\s*)?(السعودية|المملكة العربية السعودية)|\bKSA\b|Saudi(?: Arabia)?/i.test(plain):true;
+  add('Country Lock',!wrongCountry,5);
+  const codes=[...new Set((plain.match(/\bNOV\d{3}\b/gi)||[]).map(x=>x.toUpperCase()))];
+  add('Coupon Lock',!coupon||(codes.length>=1&&codes.every(x=>x===coupon.toUpperCase())),5);
+  const total=checks.reduce((s,c)=>s+c.weight,0),passed=checks.reduce((s,c)=>s+(c.pass?c.weight:0),0),score=Math.round(passed/total*1000)/10;
+  const hardPass=!unsupported&&!leakage&&!wrongCountry&&(!coupon||(codes.length>=1&&codes.every(x=>x===coupon.toUpperCase())))&&n>=Number(a.minWords||1000)&&n<=2000;
+  return {score,wordCount:n,checks,productionReady:hardPass&&score>=95};
 }
 
-function promptFor(b){const country=b.country==='AE'?'الإمارات':'السعودية', coupon=CODES.includes(b.coupon)?b.coupon:CODES[0]; return 'اكتب مقالة عربية أصلية احترافية عن Noon '+country+'. Brand Lock=Noon فقط. Country Lock='+b.country+'. Coupon Lock='+coupon+'.\nالكلمة الأساسية: '+(b.primaryKeyword||'كود خصم نون '+country)+'\nالهدف: '+(b.intent||'transactional commercial')+'\nلا تخترع نسبة خصم أو حد أقصى أو مدة صلاحية أو أهلية. السلة هي المرجع النهائي عند غياب دليل.\nالمقال يجب أن يكون Answer-first وSEO/AEO/GEO/E-E-A-T، H1 واحد، H2/H3، FAQ، جدول مقارنة، طريقة استخدام، troubleshooting، روابط داخلية، CTA نسخ وتجربة، وJSON-LD Article+FAQ+Breadcrumb. الحد الأدنى '+(b.minWords||1000)+' كلمة والهدف '+(b.targetWords||2000)+'. أعد JSON فقط بالمفاتيح title,metaDescription,slug,primaryKeyword,secondaryKeywords,html,faq,sources,claims.'}
-async function gemini(env,p){if(!env.GEMINI_API_KEY)throw new Error('GEMINI_API_KEY is not configured');const m=env.GEMINI_MODEL||'gemini-2.5-flash';const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(m)+':generateContent?key='+encodeURIComponent(env.GEMINI_API_KEY),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:p}]}],generationConfig:{temperature:.45,responseMimeType:'application/json'}})});if(!r.ok)throw new Error('Gemini '+r.status);const d=await r.json();return d?.candidates?.[0]?.content?.parts?.map(x=>x.text||'').join('')||''}
-async function grok(env,p){if(!env.GROK_API_KEY)throw new Error('GROK_API_KEY is not configured');const r=await fetch('https://api.x.ai/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+env.GROK_API_KEY},body:JSON.stringify({model:env.GROK_MODEL||'grok-4',messages:[{role:'system',content:'Return strict JSON only.'},{role:'user',content:p}],temperature:.45,response_format:{type:'json_object'}})});if(!r.ok)throw new Error('Grok '+r.status);const d=await r.json();return d?.choices?.[0]?.message?.content||''}
-const parse=x=>JSON.parse(String(x||'').trim().replace(/^```json\s*/i,'').replace(/```$/,''));
-async function generate(req,env){if(!auth(req,env))return json({error:'unauthorized'},401);const b=await body(req);if(!LIVE_MARKETS.includes(b.country))return json({error:'country must be SA or AE'},400);if(b.coupon&&!CODES.includes(b.coupon))return json({error:'unapproved coupon'},400);let provider=b.provider||env.AI_PRIMARY_PROVIDER||'gemini',raw;try{raw=provider==='grok'?await grok(env,promptFor(b)):await gemini(env,promptFor(b))}catch(e){provider=provider==='grok'?'gemini':'grok';raw=provider==='grok'?await grok(env,promptFor(b)):await gemini(env,promptFor(b))}const a=parse(raw);a.country=b.country;a.coupon=b.coupon||CODES[0];a.slug=slugify(a.slug||a.title);a.minWords=b.minWords||Number(env.MIN_ARTICLE_WORDS||1000);a.provider=provider;a.generatedAt=now();a.audit=auditArticle(a);if(a.audit.productionReady&&env.CONTENT_FINAL){const current=await state(env);const nk=normKw(a.primaryKeyword||'');const conflict=(current.articles||[]).find(x=>nk&&normKw(x.primaryKeyword||'')===nk&&x.slug!==a.slug);if(conflict){a.publication={published:false,reason:'keyword_cannibalization',conflictsWith:{slug:conflict.slug,title:conflict.title}};return json(a)}const rec={id:crypto.randomUUID(),slug:a.slug,title:a.title||a.slug,metaDescription:a.metaDescription||'',country:a.country,coupon:a.coupon,status:'published',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:a.audit.score,qualityCoverage:a.audit.evidenceCoverage,provider:a.provider,primaryKeyword:a.primaryKeyword||''};await env.CONTENT_FINAL.put('articles/'+a.slug+'.html',String(a.html||''),{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:rec.title,country:rec.country,status:'published'}});await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});a.publication={published:true,url:(env.SITE_ORIGIN||'')+'/articles/'+a.slug};}else{a.publication={published:false,reason:'quality_gate_failed_or_storage_missing'};}return json(a)}
-async function save(req,env){if(!auth(req,env))return json({error:'unauthorized'},401);const b=await body(req),a=b.article||b,audit=auditArticle(a);const current=await state(env);const nk=normKw(a.primaryKeyword||'');const conflict=(current.articles||[]).find(x=>nk&&normKw(x.primaryKeyword||'')===nk&&x.slug!==a.slug);if(conflict)return json({error:'keyword_cannibalization',primaryKeyword:a.primaryKeyword,conflictsWith:{slug:conflict.slug,title:conflict.title}},409);if(!audit.productionReady&&!b.forceDraft)return json({error:'quality_gate_failed',audit},422);if(!env.CONTENT_FINAL)return json({error:'R2 binding missing'},503);const slug=slugify(a.slug||a.title);const rec={id:crypto.randomUUID(),slug,title:a.title||slug,metaDescription:a.metaDescription||'',country:a.country,coupon:a.coupon||'',status:b.status||'draft',scheduledAt:b.scheduledAt||null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:audit.evidenceCoverage,provider:a.provider||null,primaryKeyword:a.primaryKeyword||''};await env.CONTENT_FINAL.put('articles/'+slug+'.html',String(a.html||''),{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:rec.title,country:rec.country,status:rec.status}});const r=await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});return json({ok:true,record:await r.json(),audit})}
+async function save(req,env){
+  if(!auth(req,env))return json({error:'unauthorized'},401);
+  const b=await body(req),a=b.article||b,audit=auditArticle(a),current=await state(env);
+  const slug=slugify(a.slug||a.title),nk=normKw(a.primaryKeyword||'');
+  const conflict=(current.articles||[]).find(x=>(nk&&normKw(x.primaryKeyword||'')===nk||x.slug===slug)&&x.slug!==slug);
+  if(conflict)return json({error:'keyword_or_slug_cannibalization',conflictsWith:{slug:conflict.slug,title:conflict.title}},409);
+  if(!audit.productionReady&&!b.forceDraft)return json({error:'quality_gate_failed',audit},422);
+  if(!env.CONTENT_FINAL)return json({error:'R2 binding missing'},503);
+  const rec={id:crypto.randomUUID(),slug,title:a.title||slug,metaDescription:a.metaDescription||'',country:a.country,coupon:a.coupon||'',status:b.status||'draft',scheduledAt:b.scheduledAt||null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider:a.provider||null,primaryKeyword:a.primaryKeyword||''};
+  await env.CONTENT_FINAL.put('articles/'+slug+'.html',String(a.html||''),{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:rec.title,country:rec.country,status:rec.status}});
+  const r=await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});
+  return json({ok:true,record:await r.json(),audit});
+}
+
 async function seedIfNeeded(env){
   if(!env.CONTROL||!env.CONTENT_FINAL)return {seeded:0,reason:'bindings_missing'};
-  const s=await state(env);
-  const existing=new Set((s.articles||[]).map(a=>a.slug));
+  const s=await state(env),existing=new Set((s.articles||[]).map(a=>a.slug));
   let seeded=0;
   for(const a of ALL_SEED_ARTICLES){
     if(existing.has(a.slug))continue;
     const audit=auditArticle({...a,minWords:1000});
-    const rec={id:crypto.randomUUID(),slug:a.slug,title:a.title,metaDescription:a.metaDescription,country:a.country,coupon:a.coupon,status:'published',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:audit.evidenceCoverage,provider:'manual-openai-seed',primaryKeyword:a.primaryKeyword||''};
+    const rec={id:crypto.randomUUID(),slug:a.slug,title:a.title,metaDescription:a.metaDescription,country:a.country,coupon:a.coupon,status:'published',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider:'manual-openai-seed',primaryKeyword:a.primaryKeyword||''};
     await env.CONTENT_FINAL.put('articles/'+a.slug+'.html',a.html,{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:a.title,country:a.country,status:'published'}});
     await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});
-    existing.add(a.slug); seeded++;
+    existing.add(a.slug);seeded++;
   }
   return {seeded,totalSeedArticles:ALL_SEED_ARTICLES.length};
 }
+
 async function blogPage(env){
   await seedIfNeeded(env);
-  const s=await state(env);
-  const articles=(s.articles||[]).filter(a=>a.status==='published');
-  const cards=articles.map(a=>'<article class="card"><span class="tag">'+(a.country==='SA'?'السعودية':'الإمارات')+'</span><h2><a href="/articles/'+a.slug+'">'+a.title+'</a></h2><p>'+((a.metaDescription||'').slice(0,180))+'</p><div class="meta">Quality '+(a.quality||'—')+' · '+(a.coupon||'')+'</div><a class="read" href="/articles/'+a.slug+'">اقرأ المقال ←</a></article>').join('');
-  const h='<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>مدونة كوبونات نون | أدلة السعودية والإمارات</title><meta name="description" content="مقالات وأدلة عملية عن كوبونات نون السعودية والإمارات، مقارنة الأكواد، حل مشاكل القسائم، وأدلة شراء حسب الفئات."><link rel="canonical" href="'+(env.SITE_ORIGIN||'')+'/blog"><style>body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#f8fafc;color:#111827}header{background:#111827;color:#fff;padding:28px 0}.w{width:min(1160px,92%);margin:auto}nav a{color:#fff;margin-left:18px}.hero{padding:34px 0}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:20px;box-shadow:0 10px 28px rgba(15,23,42,.05)}.card h2{font-size:20px;line-height:1.6}.card a{color:#5b21b6;text-decoration:none}.tag{display:inline-block;background:#ede9fe;color:#5b21b6;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700}.meta{color:#64748b;font-size:12px;margin:12px 0}.read{font-weight:800}@media(max-width:900px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:620px){.grid{grid-template-columns:1fr}}</style></head><body><header><div class="w"><nav><a href="/">الرئيسية</a><a href="/coupons">الكوبونات</a><a href="/saudi-arabia">السعودية</a><a href="/uae">الإمارات</a></nav></div></header><main class="w"><section class="hero"><h1>مدونة كوبونات نون</h1><p>كل مقال منشور هنا مخزن على R2 ومربوط ببيانات النشر في ControlPlane.</p></section><section class="grid">'+cards+'</section></main></body></html>';
+  const s=await state(env),articles=(s.articles||[]).filter(a=>a.status==='published');
+  const cards=articles.map(a=>`<article class="card"><span class="tag">${a.country==='SA'?'السعودية':'الإمارات'}</span><h2><a href="/articles/${encodeURI(a.slug)}">${esc(a.title)}</a></h2><p>${esc((a.metaDescription||'').slice(0,180))}</p><div class="meta">Quality ${a.quality||'—'} · ${esc(a.coupon||'')}</div><a class="read" href="/articles/${encodeURI(a.slug)}">اقرأ المقال ←</a></article>`).join('');
+  const origin=env.SITE_ORIGIN||'';
+  const h=`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>مدونة كوبونات نون | أدلة السعودية والإمارات</title><meta name="description" content="مقالات وأدلة عملية عن كوبونات نون السعودية والإمارات، مقارنة الأكواد، حل مشاكل القسائم، وأدلة شراء حسب الفئات."><link rel="canonical" href="${origin}/blog"><style>body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#f8fafc;color:#111827}header{background:#111827;color:#fff;padding:28px 0}.w{width:min(1160px,92%);margin:auto}nav a{color:#fff;margin-left:18px}.hero{padding:34px 0}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.card{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:20px;box-shadow:0 10px 28px rgba(15,23,42,.05)}.card h2{font-size:20px;line-height:1.6}.card a{color:#5b21b6;text-decoration:none}.tag{display:inline-block;background:#ede9fe;color:#5b21b6;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:700}.meta{color:#64748b;font-size:12px;margin:12px 0}.read{font-weight:800}@media(max-width:900px){.grid{grid-template-columns:1fr 1fr}}@media(max-width:620px){.grid{grid-template-columns:1fr}}</style></head><body><header><div class="w"><nav><a href="/">الرئيسية</a><a href="/coupons">الكوبونات</a><a href="/saudi-arabia">السعودية</a><a href="/uae">الإمارات</a></nav></div></header><main class="w"><section class="hero"><h1>مدونة كوبونات نون</h1><p>كل مقال منشور هنا مخزن على R2 ومربوط ببيانات النشر في Control Plane.</p></section><section class="grid">${cards}</section></main></body></html>`;
   return new Response(h,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=60,s-maxage=300'}});
 }
-function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-function articleSchema(rec,env,related){
-  const url=(env.SITE_ORIGIN||'')+'/articles/'+rec.slug;
-  const market=rec.country==='SA'?'السعودية':'الإمارات';
+
+function articleSchema(rec,env){
+  const url=(env.SITE_ORIGIN||'')+'/articles/'+rec.slug,market=rec.country==='SA'?'السعودية':'الإمارات';
   const faq=[
     {'@type':'Question',name:'هل الكوبون مضمون لكل المستخدمين؟',acceptedAnswer:{'@type':'Answer',text:'لا. الأهلية النهائية تتحدد داخل سلة نون وشروط الحملة وقت الاستخدام.'}},
-    {'@type':'Question',name:'كيف أتحقق من أفضل نتيجة؟',acceptedAnswer:{'@type':'Answer',text:'جرّب الأكواد واحدًا بعد الآخر على نفس السلة وقارن الإجمالي النهائي قبل الدفع.'}},
-    {'@type':'Question',name:'هل تختلف الأكواد بين السعودية والإمارات؟',acceptedAnswer:{'@type':'Answer',text:'قد تختلف الأهلية والنتائج بين الأسواق، لذلك استخدم صفحة الدولة الصحيحة واختبر داخل السلة.'}}
+    {'@type':'Question',name:'كيف أتحقق من أفضل نتيجة؟',acceptedAnswer:{'@type':'Answer',text:'جرّب الكود على السلة وتحقق من الإجمالي النهائي قبل الدفع.'}},
+    {'@type':'Question',name:'هل تختلف النتائج بين الأسواق؟',acceptedAnswer:{'@type':'Answer',text:'قد تختلف الأهلية والنتائج بين الأسواق، لذلك استخدم صفحة الدولة الصحيحة واختبر داخل السلة.'}}
   ];
   return [
     {'@context':'https://schema.org','@type':'Article',headline:rec.title,description:rec.metaDescription||'',mainEntityOfPage:url,inLanguage:'ar',datePublished:rec.createdAt||rec.updatedAt,dateModified:rec.updatedAt||rec.createdAt,about:['Noon','كوبونات نون',market],author:{'@type':'Organization',name:'كوبونات نون'},publisher:{'@type':'Organization',name:'كوبونات نون',url:env.SITE_ORIGIN||''}},
-    {'@context':'https://schema.org','@type':'BreadcrumbList',itemListElement:[
-      {'@type':'ListItem',position:1,name:'الرئيسية',item:(env.SITE_ORIGIN||'')+'/'},
-      {'@type':'ListItem',position:2,name:'المدونة',item:(env.SITE_ORIGIN||'')+'/blog'},
-      {'@type':'ListItem',position:3,name:rec.title,item:url}
-    ]},
-    {'@context':'https://schema.org','@type':'FAQPage',mainEntity:faq},
-    {'@context':'https://schema.org','@type':'WebPage',name:rec.title,url,description:rec.metaDescription||'',inLanguage:'ar',isPartOf:{'@type':'WebSite',name:'كوبونات نون',url:env.SITE_ORIGIN||''}}
+    {'@context':'https://schema.org','@type':'BreadcrumbList',itemListElement:[{'@type':'ListItem',position:1,name:'الرئيسية',item:(env.SITE_ORIGIN||'')+'/'},{'@type':'ListItem',position:2,name:'المدونة',item:(env.SITE_ORIGIN||'')+'/blog'},{'@type':'ListItem',position:3,name:rec.title,item:url}]},
+    {'@context':'https://schema.org','@type':'FAQPage',mainEntity:faq}
   ];
 }
+
 async function articlePage(path,env){
-  const slug=decodeURIComponent(path.split('/').filter(Boolean).pop());
-  const s=await state(env);
-  const rec=s.articles.find(a=>a.slug===slug&&a.status==='published');
+  const slug=decodeURIComponent(path.split('/').filter(Boolean).pop()),s=await state(env),rec=s.articles.find(a=>a.slug===slug&&a.status==='published');
   if(!rec||!env.CONTENT_FINAL)return null;
-  const o=await env.CONTENT_FINAL.get('articles/'+slug+'.html'); if(!o)return null;
+  const o=await env.CONTENT_FINAL.get('articles/'+slug+'.html');if(!o)return null;
   let b=await o.text();
   const related=(s.articles||[]).filter(a=>a.status==='published'&&a.country===rec.country&&a.slug!==rec.slug).map(a=>({...a,_rel:overlap((rec.primaryKeyword||rec.title),(a.primaryKeyword||a.title))+overlap(rec.title,a.title)})).sort((a,b)=>b._rel-a._rel||String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))).slice(0,5);
-  const marketUrl=rec.country==='SA'?'/saudi-arabia':'/uae';
-  const marketName=rec.country==='SA'?'نون السعودية':'نون الإمارات';
-  const internal=`<aside class="related"><h2>روابط مفيدة داخل الموقع</h2><ul>
-    <li><a href="/">الرئيسية</a></li>
-    <li><a href="${marketUrl}">${marketName}</a></li>
-    <li><a href="/coupons">جميع أكواد نون</a></li>
-    <li><a href="/categories">التصنيفات</a></li>
-    <li><a href="/blog">كل الأدلة والمقالات</a></li>
-    ${related.map(a=>'<li><a href="/articles/'+encodeURI(a.slug)+'">'+esc(a.title)+'</a></li>').join('')}
-  </ul></aside>`;
-  const external=`<aside class="source"><h2>مصدر خارجي رسمي</h2><p>للتحقق النهائي من السعر والأهلية وشروط العرض، راجع <a href="https://www.noon.com/" rel="noopener external">موقع نون الرسمي</a> قبل الدفع. السلة وشروط نون الحالية هي المرجع النهائي.</p></aside>`;
+  const marketUrl=rec.country==='SA'?'/saudi-arabia':'/uae',marketName=rec.country==='SA'?'نون السعودية':'نون الإمارات';
+  const internal=`<aside class="related"><h2>روابط مفيدة داخل الموقع</h2><ul><li><a href="/">الرئيسية</a></li><li><a href="${marketUrl}">${marketName}</a></li><li><a href="/coupons">جميع أكواد نون</a></li><li><a href="/categories">التصنيفات</a></li><li><a href="/blog">كل الأدلة والمقالات</a></li>${related.map(a=>`<li><a href="/articles/${encodeURI(a.slug)}">${esc(a.title)}</a></li>`).join('')}</ul></aside>`;
+  const external='<aside class="source"><h2>مصدر خارجي رسمي</h2><p>للتحقق النهائي من السعر والأهلية وشروط العرض، راجع <a href="https://www.noon.com/" rel="noopener external sponsored">موقع نون الرسمي</a> قبل الدفع. السلة وشروط نون الحالية هي المرجع النهائي.</p></aside>';
   b=b.replace(/<\/article>\s*$/i,internal+external+'</article>');
-  const schemas=articleSchema(rec,env,related).map(x=>'<script type="application/ld+json">'+JSON.stringify(x).replace(/</g,'\\u003c')+'</script>').join('');
+  const schemas=articleSchema(rec,env).map(x=>'<script type="application/ld+json">'+JSON.stringify(x).replace(/</g,'\\u003c')+'</script>').join('');
   const canonical=(env.SITE_ORIGIN||'')+'/articles/'+encodeURI(slug);
-  const h='<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(rec.title)+'</title><meta name="description" content="'+esc(rec.metaDescription||'')+'"><link rel="canonical" href="'+canonical+'"><meta property="og:type" content="article"><meta property="og:title" content="'+esc(rec.title)+'"><meta property="og:description" content="'+esc(rec.metaDescription||'')+'"><meta property="og:url" content="'+canonical+'">'+schemas+'<style>body{font-family:Tahoma,Arial,sans-serif;margin:0;color:#111827;background:#fff}.a{width:min(920px,92%);margin:40px auto;line-height:2}.a img,.a svg{max-width:100%;height:auto}.a a{color:#5b21b6}.related,.source{margin:28px 0;padding:18px;border:1px solid #e5e7eb;border-radius:16px;background:#fafafa}.related ul{columns:2;gap:30px}@media(max-width:640px){.related ul{columns:1}}</style></head><body><main class="a">'+b+'</main></body></html>';
+  const h=`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(rec.title)}</title><meta name="description" content="${esc(rec.metaDescription||'')}"><link rel="canonical" href="${canonical}"><meta property="og:type" content="article"><meta property="og:title" content="${esc(rec.title)}"><meta property="og:description" content="${esc(rec.metaDescription||'')}"><meta property="og:url" content="${canonical}">${schemas}<style>body{font-family:Tahoma,Arial,sans-serif;margin:0;color:#111827;background:#fff}.a{width:min(920px,92%);margin:40px auto;line-height:2}.a img,.a svg{max-width:100%;height:auto}.a a{color:#5b21b6}.related,.source{margin:28px 0;padding:18px;border:1px solid #e5e7eb;border-radius:16px;background:#fafafa}.related ul{columns:2;gap:30px}@media(max-width:640px){.related ul{columns:1}}</style></head><body><main class="a">${b}</main></body></html>`;
   return new Response(h,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=0,s-maxage=600'}});
 }
-function admin(){return '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>NoonCoupons Admin</title><style>body{margin:0;font-family:Tahoma,Arial;background:#f8fafc;color:#111827}.w{width:min(1200px,94%);margin:auto}.top{background:#0f172a;color:white;padding:22px}.g{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:20px 0}.c{background:white;border:1px solid #e2e8f0;border-radius:16px;padding:16px}b.n{font-size:28px;display:block}input,select,textarea{width:100%;padding:10px;border:1px solid #e2e8f0;border-radius:9px;margin:5px 0 10px}button{padding:10px 14px;border:0;border-radius:10px;background:#6d28d9;color:white;font-weight:800}.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}pre{white-space:pre-wrap;background:#0f172a;color:#d1fae5;padding:12px;border-radius:10px;max-height:400px;overflow:auto}@media(max-width:800px){.g,.cols{grid-template-columns:1fr}}</style></head><body><div class="top"><div class="w"><h1>NoonCoupons Control Center</h1><div>Cloudflare-only · Saudi + UAE · Egypt planned</div></div></div><main class="w"><div class="g"><div class="c">Coupons<b class="n" id="cp">20</b></div><div class="c">Articles<b class="n" id="ar">0</b></div><div class="c">Published<b class="n" id="pb">0</b></div><div class="c">Quality Criteria<b class="n">'+QUALITY_CRITERIA_COUNT+'</b></div></div><div class="c"><label>Admin Token</label><input id="token" type="password" placeholder="ADMIN_TOKEN"><p>محفوظ في sessionStorage فقط.</p></div><div class="cols"><div class="c"><h2>AI Studio</h2><select id="country"><option value="SA">Saudi Arabia</option><option value="AE">UAE</option></select><select id="coupon">'+CODES.map(c=>'<option>'+c+'</option>').join('')+'</select><input id="kw" placeholder="الكلمة الأساسية"><button onclick="gen()">Generate + Audit</button><pre id="out">Waiting...</pre></div><div class="c"><h2>Platform</h2><pre id="health">Loading...</pre></div></div><div class="c"><h2>245-Criteria Quality Gate</h2><pre>'+QUALITY_CRITERIA.join('\n')+'</pre></div></main><script>const $=x=>document.getElementById(x);$("token").value=sessionStorage.token||"";$("token").oninput=e=>sessionStorage.token=e.target.value;async function api(p,o={}){o.headers={...(o.headers||{}),"content-type":"application/json"};if(sessionStorage.token)o.headers.authorization="Bearer "+sessionStorage.token;const r=await fetch(p,o),t=await r.text();try{return JSON.parse(t)}catch{return {raw:t}}}async function ref(){const h=await api("/api/platform-health"),s=await api("/api/state");$("health").textContent=JSON.stringify(h,null,2);$("cp").textContent=s.coupons?.length||0;$("ar").textContent=s.articles?.length||0;$("pb").textContent=(s.articles||[]).filter(a=>a.status==="published").length}async function gen(){const d=await api("/api/ai/generate",{method:"POST",body:JSON.stringify({country:$("country").value,coupon:$("coupon").value,primaryKeyword:$("kw").value})});$("out").textContent=JSON.stringify(d,null,2)}ref();</script></body></html>'}
 
-export class ControlPlane{constructor(ctx,env){this.ctx=ctx;this.env=env}async get(){let s=await this.ctx.storage.get('state');if(!s){s=makeState();await this.ctx.storage.put('state',s)}return s}async fetch(req){const u=new URL(req.url);if(u.pathname==='/state')return json(await this.get());if(u.pathname==='/article'&&req.method==='POST'){const rec=await req.json(),s=await this.get(),i=s.articles.findIndex(a=>a.slug===rec.slug);if(i>=0)s.articles[i]={...s.articles[i],...rec};else s.articles.unshift(rec);s.audit.unshift({at:now(),action:'article_upsert',slug:rec.slug});s.audit=s.audit.slice(0,500);await this.ctx.storage.put('state',s);return json(rec)}if(u.pathname==='/publish-due'&&req.method==='POST'){const s=await this.get(),t=Date.now();let n=0;for(const a of s.articles){if(a.status==='scheduled'&&a.scheduledAt&&Date.parse(a.scheduledAt)<=t){a.status='published';a.updatedAt=now();n++}}if(n)await this.ctx.storage.put('state',s);return json({published:n})}return json({error:'not_found'},404)}}
+export class ControlPlane{
+  constructor(ctx,env){this.ctx=ctx;this.env=env}
+  async get(){
+    let s=await this.ctx.storage.get('state'),dirty=false;
+    if(!s){s=makeState();dirty=true}
+    else{
+      const settings={...(s.settings||{})};
+      if(settings.aiPrimary!=='workers-ai'){settings.aiPrimary='workers-ai';dirty=true}
+      if(settings.aiFallback!==null){settings.aiFallback=null;dirty=true}
+      if(Number(settings.targetWords||0)!==1500){settings.targetWords=1500;dirty=true}
+      if(Number(settings.minWords||0)!==1000){settings.minWords=1000;dirty=true}
+      if(Number(settings.qualityThreshold||0)!==95){settings.qualityThreshold=95;dirty=true}
+      if(s.version!==2){s.version=2;dirty=true}
+      s.settings=settings;
+    }
+    if(dirty)await this.ctx.storage.put('state',s);
+    return s;
+  }
+  async fetch(req){
+    const u=new URL(req.url);
+    if(u.pathname==='/state')return json(await this.get());
+    if(u.pathname==='/article'&&req.method==='POST'){
+      const rec=await req.json(),s=await this.get(),i=s.articles.findIndex(a=>a.slug===rec.slug);
+      if(i>=0)s.articles[i]={...s.articles[i],...rec};else s.articles.unshift(rec);
+      s.audit.unshift({at:now(),action:'article_upsert',slug:rec.slug});s.audit=s.audit.slice(0,500);
+      await this.ctx.storage.put('state',s);return json(rec);
+    }
+    if(u.pathname==='/publish-due'&&req.method==='POST'){
+      const s=await this.get(),t=Date.now();let n=0;
+      for(const a of s.articles)if(a.status==='scheduled'&&a.scheduledAt&&Date.parse(a.scheduledAt)<=t){a.status='published';a.updatedAt=now();n++}
+      if(n)await this.ctx.storage.put('state',s);return json({published:n});
+    }
+    return json({error:'not_found'},404);
+  }
+}
 
-export default{async fetch(req,env,ctx){const p=new URL(req.url).pathname.replace(/\/+$/,'')||'/';if(p==='/admin')return html(admin());if(p==='/api/platform-health')return json({ok:true,version:'platform-1.0',control:!!env.CONTROL,r2:!!env.CONTENT_FINAL,criteria:QUALITY_CRITERIA_COUNT,markets:LIVE_MARKETS,ai:{gemini:!!env.GEMINI_API_KEY,grok:!!env.GROK_API_KEY},adminWrites:!!env.ADMIN_TOKEN,time:now()});if(p==='/api/state'){await seedIfNeeded(env);return json(await state(env));}if(p==='/api/ai/generate'&&req.method==='POST')return generate(req,env);if(p==='/api/articles'&&req.method==='POST')return save(req,env);if(p==='/api/audit'&&req.method==='POST'){if(!auth(req,env))return json({error:'unauthorized'},401);return json(auditArticle(await body(req)))}if(p==='/blog')return blogPage(env);if(p.startsWith('/articles/')){await seedIfNeeded(env);const r=await articlePage(p,env);if(r)return r}return publicApp.fetch(req,env,ctx)},async scheduled(e,env,ctx){ctx.waitUntil(seedIfNeeded(env));ctx.waitUntil(ctl(env,'/publish-due',{method:'POST'}));if(publicApp.scheduled)ctx.waitUntil(publicApp.scheduled(e,env,ctx))}};
+export default{
+  async fetch(req,env,ctx){
+    const p=new URL(req.url).pathname.replace(/\/+$/,'')||'/';
+    if(p==='/api/platform-health')return json({ok:true,version:'platform-1.3-cloudflare-only',control:Boolean(env.CONTROL),r2:Boolean(env.CONTENT_FINAL),criteria:QUALITY_CRITERIA_COUNT,markets:LIVE_MARKETS,ai:{provider:'workers-ai',binding:Boolean(env.AI),externalProviders:false},time:now()});
+    if(p==='/api/state'){await seedIfNeeded(env);return json(await state(env))}
+    if(p==='/api/ai/generate'&&req.method==='POST')return json({error:'legacy_external_generation_disabled',provider:'workers-ai',externalProviders:false},410);
+    if(p==='/api/articles'&&req.method==='POST')return save(req,env);
+    if(p==='/api/audit'&&req.method==='POST'){if(!auth(req,env))return json({error:'unauthorized'},401);return json(auditArticle(await body(req)))}
+    if(p==='/blog')return blogPage(env);
+    if(p.startsWith('/articles/')){await seedIfNeeded(env);const r=await articlePage(p,env);if(r)return r}
+    return publicApp.fetch(req,env,ctx);
+  },
+  async scheduled(e,env,ctx){ctx.waitUntil(seedIfNeeded(env));ctx.waitUntil(ctl(env,'/publish-due',{method:'POST'}));if(publicApp.scheduled)ctx.waitUntil(publicApp.scheduled(e,env,ctx))}
+};
