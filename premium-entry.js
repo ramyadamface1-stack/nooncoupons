@@ -9,6 +9,12 @@ async function r2json(env,key,fallback){
   try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}
 }
 
+function requestOriginEnv(req,env){
+  const u=new URL(req.url),host=u.hostname;
+  const canonicalOrigin=host.endsWith('.workers.dev')?(env.SITE_ORIGIN||u.origin):u.origin;
+  return new Proxy(env,{get(target,prop){if(prop==='SITE_ORIGIN')return canonicalOrigin;return Reflect.get(target,prop)}});
+}
+
 function hardened(res){
   const h=new Headers(res.headers);
   h.set('x-content-type-options','nosniff');
@@ -21,13 +27,14 @@ function hardened(res){
   return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
-async function injectHead(res,add,marker){
+async function injectHead(res,add,marker,lang){
   if(!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
   const html=await res.text();
   const out=/<\/head>/i.test(html)?html.replace(/<\/head>/i,add+'</head>'):add+html;
   const h=new Headers(res.headers);
   h.delete('content-length');
   h.set('x-premium-layer',marker);
+  if(lang)h.set('content-language',lang);
   return new Response(out,{status:res.status,statusText:res.statusText,headers:h});
 }
 
@@ -39,9 +46,10 @@ async function enhanceArticle(req,env,res){
   const origin=env.SITE_ORIGIN||u.origin;
   const published=md.at||new Date().toISOString();
   const modified=md.ua||published;
-  const market=md.c==='AE'?'الإمارات':'السعودية';
-  const add=`<meta name="author" content="فريق تحرير كوبونات نون"><meta property="og:site_name" content="كوبونات نون"><meta property="article:published_time" content="${esc(published)}"><meta property="article:modified_time" content="${esc(modified)}"><meta property="article:section" content="نون ${market}"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}">`;
-  return injectHead(res,add,'article-v2');
+  const isAE=md.c==='AE',market=isAE?'الإمارات':'السعودية',lang=isAE?'ar-AE':'ar-SA';
+  const canonical=origin+'/articles/'+enc(slug);
+  const add=`<meta name="author" content="فريق تحرير كوبونات نون"><meta property="og:site_name" content="كوبونات نون"><meta property="article:published_time" content="${esc(published)}"><meta property="article:modified_time" content="${esc(modified)}"><meta property="article:section" content="نون ${market}"><link rel="alternate" hreflang="${lang}" href="${esc(canonical)}"><link rel="alternate" hreflang="x-default" href="${esc(canonical)}"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}">`;
+  return injectHead(res,add,'article-v3',lang);
 }
 
 async function enhanceBlog(req,env,res){
@@ -52,15 +60,16 @@ async function enhanceBlog(req,env,res){
     {'@type':'ItemList','@id':origin+'/blog#items',name:'أحدث أدلة كوبونات نون',numberOfItems:rows.length,itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+'/articles/'+enc(a.slug),name:a.title||a.primaryKeyword||a.slug}))}
   ]};
   const add=`<meta property="og:type" content="website"><meta property="og:site_name" content="كوبونات نون"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}"><script type="application/ld+json" data-schema="blog-collection">${safeJson(graph)}</script>`;
-  return injectHead(res,add,'blog-v2');
+  return injectHead(res,add,'blog-v3','ar');
 }
 
 export default{
   async fetch(req,env,ctx){
-    let res=await app.fetch(req,env,ctx);
+    const runtimeEnv=requestOriginEnv(req,env);
+    let res=await app.fetch(req,runtimeEnv,ctx);
     const u=new URL(req.url);
-    if(req.method==='GET'&&u.pathname.startsWith('/articles/'))res=await enhanceArticle(req,env,res);
-    else if(req.method==='GET'&&u.pathname==='/blog')res=await enhanceBlog(req,env,res);
+    if(req.method==='GET'&&u.pathname.startsWith('/articles/'))res=await enhanceArticle(req,runtimeEnv,res);
+    else if(req.method==='GET'&&u.pathname==='/blog')res=await enhanceBlog(req,runtimeEnv,res);
     return hardened(res);
   },
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
