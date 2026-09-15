@@ -5,6 +5,7 @@ const now=()=>new Date().toISOString();
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
 const wc=s=>String(s||'').replace(/<[^>]+>/g,' ').trim().split(/\s+/).filter(Boolean).length;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const plainText=s=>String(s||'').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
 
 export function workersAiBudget(env,state,status={}){
   const articleCap=Math.max(0,Math.min(100,Number(env.WORKERS_AI_DAILY_CAP||30)));
@@ -34,11 +35,12 @@ function basePrompt(t,cfg,existing){
 الكلمة الأساسية التي يجب أن تظهر طبيعيًا: ${t.kw}
 التصنيف: ${t.category}
 نية البحث: ${t.intent}
-الكوبون المتاح للتجربة فقط: ${t.code}
+الكوبون الوحيد المسموح بذكره وتجربته: ${t.code}
 
 قواعد إلزامية:
 - Brand Lock = Noon فقط ولا تذكر أي متجر منافس.
-- Country Lock = ${t.country} فقط، ولا تذكر سوق نون الآخر.
+- Country Lock = ${t.country} فقط، ولا تذكر سوق نون الآخر حتى كمثال أو مقارنة.
+- Coupon Lock = ${t.code} فقط، ولا تذكر أي كود NOV آخر.
 - ممنوع اختلاق نسبة خصم أو حد أقصى أو مدة صلاحية أو أهلية أو claim تجاري غير متحقق.
 - وضّح أن النتيجة النهائية للكوبون تتحقق داخل سلة نون قبل الدفع.
 - Answer-first ثم شرح عملي عميق، بدون حشو أو إعادة صياغة نفس الفقرة.
@@ -50,8 +52,8 @@ function basePrompt(t,cfg,existing){
 - أضف رابطًا خارجيًا واحدًا إلى https://www.noon.com/ مع rel="noopener external sponsored".
 - أضف CTA فيه زر <button type="button" data-copy-code="${t.code}"> لنسخ الكود وتجربته.
 - لا تضف JSON-LD؛ النظام سيضيفه برمجيًا.
-- الحد الأدنى الفعلي ${cfg.minWords} كلمة والهدف قرابة ${target} كلمة.
-- لا تستخدم Lorem ipsum أو As an AI.
+- الحد الأدنى الفعلي ${cfg.minWords} كلمة والهدف قرابة ${target} كلمة، وممنوع تجاوز 2000 كلمة.
+- اجعل النص عربيًا طبيعيًا وواضحًا، ولا تستخدم Lorem ipsum أو As an AI.
 
 تجنب تكرار زوايا هذه الكلمات المنشورة: ${existing.slice(0,45).join(' | ')}.`;
 }
@@ -120,6 +122,7 @@ async function callWorkers(env,prompt,{temperature=.38,maxTokens=8500}={}){
       {role:'user',content:prompt}
     ],
     temperature,
+    reasoning_effort:'low',
     max_completion_tokens:maxTokens
   });
   const text=textFromResult(r);
@@ -176,16 +179,47 @@ function buildArticle(body,t){
   return article;
 }
 
+function strictAudit(article,t,cfg,base){
+  const plain=plainText(article?.html||'');
+  const wordCount=wc(article?.html||'');
+  const codes=[...new Set((plain.match(/\bNOV\d{3}\b/gi)||[]).map(x=>x.toUpperCase()))];
+  const competitor=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|extra|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|علي\s?اكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i;
+  const wrongCountry=t.country==='SA'?/(نون\s*)?(الإمارات|الامارات)|\bUAE\b|Emirates/i:/(نون\s*)?(السعودية|المملكة العربية السعودية)|\bKSA\b|Saudi(?: Arabia)?/i;
+  const ar=(plain.match(/[\u0600-\u06FF]/g)||[]).length;
+  const latin=(plain.match(/[A-Za-z]/g)||[]).length;
+  const arabicRatio=ar/Math.max(1,ar+latin);
+  const hard=[
+    {name:'word_count_max_2000',pass:wordCount<=2000},
+    {name:'arabic_content',pass:arabicRatio>=0.78},
+    {name:'coupon_lock',pass:codes.length>=1&&codes.every(x=>x===String(t.code).toUpperCase())},
+    {name:'brand_lock_strict',pass:!competitor.test(plain)},
+    {name:'country_lock_strict',pass:!wrongCountry.test(plain)}
+  ];
+  const hardPass=hard.every(x=>x.pass);
+  return {
+    ...base,
+    wordCount,
+    score:hardPass?base.score:Math.min(Number(base.score||0),94.9),
+    checks:[...(base.checks||[]),...hard],
+    productionReady:Boolean(base.productionReady)&&hardPass&&wordCount>=Number(cfg.minWords||1000)&&wordCount<=2000,
+    hardGate:{pass:hardPass,arabicRatio:Math.round(arabicRatio*1000)/1000,codes}
+  };
+}
+
 function repairPrompt(t,cfg,article,audit){
-  const failed=audit.checks.filter(x=>!x.pass).map(x=>x.name).join(', ');
-  const plain=String(article.html||'').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').slice(0,42000);
-  return `أعد كتابة/توسيع BODY HTML التالي لمقال نون بحيث يعالج هذه المشاكل: ${failed}.
+  const failed=(audit?.checks||[]).filter(x=>!x.pass).map(x=>x.name).join(', ');
+  const plain=String(article?.html||'').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').slice(0,42000);
+  return `أعد كتابة/توسيع/اختصار BODY HTML التالي لمقال نون بحيث يعالج هذه المشاكل: ${failed}.
 أعد HTML BODY فقط بدون JSON وبدون <h1> وبدون <script>.
-الدولة الوحيدة ${t.countryName} (${t.country})، الكوبون ${t.code}، الكلمة الأساسية ${t.kw}.
-ممنوع اختلاق نسبة خصم أو شروط، وأزل أي ذكر لأي متجر منافس أو سوق نون غير ${t.countryName}. المطلوب على الأقل ${cfg.minWords} كلمة مفيدة، 8 H2، H3، FAQ، روابط داخلية، رابط Noon، CTA data-copy-code، ومحتوى غير مكرر.
+الدولة الوحيدة ${t.countryName} (${t.country})، الكوبون الوحيد ${t.code}، الكلمة الأساسية ${t.kw}.
+ممنوع اختلاق نسبة خصم أو شروط. أزل أي متجر منافس، وأزل أي ذكر لسوق نون غير ${t.countryName}، وأزل أي كود NOV غير ${t.code}. المطلوب بين ${cfg.minWords} و2000 كلمة مفيدة، 8 H2، H3، FAQ، روابط داخلية، رابط Noon، CTA data-copy-code، ومحتوى عربي طبيعي غير مكرر.
 
 المحتوى الحالي:
 ${plain}`;
+}
+
+function retryPrompt(t,cfg,existing,lastError){
+  return `${basePrompt(t,cfg,existing)}\n\nهذه محاولة إعادة بعد فشل تقني سابق (${String(lastError||'unknown').slice(0,120)}). ابدأ مباشرة بأول عنصر HTML مفيد، لا تكتب شرحًا قبل HTML، وأكمل المقال حتى النهاية بدون JSON أو Markdown.`;
 }
 
 export async function generateWithWorkersAI(env,topic,cfg,state,attempt=0,status={}){
@@ -198,10 +232,10 @@ export async function generateWithWorkersAI(env,topic,cfg,state,attempt=0,status
   for(let i=0;i<maxCalls;i++){
     try{
       callsUsed++;
-      const prompt=i===0?basePrompt(topic,cfg,existing):repairPrompt(topic,cfg,article,audit||{checks:[]});
+      const prompt=i===0?basePrompt(topic,cfg,existing):(article&&audit?repairPrompt(topic,cfg,article,audit):retryPrompt(topic,cfg,existing,lastError));
       const out=await callWorkers(env,prompt,{temperature:i===0?.38:.24,maxTokens:i===0?8500:9000});
       article=buildArticle(out.html,topic);
-      audit=auditGenerated(article,topic,cfg);
+      audit=strictAudit(article,topic,cfg,auditGenerated(article,topic,cfg));
       provider=i===0?out.provider:`${provider} + repair:${out.provider}`;
       if(audit.productionReady)break;
       lastError='quality_gate_'+audit.score+'_words_'+audit.wordCount;
