@@ -27,7 +27,7 @@ jobs:
           health=""
           for i in $(seq 1 24); do
             health="$(curl -fsS --max-time 20 "$ORIGIN/api/generator-health" 2>/dev/null || true)"
-            if printf '%s' "$health" | grep -q '"workersAiPublishedTotal"'; then
+            if printf '%s' "$health" | grep -q 'generator-3.1-free-efficient'; then
               ok=1
               break
             fi
@@ -42,13 +42,14 @@ jobs:
           platform="$(curl -fsS --max-time 20 "$ORIGIN/api/platform-health")"
           echo '--- GENERATOR HEALTH ---'
           printf '%s\n' "$health"
-          printf '%s' "$health" | grep -q 'generator-3.0-cloudflare-only'
+          printf '%s' "$health" | grep -q 'generator-3.1-free-efficient'
           printf '%s' "$health" | grep -q '"preferredProvider": "workers-ai"'
           printf '%s' "$health" | grep -q '"external": false'
+          printf '%s' "$health" | grep -q '"quotaBlocked"'
 
           echo '--- PLATFORM HEALTH ---'
           printf '%s\n' "$platform"
-          printf '%s' "$platform" | grep -q 'platform-1.1-cloudflare-only'
+          printf '%s' "$platform" | grep -q 'platform-1.2-cloudflare-efficient'
 
           code="$(curl -sS -o /tmp/legacy.json -w '%{http_code}' -X POST "$ORIGIN/api/ai/generate")"
           echo "legacy_generate_http=$code"
