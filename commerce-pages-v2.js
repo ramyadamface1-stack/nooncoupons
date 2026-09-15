@@ -9,7 +9,7 @@ import {
   COMMERCE_TAXONOMY_INFO,
 } from './commerce-taxonomy.js';
 
-const CODES = ['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
+const CODES = ['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const enc = (s) => encodeURI(String(s || ''));
 const safeJson = (x) => JSON.stringify(x).replace(/</g, '\\u003c');
@@ -105,8 +105,8 @@ function categoryGrid(market, current = '') {
   return `<div class="grid4">${Object.entries(CATEGORIES).filter(([k]) => k !== current).map(([k,c]) => `<article class="card"><h3><a href="/${market}/category/${k}">${esc(c.label)}</a></h3><p>${esc(c.desc)}</p><a class="read" href="/${market}/category/${k}">افتح القسم ←</a></article>`).join('')}</div>`;
 }
 
-function brandGrid(market, current = '') {
-  return `<div class="grid4">${Object.entries(BRANDS).filter(([k]) => k !== current).map(([k,b]) => `<article class="card"><h3><a href="/${market}/brand/${k}">${esc(b.label)}</a></h3><p>${Object.values(b.models).map((x) => esc(x.label)).join(' · ')}</p><a class="read" href="/${market}/brand/${k}">صفحة البراند ←</a></article>`).join('')}</div>`;
+function brandGrid(market, current = '', category = '') {
+  return `<div class="grid4">${Object.entries(BRANDS).filter(([k,b]) => k !== current && (!category || b.categories?.includes(category))).map(([k,b]) => `<article class="card"><h3><a href="/${market}/brand/${k}">${esc(b.label)}</a></h3><p>${Object.values(b.models).map((x) => esc(x.label)).join(' · ')}</p><a class="read" href="/${market}/brand/${k}">صفحة البراند ←</a></article>`).join('')}</div>`;
 }
 
 function spider(market, current = '') {
@@ -143,7 +143,7 @@ async function categoryPage(market, key, origin, env) {
   const title = `${c.label} على ${mk.name}`;
   const desc = `${c.desc} الصفحة تربط القسم بالبراندات والموديلات والمقالات ذات الصلة وباقي شبكة الموقع.`;
   const hero = `<header class="hero"><div class="w">${breadcrumbs(market,[{label:c.label}])}<h1>${title}</h1><p>${desc}</p></div></header>`;
-  const mobileBrands = key === 'mobiles' ? `<section class="section"><h2>براندات الجوالات</h2><p class="lead">من البراند انتقل إلى عائلة الموديل ثم المقارنات والمقالات.</p>${brandGrid(market)}</section>` : '';
+  const mobileBrands = key === 'mobiles' ? `<section class="section"><h2>براندات الجوالات</h2><p class="lead">من البراند انتقل إلى عائلة الموديل ثم المقارنات والمقالات.</p>${brandGrid(market,'','mobiles')}</section>` : '';
   const main = `${couponBox(market,key,c.label)}<section class="section"><h2>خطوات قرار الشراء</h2><div class="check"><div class="box"><strong>1. حدد الاستخدام</strong><br>اختيار المنتج يسبق اختيار الكوبون.</div><div class="box"><strong>2. ثبت النسخة</strong><br>قارن نفس السعة أو المقاس أو الإصدار.</div><div class="box"><strong>3. راجع البائع</strong><br>الضمان والإرجاع والشحن جزء من القرار.</div><div class="box"><strong>4. اختبر الكود</strong><br>قارن الإجمالي النهائي بعد تطبيقه.</div></div></section>${mobileBrands}<section class="section"><h2>مقالات ${c.label}</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">المقالات المتخصصة ستظهر تلقائيًا عند اجتياز بوابة الجودة.</div>'}</section><section class="section"><h2>أقسام مرتبطة</h2>${categoryGrid(market,key)}</section>`;
   return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market,key), 'category', {'x-commerce-category':key});
 }
