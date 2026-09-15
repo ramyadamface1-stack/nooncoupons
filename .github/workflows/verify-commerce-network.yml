@@ -1,0 +1,66 @@
+name: Verify Commerce Landing Network
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static architecture checks
+        run: |
+          node --check topic-hubs.js
+          grep -Fq "architecture:'market-category-brand-comparison-article'" topic-hubs.js
+          grep -Fq "commerceRoutes:commercePaths().length" topic-hubs.js
+          grep -Fq "mobileBrands:Object.keys(BRANDS).length" topic-hubs.js
+          grep -Fq "comparisons:Object.keys(COMPS).length" topic-hubs.js
+      - name: Live spider network checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ready=0
+          for i in $(seq 1 18); do
+            if curl -fsS --max-time 20 "$ORIGIN/saudi/category/mobiles?network=v1" -o /tmp/mobiles.html 2>/dev/null && grep -Fq 'x' /dev/null 2>/dev/null; then :; fi
+            if grep -Fq 'براندات الجوالات' /tmp/mobiles.html 2>/dev/null; then ready=1; break; fi
+            sleep 5
+          done
+          [ "$ready" = 1 ]
+          curl -fsS --max-time 20 "$ORIGIN/saudi/categories?network=v1" -o /tmp/saudi.html
+          curl -fsS --max-time 20 "$ORIGIN/uae/categories?network=v1" -o /tmp/uae.html
+          curl -fsS --max-time 20 "$ORIGIN/uae/category/electronics?network=v1" -o /tmp/electronics.html
+          curl -fsS --max-time 20 "$ORIGIN/saudi/brand/apple?network=v1" -o /tmp/apple.html
+          curl -fsS --max-time 20 "$ORIGIN/uae/brand/samsung?network=v1" -o /tmp/samsung.html
+          curl -fsS --max-time 20 "$ORIGIN/saudi/compare/iphone-vs-galaxy?network=v1" -o /tmp/compare.html
+          curl -fsS --max-time 20 "$ORIGIN/sitemap-topics.xml?network=v1" -o /tmp/topics.xml
+          grep -Fq 'أقسام نون السعودية' /tmp/saudi.html
+          grep -Fq 'أقسام نون الإمارات' /tmp/uae.html
+          grep -Fq 'الإلكترونيات على نون الإمارات' /tmp/electronics.html
+          grep -Fq 'Apple iPhone على نون السعودية' /tmp/apple.html
+          grep -Fq 'Samsung Galaxy على نون الإمارات' /tmp/samsung.html
+          grep -Fq 'آيفون أم Samsung Galaxy' /tmp/compare.html
+          grep -Fq 'CollectionPage' /tmp/mobiles.html
+          grep -Fq 'BreadcrumbList' /tmp/mobiles.html
+          grep -Fq 'NOV' /tmp/mobiles.html
+          grep -Fq 'https://www.noon.com/saudi-ar/' /tmp/mobiles.html
+          grep -Fq '/saudi/category/mobiles' /tmp/topics.xml
+          grep -Fq '/uae/category/mobiles' /tmp/topics.xml
+          grep -Fq '/saudi/brand/apple' /tmp/topics.xml
+          grep -Fq '/uae/brand/samsung' /tmp/topics.xml
+          grep -Fq '/saudi/compare/iphone-vs-galaxy' /tmp/topics.xml
+          health="$(curl -fsS --max-time 20 "$ORIGIN/api/generator-health")"
+          slug="$(python -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("bulk",{}).get("lastSlug") or "")' "$health")"
+          [ -n "$slug" ]
+          urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
+          curl -fsS --max-time 20 "$ORIGIN/articles/$urlslug?network=v1" -o /tmp/article.html
+          grep -Eq '/(saudi|uae)/category/' /tmp/article.html
+          grep -Eq '/(saudi|uae)/categories' /tmp/article.html
+          grep -Fq 'الرئيسية' /tmp/article.html
+          echo COMMERCE_NETWORK_LIVE_PASS
