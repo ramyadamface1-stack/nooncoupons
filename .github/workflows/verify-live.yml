@@ -14,10 +14,19 @@ jobs:
     timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
-      - name: Syntax check
+      - name: Syntax and provider isolation checks
         run: |
           node --check auto-platform.js
           node --check workers-ai-generator.js
+          node --check generator-core-v2.js
+          node --check generator-core.js
+          node --check platform.js
+          node --check admin-runtime.js
+          node --check admin-page.js
+          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' auto-platform.js workers-ai-generator.js generator-core-v2.js generator-core.js platform.js admin-runtime.js; then
+            echo 'EXTERNAL_AI_REFERENCE_FOUND_IN_ACTIVE_RUNTIME'
+            exit 1
+          fi
       - name: Verify deployed Worker
         shell: bash
         run: |
@@ -27,7 +36,7 @@ jobs:
           health=""
           for i in $(seq 1 24); do
             health="$(curl -fsS --max-time 20 "$ORIGIN/api/generator-health" 2>/dev/null || true)"
-            if printf '%s' "$health" | grep -q 'generator-3.1-free-efficient'; then
+            if printf '%s' "$health" | grep -q 'generator-3.2-cloudflare-only-clean'; then
               ok=1
               break
             fi
@@ -40,16 +49,24 @@ jobs:
           fi
 
           platform="$(curl -fsS --max-time 20 "$ORIGIN/api/platform-health")"
+          state="$(curl -fsS --max-time 20 "$ORIGIN/api/state")"
           echo '--- GENERATOR HEALTH ---'
           printf '%s\n' "$health"
-          printf '%s' "$health" | grep -q 'generator-3.1-free-efficient'
+          printf '%s' "$health" | grep -q 'generator-3.2-cloudflare-only-clean'
           printf '%s' "$health" | grep -q '"preferredProvider": "workers-ai"'
           printf '%s' "$health" | grep -q '"external": false'
+          printf '%s' "$health" | grep -q '"legacyProvidersRemoved": true'
           printf '%s' "$health" | grep -q '"quotaBlocked"'
 
           echo '--- PLATFORM HEALTH ---'
           printf '%s\n' "$platform"
-          printf '%s' "$platform" | grep -q 'platform-1.2-cloudflare-efficient'
+          printf '%s' "$platform" | grep -q 'platform-1.3-cloudflare-only'
+          printf '%s' "$platform" | grep -q '"legacyProvidersRemoved": true'
+
+          echo '--- STATE SETTINGS ---'
+          printf '%s\n' "$state" | head -c 1200 || true
+          printf '%s' "$state" | grep -q '"aiPrimary": "workers-ai"'
+          printf '%s' "$state" | grep -q '"aiFallback": null'
 
           code="$(curl -sS -o /tmp/legacy.json -w '%{http_code}' -X POST "$ORIGIN/api/ai/generate")"
           echo "legacy_generate_http=$code"
