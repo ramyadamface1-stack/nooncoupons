@@ -1,6 +1,6 @@
 import {buildBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO} from './bulk-content-engine.js';
 import {auditSeoArticle,auditSummary} from './quality-audit.js';
-import {loadCluster,globalGate,pickRelated,injectContextualLinks,addToCluster,flushClusters,clusterKey,GLOBAL_INDEX_INFO} from './quality-index.js';
+import {loadCluster,bootstrapGlobalIndex,globalGate,pickRelated,injectContextualLinks,addToCluster,flushClusters,clusterKey,GLOBAL_INDEX_INFO} from './quality-index.js';
 import {couponStatus,injectCouponFreshness,writeCouponFreshnessSnapshot,COUPON_REGISTRY_INFO} from './coupon-registry.js';
 import {validateStructuredData,SCHEMA_GATE_INFO} from './schema-validator.js';
 import {evaluateIndexation,INDEXATION_GATE_INFO} from './indexation-gate.js';
@@ -57,6 +57,9 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   if(target===0)return {ok:true,skipped:'bulk_paused',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:0,bulkLastRun:now(),bulkLastError:null,bulkEngine:BULK_ENGINE_INFO.version}};
   if(countBefore>=target)return {ok:true,skipped:'daily_target_reached',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:target,bulkLastRun:now(),bulkLastError:null,bulkEngine:BULK_ENGINE_INFO.version}};
 
+  let bootstrap=null;
+  if(Number(status.bulkGlobalIndexBootstrapVersion||0)!==GLOBAL_INDEX_INFO.version)bootstrap=await bootstrapGlobalIndex(env);
+
   const latest=await readJson(env,'bulk/latest.json',{articles:[]});
   const latestRecent=[...(latest.articles||[])].slice(0,300);
   const clusterCache=new Map(),dirtyKeys=new Set();
@@ -87,7 +90,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     const gg=globalGate(article,topic,audit,{entries:auditRecent});
     if(!gg.pass){rejectedGlobal++;continue}
 
-    const indexation=evaluateIndexation(article,topic,{globalGate:gg,contextualLinks:links.length,schemaGate,coupon});
+    const indexation=evaluateIndexation(article,topic,{globalGate:gg,contextualLinks:links.length,clusterSize:(cluster.entries||[]).length,schemaGate,coupon});
     if(!indexation.indexable){rejectedIndexation++;continue}
 
     const key='articles/'+article.slug+'.html';
@@ -130,6 +133,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     bulkLastQuality:last?.quality??status.bulkLastQuality??null,bulkLastQualityFloor:last?.qualityFloor??status.bulkLastQualityFloor??null,bulkLastWordCount:last?.wordCount??status.bulkLastWordCount??null,
     bulkLastGroups:last?.qualityGroups||status.bulkLastGroups||null,bulkLastSignature:last?.signature||status.bulkLastSignature||null,bulkEngine:BULK_ENGINE_INFO.version,
     bulkQualityLayer:'global-quality-v1',bulkGlobalIndexVersion:GLOBAL_INDEX_INFO.version,bulkCouponRegistryVersion:COUPON_REGISTRY_INFO.version,bulkSchemaGateVersion:SCHEMA_GATE_INFO.version,bulkIndexationGateVersion:INDEXATION_GATE_INFO.version,bulkEditorialTrustVersion:EDITORIAL_TRUST_INFO.version,
+    bulkGlobalIndexBootstrapVersion:bootstrap?.complete?GLOBAL_INDEX_INFO.version:Number(status.bulkGlobalIndexBootstrapVersion||0),bulkGlobalIndexBootstrapAt:bootstrap?.bootstrappedAt||status.bulkGlobalIndexBootstrapAt||null,bulkGlobalIndexBootstrapArticles:bootstrap?.eligibleArticles??status.bulkGlobalIndexBootstrapArticles??null,bulkGlobalIndexBootstrapClusters:bootstrap?.clusterWrites??status.bulkGlobalIndexBootstrapClusters??null,
     bulkLastIndexationScore:last?.indexation?.score??status.bulkLastIndexationScore??null,bulkLastIndexable:last?.indexable??status.bulkLastIndexable??null,
     bulkFreshnessPublishable:freshnessSnapshot?.publishable??status.bulkFreshnessPublishable??null,bulkFreshnessReviewDue:freshnessSnapshot?.reviewDue??status.bulkFreshnessReviewDue??null,bulkFreshnessBlocked:freshnessSnapshot?.blocked??status.bulkFreshnessBlocked??null,
     bulkLastContextualLinks:last?.contextualLinks?.length??status.bulkLastContextualLinks??null,bulkLastCouponFreshness:last?.couponFreshness?.state||status.bulkLastCouponFreshness||null,
@@ -137,7 +141,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     bulkRejectedQuality:Number(status.bulkRejectedQuality||0)+rejectedQuality,bulkRejectedDuplicate:Number(status.bulkRejectedDuplicate||0)+rejectedDuplicate,
     bulkRejectedGlobal:Number(status.bulkRejectedGlobal||0)+rejectedGlobal,bulkRejectedCoupon:Number(status.bulkRejectedCoupon||0)+rejectedCoupon,bulkRejectedLinks:Number(status.bulkRejectedLinks||0)+rejectedLinks,bulkRejectedSchema:Number(status.bulkRejectedSchema||0)+rejectedSchema,bulkRejectedIndexation:Number(status.bulkRejectedIndexation||0)+rejectedIndexation
   };
-  return {ok:true,engine:BULK_ENGINE_INFO.version,qualityLayer:'global-quality-v1',records,tries,rejectedQuality,rejectedDuplicate,rejectedGlobal,rejectedCoupon,rejectedLinks,rejectedSchema,rejectedIndexation,freshnessSnapshot,patch};
+  return {ok:true,engine:BULK_ENGINE_INFO.version,qualityLayer:'global-quality-v1',bootstrap,records,tries,rejectedQuality,rejectedDuplicate,rejectedGlobal,rejectedCoupon,rejectedLinks,rejectedSchema,rejectedIndexation,freshnessSnapshot,patch};
 }
 
 export {buildBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO,SCHEMA_GATE_INFO,INDEXATION_GATE_INFO,EDITORIAL_TRUST_INFO};
