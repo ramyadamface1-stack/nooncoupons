@@ -61,7 +61,8 @@ export class GeneratorControl{
       const cfg=await this.config(),locked={...status,bulkRunningAt:now()};
       await this.ctx.storage.put('status',locked);
       try{
-        const legacy=await runLegacyUpgradeBatchV2(this.env,cfg,locked,{batchSize:Number(this.env.LEGACY_UPGRADE_BATCH_SIZE||4)});
+        const terminalLegacy=Boolean(locked.legacyUpgradeNeedsConsolidation)&&Number(locked.legacyUpgradePassV2||1)>=3;
+        const legacy=terminalLegacy?{ok:true,skipped:'legacy_upgrade_needs_consolidation',records:[],scanned:0,rejected:0,invalid:0,pass:Number(locked.legacyUpgradePassV2||3),passFinished:true,failures:[],patch:{legacyUpgradeLastRun:now(),legacyUpgradeLastError:null,legacyUpgradeNeedsConsolidation:true}}:await runLegacyUpgradeBatchV2(this.env,cfg,locked,{batchSize:Number(this.env.LEGACY_UPGRADE_BATCH_SIZE||4)});
         const afterLegacy={...locked,...(legacy.patch||{})};
         await this.ctx.storage.put('status',afterLegacy);
         const bulk=await runProgrammaticBatch(this.env,cfg,afterLegacy,{dailyTarget:Number(this.env.BULK_DAILY_TARGET||2000),batchSize:Number(this.env.BULK_BATCH_SIZE||2)});
