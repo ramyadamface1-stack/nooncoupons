@@ -42,12 +42,14 @@ jobs:
           set -euo pipefail
           ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
           fetch(){ curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 25 "$1" -o "$2"; }
+          checked_fetch(){ echo "CHECK_FETCH $1"; fetch "$ORIGIN$1?v=final6" /tmp/page || { echo "FETCH_FAILED $1"; exit 1; }; }
           ready=0
           for i in $(seq 1 30); do
-            fetch "$ORIGIN/api/generator-health?v=final5" /tmp/generator.json 2>/dev/null || true
-            fetch "$ORIGIN/api/commerce-health?v=final5" /tmp/commerce.json 2>/dev/null || true
+            fetch "$ORIGIN/api/generator-health?v=final6" /tmp/generator.json 2>/dev/null || true
+            fetch "$ORIGIN/api/commerce-health?v=final6" /tmp/commerce.json 2>/dev/null || true
             if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==2000; assert int(b.get('batchSize') or 0)==2" 2>/dev/null; then
               ready=1
+              echo "RUNTIME_READY attempt=$i"
               break
             fi
             sleep 6
@@ -60,36 +62,40 @@ jobs:
           fi
 
           for path in /saudi/categories /saudi/category/mobiles /saudi/category/shoes /uae/category/bags /saudi/brand/apple /saudi/model/apple/iphone-pro /saudi/compare/iphone-vs-galaxy /blog /sitemap.xml /sitemap-commerce.xml /api/generator-health /api/commerce-health; do
-            fetch "$ORIGIN$path?v=final5" /tmp/page
+            checked_fetch "$path"
           done
 
-          fetch "$ORIGIN/sitemap.xml?v=final5" /tmp/sitemap.xml
-          fetch "$ORIGIN/sitemap-commerce.xml?v=final5" /tmp/sitemap-commerce.xml
+          echo CHECK_SITEMAPS
+          fetch "$ORIGIN/sitemap.xml?v=final6" /tmp/sitemap.xml
+          fetch "$ORIGIN/sitemap-commerce.xml?v=final6" /tmp/sitemap-commerce.xml
           for needle in '/saudi/category/shoes' '/uae/category/bags' '/saudi/brand/apple' '/saudi/model/apple/iphone-pro' '/saudi/compare/iphone-vs-galaxy'; do
-            grep -Fq "$needle" /tmp/sitemap.xml
-            grep -Fq "$needle" /tmp/sitemap-commerce.xml
+            grep -Fq "$needle" /tmp/sitemap.xml || { echo "MISSING_MAIN_SITEMAP $needle"; exit 1; }
+            grep -Fq "$needle" /tmp/sitemap-commerce.xml || { echo "MISSING_COMMERCE_SITEMAP $needle"; exit 1; }
           done
 
-          fetch "$ORIGIN/saudi/category/shoes?v=final5" /tmp/shoes.html
-          grep -Fq 'landing-depth-v3' /tmp/shoes.html
-          grep -Fq 'FAQPage' /tmp/shoes.html
-          grep -Eq 'OPS(32|56|47|48|43|41|38|58)' /tmp/shoes.html
+          echo CHECK_SHOES_V3
+          fetch "$ORIGIN/saudi/category/shoes?v=final6" /tmp/shoes.html
+          grep -Fq 'landing-depth-v3' /tmp/shoes.html || { echo MISSING_LANDING_V3; exit 1; }
+          grep -Fq 'FAQPage' /tmp/shoes.html || { echo MISSING_FAQ_SCHEMA; exit 1; }
+          grep -Eq 'OPS(32|56|47|48|43|41|38|58)' /tmp/shoes.html || { echo MISSING_OWNER_OFFER_CODE; exit 1; }
 
+          echo CHECK_FINAL_HEALTH_ASSERTIONS
           python - <<'PY'
           import json
           g=json.load(open('/tmp/generator.json'))
           c=json.load(open('/tmp/commerce.json'))
           b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{})
-          assert c.get('ok') is True and int(c.get('routes') or 0)>=276
-          assert gt.get('mode')=='explicit-generator-taxonomy' and gt.get('internalLinks') is True
-          assert gt.get('metadata')==['categoryKey','brandKey','modelKey','comparisonKey','landingPath']
-          assert int(lc.get('minWords') or 0)>=5000 and lc.get('seo') is True and lc.get('geoAeo') is True and lc.get('eeat') is True
-          assert int(b.get('dailyTarget') or 0)==2000 and int(b.get('batchSize') or 0)==2
+          print('LIVE_VALUES',json.dumps({'routes':c.get('routes'),'landingContent':lc,'metadataCoverage':c.get('metadataCoverage'),'bulk':b,'providers':g.get('providers',{})},ensure_ascii=False))
+          assert c.get('ok') is True and int(c.get('routes') or 0)>=276, 'commerce health/routes'
+          assert gt.get('mode')=='explicit-generator-taxonomy' and gt.get('internalLinks') is True, 'generator taxonomy'
+          assert gt.get('metadata')==['categoryKey','brandKey','modelKey','comparisonKey','landingPath'], 'metadata contract'
+          assert int(lc.get('minWords') or 0)>=5000 and lc.get('seo') is True and lc.get('geoAeo') is True and lc.get('eeat') is True, 'landing quality contract'
+          assert int(b.get('dailyTarget') or 0)==2000 and int(b.get('batchSize') or 0)==2, 'bulk target/batch'
           q=b.get('lastQuality')
-          if q is not None: assert float(q)>=95
+          if q is not None: assert float(q)>=95, f'last quality {q}'
           w=b.get('lastWordCount')
-          if w is not None: assert 1000<=int(w)<=2000
+          if w is not None: assert 1000<=int(w)<=2000, f'last words {w}'
           providers=g.get('providers',{})
-          if 'external' in providers: assert providers.get('external') is False
+          if 'external' in providers: assert providers.get('external') is False, 'external provider active'
           print('FINAL_LIVE_PASS',{'routes':c.get('routes'),'landingContent':lc,'metadataCoverage':c.get('metadataCoverage'),'bulk':{'target':b.get('dailyTarget'),'batch':b.get('batchSize'),'quality':q,'words':w,'publishedToday':b.get('publishedToday')}})
           PY
