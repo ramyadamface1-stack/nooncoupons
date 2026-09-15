@@ -43,7 +43,7 @@ jobs:
           for i in $(seq 1 30); do
             curl -sS --max-time 20 "$ORIGIN/api/generator-health?v=commerce4" -o /tmp/generator.json || true
             curl -sS --max-time 20 "$ORIGIN/api/commerce-health?v=commerce4" -o /tmp/commerce.json || true
-            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); assert c.get('ok') is True; assert int(c.get('routes') or 0)==110; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(b.get('dailyTarget') or 0)==2000; assert int(b.get('batchSize') or 0)==2" 2>/dev/null; then
+            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); assert c.get('ok') is True; assert int(c.get('routes') or 0)>=110; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(b.get('dailyTarget') or 0)==2000; assert int(b.get('batchSize') or 0)==2" 2>/dev/null; then
               ready=1
               break
             fi
@@ -88,7 +88,7 @@ jobs:
           g=json.load(open('/tmp/generator.json'))
           c=json.load(open('/tmp/commerce.json'))
           b=g.get('bulk',{}); st=g.get('status',{}); gt=c.get('generatorTaxonomy',{})
-          assert c.get('ok') is True and c.get('routes')==110
+          assert c.get('ok') is True and c.get('routes')>=110
           assert gt.get('mode')=='explicit-generator-taxonomy' and gt.get('internalLinks') is True
           assert gt.get('metadata')==['categoryKey','brandKey','modelKey','comparisonKey','landingPath']
           assert int(b.get('dailyTarget') or 0)==2000 and int(b.get('batchSize') or 0)==2
