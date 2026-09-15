@@ -18,8 +18,14 @@ jobs:
         run: |
           node --check quality-criteria.js
           node --check quality-audit.js
+          node --check quality-index.js
+          node --check coupon-registry.js
           node --check bulk-content-engine.js
           node --check bulk-generator.js
           node --check bulk-selftest.js
+          grep -Fq "global-quality-v1" bulk-generator.js
+          grep -Fq "coupon_registry_stale" coupon-registry.js
+          grep -Fq "global_semantic_collision" quality-index.js
+          grep -Fq "contextual-links" quality-index.js
       - name: Audit 40 diversified bulk samples
         run: node bulk-selftest.js
