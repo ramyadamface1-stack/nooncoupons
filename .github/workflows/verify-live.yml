@@ -28,51 +28,54 @@ jobs:
             exit 1
           fi
       - name: Verify deployed Worker
+        id: live
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          exec > >(tee /tmp/live-verify.log) 2>&1
           ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
-          ok=0
+          rc=0
+          check_contains(){ name="$1"; text="$2"; needle="$3"; if printf '%s' "$text" | grep -q "$needle"; then echo "PASS $name"; else echo "FAIL $name :: $needle"; rc=1; fi; }
           health=""
           for i in $(seq 1 24); do
-            health="$(curl -fsS --max-time 20 "$ORIGIN/api/generator-health" 2>/dev/null || true)"
-            if printf '%s' "$health" | grep -q 'generator-3.2-cloudflare-only-clean'; then
-              ok=1
-              break
-            fi
+            health="$(curl -sS --max-time 20 "$ORIGIN/api/generator-health" 2>&1 || true)"
+            if printf '%s' "$health" | grep -q 'generator-3.2-cloudflare-only-clean'; then break; fi
             sleep 10
           done
-          if [ "$ok" -ne 1 ]; then
-            echo "LIVE_DEPLOY_NOT_CURRENT"
-            printf '%s\n' "$health"
-            exit 1
-          fi
-
-          platform="$(curl -fsS --max-time 20 "$ORIGIN/api/platform-health")"
-          state="$(curl -fsS --max-time 20 "$ORIGIN/api/state")"
-          echo '--- GENERATOR HEALTH ---'
-          printf '%s\n' "$health"
-          printf '%s' "$health" | grep -q 'generator-3.2-cloudflare-only-clean'
-          printf '%s' "$health" | grep -q '"preferredProvider": "workers-ai"'
-          printf '%s' "$health" | grep -q '"external": false'
-          printf '%s' "$health" | grep -q '"legacyProvidersRemoved": true'
-          printf '%s' "$health" | grep -q '"quotaBlocked"'
-
-          echo '--- PLATFORM HEALTH ---'
-          printf '%s\n' "$platform"
-          printf '%s' "$platform" | grep -q 'platform-1.3-cloudflare-only'
-          printf '%s' "$platform" | grep -q '"legacyProvidersRemoved": true'
-
-          echo '--- STATE SETTINGS ---'
-          printf '%s\n' "$state" | head -c 1200 || true
-          printf '%s' "$state" | grep -q '"aiPrimary": "workers-ai"'
-          printf '%s' "$state" | grep -q '"aiFallback": null'
-
-          code="$(curl -sS -o /tmp/legacy.json -w '%{http_code}' -X POST "$ORIGIN/api/ai/generate")"
-          echo "legacy_generate_http=$code"
-          cat /tmp/legacy.json
-          test "$code" = "410"
-
-          curl -fsS --max-time 30 "$ORIGIN/blog" -o /tmp/blog.html
-          grep -q 'مدونة كوبونات نون' /tmp/blog.html
-          echo "blog_ok=1"
+          platform="$(curl -sS --max-time 20 "$ORIGIN/api/platform-health" 2>&1 || true)"
+          state="$(curl -sS --max-time 20 "$ORIGIN/api/state" 2>&1 || true)"
+          printf '%s\n' "$health" > /tmp/generator-health.json
+          printf '%s\n' "$platform" > /tmp/platform-health.json
+          printf '%s\n' "$state" > /tmp/state.json
+          echo '--- GENERATOR HEALTH ---'; cat /tmp/generator-health.json
+          check_contains generator_version "$health" 'generator-3.2-cloudflare-only-clean'
+          check_contains preferred_provider "$health" '"preferredProvider": "workers-ai"'
+          check_contains external_false "$health" '"external": false'
+          check_contains legacy_removed "$health" '"legacyProvidersRemoved": true'
+          check_contains quota_field "$health" '"quotaBlocked"'
+          echo '--- PLATFORM HEALTH ---'; cat /tmp/platform-health.json
+          check_contains platform_version "$platform" 'platform-1.3-cloudflare-only'
+          check_contains platform_legacy_removed "$platform" '"legacyProvidersRemoved": true'
+          echo '--- STATE ---'; head -c 4000 /tmp/state.json || true; echo
+          check_contains state_primary "$state" '"aiPrimary": "workers-ai"'
+          check_contains state_fallback "$state" '"aiFallback": null'
+          code="$(curl -sS -o /tmp/legacy.json -w '%{http_code}' -X POST "$ORIGIN/api/ai/generate" || true)"
+          echo "legacy_generate_http=$code"; cat /tmp/legacy.json 2>/dev/null || true
+          if [ "$code" = "410" ]; then echo 'PASS legacy_410'; else echo 'FAIL legacy_410'; rc=1; fi
+          if curl -sS --max-time 30 "$ORIGIN/blog" -o /tmp/blog.html && grep -q 'مدونة كوبونات نون' /tmp/blog.html; then echo 'PASS blog'; else echo 'FAIL blog'; rc=1; fi
+          echo "FINAL_RC=$rc"
+          exit "$rc"
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-verify-diagnostics
+          path: |
+            /tmp/live-verify.log
+            /tmp/generator-health.json
+            /tmp/platform-health.json
+            /tmp/state.json
+            /tmp/legacy.json
+            /tmp/blog.html
+          if-no-files-found: ignore
+          retention-days: 1
