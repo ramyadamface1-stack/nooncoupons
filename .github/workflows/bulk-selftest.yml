@@ -11,8 +11,15 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     steps:
       - uses: actions/checkout@v4
-      - name: Audit deterministic bulk samples
+      - name: Syntax checks
+        run: |
+          node --check quality-criteria.js
+          node --check quality-audit.js
+          node --check bulk-content-engine.js
+          node --check bulk-generator.js
+          node --check bulk-selftest.js
+      - name: Audit 40 diversified bulk samples
         run: node bulk-selftest.js
