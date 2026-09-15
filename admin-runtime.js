@@ -1,6 +1,6 @@
 import {GENERATOR_DEFAULTS,readState} from './generator-core-v2.js';
 import {runProgrammaticBatch} from './bulk-generator.js';
-import {runLegacyUpgradeBatch} from './legacy-upgrader.js';
+import {runLegacyUpgradeBatchV2} from './legacy-upgrader-v2.js';
 
 const ADMIN_EMAIL='ramyshahin02@gmail.com';
 const now=()=>new Date().toISOString();
@@ -36,7 +36,7 @@ export class GeneratorControl{
     if(dirty)await this.ctx.storage.put('config',c);
     return c;
   }
-  async status(){return (await this.ctx.storage.get('status'))||{attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkPublishedTotal:0,bulkPublishedToday:0,bulkCursor:0,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false}}
+  async status(){return (await this.ctx.storage.get('status'))||{attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkPublishedTotal:0,bulkPublishedToday:0,bulkCursor:0,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false,legacyUpgradeCursorV2:0,legacyUpgradePassV2:1}}
   async fetch(req){
     const u=new URL(req.url),p=u.pathname;
     if(p==='/config'&&req.method==='GET')return json(await this.config());
@@ -61,13 +61,13 @@ export class GeneratorControl{
       const cfg=await this.config(),locked={...status,bulkRunningAt:now()};
       await this.ctx.storage.put('status',locked);
       try{
-        const legacy=await runLegacyUpgradeBatch(this.env,cfg,locked,{batchSize:Number(this.env.LEGACY_UPGRADE_BATCH_SIZE||4)});
+        const legacy=await runLegacyUpgradeBatchV2(this.env,cfg,locked,{batchSize:Number(this.env.LEGACY_UPGRADE_BATCH_SIZE||4)});
         const afterLegacy={...locked,...(legacy.patch||{})};
         await this.ctx.storage.put('status',afterLegacy);
         const bulk=await runProgrammaticBatch(this.env,cfg,afterLegacy,{dailyTarget:Number(this.env.BULK_DAILY_TARGET||2000),batchSize:Number(this.env.BULK_BATCH_SIZE||2)});
         const next={...afterLegacy,...(bulk.patch||{}),bulkRunningAt:null};
         await this.ctx.storage.put('status',next);
-        return json({ok:true,legacyUpgrade:{ok:legacy.ok,skipped:legacy.skipped||null,records:legacy.records||[],scanned:legacy.scanned||0,rejected:legacy.rejected||0,invalid:legacy.invalid||0},bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{legacyUpgradeTotal:Number(next.legacyUpgradeTotal||0),legacyUpgradeRemaining:next.legacyUpgradeRemaining==null?null:Number(next.legacyUpgradeRemaining),legacyUpgradeComplete:Boolean(next.legacyUpgradeComplete),bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||this.env.BULK_DAILY_TARGET||2000),bulkCursorV2:Number(next.bulkCursorV2||0)}});
+        return json({ok:true,legacyUpgrade:{ok:legacy.ok,skipped:legacy.skipped||null,records:legacy.records||[],scanned:legacy.scanned||0,rejected:legacy.rejected||0,invalid:legacy.invalid||0,pass:legacy.pass||next.legacyUpgradePassV2||1,passFinished:Boolean(legacy.passFinished),failures:legacy.failures||[]},bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{legacyUpgradeTotal:Number(next.legacyUpgradeTotal||0),legacyUpgradeRemaining:next.legacyUpgradeRemaining==null?null:Number(next.legacyUpgradeRemaining),legacyUpgradeComplete:Boolean(next.legacyUpgradeComplete),legacyUpgradeNeedsConsolidation:Boolean(next.legacyUpgradeNeedsConsolidation),legacyUpgradePassV2:Number(next.legacyUpgradePassV2||1),legacyUpgradeCursorV2:Number(next.legacyUpgradeCursorV2||0),bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||this.env.BULK_DAILY_TARGET||2000),bulkCursorV2:Number(next.bulkCursorV2||0)}});
       }catch(e){
         const next={...locked,bulkRunningAt:null,bulkLastRun:now(),bulkLastError:String(e?.message||e),legacyUpgradeLastError:String(e?.message||e)};
         await this.ctx.storage.put('status',next);return json({ok:false,error:next.bulkLastError},500);
@@ -105,7 +105,7 @@ export async function handleAdminApi(req,env){
   if(p==='/api/admin/status'){
     const [cfg,gs,st]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env),readState(env)]);
     const bulkTotal=Math.max(0,Number(gs.bulkPublishedTotal||0));
-    return json({articleCount:(st.articles||[]).length+bulkTotal,publishedCount:(st.articles||[]).filter(x=>x.status==='published').length+bulkTotal,workersAIReady:Boolean(env.AI),externalProviders:false,bulk:{publishedToday:Number(gs.bulkPublishedToday||0),publishedTotal:bulkTotal,dailyTarget:Number(gs.bulkDailyTarget||env.BULK_DAILY_TARGET||2000),lastRun:gs.bulkLastRun||null,lastError:gs.bulkLastError||null},legacyUpgrade:{upgradedTotal:Number(gs.legacyUpgradeTotal||0),remaining:gs.legacyUpgradeRemaining==null?null:Number(gs.legacyUpgradeRemaining),complete:Boolean(gs.legacyUpgradeComplete),lastRun:gs.legacyUpgradeLastRun||null,lastError:gs.legacyUpgradeLastError||null,lastQuality:gs.legacyUpgradeLastQuality??null,lastQualityFloor:gs.legacyUpgradeLastQualityFloor??null,lastWordCount:gs.legacyUpgradeLastWordCount??null},config:cfg,generator:gs});
+    return json({articleCount:(st.articles||[]).length+bulkTotal,publishedCount:(st.articles||[]).filter(x=>x.status==='published').length+bulkTotal,workersAIReady:Boolean(env.AI),externalProviders:false,bulk:{publishedToday:Number(gs.bulkPublishedToday||0),publishedTotal:bulkTotal,dailyTarget:Number(gs.bulkDailyTarget||env.BULK_DAILY_TARGET||2000),lastRun:gs.bulkLastRun||null,lastError:gs.bulkLastError||null},legacyUpgrade:{upgradedTotal:Number(gs.legacyUpgradeTotal||0),remaining:gs.legacyUpgradeRemaining==null?null:Number(gs.legacyUpgradeRemaining),complete:Boolean(gs.legacyUpgradeComplete),needsConsolidation:Boolean(gs.legacyUpgradeNeedsConsolidation),pass:Number(gs.legacyUpgradePassV2||1),cursor:Number(gs.legacyUpgradeCursorV2||0),lastRun:gs.legacyUpgradeLastRun||null,lastError:gs.legacyUpgradeLastError||null,lastQuality:gs.legacyUpgradeLastQuality??null,lastQualityFloor:gs.legacyUpgradeLastQualityFloor??null,lastWordCount:gs.legacyUpgradeLastWordCount??null,failureSamples:gs.legacyUpgradeFailureSamples||[]},config:cfg,generator:gs});
   }
   if(p==='/api/admin/generator'&&req.method==='POST'){
     const b=await body(req),allowed={};
