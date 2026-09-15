@@ -5,7 +5,8 @@ const now=()=>new Date().toISOString();
 const enc=s=>encodeURIComponent(String(s||'')).slice(0,1800);
 const ALLOWED_CODES=new Set(['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161']);
 const RECENT_LIMIT=180;
-const MAX_PASSES=3;
+const MAX_PASSES=4;
+const RECOVERY_PASS=4;
 
 const GROUPS=[
   {re:/جوال|هاتف|موبايل|ساعة ذكية|قابل.*للارتداء|كاميرا/i,category:'الجوالات والأجهزة الذكية',factors:['سعة التخزين','عمر البطارية','الإصدار','الضمان','حالة المنتج'],uses:['الاستخدام اليومي','التصوير','العمل','الألعاب','السفر'],checks:['توافق الشبكات','الإصدار الإقليمي','الملحقات المرفقة','سياسة الضمان والإرجاع']},
@@ -57,7 +58,8 @@ export function buildLegacyTopic(rec,variant=0,pass=1){
 
 function differentiate(article,topic,rec,variant=0,pass=1){
   const seed=h32((rec.slug||topic.kw)+'|differentiate|'+variant+'|'+pass),f1=topic.factors[seed%topic.factors.length],f2=topic.factors[(seed+2)%topic.factors.length],f3=topic.factors[(seed+4)%topic.factors.length],c1=topic.checks[seed%topic.checks.length],c2=topic.checks[(seed+1)%topic.checks.length],open=pick(CONTEXT_OPENERS,seed,variant),close=pick(CONTEXT_CLOSERS,seed,pass+variant);
-  const section=`<section class="legacy-specific" data-legacy-pass="${pass}"><h2>زاوية عملية خاصة بهذا القرار</h2><p>${open} في ${topic.category} نركز هنا على ${topic.useCase}، ونستخدم ${topic.factor} كعامل حسم أول بدل القفز مباشرة إلى السعر. هذا يجعل المقارنة مرتبطة باحتياج واضح ويقلل احتمال شراء خيار لا يناسب الاستخدام الفعلي.</p><p>طبّق اختبارًا من ثلاث طبقات: أولًا راجع ${f1} و${f2}، ثم تحقق من ${c1} و${c2}، وبعدها فقط قارن الإجمالي النهائي في ${topic.scenario}. لو تغيّر أحد هذه العناصر بين محاولتين، لا تعتبر فرق السعر ناتجًا عن القسيمة وحدها.</p><h3>قائمة تحقق مختصرة قبل الحسم</h3><ul><li>ثبت المنتج والبائع قبل تجربة الكود.</li><li>راجع ${f3} باعتباره عاملًا قد يغيّر قيمة الصفقة حتى لو كان السعر أقل.</li><li>دوّن الإجمالي قبل الكود وبعده ورسوم الشحن إن ظهرت.</li><li>لا تنقل نتيجة حساب أو سوق مختلف إلى هذه السلة.</li><li>إذا لم تتضح النتيجة، صغّر السلة ثم أعد إضافة العناصر تدريجيًا.</li></ul><p>${close}</p></section>`;
+  const recovery=pass===RECOVERY_PASS?`<p class="legacy-recovery">في جولة الاسترداد نعامل «${topic.kw}» كقرار مستقل: نثبت سوق ${topic.market}، ونقارن ${topic.useCase} مع ${topic.factor} في سيناريو ${topic.scenario}، ثم نوثق سبب الاستبعاد أو القبول قبل تجربة الكود. الهدف هو أن تكون الصفحة مفيدة لهذا البحث تحديدًا لا نسخة من دليل عام.</p>`:'';
+  const section=`<section class="legacy-specific" data-legacy-pass="${pass}"><h2>زاوية عملية خاصة بهذا القرار</h2><p>${open} في ${topic.category} نركز هنا على ${topic.useCase}، ونستخدم ${topic.factor} كعامل حسم أول بدل القفز مباشرة إلى السعر. هذا يجعل المقارنة مرتبطة باحتياج واضح ويقلل احتمال شراء خيار لا يناسب الاستخدام الفعلي.</p>${recovery}<p>طبّق اختبارًا من ثلاث طبقات: أولًا راجع ${f1} و${f2}، ثم تحقق من ${c1} و${c2}، وبعدها فقط قارن الإجمالي النهائي في ${topic.scenario}. لو تغيّر أحد هذه العناصر بين محاولتين، لا تعتبر فرق السعر ناتجًا عن القسيمة وحدها.</p><h3>قائمة تحقق مختصرة قبل الحسم</h3><ul><li>ثبت المنتج والبائع قبل تجربة الكود.</li><li>راجع ${f3} باعتباره عاملًا قد يغيّر قيمة الصفقة حتى لو كان السعر أقل.</li><li>دوّن الإجمالي قبل الكود وبعده ورسوم الشحن إن ظهرت.</li><li>لا تنقل نتيجة حساب أو سوق مختلف إلى هذه السلة.</li><li>إذا لم تتضح النتيجة، صغّر السلة ثم أعد إضافة العناصر تدريجيًا.</li></ul><p>${close}</p></section>`;
   article.html=String(article.html||'').replace(/<section class="methodology accountability">/i,section+'<section class="methodology accountability">');
   return article;
 }
@@ -78,15 +80,19 @@ async function writeRecent(env,records){if(!records.length)return;const cur=awai
 export async function runLegacyUpgradeBatchV2(env,cfg,status,{batchSize=4}={}){
   if(!env.CONTROL||!env.CONTENT_FINAL)return {ok:false,error:'legacy_upgrade_bindings_missing',patch:{legacyUpgradeLastError:'bindings_missing',legacyUpgradeLastRun:now()}};
   const st=await readState(env),all=(st.articles||[]).filter(a=>a.status==='published'),alreadyUpgraded=all.filter(a=>String(a.provider||'').startsWith('programmatic-cloudflare:v2-legacy-upgrade')).length,remainingBefore=all.filter(a=>!String(a.provider||'').startsWith('workers-ai:')&&!String(a.provider||'').startsWith('programmatic-cloudflare:v2-legacy-upgrade')).length;
-  if(!remainingBefore)return {ok:true,skipped:'legacy_upgrade_complete',records:[],patch:{legacyUpgradeTotal:alreadyUpgraded,legacyUpgradeComplete:true,legacyUpgradeRemaining:0,legacyUpgradeLastRun:now(),legacyUpgradeLastError:null,legacyUpgradeNeedsConsolidation:false}};
+  if(!remainingBefore)return {ok:true,skipped:'legacy_upgrade_complete',records:[],patch:{legacyUpgradeTotal:alreadyUpgraded,legacyUpgradeComplete:true,legacyUpgradeRemaining:0,legacyUpgradeLastRun:now(),legacyUpgradeLastError:null,legacyUpgradeNeedsConsolidation:false,legacyUpgradePausedForConsolidation:false}};
   const bulk=await readJson(env,'bulk/latest.json',{articles:[]}),oldRecent=await readJson(env,'legacy-upgrade/recent.json',{articles:[]}),recent=[...(oldRecent.articles||[]),...(bulk.articles||[])].slice(0,RECENT_LIMIT);
   const batch=Math.max(1,Math.min(6,Number(batchSize||4))),records=[],failures=[];let scanned=0,rejected=0,invalid=0,pass=Math.max(1,Number(status.legacyUpgradePassV2||1)),cursor=Math.max(0,Number(status.legacyUpgradeCursorV2||0));
-  if(cursor>=all.length){cursor=0;pass=Math.min(MAX_PASSES,pass+1)}
+  if(cursor>=all.length){
+    if(pass>=MAX_PASSES)return {ok:true,skipped:'legacy_upgrade_consolidation_required',records:[],patch:{legacyUpgradeTotal:alreadyUpgraded,legacyUpgradeRemaining:remainingBefore,legacyUpgradeComplete:false,legacyUpgradeNeedsConsolidation:true,legacyUpgradePausedForConsolidation:true,legacyUpgradePassV2:pass,legacyUpgradeCursorV2:all.length,legacyUpgradeLastRun:now(),legacyUpgradeLastError:null}};
+    cursor=0;pass++;
+  }
+  const variantLimit=pass===RECOVERY_PASS?18:12;
   while(cursor<all.length&&records.length<batch&&scanned<80){
     const rec=all[cursor++];scanned++;
     if(String(rec.provider||'').startsWith('workers-ai:')||String(rec.provider||'').startsWith('programmatic-cloudflare:v2-legacy-upgrade'))continue;
     let chosen=null,best=null;
-    for(let variant=0;variant<12;variant++){
+    for(let variant=0;variant<variantLimit;variant++){
       const c=buildLegacyUpgradeCandidate(rec,{variant,pass,recent,cfg});
       if(c.invalid){invalid++;best=c;break}
       if(!best||c.audit.score>best.audit.score||(c.audit.score===best.audit.score&&c.audit.groupFloor>best.audit.groupFloor))best=c;
@@ -100,8 +106,8 @@ export async function runLegacyUpgradeBatchV2(env,cfg,status,{batchSize=4}={}){
     const compact={slug:next.slug,primaryKeyword:next.primaryKeyword,signature:next.signature,quality:next.quality,qualityFloor:next.qualityFloor,wordCount:next.wordCount,provider,blueprint:next.blueprint,updatedAt};records.push(compact);recent.unshift(compact);if(recent.length>RECENT_LIMIT)recent.pop();
   }
   await writeRecent(env,records);
-  let nextCursor=cursor,nextPass=pass,passFinished=cursor>=all.length,remaining=Math.max(0,remainingBefore-records.length),needsConsolidation=false;
-  if(passFinished&&remaining>0){if(pass<MAX_PASSES){nextCursor=0;nextPass=pass+1}else needsConsolidation=true}
+  let nextCursor=cursor,nextPass=pass,passFinished=cursor>=all.length,remaining=Math.max(0,remainingBefore-records.length),needsConsolidation=false,pausedForConsolidation=false;
+  if(passFinished&&remaining>0){if(pass<MAX_PASSES){nextCursor=0;nextPass=pass+1}else{needsConsolidation=true;pausedForConsolidation=true;nextCursor=all.length}}
   const previousFailures=Array.isArray(status.legacyUpgradeFailureSamples)?status.legacyUpgradeFailureSamples:[],failureSamples=[...failures,...previousFailures].slice(0,12),upgradedTotal=alreadyUpgraded+records.length,last=records.at(-1)||null;
-  return {ok:true,records,scanned,rejected,invalid,pass,passFinished,failures,patch:{legacyUpgradeTotal:upgradedTotal,legacyUpgradeRemaining:remaining,legacyUpgradeComplete:remaining===0,legacyUpgradeNeedsConsolidation:needsConsolidation,legacyUpgradePassV2:nextPass,legacyUpgradeCursorV2:nextCursor,legacyUpgradeLastRun:now(),legacyUpgradeLastError:records.length?'':(remaining?'no_legacy_article_passed':null),legacyUpgradeLastSlug:last?.slug||status.legacyUpgradeLastSlug||null,legacyUpgradeLastQuality:last?.quality??status.legacyUpgradeLastQuality??null,legacyUpgradeLastQualityFloor:last?.qualityFloor??status.legacyUpgradeLastQualityFloor??null,legacyUpgradeLastWordCount:last?.wordCount??status.legacyUpgradeLastWordCount??null,legacyUpgradeRejected:Number(status.legacyUpgradeRejected||0)+rejected,legacyUpgradeInvalid:Number(status.legacyUpgradeInvalid||0)+invalid,legacyUpgradeFailureSamples:failureSamples}};
+  return {ok:true,records,scanned,rejected,invalid,pass,passFinished,failures,patch:{legacyUpgradeTotal:upgradedTotal,legacyUpgradeRemaining:remaining,legacyUpgradeComplete:remaining===0,legacyUpgradeNeedsConsolidation:needsConsolidation,legacyUpgradePausedForConsolidation:pausedForConsolidation,legacyUpgradeRecoveryActive:pass===RECOVERY_PASS&&!pausedForConsolidation,legacyUpgradePassV2:nextPass,legacyUpgradeCursorV2:nextCursor,legacyUpgradeLastRun:now(),legacyUpgradeLastError:records.length?'':(remaining&&!pausedForConsolidation?'no_legacy_article_passed':null),legacyUpgradeLastSlug:last?.slug||status.legacyUpgradeLastSlug||null,legacyUpgradeLastQuality:last?.quality??status.legacyUpgradeLastQuality??null,legacyUpgradeLastQualityFloor:last?.qualityFloor??status.legacyUpgradeLastQualityFloor??null,legacyUpgradeLastWordCount:last?.wordCount??status.legacyUpgradeLastWordCount??null,legacyUpgradeRejected:Number(status.legacyUpgradeRejected||0)+rejected,legacyUpgradeInvalid:Number(status.legacyUpgradeInvalid||0)+invalid,legacyUpgradeFailureSamples:failureSamples}};
 }
