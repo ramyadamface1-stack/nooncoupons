@@ -1,7 +1,7 @@
 import {buildBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO} from './bulk-content-engine.js';
 import {auditSeoArticle,auditSummary} from './quality-audit.js';
 import {loadCluster,globalGate,pickRelated,injectContextualLinks,addToCluster,flushClusters,clusterKey,GLOBAL_INDEX_INFO} from './quality-index.js';
-import {couponStatus,injectCouponFreshness,COUPON_REGISTRY_INFO} from './coupon-registry.js';
+import {couponStatus,injectCouponFreshness,writeCouponFreshnessSnapshot,COUPON_REGISTRY_INFO} from './coupon-registry.js';
 
 const now=()=>new Date().toISOString();
 const enc=s=>encodeURIComponent(String(s||'')).slice(0,1800);
@@ -100,6 +100,8 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   }
 
   await flushClusters(env,clusterCache,dirtyKeys);
+  let freshnessSnapshot=null;
+  if(records.length)freshnessSnapshot=await writeCouponFreshnessSnapshot(env,new Date());
   await writeCatalogs(env,day,countBefore,records);
   const total=Math.max(0,Number(status.bulkPublishedTotal||0))+records.length,last=records.at(-1)||null;
   const patch={
@@ -108,11 +110,12 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     bulkLastQuality:last?.quality??status.bulkLastQuality??null,bulkLastQualityFloor:last?.qualityFloor??status.bulkLastQualityFloor??null,bulkLastWordCount:last?.wordCount??status.bulkLastWordCount??null,
     bulkLastGroups:last?.qualityGroups||status.bulkLastGroups||null,bulkLastSignature:last?.signature||status.bulkLastSignature||null,bulkEngine:BULK_ENGINE_INFO.version,
     bulkQualityLayer:'global-quality-v1',bulkGlobalIndexVersion:GLOBAL_INDEX_INFO.version,bulkCouponRegistryVersion:COUPON_REGISTRY_INFO.version,
+    bulkFreshnessPublishable:freshnessSnapshot?.publishable??status.bulkFreshnessPublishable??null,bulkFreshnessReviewDue:freshnessSnapshot?.reviewDue??status.bulkFreshnessReviewDue??null,bulkFreshnessBlocked:freshnessSnapshot?.blocked??status.bulkFreshnessBlocked??null,
     bulkLastContextualLinks:last?.contextualLinks?.length??status.bulkLastContextualLinks??null,bulkLastCouponFreshness:last?.couponFreshness?.state||status.bulkLastCouponFreshness||null,
     bulkRejectedQuality:Number(status.bulkRejectedQuality||0)+rejectedQuality,bulkRejectedDuplicate:Number(status.bulkRejectedDuplicate||0)+rejectedDuplicate,
     bulkRejectedGlobal:Number(status.bulkRejectedGlobal||0)+rejectedGlobal,bulkRejectedCoupon:Number(status.bulkRejectedCoupon||0)+rejectedCoupon,bulkRejectedLinks:Number(status.bulkRejectedLinks||0)+rejectedLinks
   };
-  return {ok:true,engine:BULK_ENGINE_INFO.version,qualityLayer:'global-quality-v1',records,tries,rejectedQuality,rejectedDuplicate,rejectedGlobal,rejectedCoupon,rejectedLinks,patch};
+  return {ok:true,engine:BULK_ENGINE_INFO.version,qualityLayer:'global-quality-v1',records,tries,rejectedQuality,rejectedDuplicate,rejectedGlobal,rejectedCoupon,rejectedLinks,freshnessSnapshot,patch};
 }
 
 export {buildBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO};
