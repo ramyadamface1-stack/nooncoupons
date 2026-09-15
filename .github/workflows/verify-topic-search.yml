@@ -1,0 +1,40 @@
+name: Verify Topic Search
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Source checks
+        run: |
+          node --check topic-hubs.js
+          grep -Fq "search:'/topics/search/:query'" topic-hubs.js
+          grep -Fq "x-topic-search':'v1" topic-hubs.js
+          grep -Fq "'&quot;'" topic-hubs.js
+      - name: Live search checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ready=0
+          for i in $(seq 1 12); do
+            code="$(curl -sS -o /tmp/search.html -D /tmp/search.headers -w '%{http_code}' --max-time 20 "$ORIGIN/topics/search/%D9%86%D9%88%D9%86" || true)"
+            if [ "$code" = "200" ] && grep -Fq 'x-topic-search' /tmp/search.headers && grep -Fq 'data-topic-search' /tmp/search.html; then ready=1; break; fi
+            sleep 5
+          done
+          [ "$ready" = 1 ]
+          tr -d '\r' </tmp/search.headers | grep -iq '^x-robots-tag: noindex, follow$'
+          grep -Fq 'نتائج البحث عن:' /tmp/search.html
+          grep -Fq '<meta name="robots" content="noindex,follow">' /tmp/search.html
+          curl -fsS --max-time 20 "$ORIGIN/topics/buying-guides" -o /tmp/hub.html
+          grep -Fq 'data-topic-search' /tmp/hub.html
+          echo TOPIC_SEARCH_LIVE_PASS
