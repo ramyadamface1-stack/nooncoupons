@@ -1,0 +1,69 @@
+name: Verify Landing Quality V3
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static syntax
+        run: |
+          set -euo pipefail
+          node --check commerce-entry.js
+          node --check landing-content-v3.js
+          node --check commerce-taxonomy.js
+          node --check commerce-pages-v2.js
+      - name: Audit every commerce landing route
+        run: |
+          set -euo pipefail
+          node landing-quality-selftest.mjs | tee /tmp/landing-audit.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/landing-audit.json'))
+          assert d['ok'] is True
+          assert d['routes'] >= 110
+          assert d['uniqueRenders'] == d['routes']
+          assert d['uniqueSeeds'] == d['routes']
+          assert d['minWords'] >= 5000
+          assert d['seo'] is True and d['geoAeo'] is True and d['eeat'] is True
+          assert {'WebPage','FAQPage','Organization'}.issubset(set(d['schema']))
+          print('LANDING_QUALITY_V3_PASS',d)
+          PY
+      - name: Live sample verification
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ready=0
+          for i in $(seq 1 25); do
+            ok=1
+            for path in /saudi/category/shoes /uae/category/bags /saudi/brand/apple /saudi/model/apple/iphone-pro /saudi/compare/iphone-vs-galaxy; do
+              curl -sS -D /tmp/h -o /tmp/p --max-time 20 "$ORIGIN$path?landing-v3=1" || ok=0
+              grep -qi '^x-landing-content: v3' /tmp/h || ok=0
+              wc="$(tr -d '\r' </tmp/h | awk -F': ' 'tolower($1)=="x-landing-word-count"{print $2}' | tail -1)"
+              [ "${wc:-0}" -ge 5000 ] || ok=0
+              grep -Fq 'landing-depth-v3' /tmp/p || ok=0
+              grep -Fq 'FAQPage' /tmp/p || ok=0
+              grep -Fq 'منهجية التحرير والتحقق' /tmp/p || ok=0
+            done
+            [ "$ok" = 1 ] && ready=1 && break
+            sleep 6
+          done
+          [ "$ready" = 1 ]
+          curl -fsS "$ORIGIN/api/commerce-health?landing-v3=1" -o /tmp/health.json
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/health.json'))
+          x=d.get('landingContent',{})
+          assert d.get('ok') is True
+          assert int(x.get('minWords') or 0)>=5000
+          assert x.get('seo') is True and x.get('geoAeo') is True and x.get('eeat') is True
+          print('LIVE_LANDING_V3_PASS',{'routes':d.get('routes'),'landingContent':x,'metadataCoverage':d.get('metadataCoverage')})
+          PY
