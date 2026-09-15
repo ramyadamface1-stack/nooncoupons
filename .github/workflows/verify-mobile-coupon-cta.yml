@@ -1,0 +1,45 @@
+name: Verify Mobile Coupon CTA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Source checks
+        run: |
+          node --check public-entry.js
+          grep -Fq 'id=\"mobile-coupon-bar\"' public-entry.js
+          grep -Fq "x-mobile-coupon-cta','v1" public-entry.js
+          grep -Fq 'navigator.clipboard.writeText' public-entry.js
+          grep -Fq 'PUBLIC_ENTRY_INFO={version:2' public-entry.js
+      - name: Live mobile CTA checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ready=0
+          for i in $(seq 1 12); do
+            health="$(curl -fsS --max-time 15 "$ORIGIN/api/generator-health" || true)"
+            slug="$(python -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("bulk",{}).get("lastSlug") or "")' "$health" 2>/dev/null || true)"
+            [ -n "$slug" ] || { sleep 5; continue; }
+            urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
+            code="$(curl -sS -o /tmp/article.html -D /tmp/article.headers -w '%{http_code}' --max-time 20 "$ORIGIN/articles/$urlslug?mobile-cta=v1" || true)"
+            if [ "$code" = "200" ] && grep -Fqi 'x-mobile-coupon-cta: v1' /tmp/article.headers && grep -Fq 'id="mobile-coupon-bar"' /tmp/article.html; then ready=1; break; fi
+            sleep 5
+          done
+          [ "$ready" = 1 ]
+          grep -Eq 'data-sticky-copy="NOV[0-9]{3}"' /tmp/article.html
+          grep -Fq 'فتح نون' /tmp/article.html
+          grep -Fq 'navigator.clipboard.writeText' /tmp/article.html
+          grep -Fq '@media(max-width:760px)' /tmp/article.html
+          if grep -Fq 'class="quality-meta"' /tmp/article.html; then exit 1; fi
+          echo MOBILE_COUPON_CTA_LIVE_PASS
