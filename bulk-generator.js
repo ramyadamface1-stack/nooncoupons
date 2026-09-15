@@ -1,4 +1,4 @@
-import {buildBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO} from './bulk-content-engine.js';
+import {buildBulkTopic as buildRawBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO} from './bulk-content-engine.js';
 import {applyKeywordStrategy,KEYWORD_STRATEGY_INFO} from './keyword-strategy.js';
 import {auditSeoArticle,auditSummary} from './quality-audit.js';
 import {loadCluster,bootstrapGlobalIndex,globalGate,pickRelated,injectContextualLinks,addToCluster,flushClusters,clusterKey,GLOBAL_INDEX_INFO} from './quality-index.js';
@@ -70,7 +70,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   while(records.length<batch&&countBefore+records.length<target&&tries<batch*18){
     const currentCursor=cursor++;
     tries++;
-    const topic=applyKeywordStrategy(buildBulkTopic(currentCursor)),coupon=couponStatus(topic);
+    const topic=applyKeywordStrategy(buildRawBulkTopic(currentCursor)),coupon=couponStatus(topic);
     if(!coupon.publishAllowed){rejectedCoupon++;continue}
 
     const cluster=await loadCluster(env,topic,clusterCache);
@@ -148,5 +148,5 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   return {ok:true,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,qualityLayer:'global-quality-v1',bootstrap,indexNow,records,tries,rejectedQuality,rejectedDuplicate,rejectedGlobal,rejectedCoupon,rejectedLinks,rejectedSchema,rejectedIndexation,freshnessSnapshot,patch};
 }
 
-export {buildBulkTopic as buildRawBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO,SCHEMA_GATE_INFO,INDEXATION_GATE_INFO,EDITORIAL_TRUST_INFO,INDEXNOW_INFO,KEYWORD_STRATEGY_INFO};
-export const buildBulkTopic=(cursor=0)=>applyKeywordStrategy((awaitableBuild=>awaitableBuild)(buildRawBulkTopic(cursor)));
+export const buildBulkTopic=(cursor=0)=>applyKeywordStrategy(buildRawBulkTopic(cursor));
+export {buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO,SCHEMA_GATE_INFO,INDEXATION_GATE_INFO,EDITORIAL_TRUST_INFO,INDEXNOW_INFO,KEYWORD_STRATEGY_INFO};
