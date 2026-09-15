@@ -17,7 +17,7 @@ jobs:
       - name: Source checks
         run: |
           node --check public-entry.js
-          grep -Fq 'id=\"mobile-coupon-bar\"' public-entry.js
+          grep -Fq 'id="mobile-coupon-bar"' public-entry.js
           grep -Fq "x-mobile-coupon-cta','v1" public-entry.js
           grep -Fq 'navigator.clipboard.writeText' public-entry.js
           grep -Fq 'PUBLIC_ENTRY_INFO={version:2' public-entry.js
