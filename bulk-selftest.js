@@ -3,7 +3,8 @@ import {pickTopic,auditGenerated} from './generator-core-v2.js';
 
 const cfg={minWords:1000,qualityThreshold:95,targetWords:1500};
 let ready=0;
-for(let cursor=0;cursor<12;cursor++){
+for(let n=0;n<12;n++){
+  const cursor=1000+n;
   const topic=pickTopic({articles:[]},cursor);
   const article=buildProgrammaticArticle(topic,cursor);
   const audit=auditGenerated(article,topic,cfg);
