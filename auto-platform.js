@@ -3,12 +3,12 @@ export {ControlPlane} from './platform.js';
 export {GeneratorControl} from './admin-runtime.js';
 import {renderAdmin} from './admin-page.js';
 import {secureLogin} from './secure-admin-auth.js';
-import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin} from './admin-runtime.js';
+import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin,bulkTick} from './admin-runtime.js';
 import {readState,pickTopic,publishGenerated} from './generator-core-v2.js';
 import {generateWithWorkersAI,workersAiBudget,isWorkersAiFreeQuotaError} from './workers-ai-generator.js';
 
-const VERSION='generator-3.2-cloudflare-only-clean';
-const PLATFORM_VERSION='platform-1.3-cloudflare-only';
+const VERSION='generator-4.0-bulk-2000';
+const PLATFORM_VERSION='platform-1.4-cloudflare-bulk';
 const now=()=>new Date().toISOString();
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 
@@ -65,7 +65,7 @@ export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
     if(u.pathname==='/api/ai/generate')return json({error:'legacy_external_generation_disabled',version:VERSION,provider:'workers-ai',externalProviders:false,use:'/api/admin/generate-now'},410);
-    if(u.pathname==='/api/platform-health')return json({ok:true,version:PLATFORM_VERSION,generatorVersion:VERSION,control:Boolean(env.CONTROL),r2:Boolean(env.CONTENT_FINAL),workersAI:Boolean(env.AI),ai:{provider:'workers-ai',externalProviders:false,legacyProvidersRemoved:true},time:now()});
+    if(u.pathname==='/api/platform-health')return json({ok:true,version:PLATFORM_VERSION,generatorVersion:VERSION,control:Boolean(env.CONTROL),r2:Boolean(env.CONTENT_FINAL),workersAI:Boolean(env.AI),bulkProgrammatic:true,bulkDailyTarget:Number(env.BULK_DAILY_TARGET||2000),ai:{provider:'workers-ai',externalProviders:false,legacyProvidersRemoved:true},time:now()});
     if(u.pathname==='/api/state'&&req.method==='GET'){
       const r=await app.fetch(req,env,ctx);if(!r.ok)return r;
       try{const s=await r.json();s.settings={...(s.settings||{}),aiPrimary:'workers-ai',aiFallback:null,targetWords:1500,minWords:1000,qualityThreshold:95};return json(s,r.status)}catch{return r}
@@ -76,17 +76,27 @@ export default{
       if(!(await isAdmin(req,env)))return json({error:'unauthorized'},401);
       return json(await runOnce(env,{manual:true}));
     }
+    if(u.pathname==='/api/admin/bulk-now'&&req.method==='POST'){
+      if(!(await isAdmin(req,env)))return json({error:'unauthorized'},401);
+      return json(await bulkTick(env));
+    }
     if(u.pathname==='/api/admin/status'){
       const r=await handleAdminApi(req,env);if(!r)return r;if(!r.ok)return r;
-      try{const d=await r.json();delete d.groqReady;d.workersAIReady=Boolean(env.AI);d.generatorVersion=VERSION;d.activeProvider='workers-ai';d.externalProviders=false;d.config={...(d.config||{}),model:env.WORKERS_AI_MODEL||'@cf/zai-org/glm-4.7-flash'};return json(d,r.status)}catch{return r}
+      try{const d=await r.json();delete d.groqReady;d.workersAIReady=Boolean(env.AI);d.generatorVersion=VERSION;d.activeProvider='workers-ai + programmatic-cloudflare';d.externalProviders=false;d.config={...(d.config||{}),model:env.WORKERS_AI_MODEL||'@cf/zai-org/glm-4.7-flash'};return json(d,r.status)}catch{return r}
     }
     if(u.pathname.startsWith('/api/admin/')){const r=await handleAdminApi(req,env);if(r)return r}
     if(u.pathname==='/api/generator-health'){
       const [cfg,status,st]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env),readState(env)]),workersAI=workersAiBudget(env,st,status);
       const workersAiArticles=(st.articles||[]).filter(a=>a.status==='published'&&String(a.provider||'').startsWith('workers-ai:')).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))),lastWorkersAiSuccess=workersAiArticles[0]||null;
-      return json({ok:true,version:VERSION,cron:'* * * * *',enabled:cfg.enabled,publishPolicy:'Cloudflare Workers AI only; quota-aware auto resume; quality>=95; 1000-2000 words; strict brand/country/coupon locks; repair only when close to pass; no external providers',preferredProvider:'workers-ai',providers:{workersAI:workersAI.binding,anyAI:workersAI.binding,external:false},legacyProvidersRemoved:true,workersAI,workersAiPublishedTotal:workersAiArticles.length,lastWorkersAiSuccess:lastWorkersAiSuccess?{slug:lastWorkersAiSuccess.slug,createdAt:lastWorkersAiSuccess.createdAt,provider:lastWorkersAiSuccess.provider,quality:lastWorkersAiSuccess.quality,country:lastWorkersAiSuccess.country,coupon:lastWorkersAiSuccess.coupon}:null,models:{workersAI:env.WORKERS_AI_MODEL||'@cf/zai-org/glm-4.7-flash'},r2Ready:Boolean(env.CONTENT_FINAL),controlReady:Boolean(env.CONTROL),generatorControlReady:Boolean(env.GENERATOR_CONTROL),articleCount:(st.articles||[]).length,publishedCount:(st.articles||[]).filter(a=>a.status==='published').length,draftCount:(st.articles||[]).filter(a=>a.status==='draft').length,status});
+      const bulkTotal=Math.max(0,Number(status.bulkPublishedTotal||0)),bulkToday=String(status.bulkDay||'')===now().slice(0,10)?Math.max(0,Number(status.bulkPublishedToday||0)):0;
+      const legacyCount=(st.articles||[]).length,legacyPublished=(st.articles||[]).filter(a=>a.status==='published').length;
+      return json({ok:true,version:VERSION,cron:'* * * * *',enabled:cfg.enabled,publishPolicy:'Workers AI premium generation inside free quota + Cloudflare programmatic bulk; every article 1000-2000 words; quality>=95; brand/country/coupon locks; no external AI providers',preferredProvider:'workers-ai',providers:{workersAI:workersAI.binding,programmaticCloudflare:true,external:false},legacyProvidersRemoved:true,workersAI,workersAiPublishedTotal:workersAiArticles.length,lastWorkersAiSuccess:lastWorkersAiSuccess?{slug:lastWorkersAiSuccess.slug,createdAt:lastWorkersAiSuccess.createdAt,provider:lastWorkersAiSuccess.provider,quality:lastWorkersAiSuccess.quality,country:lastWorkersAiSuccess.country,coupon:lastWorkersAiSuccess.coupon}:null,models:{workersAI:env.WORKERS_AI_MODEL||'@cf/zai-org/glm-4.7-flash'},bulk:{enabled:true,dailyTarget:Number(env.BULK_DAILY_TARGET||2000),batchSize:Number(env.BULK_BATCH_SIZE||2),publishedToday:bulkToday,publishedTotal:bulkTotal,lastRun:status.bulkLastRun||null,lastError:status.bulkLastError||null,lastSlug:status.bulkLastSlug||null,lastQuality:status.bulkLastQuality??null,lastWordCount:status.bulkLastWordCount??null},r2Ready:Boolean(env.CONTENT_FINAL),controlReady:Boolean(env.CONTROL),generatorControlReady:Boolean(env.GENERATOR_CONTROL),articleCount:legacyCount+bulkTotal,publishedCount:legacyPublished+bulkTotal,draftCount:(st.articles||[]).filter(a=>a.status==='draft').length,status});
     }
     return app.fetch(req,env,ctx);
   },
-  async scheduled(event,env,ctx){if(app.scheduled)ctx.waitUntil(app.scheduled(event,env,ctx));ctx.waitUntil(runOnce(env))}
+  async scheduled(event,env,ctx){
+    if(app.scheduled)ctx.waitUntil(app.scheduled(event,env,ctx));
+    ctx.waitUntil(runOnce(env));
+    ctx.waitUntil(bulkTick(env));
+  }
 };
