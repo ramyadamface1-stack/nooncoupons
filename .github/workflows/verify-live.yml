@@ -1,0 +1,58 @@
+name: Verify Live Worker
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax check
+        run: |
+          node --check auto-platform.js
+          node --check workers-ai-generator.js
+      - name: Verify deployed Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ok=0
+          for i in $(seq 1 24); do
+            platform="$(curl -fsS --max-time 20 "$ORIGIN/api/platform-health" 2>/dev/null || true)"
+            if printf '%s' "$platform" | grep -q 'platform-1.1-cloudflare-only'; then
+              ok=1
+              break
+            fi
+            sleep 10
+          done
+          if [ "$ok" -ne 1 ]; then
+            echo "LIVE_DEPLOY_NOT_CURRENT"
+            curl -sS --max-time 20 "$ORIGIN/api/platform-health" || true
+            exit 1
+          fi
+
+          health="$(curl -fsS --max-time 30 "$ORIGIN/api/generator-health")"
+          echo '--- GENERATOR HEALTH ---'
+          printf '%s\n' "$health"
+          printf '%s' "$health" | grep -q 'generator-3.0-cloudflare-only'
+          printf '%s' "$health" | grep -q '"preferredProvider": "workers-ai"'
+          printf '%s' "$health" | grep -q '"external": false'
+
+          echo '--- PLATFORM HEALTH ---'
+          printf '%s\n' "$platform"
+
+          code="$(curl -sS -o /tmp/legacy.json -w '%{http_code}' -X POST "$ORIGIN/api/ai/generate")"
+          echo "legacy_generate_http=$code"
+          cat /tmp/legacy.json
+          test "$code" = "410"
+
+          curl -fsS --max-time 30 "$ORIGIN/blog" -o /tmp/blog.html
+          grep -q 'مدونة كوبونات نون' /tmp/blog.html
+          echo "blog_ok=1"
