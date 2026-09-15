@@ -19,8 +19,12 @@ jobs:
           node --check public-entry.js
           grep -Fq 'id="mobile-coupon-bar"' public-entry.js
           grep -Fq "x-mobile-coupon-cta','v1" public-entry.js
+          grep -Fq "x-noon-market-route" public-entry.js
+          grep -Fq 'https://www.noon.com/saudi-ar/' public-entry.js
+          grep -Fq 'https://www.noon.com/uae-ar/' public-entry.js
           grep -Fq 'navigator.clipboard.writeText' public-entry.js
-          grep -Fq 'PUBLIC_ENTRY_INFO={version:2' public-entry.js
+          grep -Fq 'PUBLIC_ENTRY_INFO={version:3' public-entry.js
+          grep -Fq 'marketAwareNoonLinks:true' public-entry.js
       - name: Live mobile CTA checks
         shell: bash
         run: |
@@ -32,7 +36,7 @@ jobs:
             slug="$(python -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("bulk",{}).get("lastSlug") or "")' "$health" 2>/dev/null || true)"
             [ -n "$slug" ] || { sleep 5; continue; }
             urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
-            code="$(curl -sS -o /tmp/article.html -D /tmp/article.headers -w '%{http_code}' --max-time 20 "$ORIGIN/articles/$urlslug?mobile-cta=v1" || true)"
+            code="$(curl -sS -o /tmp/article.html -D /tmp/article.headers -w '%{http_code}' --max-time 20 "$ORIGIN/articles/$urlslug?mobile-cta=v3" || true)"
             if [ "$code" = "200" ] && grep -Fqi 'x-mobile-coupon-cta: v1' /tmp/article.headers && grep -Fq 'id="mobile-coupon-bar"' /tmp/article.html; then ready=1; break; fi
             sleep 5
           done
@@ -41,5 +45,15 @@ jobs:
           grep -Fq 'فتح نون' /tmp/article.html
           grep -Fq 'navigator.clipboard.writeText' /tmp/article.html
           grep -Fq '@media(max-width:760px)' /tmp/article.html
+          lang="$(tr -d '\r' </tmp/article.headers | awk -F': ' 'tolower($1)=="content-language"{print $2}' | tail -1)"
+          market="$(tr -d '\r' </tmp/article.headers | awk -F': ' 'tolower($1)=="x-noon-market-route"{print $2}' | tail -1)"
+          if [ "$lang" = "ar-AE" ]; then
+            [ "$market" = "AE" ]
+            grep -Fq 'https://www.noon.com/uae-ar/' /tmp/article.html
+          else
+            [ "$market" = "SA" ]
+            grep -Fq 'https://www.noon.com/saudi-ar/' /tmp/article.html
+          fi
+          if grep -Fq 'href="https://www.noon.com/"' /tmp/article.html; then exit 1; fi
           if grep -Fq 'class="quality-meta"' /tmp/article.html; then exit 1; fi
           echo MOBILE_COUPON_CTA_LIVE_PASS
