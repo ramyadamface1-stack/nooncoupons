@@ -21,8 +21,17 @@ function hardened(res){
   return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
-async function enhanceArticle(req,env,res){
+async function injectHead(res,add,marker){
   if(!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
+  const html=await res.text();
+  const out=/<\/head>/i.test(html)?html.replace(/<\/head>/i,add+'</head>'):add+html;
+  const h=new Headers(res.headers);
+  h.delete('content-length');
+  h.set('x-premium-layer',marker);
+  return new Response(out,{status:res.status,statusText:res.statusText,headers:h});
+}
+
+async function enhanceArticle(req,env,res){
   const u=new URL(req.url),slug=decodeURIComponent(u.pathname.split('/').filter(Boolean).pop()||'');
   if(!slug||!env.CONTENT_FINAL)return res;
   let md={};
@@ -32,11 +41,10 @@ async function enhanceArticle(req,env,res){
   const modified=md.ua||published;
   const market=md.c==='AE'?'الإمارات':'السعودية';
   const add=`<meta name="author" content="فريق تحرير كوبونات نون"><meta property="og:site_name" content="كوبونات نون"><meta property="article:published_time" content="${esc(published)}"><meta property="article:modified_time" content="${esc(modified)}"><meta property="article:section" content="نون ${market}"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}">`;
-  return new HTMLRewriter().on('head',{element(el){el.append(add,{html:true})}}).transform(res);
+  return injectHead(res,add,'article-v2');
 }
 
 async function enhanceBlog(req,env,res){
-  if(!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
   const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin,latest=await r2json(env,'bulk/latest.json',{articles:[]});
   const rows=(latest.articles||[]).filter(a=>a?.slug&&a?.indexable!==false).slice(0,30);
   const graph={'@context':'https://schema.org','@graph':[
@@ -44,7 +52,7 @@ async function enhanceBlog(req,env,res){
     {'@type':'ItemList','@id':origin+'/blog#items',name:'أحدث أدلة كوبونات نون',numberOfItems:rows.length,itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+'/articles/'+enc(a.slug),name:a.title||a.primaryKeyword||a.slug}))}
   ]};
   const add=`<meta property="og:type" content="website"><meta property="og:site_name" content="كوبونات نون"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}"><script type="application/ld+json" data-schema="blog-collection">${safeJson(graph)}</script>`;
-  return new HTMLRewriter().on('head',{element(el){el.append(add,{html:true})}}).transform(res);
+  return injectHead(res,add,'blog-v2');
 }
 
 export default{
