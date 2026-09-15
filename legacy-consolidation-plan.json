@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "generatedFrom": {
+    "liveCheckedAt": "2026-09-15T10:16:49Z",
+    "legacyTotal": 400,
+    "upgraded": 121,
+    "remaining": 279,
+    "workersAIPreserved": 11,
+    "needsConsolidation": true,
+    "pass": 3
+  },
+  "policy": {
+    "doNotDelete": true,
+    "doNotRedirectUntilTargetVerified": true,
+    "targetQualityMin": 95,
+    "targetQualityFloorMin": 88,
+    "preserveWorkersAI": true
+  },
+  "templatedClusters": [
+    {"family":"best_coupon","country":"SA","sourceCount":20,"targetMode":"create-cornerstone","targetSlug":"أفضل-كوبون-نون-السعودية-للجوالات","targetTitle":"أفضل كوبون نون السعودية للجوالات"},
+    {"family":"best_coupon","country":"AE","sourceCount":19,"targetMode":"create-cornerstone","targetSlug":"أفضل-كوبون-نون-الامارات-للجوالات","targetTitle":"أفضل كوبون نون الإمارات للجوالات"},
+    {"family":"discount_code","country":"SA","sourceCount":20,"targetMode":"create-cornerstone","targetSlug":"كود-خصم-نون-السعودية-للجوالات","targetTitle":"كود خصم نون السعودية للجوالات"},
+    {"family":"discount_code","country":"AE","sourceCount":19,"targetMode":"existing-quality-parent","targetSlug":"كود-خصم-نون-الامارات-للجوالات","targetTitle":"كود خصم نون الإمارات للجوالات: دليل المقارنة قبل الشراء"},
+    {"family":"compare_coupons","country":"SA","sourceCount":19,"targetMode":"create-cornerstone","targetSlug":"مقارنة-كوبونات-نون-السعودية-للجوالات","targetTitle":"مقارنة كوبونات نون السعودية للجوالات"},
+    {"family":"compare_coupons","country":"AE","sourceCount":18,"targetMode":"create-cornerstone","targetSlug":"مقارنة-كوبونات-نون-الامارات-للجوالات","targetTitle":"مقارنة كوبونات نون الإمارات للجوالات"},
+    {"family":"does_code_work","country":"SA","sourceCount":19,"targetMode":"create-cornerstone","targetSlug":"هل-يعمل-كود-نون-السعودية-على-الجوالات","targetTitle":"هل يعمل كود نون السعودية على الجوالات"},
+    {"family":"does_code_work","country":"AE","sourceCount":14,"targetMode":"create-cornerstone","targetSlug":"هل-يعمل-كود-نون-الامارات-على-الجوالات","targetTitle":"هل يعمل كود نون الإمارات على الجوالات"},
+    {"family":"how_to_use","country":"SA","sourceCount":19,"targetMode":"create-cornerstone","targetSlug":"طريقة-استخدام-كود-نون-السعودية-عند-شراء-الجوالات","targetTitle":"طريقة استخدام كود نون السعودية عند شراء الجوالات"},
+    {"family":"how_to_use","country":"AE","sourceCount":14,"targetMode":"create-cornerstone","targetSlug":"طريقة-استخدام-كود-نون-الامارات-عند-شراء-الجوالات","targetTitle":"طريقة استخدام كود نون الإمارات عند شراء الجوالات"},
+    {"family":"saving_guide","country":"SA","sourceCount":17,"targetMode":"create-cornerstone","targetSlug":"دليل-التوفير-عند-شراء-الجوالات-من-نون-السعودية","targetTitle":"دليل التوفير عند شراء الجوالات من نون السعودية"},
+    {"family":"saving_guide","country":"AE","sourceCount":15,"targetMode":"create-cornerstone","targetSlug":"دليل-التوفير-عند-شراء-الجوالات-من-نون-الامارات","targetTitle":"دليل التوفير عند شراء الجوالات من نون الإمارات"},
+    {"family":"why_not_work","country":"SA","sourceCount":18,"targetMode":"existing-quality-parent","targetSlug":"لماذا-لا-يعمل-كود-نون","targetTitle":"لماذا لا يعمل كود نون؟ دليل تشخيص المشكلة وحلها خطوة بخطوة"},
+    {"family":"why_not_work","country":"AE","sourceCount":13,"targetMode":"create-cornerstone","targetSlug":"لماذا-لا-يعمل-كود-نون-الامارات-على-الجوالات","targetTitle":"لماذا لا يعمل كود نون الإمارات على الجوالات"},
+    {"family":"buying_mobiles","country":"SA","sourceCount":8,"targetMode":"create-cornerstone","targetSlug":"دليل-شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون","targetTitle":"دليل شراء الجوالات من نون السعودية باستخدام كوبون"},
+    {"family":"buying_mobiles","country":"AE","sourceCount":6,"targetMode":"create-cornerstone","targetSlug":"دليل-شراء-الجوالات-من-نون-الامارات-باستخدام-كوبون","targetTitle":"دليل شراء الجوالات من نون الإمارات باستخدام كوبون"}
+  ],
+  "manualReview": [
+    {"slug":"السعودية-تجنب-الشراء-الاندفاعي","title":"نون السعودية: استخدام القسائم بدون الوقوع في الشراء الاندفاعي","country":"SA","coupon":"NOV170"},
+    {"slug":"الامارات-شراء-كميات-متعددة","title":"نون الإمارات: مقارنة شراء عدة وحدات من نفس المنتج","country":"AE","coupon":"NOV153"},
+    {"slug":"السعودية-الهدايا","title":"نون السعودية: اختيار الهدايا مع موازنة السعر وموعد التوصيل","country":"SA","coupon":"NOV170"},
+    {"slug":"السعودية-العاب-الاطفال","title":"نون السعودية: شراء ألعاب الأطفال مع مراجعة العمر والسعر","country":"SA","coupon":"NOV153"},
+    {"slug":"السعودية-الديكور","title":"نون السعودية: شراء الديكور المنزلي واختبار القسائم","country":"SA","coupon":"NOV161"},
+    {"slug":"السعودية-الساعات-الذكية","title":"نون السعودية: شراء الساعات الذكية واختبار كود نون","country":"SA","coupon":"NOV177"},
+    {"slug":"السعودية-الالعاب-والكونسول","title":"نون السعودية: شراء أجهزة وألعاب الفيديو مع كوبونات نون","country":"SA","coupon":"NOV170"},
+    {"slug":"الامارات-التابلت","title":"نون الإمارات: شراء الأجهزة اللوحية مع تجربة كوبونات نون","country":"AE","coupon":"NOV153"},
+    {"slug":"السعودية-التابلت","title":"نون السعودية: شراء الأجهزة اللوحية مع تجربة كوبونات نون","country":"SA","coupon":"NOV163"},
+    {"slug":"السعودية-اللابتوبات","title":"نون السعودية: شراء اللابتوبات مع اختبار كوبون نون","country":"SA","coupon":"NOV177"},
+    {"slug":"السعودية-العرض-المباشر-ام-الكوبون","title":"نون السعودية: المفاضلة بين التخفيض المباشر وكود الخصم","country":"SA","coupon":"NOV170"},
+    {"slug":"السعودية-مقارنة-الاسعار","title":"نون السعودية: مقارنة السعر الأساسي والسعر بعد القسيمة","country":"SA","coupon":"NOV195"},
+    {"slug":"الامارات-مقارنة-البائعين","title":"نون الإمارات: مقارنة البائعين قبل تطبيق كود نون","country":"AE","coupon":"NOV153"},
+    {"slug":"الامارات-تتبع-الطلب","title":"نون الإمارات: التخطيط للشراء ومتابعة الطلب بعد استخدام القسيمة","country":"AE","coupon":"NOV157"},
+    {"slug":"الامارات-الشحن-والتوصيل","title":"نون الإمارات: فهم تكلفة الشحن والتوصيل عند استخدام كوبونات نون","country":"AE","coupon":"NOV188"},
+    {"slug":"السعودية-الشحن-والتوصيل","title":"نون السعودية: فهم تكلفة الشحن والتوصيل عند استخدام كوبونات نون","country":"SA","coupon":"NOV170"},
+    {"slug":"كوبون-نون-السعودية-للعطور","title":"كوبون نون السعودية للعطور: دليل فحص السعر والبائع قبل الشراء","country":"SA","coupon":"NOV186"},
+    {"slug":"كود-نون-السعودية-للأزياء","title":"كود نون السعودية للأزياء: دليل التوفير قبل شراء الملابس","country":"SA","coupon":"NOV170"},
+    {"slug":"كوبون-نون-السعودية-للإلكترونيات","title":"كوبون نون السعودية للإلكترونيات: دليل الاختبار قبل شراء الأجهزة","country":"SA","coupon":"NOV186"},
+    {"slug":"كود-نون-للطلب-الاول","title":"كود نون للطلب الأول: كيف تتحقق من الأهلية قبل إتمام الشراء","country":"AE","coupon":"NOV157"},
+    {"slug":"دليل-استخدام-كوبونات-نون-السعودية","title":"دليل استخدام كوبونات نون السعودية والتحقق من الخصم قبل الدفع","country":"SA","coupon":"NOV170"}
+  ]
+}
