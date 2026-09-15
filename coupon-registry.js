@@ -45,4 +45,26 @@ export function injectCouponFreshness(article,status){
   return article;
 }
 
+export async function writeCouponFreshnessSnapshot(env,at=new Date()){
+  if(!env?.CONTENT_FINAL)return null;
+  const rows=[];
+  for(const code of CODES){
+    for(const country of ['SA','AE'])rows.push(couponStatus({code,country},at));
+  }
+  const summary={
+    version:'owner-supplied-v1',
+    generatedAt:at.toISOString(),
+    catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,
+    reviewAfterDays:REVIEW_AFTER_DAYS,
+    blockAfterDays:BLOCK_AFTER_DAYS,
+    officialVerification:false,
+    publishable:rows.filter(x=>x.publishAllowed).length,
+    reviewDue:rows.filter(x=>x.state==='review-due').length,
+    blocked:rows.filter(x=>!x.publishAllowed).length,
+    rows
+  };
+  await env.CONTENT_FINAL.put('freshness/coupon-registry-status.json',JSON.stringify(summary),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+  return summary;
+}
+
 export const COUPON_REGISTRY_INFO={version:'owner-supplied-v1',codes:CODES.length,reviewAfterDays:REVIEW_AFTER_DAYS,blockAfterDays:BLOCK_AFTER_DAYS,catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,officialVerification:false};
