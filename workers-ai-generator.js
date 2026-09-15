@@ -7,12 +7,18 @@ const wc=s=>String(s||'').replace(/<[^>]+>/g,' ').trim().split(/\s+/).filter(Boo
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const plainText=s=>String(s||'').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,' ').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
 
+export function isWorkersAiFreeQuotaError(error){
+  const s=String(error?.message||error||'').toLowerCase();
+  return /\b4006\b|daily free allocation|10[,.]?000\s+neurons|10000\s+neurons|used up your daily free|free allocation.*neurons/.test(s);
+}
+
 export function workersAiBudget(env,state,status={}){
-  const articleCap=Math.max(0,Math.min(100,Number(env.WORKERS_AI_DAILY_CAP||30)));
-  const callCap=Math.max(articleCap,Math.min(200,Number(env.WORKERS_AI_DAILY_CALL_CAP||60)));
+  const articleCap=Math.max(0,Math.min(100,Number(env.WORKERS_AI_DAILY_CAP||60)));
+  const callCap=Math.max(articleCap,Math.min(200,Number(env.WORKERS_AI_DAILY_CALL_CAP||80)));
   const day=now().slice(0,10);
   const used=(state?.articles||[]).filter(a=>String(a.createdAt||'').slice(0,10)===day&&String(a.provider||'').startsWith('workers-ai:')).length;
   const callsUsed=String(status?.workersAiDay||'')===day?Math.max(0,Number(status?.workersAiCallsToday||0)):0;
+  const quotaBlocked=String(status?.workersAiQuotaDay||'')===day;
   return {
     binding:Boolean(env.AI),
     model:env.WORKERS_AI_MODEL||MODEL_DEFAULT,
@@ -22,13 +28,15 @@ export function workersAiBudget(env,state,status={}){
     callCap,
     callsUsed,
     callRemaining:Math.max(0,callCap-callsUsed),
-    available:Boolean(env.AI)&&used<articleCap&&callsUsed<callCap
+    quotaBlocked,
+    quotaResetAt:new Date(Date.UTC(new Date().getUTCFullYear(),new Date().getUTCMonth(),new Date().getUTCDate()+1)).toISOString(),
+    available:Boolean(env.AI)&&!quotaBlocked&&used<articleCap&&callsUsed<callCap
   };
 }
 
 function basePrompt(t,cfg,existing){
   const market=t.country==='SA'?'saudi-arabia':'uae';
-  const target=Math.max(Number(cfg.minWords||1000)+150,Math.min(Number(cfg.targetWords||1800),1800));
+  const target=Math.max(Number(cfg.minWords||1000)+200,Math.min(Number(cfg.targetWords||1500),1600));
   return `اكتب نص HTML عربي كامل لمقال أصلي عالي الجودة لموقع كوبونات نون. أعد HTML فقط بدون JSON وبدون Markdown fences وبدون <html> أو <body> أو <script> أو <h1>.
 
 الدولة الوحيدة: ${t.countryName} (${t.country})
@@ -54,8 +62,9 @@ function basePrompt(t,cfg,existing){
 - لا تضف JSON-LD؛ النظام سيضيفه برمجيًا.
 - الحد الأدنى الفعلي ${cfg.minWords} كلمة والهدف قرابة ${target} كلمة، وممنوع تجاوز 2000 كلمة.
 - اجعل النص عربيًا طبيعيًا وواضحًا، ولا تستخدم Lorem ipsum أو As an AI.
+- لا تستخدم تفكيرًا مطولًا أو مقدمة خارج المقال؛ ابدأ مباشرة بالمحتوى وأكمله للنهاية.
 
-تجنب تكرار زوايا هذه الكلمات المنشورة: ${existing.slice(0,45).join(' | ')}.`;
+تجنب تكرار زوايا هذه الكلمات المنشورة: ${existing.slice(0,16).join(' | ')}.`;
 }
 
 function stripReasoning(s){
@@ -113,12 +122,12 @@ function extractHtml(text){
   return x;
 }
 
-async function callWorkers(env,prompt,{temperature=.38,maxTokens=8500}={}){
+async function callWorkers(env,prompt,{temperature=.34,maxTokens=4800}={}){
   if(!env.AI)throw new Error('workers_ai_binding_missing');
   const model=env.WORKERS_AI_MODEL||MODEL_DEFAULT;
   const r=await env.AI.run(model,{
     messages:[
-      {role:'system',content:'أنت محرر عربي دقيق لمحتوى التجارة الإلكترونية. أعد HTML فقط. لا تختلق خصمًا أو شرطًا أو أهلية.'},
+      {role:'system',content:'أنت محرر عربي دقيق لمحتوى التجارة الإلكترونية. اكتب المقال النهائي مباشرة كـ HTML فقط، بلا تفكير ظاهر أو شرح قبل النص. لا تختلق خصمًا أو شرطًا أو أهلية.'},
       {role:'user',content:prompt}
     ],
     temperature,
@@ -208,23 +217,34 @@ function strictAudit(article,t,cfg,base){
 
 function repairPrompt(t,cfg,article,audit){
   const failed=(audit?.checks||[]).filter(x=>!x.pass).map(x=>x.name).join(', ');
-  const plain=String(article?.html||'').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').slice(0,42000);
-  return `أعد كتابة/توسيع/اختصار BODY HTML التالي لمقال نون بحيث يعالج هذه المشاكل: ${failed}.
+  const plain=String(article?.html||'').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').slice(0,24000);
+  return `أعد كتابة/توسيع/اختصار BODY HTML التالي لمقال نون بحيث يعالج هذه المشاكل فقط: ${failed}.
 أعد HTML BODY فقط بدون JSON وبدون <h1> وبدون <script>.
 الدولة الوحيدة ${t.countryName} (${t.country})، الكوبون الوحيد ${t.code}، الكلمة الأساسية ${t.kw}.
-ممنوع اختلاق نسبة خصم أو شروط. أزل أي متجر منافس، وأزل أي ذكر لسوق نون غير ${t.countryName}، وأزل أي كود NOV غير ${t.code}. المطلوب بين ${cfg.minWords} و2000 كلمة مفيدة، 8 H2، H3، FAQ، روابط داخلية، رابط Noon، CTA data-copy-code، ومحتوى عربي طبيعي غير مكرر.
+ممنوع اختلاق نسبة خصم أو شروط. أزل أي متجر منافس، وأزل أي ذكر لسوق نون غير ${t.countryName}، وأزل أي كود NOV غير ${t.code}. المطلوب بين ${cfg.minWords} و2000 كلمة مفيدة، 8 H2، H3، FAQ، روابط داخلية، رابط Noon، CTA data-copy-code، ومحتوى عربي طبيعي غير مكرر. لا تستخدم تفكيرًا مطولًا واكتب النسخة النهائية مباشرة.
 
 المحتوى الحالي:
 ${plain}`;
 }
 
 function retryPrompt(t,cfg,existing,lastError){
-  return `${basePrompt(t,cfg,existing)}\n\nهذه محاولة إعادة بعد فشل تقني سابق (${String(lastError||'unknown').slice(0,120)}). ابدأ مباشرة بأول عنصر HTML مفيد، لا تكتب شرحًا قبل HTML، وأكمل المقال حتى النهاية بدون JSON أو Markdown.`;
+  return `${basePrompt(t,cfg,existing)}\
+\
+هذه محاولة إعادة بعد فشل تقني سابق (${String(lastError||'unknown').slice(0,120)}). ابدأ مباشرة بأول عنصر HTML مفيد، لا تكتب شرحًا قبل HTML، وأكمل المقال حتى النهاية بدون JSON أو Markdown.`;
+}
+
+function isRetryableTechnicalError(error){
+  if(isWorkersAiFreeQuotaError(error))return false;
+  const s=String(error?.message||error||'').toLowerCase();
+  return /empty_response|too_short|timeout|timed out|\b429\b|\b3040\b|capacity|temporar|overloaded|internal/.test(s);
 }
 
 export async function generateWithWorkersAI(env,topic,cfg,state,attempt=0,status={}){
   const budget=workersAiBudget(env,state,status);
-  if(!budget.available)return {skipped:true,reason:budget.binding?(budget.callRemaining<=0?'workers_ai_daily_call_cap':'workers_ai_daily_article_cap'):'workers_ai_binding_missing',budget,callsUsed:0};
+  if(!budget.available){
+    const reason=!budget.binding?'workers_ai_binding_missing':budget.quotaBlocked?'workers_ai_free_quota_exhausted':budget.callRemaining<=0?'workers_ai_daily_call_cap':'workers_ai_daily_article_cap';
+    return {skipped:true,reason,budget,callsUsed:0};
+  }
   const existing=(state?.articles||[]).map(a=>a.primaryKeyword||'').filter(Boolean);
   const maxCalls=Math.max(1,Math.min(2,budget.callRemaining));
   let callsUsed=0,lastError=null,article=null,audit=null,provider=`workers-ai:${budget.model}`;
@@ -233,15 +253,17 @@ export async function generateWithWorkersAI(env,topic,cfg,state,attempt=0,status
     try{
       callsUsed++;
       const prompt=i===0?basePrompt(topic,cfg,existing):(article&&audit?repairPrompt(topic,cfg,article,audit):retryPrompt(topic,cfg,existing,lastError));
-      const out=await callWorkers(env,prompt,{temperature:i===0?.38:.24,maxTokens:i===0?8500:9000});
+      const out=await callWorkers(env,prompt,{temperature:i===0?.34:.22,maxTokens:i===0?4800:5000});
       article=buildArticle(out.html,topic);
       audit=strictAudit(article,topic,cfg,auditGenerated(article,topic,cfg));
       provider=i===0?out.provider:`${provider} + repair:${out.provider}`;
       if(audit.productionReady)break;
       lastError='quality_gate_'+audit.score+'_words_'+audit.wordCount;
+      const repairWorthIt=i===0&&budget.callRemaining>=2&&audit.wordCount>=850&&audit.wordCount<=2100&&Number(audit.score||0)>=90;
+      if(!repairWorthIt)break;
     }catch(e){
       lastError=String(e?.message||e);
-      if(i+1>=maxCalls){
+      if(isWorkersAiFreeQuotaError(e)||i+1>=maxCalls||!isRetryableTechnicalError(e)){
         const err=new Error(lastError);
         err.workersAiCallsUsed=callsUsed;
         err.workersAiBudget=budget;
