@@ -2,94 +2,70 @@ const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 
 const SCENARIO_MAP={
-  'قبل الدفع':'قبل الدفع',
-  'وقت العروض':'وقت العروض',
-  'مع الشحن':'مع تكلفة الشحن',
-  'قبل اختيار البائع':'قبل اختيار البائع',
-  'عند مقارنة الأسعار':'عند مقارنة الأسعار',
-  'بدون شراء زائد':'بدون شراء غير ضروري',
-  'عند رفض الكود':'عند رفض الكود',
-  'مع سلة كبيرة':'مع سلة كبيرة',
-  'للطلب الأول':'للطلب الأول',
-  'لحساب حالي':'للحساب الحالي',
-  'قبل تغيير طريقة الدفع':'قبل تغيير طريقة الدفع',
-  'قبل الإرجاع':'قبل الإرجاع',
-  'مع مراجعة الضمان':'مع مراجعة الضمان',
-  'عند شراء عدة قطع':'عند شراء عدة قطع',
-  'من الهاتف':'من تطبيق الهاتف',
-  'من المتصفح':'من المتصفح',
-  'عند تغير السعر':'عند تغير السعر',
-  'مع ميزانية محددة':'بميزانية محددة',
-  'مع أكثر من بائع':'مع أكثر من بائع',
-  'بعد إضافة رسوم الشحن':'بعد إضافة رسوم الشحن'
+  'قبل الدفع':'قبل الدفع','وقت العروض':'وقت العروض','مع الشحن':'مع الشحن','قبل اختيار البائع':'قبل اختيار البائع','عند مقارنة الأسعار':'عند مقارنة الأسعار',
+  'بدون شراء زائد':'بدون شراء زائد','عند رفض الكود':'عند رفض الكود','مع سلة كبيرة':'مع سلة كبيرة','للطلب الأول':'للطلب الأول','لحساب حالي':'للحساب الحالي',
+  'قبل تغيير طريقة الدفع':'قبل تغيير الدفع','قبل الإرجاع':'قبل الإرجاع','مع مراجعة الضمان':'مع مراجعة الضمان','عند شراء عدة قطع':'عند شراء عدة قطع',
+  'من الهاتف':'من التطبيق','من المتصفح':'من المتصفح','عند تغير السعر':'عند تغير السعر','مع ميزانية محددة':'بميزانية محددة','مع أكثر من بائع':'مع عدة بائعين','بعد إضافة رسوم الشحن':'بعد رسوم الشحن'
 };
 
-function scenario(t){return SCENARIO_MAP[t.scenario]||clean(t.scenario)}
-function use(t){return clean(t.useCase)}
+const INTENT_LABELS={coupon:'كود خصم',howto:'استخدام كود',compare:'مقارنة سعر',trouble:'حل رفض الكود',question:'هل يعمل الكود',seller:'اختيار بائع',decision:'دليل شراء',finalprice:'السعر النهائي',value:'التوفير',cart:'مراجعة سلة',timing:'توقيت الكوبون',smartbuy:'شراء ذكي',eligibility:'شروط الكود',checklist:'خطوات قبل الدفع',multi:'شراء عدة منتجات',returns:'مراجعة الإرجاع',warranty:'فحص الضمان',budget:'اختيار بميزانية'};
+
+const REMAP_BY_PROFILE={
+  beauty:{warranty:'returns'},fashion:{warranty:'returns'},grocery:{warranty:'checklist',returns:'checklist'},kids:{warranty:'checklist'},baby:{warranty:'checklist'},
+  home:{warranty:'decision'},kitchen:{warranty:'decision'},pets:{warranty:'checklist'},travel:{warranty:'decision'},fitness:{warranty:'decision'}
+};
+
+function effectiveIntent(t){return REMAP_BY_PROFILE[t.profileKey]?.[t.intent]||t.intent}
+function scenario(t,intent){
+  let s=SCENARIO_MAP[t.scenario]||clean(t.scenario);
+  if(intent==='seller'&&/اختيار البائع/.test(s))s='عند مقارنة الأسعار';
+  if(intent==='warranty'&&/مراجعة الضمان/.test(s))s='قبل الدفع';
+  if(intent==='budget'&&/ميزانية/.test(s))s='قبل الدفع';
+  return s;
+}
 function market(t){return clean(t.market)}
 function cat(t){return clean(t.category)}
-function factor(t){return clean(t.factor)}
 
 const BUILDERS={
-  coupon:t=>`كود خصم نون ${market(t)} على ${cat(t)} ${scenario(t)}`,
-  howto:t=>`طريقة استخدام كود خصم نون ${market(t)} عند شراء ${cat(t)} ${scenario(t)}`,
-  compare:t=>`كيف أقارن سعر ${cat(t)} على نون ${market(t)} ${scenario(t)}`,
-  trouble:t=>`كود نون لا يعمل على ${cat(t)} في ${market(t)} ${scenario(t)}`,
-  question:t=>`هل كود خصم نون يعمل على ${cat(t)} في ${market(t)} ${scenario(t)}`,
-  seller:t=>`كيف أختار بائع ${cat(t)} على نون ${market(t)} ${scenario(t)}`,
-  decision:t=>`دليل شراء ${cat(t)} من نون ${market(t)} لـ${use(t)} ${scenario(t)}`,
-  finalprice:t=>`كيف أحسب السعر النهائي لـ${cat(t)} على نون ${market(t)} ${scenario(t)}`,
-  value:t=>`كيف أوفر عند شراء ${cat(t)} من نون ${market(t)} ${scenario(t)}`,
-  cart:t=>`مراجعة سلة ${cat(t)} على نون ${market(t)} ${scenario(t)}`,
-  timing:t=>`متى أستخدم كود نون عند شراء ${cat(t)} في ${market(t)} ${scenario(t)}`,
-  smartbuy:t=>`نصائح شراء ${cat(t)} من نون ${market(t)} لـ${use(t)} ${scenario(t)}`,
-  eligibility:t=>`شروط استخدام كود نون على ${cat(t)} في ${market(t)} ${scenario(t)}`,
-  checklist:t=>`قائمة فحص قبل شراء ${cat(t)} من نون ${market(t)} ${scenario(t)}`,
-  multi:t=>`استخدام كود نون عند شراء عدة منتجات من ${cat(t)} في ${market(t)} ${scenario(t)}`,
-  returns:t=>`الإرجاع والكوبون عند شراء ${cat(t)} من نون ${market(t)} ${scenario(t)}`,
-  warranty:t=>`الضمان والكوبون عند شراء ${cat(t)} من نون ${market(t)} ${scenario(t)}`,
-  budget:t=>`شراء ${cat(t)} من نون ${market(t)} بميزانية محددة مع مراجعة ${factor(t)}`
+  coupon:(t,s)=>`كود خصم نون ${market(t)} على ${cat(t)} ${s}`,
+  howto:(t,s)=>`استخدام كود نون ${market(t)} مع ${cat(t)} ${s}`,
+  compare:(t,s)=>`مقارنة سعر ${cat(t)} على نون ${market(t)} ${s}`,
+  trouble:(t,s)=>`كود نون لا يعمل على ${cat(t)} في ${market(t)} ${s}`,
+  question:(t,s)=>`هل كود نون يعمل على ${cat(t)} في ${market(t)} ${s}`,
+  seller:(t,s)=>`اختيار بائع ${cat(t)} على نون ${market(t)} ${s}`,
+  decision:(t,s)=>`دليل شراء ${cat(t)} من نون ${market(t)} ${s}`,
+  finalprice:(t,s)=>`سعر ${cat(t)} النهائي على نون ${market(t)} ${s}`,
+  value:(t,s)=>`التوفير عند شراء ${cat(t)} من نون ${market(t)} ${s}`,
+  cart:(t,s)=>`مراجعة سلة ${cat(t)} على نون ${market(t)} ${s}`,
+  timing:(t,s)=>`متى تستخدم كود نون مع ${cat(t)} في ${market(t)} ${s}`,
+  smartbuy:(t,s)=>`شراء ${cat(t)} من نون ${market(t)} بذكاء ${s}`,
+  eligibility:(t,s)=>`شروط كود نون على ${cat(t)} في ${market(t)} ${s}`,
+  checklist:(t,s)=>`قبل شراء ${cat(t)} من نون ${market(t)} ${s}`,
+  multi:(t,s)=>`كود نون لشراء عدة منتجات ${cat(t)} في ${market(t)} ${s}`,
+  returns:(t,s)=>`إرجاع ${cat(t)} وكوبون نون ${market(t)} ${s}`,
+  warranty:(t,s)=>`ضمان ${cat(t)} وكوبون نون ${market(t)} ${s}`,
+  budget:(t)=>`شراء ${cat(t)} من نون ${market(t)} بميزانية محددة`
 };
 
-function naturalTitle(kw,t){
-  if(kw.length<=68)return kw;
-  const shortMap={
-    coupon:`كود خصم نون ${market(t)} على ${cat(t)}`,
-    howto:`استخدام كود خصم نون ${market(t)} لشراء ${cat(t)}`,
-    compare:`مقارنة سعر ${cat(t)} على نون ${market(t)}`,
-    trouble:`حل مشكلة كود نون مع ${cat(t)} في ${market(t)}`,
-    question:`هل كود نون يعمل على ${cat(t)} في ${market(t)}؟`,
-    seller:`اختيار بائع ${cat(t)} على نون ${market(t)}`,
-    decision:`دليل شراء ${cat(t)} من نون ${market(t)}`,
-    finalprice:`حساب السعر النهائي لـ${cat(t)} على نون ${market(t)}`,
-    value:`التوفير عند شراء ${cat(t)} من نون ${market(t)}`,
-    cart:`مراجعة سلة ${cat(t)} على نون ${market(t)}`,
-    timing:`متى تستخدم كود نون مع ${cat(t)} في ${market(t)}؟`,
-    smartbuy:`شراء ${cat(t)} من نون ${market(t)} بذكاء`,
-    eligibility:`شروط كود نون على ${cat(t)} في ${market(t)}`,
-    checklist:`قبل شراء ${cat(t)} من نون ${market(t)}: قائمة فحص`,
-    multi:`شراء عدة منتجات من ${cat(t)} على نون ${market(t)}`,
-    returns:`الإرجاع والكوبون عند شراء ${cat(t)} من نون ${market(t)}`,
-    warranty:`الضمان والكوبون عند شراء ${cat(t)} من نون ${market(t)}`,
-    budget:`شراء ${cat(t)} من نون ${market(t)} بميزانية محددة`
+function fitKeyword(raw,t,intent,s){
+  let kw=clean(raw);
+  if(kw.length<=70)return kw;
+  const noScenario={
+    coupon:`كود خصم نون ${market(t)} على ${cat(t)}`,howto:`استخدام كود نون ${market(t)} مع ${cat(t)}`,compare:`مقارنة سعر ${cat(t)} على نون ${market(t)}`,
+    trouble:`حل مشكلة كود نون مع ${cat(t)} في ${market(t)}`,question:`هل كود نون يعمل على ${cat(t)} في ${market(t)}`,seller:`اختيار بائع ${cat(t)} على نون ${market(t)}`,
+    decision:`دليل شراء ${cat(t)} من نون ${market(t)}`,finalprice:`سعر ${cat(t)} النهائي على نون ${market(t)}`,value:`التوفير في ${cat(t)} على نون ${market(t)}`,
+    cart:`مراجعة سلة ${cat(t)} على نون ${market(t)}`,timing:`توقيت كود نون مع ${cat(t)} في ${market(t)}`,smartbuy:`شراء ${cat(t)} من نون ${market(t)} بذكاء`,
+    eligibility:`شروط كود نون على ${cat(t)} في ${market(t)}`,checklist:`قبل شراء ${cat(t)} من نون ${market(t)}`,multi:`كود نون لعدة منتجات ${cat(t)} في ${market(t)}`,
+    returns:`إرجاع ${cat(t)} وكوبون نون ${market(t)}`,warranty:`ضمان ${cat(t)} وكوبون نون ${market(t)}`,budget:`شراء ${cat(t)} من نون ${market(t)} بميزانية محددة`
   };
-  return clean(shortMap[t.intent]||kw).slice(0,68);
+  kw=clean(noScenario[intent]||kw);
+  return kw.length<=70?kw:kw.slice(0,70).replace(/\s+\S*$/,'');
 }
 
 export function applyKeywordStrategy(topic){
-  const builder=BUILDERS[topic.intent]||BUILDERS.decision;
-  const kw=clean(builder(topic));
-  const slug=slugify(kw);
-  const title=naturalTitle(kw,topic);
-  const words=kw.split(/\s+/).filter(Boolean).length;
-  return {...topic,kw,slug,title,keywordStrategy:'search-intent-v1',keywordWordCount:words,searchIntentFamily:topic.intent};
+  const rawIntent=topic.intent,intent=effectiveIntent(topic),s=scenario(topic,intent),builder=BUILDERS[intent]||BUILDERS.decision;
+  const kw=fitKeyword(builder(topic,s),topic,intent,s),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
+  return {...topic,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||topic.intentLabel||'دليل',kw,slug,title,keywordStrategy:'search-intent-v2',keywordWordCount:words,searchIntentFamily:intent};
 }
 
-export const KEYWORD_STRATEGY_INFO={
-  version:'search-intent-v1',
-  philosophy:'natural-query-first',
-  markets:['SA','AE'],
-  intents:Object.keys(BUILDERS),
-  avoids:['keyword-stuffing','coupon-claim-invention','country-leakage'],
-  maxRecommendedWords:16
-};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v2',philosophy:'natural-query-first',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch'],maxRecommendedWords:14};
