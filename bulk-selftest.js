@@ -3,11 +3,13 @@ import {auditSeoArticle} from './quality-audit.js';
 import {emptyCluster,globalGate,pickRelated,injectContextualLinks,addToCluster,clusterKey,GLOBAL_INDEX_INFO} from './quality-index.js';
 import {couponStatus,injectCouponFreshness,COUPON_REGISTRY_INFO} from './coupon-registry.js';
 import {validateStructuredData,SCHEMA_GATE_INFO} from './schema-validator.js';
+import {evaluateIndexation,INDEXATION_GATE_INFO} from './indexation-gate.js';
+import {injectEditorialTrust,EDITORIAL_TRUST_INFO} from './editorial-trust-layer.js';
 
 const cfg={minWords:1000,qualityThreshold:95,targetWords:1500};
 const recent=[];
 const clusters=new Map();
-let ready=0,rejected=0,minScore=100,maxScore=0,minWords=99999,maxWords=0,firstAccepted=null;
+let ready=0,rejected=0,minScore=100,maxScore=0,minWords=99999,maxWords=0,firstAccepted=null,minIndexation=100;
 const groupMins={};
 
 for(let n=0;n<40;n++){
@@ -19,27 +21,30 @@ for(let n=0;n<40;n++){
   const links=pickRelated(cluster,topic,6);
   let article=injectCouponFreshness(buildUsefulArticle(topic,cursor),coupon);
   article=injectContextualLinks(article,links);
+  article=injectEditorialTrust(article);
+  if(!/class="editorial-accountability"/.test(article.html)||!article.editorialTrust?.editorialPolicy)throw new Error('editorial_trust_injection_failed');
   const schemaGate=validateStructuredData(article);
   if(!schemaGate.pass)throw new Error('schema_gate_failed:'+JSON.stringify(schemaGate));
   const auditRecent=[...(cluster.entries||[]),...recent];
   const audit=auditSeoArticle(article,topic,{...cfg,recent:auditRecent});
   const gg=globalGate(article,topic,audit,{entries:auditRecent});
-  const productionReady=audit.productionReady&&gg.pass&&schemaGate.pass;
-  const row={cursor,country:topic.country,category:topic.category,intent:topic.intent,keyword:topic.kw,score:audit.score,floor:audit.groupFloor,wordCount:audit.wordCount,productionReady,p0:audit.p0,failed:audit.failed,globalReasons:gg.reasons,minSignatureDistance:Math.min(audit.minSignatureDistance,gg.minDistance),groups:audit.groups,links:links.length,schemaBlocks:schemaGate.blocks,faqQuestions:schemaGate.faqQuestions};
+  const indexation=evaluateIndexation(article,topic,{globalGate:gg,contextualLinks:links.length,schemaGate,coupon});
+  const productionReady=audit.productionReady&&gg.pass&&schemaGate.pass&&indexation.indexable;
+  const row={cursor,country:topic.country,category:topic.category,intent:topic.intent,keyword:topic.kw,score:audit.score,floor:audit.groupFloor,wordCount:audit.wordCount,productionReady,p0:audit.p0,failed:audit.failed,globalReasons:gg.reasons,indexationScore:indexation.score,indexationReasons:indexation.reasons,minSignatureDistance:Math.min(audit.minSignatureDistance,gg.minDistance),groups:audit.groups,links:links.length,schemaBlocks:schemaGate.blocks,faqQuestions:schemaGate.faqQuestions};
   console.log(JSON.stringify(row));
   if(productionReady){
     ready++;
-    minScore=Math.min(minScore,audit.score);maxScore=Math.max(maxScore,audit.score);
+    minScore=Math.min(minScore,audit.score);maxScore=Math.max(maxScore,audit.score);minIndexation=Math.min(minIndexation,indexation.score);
     minWords=Math.min(minWords,audit.wordCount);maxWords=Math.max(maxWords,audit.wordCount);
-    if(audit.score<95||audit.groupFloor<88||audit.p0.length||audit.wordCount<1000||audit.wordCount>2000)throw new Error('production_ready_invariant_failed:'+JSON.stringify(row));
+    if(audit.score<95||audit.groupFloor<88||audit.p0.length||audit.wordCount<1000||audit.wordCount>2000||indexation.score<INDEXATION_GATE_INFO.minScore)throw new Error('production_ready_invariant_failed:'+JSON.stringify(row));
     for(const [g,v] of Object.entries(audit.groups))groupMins[g]=Math.min(groupMins[g]??100,v);
-    const rec={slug:article.slug,title:article.title,primaryKeyword:article.primaryKeyword,signature:audit.signature,country:topic.country,createdAt:new Date().toISOString()};
+    const rec={slug:article.slug,title:article.title,primaryKeyword:article.primaryKeyword,signature:audit.signature,country:topic.country,category:topic.category,intent:topic.intent,createdAt:new Date().toISOString()};
     addToCluster(cluster,rec,topic);clusters.set(ck,cluster);
     recent.unshift({...rec,blueprint:article.blueprint});if(recent.length>300)recent.pop();
-    if(!firstAccepted)firstAccepted={article,topic,audit,cluster};
+    if(!firstAccepted)firstAccepted={article,topic,audit,cluster,indexation};
   }else{
     rejected++;
-    if(!audit.failed.length&&!gg.reasons.length)throw new Error('rejected_without_reason:'+cursor);
+    if(!audit.failed.length&&!gg.reasons.length&&!indexation.reasons.length)throw new Error('rejected_without_reason:'+cursor);
   }
 }
 
@@ -58,10 +63,14 @@ if(!/class="contextual-links"/.test(linked.html)||!/articles\/related-one/.test(
 const brokenSchema={...firstAccepted.article,html:firstAccepted.article.html.replace(/"@type":"FAQPage"/,'"@type":FAQPage')};
 if(validateStructuredData(brokenSchema).pass)throw new Error('invalid_schema_was_not_blocked');
 
-console.log(JSON.stringify({engine:BULK_ENGINE_INFO,globalIndex:GLOBAL_INDEX_INFO,couponRegistry:COUPON_REGISTRY_INFO,schemaGate:SCHEMA_GATE_INFO,ready,rejected,minScore,maxScore,minWords,maxWords,groupMins,clusters:clusters.size},null,2));
+const broad=evaluateIndexation({...firstAccepted.article,primaryKeyword:'نون خصم'},firstAccepted.topic,{globalGate:{...duplicateGate,pass:true,indexSize:10},contextualLinks:3,schemaGate:{pass:true},coupon:{publishAllowed:true}});
+if(broad.indexable||!broad.reasons.includes('intent_too_broad'))throw new Error('broad_intent_was_not_blocked:'+JSON.stringify(broad));
+
+console.log(JSON.stringify({engine:BULK_ENGINE_INFO,globalIndex:GLOBAL_INDEX_INFO,couponRegistry:COUPON_REGISTRY_INFO,schemaGate:SCHEMA_GATE_INFO,indexationGate:INDEXATION_GATE_INFO,editorialTrust:EDITORIAL_TRUST_INFO,ready,rejected,minScore,maxScore,minIndexation,minWords,maxWords,groupMins,clusters:clusters.size},null,2));
 if(BULK_ENGINE_INFO.topicSpace<1000000)throw new Error('topic_space_too_small');
 if(BULK_ENGINE_INFO.blueprints<10)throw new Error('blueprint_diversity_too_small');
 if(ready<28)throw new Error('too_few_quality_articles:'+ready);
 if(minScore<95)throw new Error('score_below_95:'+minScore);
+if(minIndexation<INDEXATION_GATE_INFO.minScore)throw new Error('indexation_below_min:'+minIndexation);
 if(Math.min(...Object.values(groupMins))<88)throw new Error('group_floor_below_88');
-console.log(`READY_COUNT=${ready}/40 REJECTED=${rejected} MIN_SCORE=${minScore} MAX_SCORE=${maxScore} WORDS=${minWords}-${maxWords} GLOBAL_INDEX_V=${GLOBAL_INDEX_INFO.version} COUPON_REGISTRY=${COUPON_REGISTRY_INFO.version} SCHEMA_GATE_V=${SCHEMA_GATE_INFO.version}`);
+console.log(`READY_COUNT=${ready}/40 REJECTED=${rejected} MIN_SCORE=${minScore} MAX_SCORE=${maxScore} MIN_INDEXATION=${minIndexation} WORDS=${minWords}-${maxWords} GLOBAL_INDEX_V=${GLOBAL_INDEX_INFO.version} COUPON_REGISTRY=${COUPON_REGISTRY_INFO.version} SCHEMA_GATE_V=${SCHEMA_GATE_INFO.version} INDEXATION_GATE_V=${INDEXATION_GATE_INFO.version} EDITORIAL_TRUST_V=${EDITORIAL_TRUST_INFO.version}`);
