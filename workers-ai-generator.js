@@ -3,67 +3,222 @@ import {auditGenerated} from './generator-core-v2.js';
 const MODEL_DEFAULT='@cf/zai-org/glm-4.7-flash';
 const now=()=>new Date().toISOString();
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
-const parse=s=>{const x=String(s||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```$/,'').trim();try{return JSON.parse(x)}catch{}const a=x.indexOf('{'),b=x.lastIndexOf('}');if(a>=0&&b>a)return JSON.parse(x.slice(a,b+1));throw new Error('workers_ai_invalid_json')};
+const wc=s=>String(s||'').replace(/<[^>]+>/g,' ').trim().split(/\s+/).filter(Boolean).length;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-export function workersAiBudget(env,state){
-  const cap=Math.max(0,Math.min(100,Number(env.WORKERS_AI_DAILY_CAP||30)));
+export function workersAiBudget(env,state,status={}){
+  const articleCap=Math.max(0,Math.min(100,Number(env.WORKERS_AI_DAILY_CAP||30)));
+  const callCap=Math.max(articleCap,Math.min(200,Number(env.WORKERS_AI_DAILY_CALL_CAP||60)));
   const day=now().slice(0,10);
   const used=(state?.articles||[]).filter(a=>String(a.createdAt||'').slice(0,10)===day&&String(a.provider||'').startsWith('workers-ai:')).length;
-  return {binding:Boolean(env.AI),model:env.WORKERS_AI_MODEL||MODEL_DEFAULT,cap,used,remaining:Math.max(0,cap-used),available:Boolean(env.AI)&&used<cap};
+  const callsUsed=String(status?.workersAiDay||'')===day?Math.max(0,Number(status?.workersAiCallsToday||0)):0;
+  return {
+    binding:Boolean(env.AI),
+    model:env.WORKERS_AI_MODEL||MODEL_DEFAULT,
+    cap:articleCap,
+    used,
+    remaining:Math.max(0,articleCap-used),
+    callCap,
+    callsUsed,
+    callRemaining:Math.max(0,callCap-callsUsed),
+    available:Boolean(env.AI)&&used<articleCap&&callsUsed<callCap
+  };
 }
 
-function promptFor(t,cfg,existing){
+function basePrompt(t,cfg,existing){
   const market=t.country==='SA'?'saudi-arabia':'uae';
-  return `اكتب مقالة عربية أصلية عالية الجودة لموقع كوبونات نون، بدون اختلاق أي معلومة تجارية.\nالدولة: ${t.countryName} (${t.country})\nالكلمة الأساسية: ${t.kw}\nالتصنيف: ${t.category}\nنية البحث: ${t.intent}\nالكوبون المتاح للتجربة فقط: ${t.code}\n\nقواعد إلزامية:\n- Brand Lock = Noon فقط، ولا تذكر أي متجر منافس.\n- Country Lock = ${t.country} فقط.\n- ممنوع اختلاق نسبة خصم أو حد أقصى أو صلاحية أو أهلية أو ادعاء أن الكود يعمل لكل شخص.\n- اذكر بوضوح أن النتيجة النهائية تُتحقق داخل سلة نون.\n- Answer-first ثم شرح عميق ومفيد، وليس حشوًا.\n- H1 واحد، و8 H2 على الأقل، وH3، وجدول مقارنة، وخطوات استخدام، وقسم troubleshooting، وقسم قرار شراء.\n- FAQ من 4 إلى 7 أسئلة بإجابات مباشرة.\n- روابط داخلية إلى / و/${market} و/coupons و/blog و/categories.\n- رابط خارجي واحد على الأقل إلى https://www.noon.com/ مع rel مناسب.\n- CTA لنسخ الكود وتجربته، واستخدم data-copy-code="${t.code}".\n- أضف JSON-LD صالحًا لـ Article وFAQPage وBreadcrumbList داخل HTML.\n- الحد الأدنى ${cfg.minWords} كلمة، والهدف ${cfg.targetWords} كلمة.\n- metaDescription بين 105 و160 حرفًا.\n- sources يجب أن تكون قائمة وتحتوي فقط مصادر استخدمتها فعليًا؛ عند عدم التحقق من شروط عرض محدد استخدم https://www.noon.com/ فقط كمصدر عام ولا تنسب له أرقامًا.\n- لا تستخدم عبارات مثل As an AI أو Lorem ipsum.\n\nتجنب تكرار هذه الكلمات المنشورة: ${existing.slice(0,55).join(' | ')}\n\nأعد JSON صالح فقط، بدون markdown fences، بالمفاتيح التالية بالضبط:\ntitle, metaDescription, slug, primaryKeyword, secondaryKeywords, html, faq, sources, claims.`;
+  const target=Math.max(Number(cfg.minWords||1000)+150,Math.min(Number(cfg.targetWords||1800),1800));
+  return `اكتب نص HTML عربي كامل لمقال أصلي عالي الجودة لموقع كوبونات نون. أعد HTML فقط بدون JSON وبدون Markdown fences وبدون <html> أو <body> أو <script> أو <h1>.
+
+الدولة الوحيدة: ${t.countryName} (${t.country})
+الكلمة الأساسية التي يجب أن تظهر طبيعيًا: ${t.kw}
+التصنيف: ${t.category}
+نية البحث: ${t.intent}
+الكوبون المتاح للتجربة فقط: ${t.code}
+
+قواعد إلزامية:
+- Brand Lock = Noon فقط ولا تذكر أي متجر منافس.
+- Country Lock = ${t.country} فقط، ولا تذكر سوق نون الآخر.
+- ممنوع اختلاق نسبة خصم أو حد أقصى أو مدة صلاحية أو أهلية أو claim تجاري غير متحقق.
+- وضّح أن النتيجة النهائية للكوبون تتحقق داخل سلة نون قبل الدفع.
+- Answer-first ثم شرح عملي عميق، بدون حشو أو إعادة صياغة نفس الفقرة.
+- اكتب 8 أقسام H2 على الأقل وH3 عند الحاجة.
+- أضف جدول HTML مفيد للمقارنة أو قائمة قرار واضحة.
+- أضف خطوات استخدام الكوبون، troubleshooting، مقارنة السعر النهائي، قرار شراء، ونصائح خاصة بـ ${t.category}.
+- أضف قسم H2 بعنوان "الأسئلة الشائعة" وفيه 4 أسئلة H3 على الأقل وإجابات مباشرة.
+- أضف روابط داخلية طبيعية إلى / و/${market} و/coupons و/blog و/categories.
+- أضف رابطًا خارجيًا واحدًا إلى https://www.noon.com/ مع rel="noopener external sponsored".
+- أضف CTA فيه زر <button type="button" data-copy-code="${t.code}"> لنسخ الكود وتجربته.
+- لا تضف JSON-LD؛ النظام سيضيفه برمجيًا.
+- الحد الأدنى الفعلي ${cfg.minWords} كلمة والهدف قرابة ${target} كلمة.
+- لا تستخدم Lorem ipsum أو As an AI.
+
+تجنب تكرار زوايا هذه الكلمات المنشورة: ${existing.slice(0,45).join(' | ')}.`;
+}
+
+function stripReasoning(s){
+  return String(s||'')
+    .replace(/<think>[\s\S]*?<\/think>/gi,'')
+    .replace(/^```(?:html)?\s*/i,'')
+    .replace(/```$/,'')
+    .trim();
 }
 
 function textFromResult(r){
-  if(typeof r==='string')return r;
-  if(typeof r?.response==='string')return r.response;
-  if(typeof r?.result?.response==='string')return r.result.response;
-  if(typeof r?.choices?.[0]?.message?.content==='string')return r.choices[0].message.content;
-  if(typeof r?.result?.choices?.[0]?.message?.content==='string')return r.result.choices[0].message.content;
-  return '';
+  const seen=new Set();
+  const walk=(v,depth=0)=>{
+    if(depth>7||v==null)return '';
+    if(typeof v==='string')return v.trim();
+    if(typeof v!=='object'||seen.has(v))return '';
+    seen.add(v);
+    const priority=['response','content','text','output_text','generated_text','answer','completion'];
+    for(const k of priority){
+      if(k in v){const x=walk(v[k],depth+1);if(x)return x}
+    }
+    if(Array.isArray(v)){
+      for(const x of v){const t=walk(x,depth+1);if(t)return t}
+      return '';
+    }
+    for(const k of ['choices','result','output','message','messages','data']){
+      if(k in v){const x=walk(v[k],depth+1);if(x)return x}
+    }
+    return '';
+  };
+  return stripReasoning(walk(r));
 }
 
-async function callWorkers(env,prompt){
+function extractHtml(text){
+  let x=stripReasoning(text);
+  if(!x)throw new Error('workers_ai_empty_response');
+  if(x[0]==='{'){
+    try{
+      const j=JSON.parse(x);
+      if(typeof j?.html==='string')x=j.html;
+      else if(typeof j?.content==='string')x=j.content;
+    }catch{}
+  }
+  x=x.replace(/<!doctype[^>]*>/gi,'')
+    .replace(/<\/?html[^>]*>/gi,'')
+    .replace(/<\/?body[^>]*>/gi,'')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'')
+    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi,'')
+    .replace(/\son[a-z]+\s*=\s*(["']).*?\1/gi,'')
+    .replace(/javascript:/gi,'')
+    .replace(/<h1\b[^>]*>/gi,'<h2>')
+    .replace(/<\/h1>/gi,'</h2>')
+    .trim();
+  if(!x||wc(x)<220)throw new Error('workers_ai_too_short_'+wc(x));
+  return x;
+}
+
+async function callWorkers(env,prompt,{temperature=.38,maxTokens=8500}={}){
   if(!env.AI)throw new Error('workers_ai_binding_missing');
   const model=env.WORKERS_AI_MODEL||MODEL_DEFAULT;
   const r=await env.AI.run(model,{
     messages:[
-      {role:'system',content:'أنت محرر عربي متخصص في التجارة الإلكترونية. أعد JSON فقط، والتزم بعدم اختلاق أي خصم أو شرط.'},
+      {role:'system',content:'أنت محرر عربي دقيق لمحتوى التجارة الإلكترونية. أعد HTML فقط. لا تختلق خصمًا أو شرطًا أو أهلية.'},
       {role:'user',content:prompt}
     ],
-    temperature:0.45,
-    max_completion_tokens:9000,
-    response_format:{type:'json_object'}
+    temperature,
+    max_completion_tokens:maxTokens
   });
   const text=textFromResult(r);
-  if(!text)throw new Error('workers_ai_empty_response');
-  return {article:parse(text),provider:`workers-ai:${model}`};
+  return {html:extractHtml(text),provider:`workers-ai:${model}`};
 }
 
-export async function generateWithWorkersAI(env,topic,cfg,state,attempt=0){
-  const budget=workersAiBudget(env,state);
-  if(!budget.available)return {skipped:true,reason:budget.binding?'workers_ai_daily_cap':'workers_ai_binding_missing',budget};
+function faqData(t){
+  return [
+    {question:`كيف أستخدم ${t.code} على نون ${t.countryName}؟`,answer:`انسخ الكود ${t.code} وأضف المنتجات إلى السلة ثم أدخل الكود قبل الدفع وتحقق من النتيجة التي تعرضها سلة نون.`},
+    {question:`هل يضمن ${t.code} نسبة خصم ثابتة؟`,answer:'لا. لا نفترض نسبة ثابتة أو أهلية موحدة؛ نتيجة السلة الحالية وشروط نون هي المرجع النهائي.'},
+    {question:`ماذا أفعل إذا لم يعمل الكود على ${t.category}؟`,answer:'راجع الدولة والمنتجات والبائع وطريقة الدفع، ثم جرّب تغيير عامل واحد في كل مرة وتحقق من رسالة السلة.'},
+    {question:'هل أقارن السعر قبل أم بعد تطبيق الكوبون؟',answer:'قارن السعر النهائي بعد الخصم مع الشحن والتوصيل وسياسة الإرجاع، وليس قيمة الخصم وحدها.'}
+  ];
+}
+
+function schemaBlock(article,t,faq){
+  const origin='https://nooncoupons.ramychatgptgcoupons.workers.dev';
+  const url=`${origin}/articles/${article.slug}`;
+  const graph=[
+    {'@type':'Article',headline:article.title,description:article.metaDescription,inLanguage:'ar',mainEntityOfPage:url,author:{'@type':'Organization',name:'كوبونات نون'},publisher:{'@type':'Organization',name:'كوبونات نون'}},
+    {'@type':'FAQPage',mainEntity:faq.map(x=>({'@type':'Question',name:x.question,acceptedAnswer:{'@type':'Answer',text:x.answer}}))},
+    {'@type':'BreadcrumbList',itemListElement:[
+      {'@type':'ListItem',position:1,name:'الرئيسية',item:origin+'/'},
+      {'@type':'ListItem',position:2,name:'المدونة',item:origin+'/blog'},
+      {'@type':'ListItem',position:3,name:article.title,item:url}
+    ]}
+  ];
+  return `<script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@graph':graph}).replace(/</g,'\\u003c')}</script>`;
+}
+
+function buildArticle(body,t){
+  const title=String(t.title||t.kw).slice(0,68);
+  const meta=(`دليل عملي حول ${t.kw} مع خطوات استخدام ${t.code}، مقارنة السعر النهائي، وحل مشاكل الكوبون قبل الدفع على نون ${t.countryName}.`).slice(0,158);
+  const slug=slugify(t.kw);
+  const faq=faqData(t);
+  let h=body;
+  if(!/data-copy-code/i.test(h))h+=`<section class="coupon-action"><h2>جرّب الكود في السلة</h2><p>انسخ <strong>${esc(t.code)}</strong> وتحقق من النتيجة داخل سلة نون قبل الدفع.</p><button type="button" data-copy-code="${esc(t.code)}">نسخ الكود ${esc(t.code)}</button> <a href="https://www.noon.com/" rel="noopener external sponsored">فتح نون</a></section>`;
+  if(!/الأسئلة الشائعة|FAQ/i.test(h))h+=`<section class="faq"><h2>الأسئلة الشائعة</h2>${faq.map(x=>`<h3>${esc(x.question)}</h3><p>${esc(x.answer)}</p>`).join('')}</section>`;
+  const article={
+    title,
+    metaDescription:meta,
+    slug,
+    primaryKeyword:t.kw,
+    secondaryKeywords:[t.category,`كود ${t.code}`,`نون ${t.countryName}`,t.modifier].filter(Boolean),
+    faq,
+    sources:['https://www.noon.com/'],
+    claims:[],
+    country:t.country,
+    coupon:t.code,
+    html:''
+  };
+  article.html=`<article lang="ar" dir="rtl"><h1>${esc(title)}</h1><p><strong>${esc(t.kw)}</strong>: هذا الدليل يركز على التحقق العملي من السعر النهائي والكوبون داخل سلة نون ${esc(t.countryName)} قبل الدفع.</p>${h}${schemaBlock(article,t,faq)}</article>`;
+  return article;
+}
+
+function repairPrompt(t,cfg,article,audit){
+  const failed=audit.checks.filter(x=>!x.pass).map(x=>x.name).join(', ');
+  const plain=String(article.html||'').replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').slice(0,42000);
+  return `أعد كتابة/توسيع BODY HTML التالي لمقال نون بحيث يعالج هذه المشاكل: ${failed}.
+أعد HTML BODY فقط بدون JSON وبدون <h1> وبدون <script>.
+الدولة الوحيدة ${t.countryName} (${t.country})، الكوبون ${t.code}، الكلمة الأساسية ${t.kw}.
+ممنوع اختلاق نسبة خصم أو شروط. المطلوب على الأقل ${cfg.minWords} كلمة مفيدة، 8 H2، H3، FAQ، روابط داخلية، رابط Noon، CTA data-copy-code، ومحتوى غير مكرر.
+
+المحتوى الحالي:
+${plain}`;
+}
+
+export async function generateWithWorkersAI(env,topic,cfg,state,attempt=0,status={}){
+  const budget=workersAiBudget(env,state,status);
+  if(!budget.available)return {skipped:true,reason:budget.binding?(budget.callRemaining<=0?'workers_ai_daily_call_cap':'workers_ai_daily_article_cap'):'workers_ai_binding_missing',budget,callsUsed:0};
   const existing=(state?.articles||[]).map(a=>a.primaryKeyword||'').filter(Boolean);
-  let out=await callWorkers(env,promptFor(topic,cfg,existing));
-  let article=out.article;
-  article.country=topic.country;
-  article.coupon=topic.code;
-  article.primaryKeyword=topic.kw;
-  article.slug=slugify(article.slug||article.title||topic.kw);
-  let audit=auditGenerated(article,topic,cfg);
-  let repairUsed=false;
-  if(!audit.productionReady&&budget.remaining>1){
-    const failed=audit.checks.filter(x=>!x.pass).map(x=>x.name).join(', ');
-    const repairPrompt=`أصلح JSON المقال التالي حتى يجتاز بوابة الجودة بدون اختلاق أي claim. لا تغير الدولة ${topic.country} ولا الكوبون ${topic.code} ولا الكلمة الأساسية ${topic.kw}. المشاكل: ${failed}. أعد JSON كامل بنفس المفاتيح فقط.\n${JSON.stringify(article)}`;
-    const repaired=await callWorkers(env,repairPrompt);
-    article=repaired.article;
-    article.country=topic.country;article.coupon=topic.code;article.primaryKeyword=topic.kw;article.slug=slugify(article.slug||article.title||topic.kw);
-    audit=auditGenerated(article,topic,cfg);
-    out.provider+=` + repair:${repaired.provider}`;
-    repairUsed=true;
+  const maxCalls=Math.max(1,Math.min(2,budget.callRemaining));
+  let callsUsed=0,lastError=null,article=null,audit=null,provider=`workers-ai:${budget.model}`;
+
+  for(let i=0;i<maxCalls;i++){
+    try{
+      callsUsed++;
+      const prompt=i===0?basePrompt(topic,cfg,existing):repairPrompt(topic,cfg,article,audit||{checks:[]});
+      const out=await callWorkers(env,prompt,{temperature:i===0?.38:.24,maxTokens:i===0?8500:9000});
+      article=buildArticle(out.html,topic);
+      audit=auditGenerated(article,topic,cfg);
+      provider=i===0?out.provider:`${provider} + repair:${out.provider}`;
+      if(audit.productionReady)break;
+      lastError='quality_gate_'+audit.score+'_words_'+audit.wordCount;
+    }catch(e){
+      lastError=String(e?.message||e);
+      if(i+1>=maxCalls){
+        const err=new Error(lastError);
+        err.workersAiCallsUsed=callsUsed;
+        err.workersAiBudget=budget;
+        throw err;
+      }
+    }
   }
-  return {article,audit,provider:out.provider,keysReady:true,workersAI:true,budget,repairUsed,lastProviderError:null};
+
+  if(!article){
+    const err=new Error(lastError||'workers_ai_no_article');
+    err.workersAiCallsUsed=callsUsed;
+    throw err;
+  }
+  return {article,audit,provider,keysReady:true,workersAI:true,budget,callsUsed,repairUsed:callsUsed>1,lastProviderError:lastError&&!audit?.productionReady?lastError:null};
 }
