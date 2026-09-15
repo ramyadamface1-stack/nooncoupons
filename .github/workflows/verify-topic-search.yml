@@ -35,6 +35,6 @@ jobs:
           tr -d '\r' </tmp/search.headers | grep -iq '^x-robots-tag: noindex, follow$'
           grep -Fq 'نتائج البحث عن:' /tmp/search.html
           grep -Fq '<meta name="robots" content="noindex,follow">' /tmp/search.html
-          curl -fsS --max-time 20 "$ORIGIN/topics/buying-guides" -o /tmp/hub.html
+          curl -fsS --max-time 20 "$ORIGIN/topics/buying-guides?search-ui=v3" -o /tmp/hub.html
           grep -Fq 'data-topic-search' /tmp/hub.html
           echo TOPIC_SEARCH_LIVE_PASS
