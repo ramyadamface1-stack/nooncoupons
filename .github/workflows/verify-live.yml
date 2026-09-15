@@ -51,7 +51,6 @@ jobs:
             if grep -Fq 'generator-4.1-bulk-2000-live' <<< "$health"; then break; fi
             sleep 10
           done
-          # Give the minute cron enough time to publish at least one bulk batch.
           for i in $(seq 1 12); do
             health="$(curl -sS --max-time 20 "$ORIGIN/api/generator-health" 2>&1 || true)"
             if python -c 'import json,sys; d=json.loads(sys.stdin.read()); raise SystemExit(0 if int(d.get("bulk",{}).get("publishedTotal",0))>0 else 1)' <<< "$health"; then break; fi
@@ -80,6 +79,8 @@ jobs:
           assert int(b.get('dailyTarget',0)) == 2000, b
           assert int(b.get('batchSize',0)) == 2, b
           assert not b.get('lastError'), b
+          assert float(b.get('lastQuality') or 0) >= 95, b
+          assert 1000 <= int(b.get('lastWordCount') or 0) <= 2000, b
           PY
           if [ "$?" -eq 0 ]; then echo 'PASS bulk_live_publish'; else echo 'FAIL bulk_live_publish'; rc=1; fi
           echo '--- PLATFORM HEALTH ---'; cat /tmp/platform-health.json
@@ -99,13 +100,14 @@ jobs:
           code="$(curl -sS -o /tmp/legacy.json -w '%{http_code}' -X POST "$ORIGIN/api/ai/generate" || true)"
           echo "legacy_generate_http=$code"; cat /tmp/legacy.json 2>/dev/null || true
           if [ "$code" = "410" ]; then echo 'PASS legacy_410'; else echo 'FAIL legacy_410'; rc=1; fi
-          if curl -sS --max-time 30 "$ORIGIN/blog" -o /tmp/blog.html && grep -q 'مدونة كوبونات نون' /tmp/blog.html && grep -q 'Programmatic Cloudflare' /tmp/blog.html; then echo 'PASS bulk_blog'; else echo 'FAIL bulk_blog'; rc=1; fi
           check_contains bulk_sitemap "$sitemap" 'sitemap-articles-'
           slug="$(python -c 'import json; d=json.load(open("/tmp/generator-health.json")); print(d.get("bulk",{}).get("lastSlug") or "")')"
           if [ -n "$slug" ]; then
             urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
+            if curl -sS --max-time 30 "$ORIGIN/blog" -o /tmp/blog.html && grep -q 'مدونة كوبونات نون' /tmp/blog.html && grep -Fq "$urlslug" /tmp/blog.html; then echo 'PASS bulk_blog'; else echo 'FAIL bulk_blog'; rc=1; fi
             if curl -sS --max-time 30 "$ORIGIN/articles/$urlslug" -o /tmp/bulk-article.html && grep -q 'Programmatic Cloudflare' /tmp/bulk-article.html; then echo 'PASS bulk_article_route'; else echo 'FAIL bulk_article_route'; rc=1; fi
           else
+            echo 'FAIL bulk_blog :: missing lastSlug'; rc=1
             echo 'FAIL bulk_article_route :: missing lastSlug'; rc=1
           fi
           echo "FINAL_RC=$rc"
