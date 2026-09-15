@@ -1,0 +1,48 @@
+name: Verify Search Intent Hubs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Keyword quality
+        run: |
+          node --check keyword-strategy.js
+          node --check keyword-selftest.js
+          node --check topic-hubs.js
+          node keyword-selftest.js
+      - name: Live topic architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ok=0
+          for i in $(seq 1 12); do
+            health="$(curl -fsS --max-time 15 "$ORIGIN/api/generator-health" || true)"
+            if python -c 'import json,sys; d=json.loads(sys.argv[1]); st=d.get("status",{}); raise SystemExit(0 if st.get("bulkKeywordStrategyVersion")=="search-intent-v2" else 1)' "$health" 2>/dev/null; then ok=1; break; fi
+            sleep 5
+          done
+          [ "$ok" = 1 ]
+          curl -fsS --max-time 20 "$ORIGIN/topics/buying-guides" -o /tmp/buying.html
+          curl -fsS --max-time 20 "$ORIGIN/topics/coupon-help" -o /tmp/help.html
+          curl -fsS --max-time 20 "$ORIGIN/sitemap-topics.xml" -o /tmp/topics.xml
+          curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/sitemap.xml
+          curl -fsS --max-time 20 "$ORIGIN/" -o /tmp/home.html
+          curl -fsS --max-time 20 "$ORIGIN/blog" -o /tmp/blog.html
+          grep -Fq 'CollectionPage' /tmp/buying.html
+          grep -Fq 'حل مشاكل كوبونات نون' /tmp/help.html
+          grep -Fq '/topics/buying-guides' /tmp/topics.xml
+          grep -Fq '/topics/coupon-help' /tmp/topics.xml
+          grep -Fq 'sitemap-topics.xml' /tmp/sitemap.xml
+          grep -Fq 'premium-topic-hubs' /tmp/home.html
+          grep -Fq 'premium-topic-hubs' /tmp/blog.html
+          echo SEARCH_INTENT_HUBS_LIVE_PASS
