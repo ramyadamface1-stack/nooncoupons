@@ -1,0 +1,56 @@
+name: Verify Keyword Intent Map
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-keywords:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Source invariants
+        run: |
+          node --check keyword-pages.js
+          node --check premium-entry.js
+          grep -Fq "2026-09-15-v1" keyword-pages.js
+          grep -Fq "كود خصم نون 2026" keyword-pages.js
+          grep -Fq "كود خصم نون السعودية 2026" keyword-pages.js
+          grep -Fq "كود خصم نون الإمارات 2026" keyword-pages.js
+          grep -Fq "noon-discount-50" keyword-pages.js
+          grep -Fq "noon-yellow-friday" keyword-pages.js
+      - name: Verify live keyword architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          for i in $(seq 1 12); do
+            home="$(curl -sS --max-time 15 "$ORIGIN/" || true)"
+            if grep -Fq 'كود خصم نون 2026' <<<"$home" && grep -Fq 'keyword-map-updated' <<<"$home"; then break; fi
+            sleep 5
+          done
+          grep -Fq '<title>كود خصم نون 2026 | أكواد خصم نون السعودية والإمارات</title>' <<<"$home"
+          grep -Fq 'كود خصم نون: أكواد نون للسعودية والإمارات' <<<"$home"
+          grep -Fq 'id="search-intent-hubs"' <<<"$home"
+
+          sa="$(curl -sS --max-time 15 "$ORIGIN/saudi-arabia")"
+          ae="$(curl -sS --max-time 15 "$ORIGIN/uae")"
+          grep -Fq '<title>كود خصم نون السعودية 2026 | أكواد وكوبونات نون</title>' <<<"$sa"
+          grep -Fq '<title>كود خصم نون الإمارات 2026 | أكواد وكوبونات نون</title>' <<<"$ae"
+
+          p50="$(curl -sS --max-time 15 "$ORIGIN/coupon/noon-discount-50")"
+          yellow="$(curl -sS --max-time 15 "$ORIGIN/guide/noon-yellow-friday")"
+          grep -Fq 'كود خصم نون 50: ماذا يعني البحث وكيف تتحقق؟' <<<"$p50"
+          grep -Fq 'قاعدة التحرير' <<<"$p50"
+          grep -Fq 'الجمعة الصفراء نون: كيف تتابع الأكواد والعروض بأمان؟' <<<"$yellow"
+          grep -Fq 'قاعدة التحرير' <<<"$yellow"
+
+          pages="$(curl -sS --max-time 15 "$ORIGIN/sitemap-pages.xml")"
+          grep -Fq '/coupon/noon-discount-50' <<<"$pages"
+          grep -Fq '/guide/noon-yellow-friday' <<<"$pages"
+          echo 'KEYWORD_MAP_LIVE=PASS'
