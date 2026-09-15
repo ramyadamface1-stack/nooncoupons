@@ -22,21 +22,24 @@ jobs:
           node --check quality-audit.js
           node --check bulk-content-engine.js
           node --check bulk-generator.js
-          node --check legacy-upgrader.js
+          node --check legacy-upgrader-v2.js
           node --check bulk-selftest.js
           node --check generator-core-v2.js
           node --check generator-core.js
           node --check platform.js
           node --check admin-runtime.js
           node --check admin-page.js
-          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' auto-platform.js workers-ai-generator.js quality-audit.js bulk-content-engine.js bulk-generator.js legacy-upgrader.js generator-core-v2.js generator-core.js platform.js admin-runtime.js; then
+          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' auto-platform.js workers-ai-generator.js quality-audit.js bulk-content-engine.js bulk-generator.js legacy-upgrader-v2.js generator-core-v2.js generator-core.js platform.js admin-runtime.js; then
             echo 'EXTERNAL_AI_REFERENCE_FOUND_IN_ACTIVE_RUNTIME'
             exit 1
           fi
           grep -Fq '@cf/zai-org/glm-4.7-flash' workers-ai-generator.js
           grep -Fq '@cf/google/gemma-4-26b-a4b-it' workers-ai-generator.js
           grep -Fq 'programmatic-cloudflare:v2-helpful' bulk-content-engine.js
-          grep -Fq 'programmatic-cloudflare:v2-legacy-upgrade' legacy-upgrader.js
+          grep -Fq 'programmatic-cloudflare:v2-legacy-upgrade' legacy-upgrader-v2.js
+          grep -Fq 'legacyUpgradeCursorV2' legacy-upgrader-v2.js
+          grep -Fq 'legacyUpgradeNeedsConsolidation' legacy-upgrader-v2.js
+          grep -Fq 'legacy_upgrade_needs_consolidation' admin-runtime.js
           grep -Fq 'contentSignature' quality-audit.js
           grep -Fq '"BULK_DAILY_TARGET": "2000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "2"' wrangler.jsonc
@@ -57,7 +60,7 @@ jobs:
           health=""
           for i in $(seq 1 48); do
             health="$(curl -sS --max-time 20 "$ORIGIN/api/generator-health" 2>&1 || true)"
-            if python -c 'import json,sys; d=json.loads(sys.stdin.read()); b=d.get("bulk",{}); s=d.get("status",{}); ok=d.get("version")=="generator-5.0-quality-first" and b.get("engine")=="programmatic-cloudflare:v2-helpful" and float(b.get("lastQualityFloor") or 0)>=88 and float(b.get("lastQuality") or 0)>=95 and int(s.get("legacyUpgradeTotal") or 0)>0 and float(s.get("legacyUpgradeLastQuality") or 0)>=95 and float(s.get("legacyUpgradeLastQualityFloor") or 0)>=88; raise SystemExit(0 if ok else 1)' <<< "$health" 2>/dev/null; then break; fi
+            if python -c 'import json,sys; d=json.loads(sys.stdin.read()); b=d.get("bulk",{}); s=d.get("status",{}); ok=d.get("version")=="generator-5.0-quality-first" and b.get("engine")=="programmatic-cloudflare:v2-helpful" and float(b.get("lastQualityFloor") or 0)>=88 and float(b.get("lastQuality") or 0)>=95 and int(s.get("legacyUpgradeTotal") or 0)>4 and float(s.get("legacyUpgradeLastQuality") or 0)>=95 and float(s.get("legacyUpgradeLastQualityFloor") or 0)>=88 and int(s.get("legacyUpgradePassV2") or 0)>=1; raise SystemExit(0 if ok else 1)' <<< "$health" 2>/dev/null; then break; fi
             sleep 10
           done
           platform="$(curl -sS --max-time 20 "$ORIGIN/api/platform-health" 2>&1 || true)"
@@ -92,13 +95,15 @@ jobs:
           groups=b.get('lastGroups') or {}
           for g in ('seo','content','trust','aeo','geo','eeat','technical','uniqueness'):
               assert float(groups.get(g,0)) >= 88, (g,groups)
-          assert int(s.get('legacyUpgradeTotal') or 0) > 0, s
+          assert int(s.get('legacyUpgradeTotal') or 0) > 4, s
+          assert int(s.get('legacyUpgradePassV2') or 0) >= 1, s
+          assert int(s.get('legacyUpgradeCursorV2') or 0) >= 0, s
           assert 95 <= float(s.get('legacyUpgradeLastQuality') or 0) <= 100, s
           assert float(s.get('legacyUpgradeLastQualityFloor') or 0) >= 88, s
           assert 1000 <= int(s.get('legacyUpgradeLastWordCount') or 0) <= 2000, s
           assert s.get('legacyUpgradeLastSlug'), s
           PY
-          if [ "$?" -eq 0 ]; then echo 'PASS quality_live_and_legacy_progress'; else echo 'FAIL quality_live_and_legacy_progress'; rc=1; fi
+          if [ "$?" -eq 0 ]; then echo 'PASS quality_live_and_legacy_v2_progress'; else echo 'FAIL quality_live_and_legacy_v2_progress'; rc=1; fi
           echo '--- PLATFORM HEALTH ---'; cat /tmp/platform-health.json
           check_contains platform_version "$platform" 'platform-1.6-quality-first'
           check_contains platform_engine "$platform" 'programmatic-cloudflare:v2-helpful'
@@ -116,7 +121,7 @@ jobs:
           upgraded=[a for a in d.get('articles',[]) if str(a.get('provider','')).startswith('programmatic-cloudflare:v2-legacy-upgrade')]
           print('workers_ai_preserved=',len(ai),'legacy_upgraded_in_state=',len(upgraded))
           assert len(ai)>=11
-          assert len(upgraded)>0
+          assert len(upgraded)>4
           assert all(float(a.get('quality') or 0)>=95 for a in upgraded)
           assert all(float(a.get('qualityFloor') or 0)>=88 for a in upgraded)
           PY
