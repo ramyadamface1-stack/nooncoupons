@@ -1,3 +1,5 @@
+import {applyCommerceTarget,decorateArticleCommerce,commerceRecordFields} from './commerce-generator-taxonomy.js';
+
 const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
 const COUNTRIES=['SA','AE'];
 const WORKERS_AI_MODEL='@cf/zai-org/glm-4.7-flash';
@@ -32,24 +34,20 @@ const ANGLES=[
 (cn,cat,code,m)=>({kw:`دليل شراء ${cat} من نون ${cn} بكوبون ${m}`,title:`دليل شراء ${cat} من نون ${cn} بكوبون ${m}`,intent:'guide'})
 ];
 
-export function providerReadiness(env){
-  return {workersAI:Boolean(env.AI),any:Boolean(env.AI),external:false};
-}
+export function providerReadiness(env){return {workersAI:Boolean(env.AI),any:Boolean(env.AI),external:false}}
 
 export function pickTopic(state,attempt=0){
   const existing=new Set((state.articles||[]).map(a=>norm(a.primaryKeyword||'')));
   const total=CATEGORIES.length*ANGLES.length*MODIFIERS.length*CODES.length*COUNTRIES.length;
   for(let step=0;step<Math.min(total,16000);step++){
-    const n=(attempt+step)%total;
-    let q=n;
+    const n=(attempt+step)%total;let q=n;
     const country=COUNTRIES[q%COUNTRIES.length];q=Math.floor(q/COUNTRIES.length);
     const code=CODES[q%CODES.length];q=Math.floor(q/CODES.length);
     const modifier=MODIFIERS[q%MODIFIERS.length];q=Math.floor(q/MODIFIERS.length);
     const angle=ANGLES[q%ANGLES.length];q=Math.floor(q/ANGLES.length);
-    const category=CATEGORIES[q%CATEGORIES.length];
-    const countryName=country==='SA'?'السعودية':'الإمارات';
-    const t=angle(countryName,category,code,modifier);
-    if(!existing.has(norm(t.kw)))return {...t,country,code,category,modifier,countryName,variant:n%4};
+    const category=CATEGORIES[q%CATEGORIES.length],countryName=country==='SA'?'السعودية':'الإمارات',t=angle(countryName,category,code,modifier);
+    const targeted=applyCommerceTarget({...t,country,code,category,modifier,countryName,variant:n%4,topicIndex:n},n);
+    if(!existing.has(norm(targeted.kw)))return targeted;
   }
   return null;
 }
@@ -57,45 +55,23 @@ export function pickTopic(state,attempt=0){
 export function auditGenerated(a,t,cfg){
   const content=String(a.html||''),plain=content.replace(/<[^>]+>/g,' '),checks=[];const add=(n,p,w)=>checks.push({name:n,pass:!!p,weight:w});
   const n=wc(content),codes=[...new Set((plain.match(/\bNOV\d{3}\b/gi)||[]).map(x=>x.toUpperCase()))];
-  add('word_count',n>=Number(cfg.minWords||1000)&&n<=2000,20);
-  add('primary_keyword',norm(plain).includes(norm(a.primaryKeyword||t.kw)),10);
-  add('coupon',codes.length>=1&&codes.every(x=>x===String(t.code).toUpperCase()),10);
-  add('brand',/نون|Noon/i.test(plain),8);
-  add('country',t.country==='SA'?/السعودية|Saudi/i.test(plain):/الإمارات|UAE|Emirates/i.test(plain),8);
-  add('h1',(content.match(/<h1\b/gi)||[]).length===1,8);
-  add('h2',(content.match(/<h2\b/gi)||[]).length>=6,8);
-  add('faq',/الأسئلة الشائعة|FAQ/i.test(plain),6);
-  add('internal',(content.match(/href=["']\//gi)||[]).length>=4,6);
-  add('external',/https:\/\/www\.noon\.com\//i.test(content),5);
-  add('schema',/application\/ld\+json/i.test(content),5);
-  add('meta',String(a.metaDescription||'').length>=95,4);
-  add('cta',/data-copy-code|Try it|جرّب|نسخ/i.test(content),4);
-  add('sources',Array.isArray(a.sources)&&a.sources.length>=1,4);
-  add('faq_data',Array.isArray(a.faq)&&a.faq.length>=4,4);
-  const leak=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|extra|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|علي\s?اكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i.test(plain);
-  add('brand_lock',!leak,12);
-  const wrong=t.country==='SA'?/(نون\s*)?(الإمارات|الامارات)|\bUAE\b|Emirates/i:/(نون\s*)?(السعودية|المملكة العربية السعودية)|\bKSA\b|Saudi(?: Arabia)?/i;
-  const wrongCountry=wrong.test(plain);add('country_lock',!wrongCountry,12);
+  add('word_count',n>=Number(cfg.minWords||1000)&&n<=2000,20);add('primary_keyword',norm(plain).includes(norm(a.primaryKeyword||t.kw)),10);add('coupon',codes.length>=1&&codes.every(x=>x===String(t.code).toUpperCase()),10);add('brand',/نون|Noon/i.test(plain),8);add('country',t.country==='SA'?/السعودية|Saudi/i.test(plain):/الإمارات|UAE|Emirates/i.test(plain),8);add('h1',(content.match(/<h1\b/gi)||[]).length===1,8);add('h2',(content.match(/<h2\b/gi)||[]).length>=6,8);add('faq',/الأسئلة الشائعة|FAQ/i.test(plain),6);add('internal',(content.match(/href=["']\//gi)||[]).length>=4,6);add('external',/https:\/\/www\.noon\.com\//i.test(content),5);add('schema',/application\/ld\+json/i.test(content),5);add('meta',String(a.metaDescription||'').length>=95,4);add('cta',/data-copy-code|Try it|جرّب|نسخ/i.test(content),4);add('sources',Array.isArray(a.sources)&&a.sources.length>=1,4);add('faq_data',Array.isArray(a.faq)&&a.faq.length>=4,4);
+  const leak=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|extra|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|علي\s?اكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i.test(plain);add('brand_lock',!leak,12);
+  const wrong=t.country==='SA'?/(نون\s*)?(الإمارات|الامارات)|\bUAE\b|Emirates/i:/(نون\s*)?(السعودية|المملكة العربية السعودية)|\bKSA\b|Saudi(?: Arabia)?/i,wrongCountry=wrong.test(plain);add('country_lock',!wrongCountry,12);
   const ar=(plain.match(/[\u0600-\u06FF]/g)||[]).length,latin=(plain.match(/[A-Za-z]/g)||[]).length,arabicRatio=ar/Math.max(1,ar+latin);add('arabic_content',arabicRatio>=0.78,8);
   const total=checks.reduce((s,x)=>s+x.weight,0),passed=checks.reduce((s,x)=>s+(x.pass?x.weight:0),0),score=Math.round(passed/total*1000)/10;
   return {score,wordCount:n,checks,productionReady:score>=Number(cfg.qualityThreshold||95)&&n>=Number(cfg.minWords||1000)&&n<=2000&&!leak&&!wrongCountry&&arabicRatio>=0.78};
 }
 
-export async function generateArticle(){
-  throw new Error('legacy_external_generator_disabled_use_generateWithWorkersAI');
-}
+export async function generateArticle(){throw new Error('legacy_external_generator_disabled_use_generateWithWorkersAI')}
 
 export async function publishGenerated(env,article,topic,audit,provider){
-  const st=await readState(env);
-  const slug=slugify(article.slug||article.title||article.primaryKeyword);
-  const duplicate=(st.articles||[]).find(x=>x.slug===slug||norm(x.primaryKeyword||'')===norm(article.primaryKeyword||''));
-  if(duplicate)throw new Error('keyword_or_slug_cannibalization');
-  if(!env.CONTENT_FINAL)throw new Error('r2_binding_missing');
-  const rec={id:crypto.randomUUID(),slug,title:article.title||slug,metaDescription:article.metaDescription||'',country:topic.country,coupon:topic.code,status:'published',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider,primaryKeyword:article.primaryKeyword||topic.kw};
-  await env.CONTENT_FINAL.put('articles/'+slug+'.html',String(article.html||''),{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:rec.title,country:rec.country,status:'published',provider:String(provider).slice(0,100)}});
-  const r=await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});
-  if(!r.ok)throw new Error('control_article_'+r.status);
-  return rec;
+  const targeted=applyCommerceTarget(topic,topic.topicIndex),decorated=decorateArticleCommerce(article,targeted),st=await readState(env);
+  const slug=slugify(decorated.slug||decorated.title||decorated.primaryKeyword),duplicate=(st.articles||[]).find(x=>x.slug===slug||norm(x.primaryKeyword||'')===norm(decorated.primaryKeyword||''));
+  if(duplicate)throw new Error('keyword_or_slug_cannibalization');if(!env.CONTENT_FINAL)throw new Error('r2_binding_missing');
+  const fields=commerceRecordFields(targeted),rec={id:crypto.randomUUID(),slug,title:decorated.title||slug,metaDescription:decorated.metaDescription||'',country:targeted.country,coupon:targeted.code,status:'published',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider,primaryKeyword:decorated.primaryKeyword||targeted.kw,category:targeted.category,...fields};
+  await env.CONTENT_FINAL.put('articles/'+slug+'.html',String(decorated.html||''),{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:rec.title,country:rec.country,c:rec.country,status:'published',provider:String(provider).slice(0,100),cat:fields.categoryKey,bk:fields.brandKey||'',mk:fields.modelKey||'',ck:fields.comparisonKey||'',lp:fields.landingPath}});
+  const r=await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});if(!r.ok)throw new Error('control_article_'+r.status);return rec;
 }
 
 export const GENERATOR_DEFAULTS={enabled:true,model:WORKERS_AI_MODEL,targetWords:1500,minWords:1000,qualityThreshold:95};
