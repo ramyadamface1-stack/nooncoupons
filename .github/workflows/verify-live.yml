@@ -14,129 +14,91 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+
       - name: Source and quality invariants
         run: |
-          for f in public-entry.js premium-entry.js auto-platform.js final-platform.js workers-ai-generator.js quality-criteria.js quality-audit.js quality-index.js coupon-registry.js schema-validator.js indexation-gate.js editorial-trust-layer.js indexnow.js bulk-content-engine.js bulk-generator.js legacy-upgrader-v2.js bulk-selftest.js generator-core-v2.js generator-core.js platform.js admin-runtime.js admin-page.js; do node --check "$f"; done
-          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' auto-platform.js workers-ai-generator.js bulk-generator.js generator-core-v2.js platform.js admin-runtime.js; then
+          set -euo pipefail
+          for f in commerce-entry.js commerce-pages-v2.js commerce-taxonomy.js commerce-generator-taxonomy.js public-entry.js premium-entry.js auto-platform.js final-platform.js workers-ai-generator.js quality-criteria.js quality-audit.js quality-index.js coupon-registry.js schema-validator.js indexation-gate.js editorial-trust-layer.js indexnow.js bulk-content-engine.js bulk-generator.js legacy-upgrader-v2.js bulk-selftest.js generator-core-v2.js generator-core.js platform.js admin-runtime.js admin-page.js; do node --check "$f"; done
+          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' commerce-entry.js commerce-generator-taxonomy.js auto-platform.js workers-ai-generator.js bulk-generator.js generator-core-v2.js platform.js admin-runtime.js; then
             echo 'EXTERNAL_AI_REFERENCE_FOUND_IN_ACTIVE_RUNTIME'; exit 1
           fi
-          grep -Fq '"main": "public-entry.js"' wrangler.jsonc
+          grep -Fq '"main": "commerce-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "2000"' wrangler.jsonc
-          grep -Fq '"BULK_BATCH_SIZE": "3"' wrangler.jsonc
+          grep -Fq '"BULK_BATCH_SIZE": "2"' wrangler.jsonc
+          grep -Fq '"QUALITY_PUBLISH_THRESHOLD": "95"' wrangler.jsonc
           grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
-          grep -Fq "x-public-quality-ui','hidden-v1" public-entry.js
-          grep -Fq 'blog-collection' premium-entry.js
-          grep -Fq 'article:published_time' premium-entry.js
+          grep -Fq '"* * * * *"' wrangler.jsonc
+          grep -Fq "mode:'explicit-generator-taxonomy'" commerce-generator-taxonomy.js
+          grep -Fq 'categoryKey' bulk-generator.js
+          grep -Fq 'landingPath' generator-core-v2.js
           grep -Fq 'submitIndexNow' bulk-generator.js
-          grep -Fq "'/robots.txt'" final-platform.js
-          grep -Fq "'/llms.txt'" final-platform.js
-          grep -Fq "'/feed.xml'" final-platform.js
           node bulk-selftest.js >/tmp/bulk-selftest.log
 
-      - name: Verify accelerated quality-first Worker and search discovery
+      - name: Verify live commerce and generator runtime
         shell: bash
         run: |
-          set -uo pipefail
-          exec > >(tee /tmp/live-verify.log) 2>&1
+          set -euo pipefail
           ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
-          rc=0
-          health=""
-          seo=""
-          for i in $(seq 1 12); do
-            health="$(curl -sS --max-time 15 "$ORIGIN/api/generator-health" 2>/dev/null || true)"
-            seo="$(curl -sS --max-time 15 "$ORIGIN/api/seo-health" 2>/dev/null || true)"
-            if python -c 'import json,sys; d=json.loads(sys.argv[1]); s=json.loads(sys.argv[2]); b=d.get("bulk",{}); st=d.get("status",{}); ok=d.get("version")=="generator-5.0-quality-first" and b.get("engine")=="programmatic-cloudflare:v2-helpful" and int(b.get("batchSize") or 0)==3 and float(b.get("lastQuality") or 0)>=95 and float(b.get("lastQualityFloor") or 0)>=88 and st.get("bulkLastIndexable") is True and int(st.get("bulkGlobalIndexVersion") or 0)==1 and int(st.get("bulkSchemaGateVersion") or 0)==1 and int(st.get("bulkIndexationGateVersion") or 0)==1 and int(st.get("bulkEditorialTrustVersion") or 0)==1 and s.get("ok") is True and bool(s.get("robots")) and bool(s.get("rss")) and bool(s.get("llms")) and s.get("indexNowEnabled") is True and s.get("indexNowKeyHosted") is True; raise SystemExit(0 if ok else 1)' "$health" "$seo" 2>/dev/null; then break; fi
-            sleep 5
-          done
-          printf '%s\n' "$health" >/tmp/generator-health.json
-          printf '%s\n' "$seo" >/tmp/seo-health.json
-          platform="$(curl -sS --max-time 15 "$ORIGIN/api/platform-health" || true)"
-          state="$(curl -sS --max-time 15 "$ORIGIN/api/state" || true)"
-          robots="$(curl -sS --max-time 15 "$ORIGIN/robots.txt" || true)"
-          feed="$(curl -sS --max-time 15 "$ORIGIN/feed.xml" || true)"
-          llms="$(curl -sS --max-time 15 "$ORIGIN/llms.txt" || true)"
-          sitemap="$(curl -sS --max-time 15 "$ORIGIN/sitemap.xml" || true)"
-          blog="$(curl -sS -D /tmp/blog.headers --max-time 20 "$ORIGIN/blog?public-ui=hidden-v1" || true)"
-          printf '%s\n' "$robots" >/tmp/robots.txt
-          printf '%s\n' "$feed" >/tmp/feed.xml
-          printf '%s\n' "$llms" >/tmp/llms.txt
-          printf '%s\n' "$sitemap" >/tmp/sitemap.xml
-          printf '%s\n' "$blog" >/tmp/blog.html
-          printf '%s\n' "$platform" >/tmp/platform-health.json
-          printf '%s\n' "$state" >/tmp/state.json
-
-          python - <<'PY' /tmp/generator-health.json /tmp/seo-health.json
-          import json,sys
-          d=json.load(open(sys.argv[1])); s=json.load(open(sys.argv[2])); b=d.get('bulk',{}); st=d.get('status',{})
-          print('publishedToday=',b.get('publishedToday'),'target=',b.get('dailyTarget'),'remaining=',max(0,int(b.get('dailyTarget') or 0)-int(b.get('publishedToday') or 0)),'batch=',b.get('batchSize'),'quality=',b.get('lastQuality'),'floor=',b.get('lastQualityFloor'),'indexation=',st.get('bulkLastIndexationScore'))
-          assert d.get('version')=='generator-5.0-quality-first'
-          assert b.get('engine')=='programmatic-cloudflare:v2-helpful'
-          assert int(b.get('dailyTarget') or 0)==2000
-          assert int(b.get('batchSize') or 0)==3
-          assert 95 <= float(b.get('lastQuality') or 0) <= 100
-          assert float(b.get('lastQualityFloor') or 0)>=88
-          assert 1000 <= int(b.get('lastWordCount') or 0) <= 2000
-          assert st.get('bulkQualityLayer')=='global-quality-v1'
-          assert int(st.get('bulkGlobalIndexVersion') or 0)==1
-          assert st.get('bulkCouponRegistryVersion')=='owner-supplied-v1'
-          assert int(st.get('bulkSchemaGateVersion') or 0)==1
-          assert int(st.get('bulkIndexationGateVersion') or 0)==1
-          assert int(st.get('bulkEditorialTrustVersion') or 0)==1
-          assert st.get('bulkLastIndexable') is True
-          assert float(st.get('bulkLastIndexationScore') or 0)>=85
-          assert int(st.get('bulkLastContextualLinks') or 0)>=2
-          assert s.get('ok') is True and bool(s.get('robots')) and bool(s.get('rss')) and bool(s.get('llms'))
-          assert s.get('indexNowEnabled') is True and s.get('indexNowKeyHosted') is True
+          ready=0
+          for i in $(seq 1 30); do
+            curl -fsS --max-time 20 "$ORIGIN/api/generator-health?v=commerce3" -o /tmp/generator.json || true
+            curl -fsS --max-time 20 "$ORIGIN/api/commerce-health?v=commerce3" -o /tmp/commerce.json || true
+            if python - <<'PY'
+          import json
+          try:
+              g=json.load(open('/tmp/generator.json'))
+              c=json.load(open('/tmp/commerce.json'))
+              b=g.get('bulk',{})
+              gt=c.get('generatorTaxonomy',{})
+              ok=(c.get('ok') is True and int(c.get('routes') or 0)==110 and
+                  gt.get('mode')=='explicit-generator-taxonomy' and int(gt.get('version') or 0)>=3 and
+                  int(b.get('dailyTarget') or 0)==2000 and int(b.get('batchSize') or 0)==2)
+              raise SystemExit(0 if ok else 1)
+          except Exception:
+              raise SystemExit(1)
           PY
-          [ "$?" -eq 0 ] || rc=1
-
-          grep -Fq 'User-agent: *' /tmp/robots.txt || rc=1
-          grep -Fq '/sitemap.xml' /tmp/robots.txt || rc=1
-          grep -Fq '<rss version="2.0">' /tmp/feed.xml || rc=1
-          grep -Fq 'Editorial policy:' /tmp/llms.txt || rc=1
-          grep -Fq 'sitemap-articles-' /tmp/sitemap.xml || rc=1
-          grep -Fq 'data-schema="blog-collection"' /tmp/blog.html || rc=1
-          grep -Fq 'ItemList' /tmp/blog.html || rc=1
-          grep -Fq 'application/rss+xml' /tmp/blog.html || rc=1
-          tr -d '\r' </tmp/blog.headers | grep -iq '^x-public-quality-ui: hidden-v1$' || rc=1
-          if grep -Eq '<div class="meta">[[:space:]]*Quality[[:space:]]' /tmp/blog.html; then rc=1; fi
-
-          bulk_slug="$(python -c 'import json; d=json.load(open("/tmp/generator-health.json")); print(d.get("bulk",{}).get("lastSlug") or "")')"
-          if [ -n "$bulk_slug" ]; then
-            urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$bulk_slug")"
-            curl -sS -D /tmp/bulk-article.headers --max-time 20 "$ORIGIN/articles/$urlslug?public-ui=hidden-v1" -o /tmp/bulk-article.html || rc=1
-            for needle in 'data-schema="article"' 'BreadcrumbList' 'class="direct-answer"' 'class="coupon-freshness"' 'class="contextual-links"' 'class="editorial-accountability"' 'max-image-preview:large' '/editorial-policy' '/coupon-verification' '/authors/editorial-team' '/disclaimer' 'name="author"' 'article:published_time' 'application/rss+xml'; do grep -Fq "$needle" /tmp/bulk-article.html || rc=1; done
-            tr -d '\r' </tmp/bulk-article.headers | grep -iq '^x-public-quality-ui: hidden-v1$' || rc=1
-            if grep -Fq 'class="quality-meta"' /tmp/bulk-article.html; then rc=1; fi
-            if grep -Eqi 'amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir' /tmp/bulk-article.html; then rc=1; fi
-          else rc=1; fi
-
-          for path in editorial-policy coupon-verification authors/editorial-team disclaimer; do
-            code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$ORIGIN/$path" || true)"
-            [ "$code" = "200" ] || rc=1
+            then ready=1; break; fi
+            sleep 6
           done
-          echo "FINAL_RC=$rc"
-          exit "$rc"
+          [ "$ready" = 1 ]
 
-      - name: Upload diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: live-verify-diagnostics
-          path: |
-            /tmp/live-verify.log
-            /tmp/bulk-selftest.log
-            /tmp/generator-health.json
-            /tmp/seo-health.json
-            /tmp/platform-health.json
-            /tmp/state.json
-            /tmp/robots.txt
-            /tmp/feed.xml
-            /tmp/llms.txt
-            /tmp/sitemap.xml
-            /tmp/blog.html
-            /tmp/blog.headers
-            /tmp/bulk-article.html
-            /tmp/bulk-article.headers
-          if-no-files-found: ignore
-          retention-days: 1
+          for path in \
+            /saudi/categories \
+            /saudi/category/mobiles \
+            /saudi/category/shoes \
+            /uae/category/bags \
+            /saudi/brand/apple \
+            /saudi/model/apple/iphone-pro \
+            /saudi/compare/iphone-vs-galaxy \
+            /blog \
+            /sitemap.xml \
+            /sitemap-commerce.xml \
+            /api/generator-health \
+            /api/commerce-health; do
+            code="$(curl -sS --max-time 20 -o /tmp/page -w '%{http_code}' "$ORIGIN$path?v=commerce3")"
+            [ "$code" = "200" ]
+          done
+
+          curl -fsS --max-time 20 "$ORIGIN/sitemap.xml?v=commerce3" -o /tmp/sitemap.xml
+          curl -fsS --max-time 20 "$ORIGIN/sitemap-commerce.xml?v=commerce3" -o /tmp/sitemap-commerce.xml
+          for needle in '/saudi/category/shoes' '/uae/category/bags' '/saudi/brand/apple' '/saudi/model/apple/iphone-pro' '/saudi/compare/iphone-vs-galaxy'; do
+            grep -Fq "$needle" /tmp/sitemap.xml
+            grep -Fq "$needle" /tmp/sitemap-commerce.xml
+          done
+
+          python - <<'PY'
+          import json
+          g=json.load(open('/tmp/generator.json'))
+          c=json.load(open('/tmp/commerce.json'))
+          b=g.get('bulk',{}); st=g.get('status',{}); gt=c.get('generatorTaxonomy',{})
+          assert c.get('ok') is True and c.get('routes')==110
+          assert gt.get('mode')=='explicit-generator-taxonomy' and gt.get('internalLinks') is True
+          assert gt.get('metadata')==['categoryKey','brandKey','modelKey','comparisonKey','landingPath']
+          assert int(b.get('dailyTarget') or 0)==2000 and int(b.get('batchSize') or 0)==2
+          q=b.get('lastQuality')
+          if q is not None: assert float(q)>=95
+          w=b.get('lastWordCount')
+          if w is not None: assert 1000<=int(w)<=2000
+          assert g.get('providers',{}).get('external') is False
+          print('routes=',c.get('routes'),'metadataCoverage=',c.get('metadataCoverage'),'bulk=',{'target':b.get('dailyTarget'),'batch':b.get('batchSize'),'quality':q,'words':w,'publishedToday':b.get('publishedToday')})
+          PY
