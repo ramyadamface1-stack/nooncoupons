@@ -29,13 +29,13 @@ async function runOnce(env,{manual=false}={}){
 
     const budget=workersAiBudget(env,st,status);
     if(!budget.binding){
-      const next={...aiUsage(status,0),attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:'workers_ai_binding_missing',lastProvider:'workers-ai-unavailable',lastDurationMs:Date.now()-started};
+      const next={...aiUsage(status,0),attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:'workers_ai_binding_missing',lastOperationalState:'workers-ai-unavailable',lastDurationMs:Date.now()-started};
       await updateGeneratorStatus(env,next);
       return {ok:true,skipped:'workers_ai_binding_missing',budget};
     }
     if(!budget.available){
       const reason=budget.remaining<=0?'workers_ai_daily_article_cap':'workers_ai_daily_call_cap';
-      const next={...aiUsage(status,0),attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:reason,lastProvider:'workers-ai-capped',lastDurationMs:Date.now()-started};
+      const next={...aiUsage(status,0),attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:reason,lastOperationalState:'workers-ai-capped',lastDurationMs:Date.now()-started};
       await updateGeneratorStatus(env,next);
       return {ok:true,skipped:reason,budget};
     }
@@ -49,7 +49,7 @@ async function runOnce(env,{manual=false}={}){
       throw e;
     }
     if(out.skipped){
-      const next={...aiUsage(status,workersAiCallsUsed),attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:String(out.reason||'workers_ai_skipped'),lastProvider:'workers-ai-skipped',lastDurationMs:Date.now()-started};
+      const next={...aiUsage(status,workersAiCallsUsed),attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:String(out.reason||'workers_ai_skipped'),lastOperationalState:'workers-ai-skipped',lastDurationMs:Date.now()-started};
       await updateGeneratorStatus(env,next);
       return {ok:true,skipped:out.reason||'workers_ai_skipped',budget:out.budget};
     }
@@ -58,12 +58,12 @@ async function runOnce(env,{manual=false}={}){
     if(!out.audit.productionReady)throw Object.assign(new Error('quality_gate_'+out.audit.score+'_words_'+out.audit.wordCount),{workersAiCallsUsed});
 
     const rec=await publishGenerated(env,out.article,topic,out.audit,out.provider);
-    const next={...usage,attempts:attempt+1,published:Number(status.published||0)+1,drafted:Number(status.drafted||0),failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:null,lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:out.provider,lastQuality:out.audit.score,lastWordCount:out.audit.wordCount,lastDurationMs:Date.now()-started};
+    const next={...usage,attempts:attempt+1,published:Number(status.published||0)+1,drafted:Number(status.drafted||0),failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:null,lastOperationalState:'published',lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:out.provider,lastQuality:out.audit.score,lastWordCount:out.audit.wordCount,lastDurationMs:Date.now()-started};
     await updateGeneratorStatus(env,next);
     return {ok:true,record:rec,audit:out.audit,provider:out.provider,workersAiCallsUsed,budget:out.budget};
   }catch(e){
     const usage=aiUsage(status,workersAiCallsUsed||Number(e?.workersAiCallsUsed||0));
-    const next={...usage,attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0)+1,lastRun:now(),lastError:String(e?.message||e),lastProvider:'workers-ai-error',lastDurationMs:Date.now()-started};
+    const next={...usage,attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0)+1,lastRun:now(),lastError:String(e?.message||e),lastOperationalState:'workers-ai-error',lastDurationMs:Date.now()-started};
     await updateGeneratorStatus(env,next);
     return {ok:false,error:next.lastError};
   }finally{await generatorUnlock(env,runId)}
@@ -108,6 +108,8 @@ export default{
     if(u.pathname==='/api/generator-health'){
       const [cfg,status,st]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env),readState(env)]);
       const workersAI=workersAiBudget(env,st,status);
+      const workersAiArticles=(st.articles||[]).filter(a=>a.status==='published'&&String(a.provider||'').startsWith('workers-ai:')).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+      const lastWorkersAiSuccess=workersAiArticles[0]||null;
       return json({
         ok:true,
         version:'generator-3.0-cloudflare-only',
@@ -117,6 +119,8 @@ export default{
         preferredProvider:'workers-ai',
         providers:{workersAI:workersAI.binding,anyAI:workersAI.binding,external:false},
         workersAI,
+        workersAiPublishedTotal:workersAiArticles.length,
+        lastWorkersAiSuccess:lastWorkersAiSuccess?{slug:lastWorkersAiSuccess.slug,createdAt:lastWorkersAiSuccess.createdAt,provider:lastWorkersAiSuccess.provider,quality:lastWorkersAiSuccess.quality,country:lastWorkersAiSuccess.country,coupon:lastWorkersAiSuccess.coupon}:null,
         models:{workersAI:env.WORKERS_AI_MODEL||'@cf/zai-org/glm-4.7-flash'},
         r2Ready:Boolean(env.CONTENT_FINAL),
         controlReady:Boolean(env.CONTROL),
