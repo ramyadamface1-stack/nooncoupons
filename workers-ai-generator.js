@@ -156,8 +156,9 @@ function buildArticle(body,t){
   const slug=slugify(t.kw);
   const faq=faqData(t);
   let h=body;
-  if(!/data-copy-code/i.test(h))h+=`<section class="coupon-action"><h2>جرّب الكود في السلة</h2><p>انسخ <strong>${esc(t.code)}</strong> وتحقق من النتيجة داخل سلة نون قبل الدفع.</p><button type="button" data-copy-code="${esc(t.code)}">نسخ الكود ${esc(t.code)}</button> <a href="https://www.noon.com/" rel="noopener external sponsored">فتح نون</a></section>`;
+  if(!/data-copy-code/i.test(h))h+=`<section class="coupon-action"><h2>جرّب الكود في السلة</h2><p>انسخ <strong>${esc(t.code)}</strong> وتحقق من النتيجة داخل سلة نون قبل الدفع.</p><button type="button" data-copy-code="${esc(t.code)}">نسخ الكود ${esc(t.code)}</button></section>`;
   if(!/الأسئلة الشائعة|FAQ/i.test(h))h+=`<section class="faq"><h2>الأسئلة الشائعة</h2>${faq.map(x=>`<h3>${esc(x.question)}</h3><p>${esc(x.answer)}</p>`).join('')}</section>`;
+  h+=`<nav class="related-links" aria-label="روابط مفيدة"><h2>روابط تساعدك قبل الشراء</h2><ul><li><a href="/">الرئيسية</a></li><li><a href="/${t.country==='SA'?'saudi-arabia':'uae'}">نون ${esc(t.countryName)}</a></li><li><a href="/coupons">كل الكوبونات</a></li><li><a href="/blog">المدونة</a></li><li><a href="/categories">التصنيفات</a></li></ul><p><a href="https://www.noon.com/" rel="noopener external sponsored">تحقق من السلة على نون</a></p></nav>`;
   const article={
     title,
     metaDescription:meta,
@@ -181,7 +182,7 @@ function repairPrompt(t,cfg,article,audit){
   return `أعد كتابة/توسيع BODY HTML التالي لمقال نون بحيث يعالج هذه المشاكل: ${failed}.
 أعد HTML BODY فقط بدون JSON وبدون <h1> وبدون <script>.
 الدولة الوحيدة ${t.countryName} (${t.country})، الكوبون ${t.code}، الكلمة الأساسية ${t.kw}.
-ممنوع اختلاق نسبة خصم أو شروط. المطلوب على الأقل ${cfg.minWords} كلمة مفيدة، 8 H2، H3، FAQ، روابط داخلية، رابط Noon، CTA data-copy-code، ومحتوى غير مكرر.
+ممنوع اختلاق نسبة خصم أو شروط، وأزل أي ذكر لأي متجر منافس أو سوق نون غير ${t.countryName}. المطلوب على الأقل ${cfg.minWords} كلمة مفيدة، 8 H2، H3، FAQ، روابط داخلية، رابط Noon، CTA data-copy-code، ومحتوى غير مكرر.
 
 المحتوى الحالي:
 ${plain}`;
