@@ -4,7 +4,7 @@ export {GeneratorControl} from './admin-runtime.js';
 import {renderAdmin} from './admin-page.js';
 import {secureLogin} from './secure-admin-auth.js';
 import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin} from './admin-runtime.js';
-import {readState,pickTopic,generateArticle,publishGenerated,auditGenerated} from './generator-core.js';
+import {readState,pickTopic,generateArticle,publishGenerated,auditGenerated,providerReadiness} from './generator-core-v2.js';
 
 const now=()=>new Date().toISOString();
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
@@ -29,11 +29,11 @@ async function runOnce(env,{manual=false}={}){
     if(!topic)throw new Error('topic_pool_exhausted');
     let out=await generateArticle(env,topic,cfg,st,attempt);
     out=hardenFallback(out,topic,cfg);
-    if(!out.audit.productionReady)throw new Error('quality_gate_'+out.audit.score+'_words_'+out.audit.wordCount);
+    if(!out.audit.productionReady)throw new Error('quality_gate_'+out.audit.score+'_words_'+out.audit.wordCount+(out.lastProviderError?'_provider_fallback':''));
     const rec=await publishGenerated(env,out.article,topic,out.audit,out.provider);
     const next={attempts:attempt+1,published:Number(status.published||0)+1,failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:null,lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:out.provider,lastDurationMs:Date.now()-started};
     await updateGeneratorStatus(env,next);
-    return {ok:true,record:rec,audit:out.audit,provider:out.provider};
+    return {ok:true,record:rec,audit:out.audit,provider:out.provider,providerReadiness:out.providerReadiness,lastProviderError:out.lastProviderError||null};
   }catch(e){
     const next={attempts:attempt+1,published:Number(status.published||0),failed:Number(status.failed||0)+1,lastRun:now(),lastError:String(e?.message||e),lastDurationMs:Date.now()-started};
     await updateGeneratorStatus(env,next);
@@ -55,7 +55,22 @@ export default{
     }
     if(u.pathname==='/api/generator-health'){
       const [cfg,status,st]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env),readState(env)]);
-      return json({ok:true,cron:'* * * * *',enabled:cfg.enabled,groqReady:Boolean(env.GROQ_API_KEY_1||env.GROQ_API_KEY_2),model:env.GROQ_MODEL||cfg.model,articleCount:(st.articles||[]).length,publishedCount:(st.articles||[]).filter(a=>a.status==='published').length,status});
+      const providers=providerReadiness(env);
+      return json({
+        ok:true,
+        version:'generator-2.0',
+        cron:'* * * * *',
+        enabled:cfg.enabled,
+        preferredProvider:env.AI_PRIMARY_PROVIDER||'gemini',
+        providers,
+        models:{gemini:env.GEMINI_MODEL||'gemini-3.5-flash',grok:env.GROK_MODEL||'grok-4.3',groq:env.GROQ_MODEL||'openai/gpt-oss-120b'},
+        r2Ready:Boolean(env.CONTENT_FINAL),
+        controlReady:Boolean(env.CONTROL),
+        generatorControlReady:Boolean(env.GENERATOR_CONTROL),
+        articleCount:(st.articles||[]).length,
+        publishedCount:(st.articles||[]).filter(a=>a.status==='published').length,
+        status
+      });
     }
     return app.fetch(req,env,ctx);
   },
