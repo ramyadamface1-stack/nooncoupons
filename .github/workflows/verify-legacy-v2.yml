@@ -19,8 +19,10 @@ jobs:
           node --check legacy-upgrader-v2.js
           node --check admin-runtime.js
           grep -Fq "runLegacyUpgradeBatchV2" admin-runtime.js
-          grep -Fq "legacyUpgradeCursorV2" legacy-upgrader-v2.js
-          grep -Fq "legacyUpgradeNeedsConsolidation" legacy-upgrader-v2.js
+          grep -Fq "const MAX_PASSES=4" legacy-upgrader-v2.js
+          grep -Fq "const RECOVERY_PASS=4" legacy-upgrader-v2.js
+          grep -Fq "legacyUpgradePausedForConsolidation" legacy-upgrader-v2.js
+          grep -Fq "legacyUpgradePausedForConsolidation" admin-runtime.js
           grep -Fq "programmatic-cloudflare:v2-legacy-upgrade" legacy-upgrader-v2.js
           if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' legacy-upgrader-v2.js admin-runtime.js; then
             exit 1
@@ -42,13 +44,29 @@ jobs:
           d=json.load(open(sys.argv[1])); s=d.get('status',{})
           keys={k:v for k,v in s.items() if k.startswith('legacyUpgrade')}
           print(json.dumps(keys,ensure_ascii=False,indent=2))
-          assert int(s.get('legacyUpgradeTotal') or 0)>4
+          total=int(s.get('legacyUpgradeTotal') or 0)
+          remaining=int(s.get('legacyUpgradeRemaining') or 0)
+          pass_no=int(s.get('legacyUpgradePassV2') or 0)
+          complete=bool(s.get('legacyUpgradeComplete'))
+          active=bool(s.get('legacyUpgradeRecoveryActive'))
+          paused=bool(s.get('legacyUpgradePausedForConsolidation'))
+          needs=bool(s.get('legacyUpgradeNeedsConsolidation'))
+          assert total>4
           assert int(s.get('legacyUpgradeCursorV2') or 0)>0
-          assert int(s.get('legacyUpgradePassV2') or 0)>=1
+          assert pass_no>=1
           assert 95<=float(s.get('legacyUpgradeLastQuality') or 0)<=100
           assert float(s.get('legacyUpgradeLastQualityFloor') or 0)>=88
           assert 1000<=int(s.get('legacyUpgradeLastWordCount') or 0)<=2000
           assert s.get('legacyUpgradeLastSlug')
+          assert not (needs and pass_no<4 and not complete), 'old pass-3 consolidation loop returned'
+          if pass_no>=4 and remaining>0:
+            assert active or paused, 'pass 4 must be active or terminally paused'
+          if active:
+            assert pass_no==4 and not paused and not complete
+          if paused:
+            assert pass_no==4 and needs and not active and not complete
+          if complete:
+            assert remaining==0 and not active and not paused and not needs
           PY
           slug="$(python -c 'import json; d=json.load(open("/tmp/health.json")); print(d.get("status",{}).get("legacyUpgradeLastSlug") or "")')"
           urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
