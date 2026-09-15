@@ -1,0 +1,87 @@
+name: Verify Legacy Upgrade V2
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-legacy-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Static safety checks
+        run: |
+          node --check legacy-upgrader-v2.js
+          node --check admin-runtime.js
+          grep -Fq "runLegacyUpgradeBatchV2" admin-runtime.js
+          grep -Fq "legacyUpgradeCursorV2" legacy-upgrader-v2.js
+          grep -Fq "legacyUpgradeNeedsConsolidation" legacy-upgrader-v2.js
+          grep -Fq "programmatic-cloudflare:v2-legacy-upgrade" legacy-upgrader-v2.js
+          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' legacy-upgrader-v2.js admin-runtime.js; then
+            exit 1
+          fi
+      - name: Verify V2 progress and upgraded page live
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          health=""
+          for i in $(seq 1 48); do
+            health="$(curl -sS --max-time 20 "$ORIGIN/api/generator-health" || true)"
+            if python -c 'import json,sys; d=json.loads(sys.stdin.read()); s=d.get("status",{}); ok=int(s.get("legacyUpgradeTotal") or 0)>4 and int(s.get("legacyUpgradeCursorV2") or 0)>0 and float(s.get("legacyUpgradeLastQuality") or 0)>=95 and float(s.get("legacyUpgradeLastQualityFloor") or 0)>=88; raise SystemExit(0 if ok else 1)' <<< "$health" 2>/dev/null; then break; fi
+            sleep 10
+          done
+          printf '%s\n' "$health" >/tmp/health.json
+          python - <<'PY' /tmp/health.json
+          import json,sys
+          d=json.load(open(sys.argv[1])); s=d.get('status',{})
+          keys={k:v for k,v in s.items() if k.startswith('legacyUpgrade')}
+          print(json.dumps(keys,ensure_ascii=False,indent=2))
+          assert int(s.get('legacyUpgradeTotal') or 0)>4
+          assert int(s.get('legacyUpgradeCursorV2') or 0)>0
+          assert int(s.get('legacyUpgradePassV2') or 0)>=1
+          assert 95<=float(s.get('legacyUpgradeLastQuality') or 0)<=100
+          assert float(s.get('legacyUpgradeLastQualityFloor') or 0)>=88
+          assert 1000<=int(s.get('legacyUpgradeLastWordCount') or 0)<=2000
+          assert s.get('legacyUpgradeLastSlug')
+          PY
+          slug="$(python -c 'import json; d=json.load(open("/tmp/health.json")); print(d.get("status",{}).get("legacyUpgradeLastSlug") or "")')"
+          urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
+          curl -sS --max-time 30 "$ORIGIN/articles/$urlslug" -o /tmp/article.html
+          grep -Fq 'class="legacy-specific"' /tmp/article.html
+          grep -Fq 'data-legacy-pass=' /tmp/article.html
+          grep -Fq 'class="methodology accountability"' /tmp/article.html
+          grep -Fq 'class="faq"' /tmp/article.html
+          grep -Fq 'FAQPage' /tmp/article.html
+          grep -Fq 'BreadcrumbList' /tmp/article.html
+          grep -Fq 'Quality 100/100' /tmp/article.html
+          if grep -Eqi 'amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir' /tmp/article.html; then exit 1; fi
+          state="$(curl -sS --max-time 30 "$ORIGIN/api/state")"
+          printf '%s\n' "$state" >/tmp/state.json
+          python - <<'PY' /tmp/state.json
+          import json,sys
+          d=json.load(open(sys.argv[1])); arts=d.get('articles',[])
+          ai=[a for a in arts if str(a.get('provider','')).startswith('workers-ai:')]
+          up=[a for a in arts if str(a.get('provider','')).startswith('programmatic-cloudflare:v2-legacy-upgrade')]
+          print('workers_ai=',len(ai),'upgraded=',len(up))
+          assert len(ai)>=11
+          assert len(up)>4
+          assert all(float(a.get('quality') or 0)>=95 for a in up)
+          assert all(float(a.get('qualityFloor') or 0)>=88 for a in up)
+          PY
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: legacy-v2-diagnostics
+          path: |
+            /tmp/health.json
+            /tmp/state.json
+            /tmp/article.html
+          if-no-files-found: ignore
+          retention-days: 1
