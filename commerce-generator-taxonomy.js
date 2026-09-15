@@ -12,16 +12,17 @@ export function applyCommerceTarget(topic={},seed){
   const n=seedFor(topic,seed),market=marketKey(topic.country),categoryKey=categoryKeyForArticle({category:topic.category,categoryKey:topic.categoryKey});
   let brandKey=null,modelKey=null,comparisonKey=null,targetLabel=CATEGORIES[categoryKey]?.label||topic.category||'';
   let kw=String(topic.kw||''),title=String(topic.title||topic.kw||'');
-  if(categoryKey==='mobiles'){
-    const brandKeys=Object.keys(BRANDS),comparisonKeys=Object.keys(COMPARISONS),comparisonMode=n%9===0;
+  {
+    const eligibleBrands=Object.keys(BRANDS).filter(k=>BRANDS[k].categories?.includes(categoryKey));
+    const brandKeys=eligibleBrands,comparisonKeys=Object.keys(COMPARISONS),comparisonMode=categoryKey==='mobiles'&&n%9===0;
     if(comparisonMode){
       comparisonKey=comparisonKeys[Math.floor(n/9)%comparisonKeys.length];
       const cmp=COMPARISONS[comparisonKey];brandKey=cmp.a;
       const models=Object.keys(BRANDS[brandKey].models);modelKey=models[Math.floor(n/3)%models.length];
       targetLabel=cmp.title;kw=suffixOnce(kw,cmp.title);title=suffixOnce(title,cmp.title);
-    }else{
+    }else if(brandKeys.length){
       brandKey=brandKeys[n%brandKeys.length];
-      const models=Object.keys(BRANDS[brandKey].models);modelKey=models[Math.floor(n/brandKeys.length)%models.length];
+      const models=Object.keys(BRANDS[brandKey].models);modelKey=models[Math.floor(n/Math.max(1,brandKeys.length))%models.length];
       targetLabel=`${BRANDS[brandKey].label} ${BRANDS[brandKey].models[modelKey].label}`;
       kw=suffixOnce(kw,targetLabel);title=suffixOnce(title,targetLabel);
     }
@@ -46,4 +47,4 @@ export function decorateArticleCommerce(article={},topic={}){
   return {...article,...fields,html};
 }
 
-export const COMMERCE_GENERATOR_INFO={version:3,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'mobiles',internalLinks:true};
+export const COMMERCE_GENERATOR_INFO={version:3,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'all-eligible-categories',internalLinks:true};
