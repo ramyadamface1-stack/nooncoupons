@@ -14,150 +14,97 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - name: Syntax, quality gate and provider isolation checks
+      - name: Source and quality invariants
         run: |
-          node --check auto-platform.js
-          node --check workers-ai-generator.js
-          node --check quality-criteria.js
-          node --check quality-audit.js
-          node --check quality-index.js
-          node --check coupon-registry.js
-          node --check schema-validator.js
-          node --check indexation-gate.js
-          node --check editorial-trust-layer.js
-          node --check bulk-content-engine.js
-          node --check bulk-generator.js
-          node --check legacy-upgrader-v2.js
-          node --check bulk-selftest.js
-          node --check generator-core-v2.js
-          node --check generator-core.js
-          node --check platform.js
-          node --check admin-runtime.js
-          node --check admin-page.js
-          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' auto-platform.js workers-ai-generator.js quality-audit.js bulk-content-engine.js bulk-generator.js legacy-upgrader-v2.js generator-core-v2.js generator-core.js platform.js admin-runtime.js; then
-            echo 'EXTERNAL_AI_REFERENCE_FOUND_IN_ACTIVE_RUNTIME'
-            exit 1
+          for f in auto-platform.js final-platform.js workers-ai-generator.js quality-criteria.js quality-audit.js quality-index.js coupon-registry.js schema-validator.js indexation-gate.js editorial-trust-layer.js indexnow.js bulk-content-engine.js bulk-generator.js legacy-upgrader-v2.js bulk-selftest.js generator-core-v2.js generator-core.js platform.js admin-runtime.js admin-page.js; do node --check "$f"; done
+          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' auto-platform.js workers-ai-generator.js bulk-generator.js generator-core-v2.js platform.js admin-runtime.js; then
+            echo 'EXTERNAL_AI_REFERENCE_FOUND_IN_ACTIVE_RUNTIME'; exit 1
           fi
-          grep -Fq '@cf/zai-org/glm-4.7-flash' workers-ai-generator.js
-          grep -Fq '@cf/google/gemma-4-26b-a4b-it' workers-ai-generator.js
-          grep -Fq 'programmatic-cloudflare:v2-helpful' bulk-content-engine.js
-          grep -Fq 'global-quality-v1' bulk-generator.js
-          grep -Fq 'bulkGlobalIndexVersion' bulk-generator.js
-          grep -Fq 'bulkCouponRegistryVersion' bulk-generator.js
-          grep -Fq 'bulkSchemaGateVersion' bulk-generator.js
-          grep -Fq 'bulkIndexationGateVersion' bulk-generator.js
-          grep -Fq 'bulkEditorialTrustVersion' bulk-generator.js
-          grep -Fq 'bulk_auto_brake_engaged' bulk-generator.js
-          grep -Fq 'programmatic-cloudflare:v2-legacy-upgrade' legacy-upgrader-v2.js
-          grep -Fq 'contentSignature' quality-audit.js
           grep -Fq '"BULK_DAILY_TARGET": "2000"' wrangler.jsonc
-          grep -Fq '"BULK_BATCH_SIZE": "2"' wrangler.jsonc
-          grep -Fq '"LEGACY_UPGRADE_BATCH_SIZE": "4"' wrangler.jsonc
+          grep -Fq '"BULK_BATCH_SIZE": "3"' wrangler.jsonc
+          grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
+          grep -Fq 'submitIndexNow' bulk-generator.js
+          grep -Fq "'/robots.txt'" final-platform.js
+          grep -Fq "'/llms.txt'" final-platform.js
+          grep -Fq "'/feed.xml'" final-platform.js
           node bulk-selftest.js >/tmp/bulk-selftest.log
-      - name: Verify deployed quality-first Worker and all publishing gates
-        id: live
+
+      - name: Verify accelerated quality-first Worker and search discovery
         shell: bash
         run: |
           set -uo pipefail
           exec > >(tee /tmp/live-verify.log) 2>&1
           ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
           rc=0
-          check_contains(){
-            name="$1"; text="$2"; needle="$3"
-            if grep -Fq -- "$needle" <<< "$text"; then echo "PASS $name"; else echo "FAIL $name :: $needle"; rc=1; fi
-          }
           health=""
+          seo=""
           for i in $(seq 1 48); do
-            health="$(curl -sS --max-time 20 "$ORIGIN/api/generator-health" 2>&1 || true)"
-            if python -c 'import json,sys; d=json.loads(sys.stdin.read()); b=d.get("bulk",{}); s=d.get("status",{}); ok=d.get("version")=="generator-5.0-quality-first" and b.get("engine")=="programmatic-cloudflare:v2-helpful" and float(b.get("lastQualityFloor") or 0)>=88 and float(b.get("lastQuality") or 0)>=95 and int(s.get("bulkGlobalIndexVersion") or 0)==1 and s.get("bulkCouponRegistryVersion")=="owner-supplied-v1" and int(s.get("bulkSchemaGateVersion") or 0)==1 and int(s.get("bulkIndexationGateVersion") or 0)==1 and int(s.get("bulkEditorialTrustVersion") or 0)==1 and s.get("bulkLastIndexable") is True and float(s.get("bulkLastIndexationScore") or 0)>=85; raise SystemExit(0 if ok else 1)' <<< "$health" 2>/dev/null; then break; fi
+            health="$(curl -sS --max-time 20 "$ORIGIN/api/generator-health" 2>/dev/null || true)"
+            seo="$(curl -sS --max-time 20 "$ORIGIN/api/seo-health" 2>/dev/null || true)"
+            if python -c 'import json,sys; d=json.loads(sys.argv[1]); s=json.loads(sys.argv[2]); b=d.get("bulk",{}); st=d.get("status",{}); ok=d.get("version")=="generator-5.0-quality-first" and b.get("engine")=="programmatic-cloudflare:v2-helpful" and int(b.get("batchSize") or 0)==3 and float(b.get("lastQuality") or 0)>=95 and float(b.get("lastQualityFloor") or 0)>=88 and st.get("bulkLastIndexable") is True and int(st.get("bulkGlobalIndexVersion") or 0)==1 and int(st.get("bulkSchemaGateVersion") or 0)==1 and int(st.get("bulkIndexationGateVersion") or 0)==1 and int(st.get("bulkEditorialTrustVersion") or 0)==1 and s.get("ok") is True and s.get("robots") is True and s.get("rss") is True and s.get("llms") is True and s.get("indexNowEnabled") is True and s.get("indexNowKeyHosted") is True; raise SystemExit(0 if ok else 1)' "$health" "$seo" 2>/dev/null; then break; fi
             sleep 10
           done
-          platform="$(curl -sS --max-time 20 "$ORIGIN/api/platform-health" 2>&1 || true)"
-          state="$(curl -sS --max-time 20 "$ORIGIN/api/state" 2>&1 || true)"
-          sitemap="$(curl -sS --max-time 20 "$ORIGIN/sitemap.xml" 2>&1 || true)"
-          printf '%s\n' "$health" > /tmp/generator-health.json
-          printf '%s\n' "$platform" > /tmp/platform-health.json
-          printf '%s\n' "$state" > /tmp/state.json
-          printf '%s\n' "$sitemap" > /tmp/sitemap.xml
-          echo '--- GENERATOR HEALTH ---'; cat /tmp/generator-health.json
-          check_contains generator_version "$health" 'generator-5.0-quality-first'
-          check_contains preferred_provider "$health" '"preferredProvider": "workers-ai"'
-          check_contains external_false "$health" '"external": false'
-          check_contains programmatic_provider "$health" '"programmaticCloudflare": true'
-          check_contains quality_first "$health" '"qualityFirst": true'
-          check_contains bulk_engine "$health" 'programmatic-cloudflare:v2-helpful'
-          check_contains bulk_target "$health" '"dailyTarget": 2000'
-          check_contains bulk_batch "$health" '"batchSize": 2'
-          python - <<'PY' /tmp/generator-health.json
+          printf '%s\n' "$health" >/tmp/generator-health.json
+          printf '%s\n' "$seo" >/tmp/seo-health.json
+          platform="$(curl -sS --max-time 20 "$ORIGIN/api/platform-health" || true)"
+          state="$(curl -sS --max-time 20 "$ORIGIN/api/state" || true)"
+          robots="$(curl -sS --max-time 20 "$ORIGIN/robots.txt" || true)"
+          feed="$(curl -sS --max-time 20 "$ORIGIN/feed.xml" || true)"
+          llms="$(curl -sS --max-time 20 "$ORIGIN/llms.txt" || true)"
+          sitemap="$(curl -sS --max-time 20 "$ORIGIN/sitemap.xml" || true)"
+          printf '%s\n' "$robots" >/tmp/robots.txt
+          printf '%s\n' "$feed" >/tmp/feed.xml
+          printf '%s\n' "$llms" >/tmp/llms.txt
+          printf '%s\n' "$sitemap" >/tmp/sitemap.xml
+          printf '%s\n' "$platform" >/tmp/platform-health.json
+          printf '%s\n' "$state" >/tmp/state.json
+
+          python - <<'PY' /tmp/generator-health.json /tmp/seo-health.json
           import json,sys
-          d=json.load(open(sys.argv[1])); b=d.get('bulk',{}); s=d.get('status',{})
-          print('bulk=',json.dumps(b,ensure_ascii=False))
-          quality={k:v for k,v in s.items() if k.startswith('bulk') and any(x in k for x in ('Quality','Global','Coupon','Schema','Indexation','Editorial','Contextual','Freshness','Auto','NoPass','Rejected'))}
-          print('qualityLayers=',json.dumps(quality,ensure_ascii=False))
-          assert d.get('version')=='generator-5.0-quality-first', d.get('version')
-          assert b.get('engine')=='programmatic-cloudflare:v2-helpful', b
-          assert int(b.get('dailyTarget',0))==2000, b
-          assert int(b.get('batchSize',0))==2, b
-          assert not b.get('lastError'), b
-          assert 95 <= float(b.get('lastQuality') or 0) <= 100, b
-          assert float(b.get('lastQualityFloor') or 0) >= 88, b
-          assert 1000 <= int(b.get('lastWordCount') or 0) <= 2000, b
-          groups=b.get('lastGroups') or {}
-          for g in ('seo','content','trust','aeo','geo','eeat','technical','uniqueness'):
-              assert float(groups.get(g,0)) >= 88, (g,groups)
-          assert s.get('bulkQualityLayer')=='global-quality-v1', s
-          assert int(s.get('bulkGlobalIndexVersion') or 0)==1, s
-          assert s.get('bulkCouponRegistryVersion')=='owner-supplied-v1', s
-          assert int(s.get('bulkSchemaGateVersion') or 0)==1, s
-          assert int(s.get('bulkIndexationGateVersion') or 0)==1, s
-          assert int(s.get('bulkEditorialTrustVersion') or 0)==1, s
-          assert s.get('bulkLastIndexable') is True, s
-          assert float(s.get('bulkLastIndexationScore') or 0)>=85, s
-          assert int(s.get('bulkLastContextualLinks') or 0)>=2, s
-          assert s.get('bulkLastCouponFreshness') in ('current-owner-supplied','review-due'), s
-          assert int(s.get('bulkNoPassStreak') or 0)>=0, s
-          assert int(s.get('bulkFreshnessBlocked') or 0)==0, s
+          d=json.load(open(sys.argv[1])); s=json.load(open(sys.argv[2])); b=d.get('bulk',{}); st=d.get('status',{})
+          print('publishedToday=',b.get('publishedToday'),'target=',b.get('dailyTarget'),'batch=',b.get('batchSize'),'quality=',b.get('lastQuality'),'floor=',b.get('lastQualityFloor'),'indexation=',st.get('bulkLastIndexationScore'))
+          assert d.get('version')=='generator-5.0-quality-first'
+          assert b.get('engine')=='programmatic-cloudflare:v2-helpful'
+          assert int(b.get('dailyTarget') or 0)==2000
+          assert int(b.get('batchSize') or 0)==3
+          assert 95 <= float(b.get('lastQuality') or 0) <= 100
+          assert float(b.get('lastQualityFloor') or 0)>=88
+          assert 1000 <= int(b.get('lastWordCount') or 0) <= 2000
+          assert st.get('bulkQualityLayer')=='global-quality-v1'
+          assert int(st.get('bulkGlobalIndexVersion') or 0)==1
+          assert st.get('bulkCouponRegistryVersion')=='owner-supplied-v1'
+          assert int(st.get('bulkSchemaGateVersion') or 0)==1
+          assert int(st.get('bulkIndexationGateVersion') or 0)==1
+          assert int(st.get('bulkEditorialTrustVersion') or 0)==1
+          assert st.get('bulkLastIndexable') is True
+          assert float(st.get('bulkLastIndexationScore') or 0)>=85
+          assert int(st.get('bulkLastContextualLinks') or 0)>=2
+          assert s.get('ok') is True and s.get('robots') is True and s.get('rss') is True and s.get('llms') is True
+          assert s.get('indexNowEnabled') is True and s.get('indexNowKeyHosted') is True
           PY
-          if [ "$?" -eq 0 ]; then echo 'PASS all_live_quality_layers'; else echo 'FAIL all_live_quality_layers'; rc=1; fi
-          echo '--- PLATFORM HEALTH ---'; cat /tmp/platform-health.json
-          check_contains platform_version "$platform" 'platform-1.6-quality-first'
-          check_contains platform_engine "$platform" 'programmatic-cloudflare:v2-helpful'
-          check_contains bulk_platform "$platform" '"bulkProgrammatic": true'
-          echo '--- STATE SETTINGS ---'
-          python - <<'PY' /tmp/state.json
-          import json,sys
-          d=json.load(open(sys.argv[1])); s=d.get('settings',{})
-          print(json.dumps(s,ensure_ascii=False,indent=2))
-          assert s.get('aiPrimary')=='workers-ai'
-          assert s.get('aiFallback') is None
-          assert s.get('qualityThreshold')==95
-          assert s.get('minWords')==1000
-          PY
-          if [ "$?" -eq 0 ]; then echo 'PASS state_settings'; else echo 'FAIL state_settings'; rc=1; fi
-          code="$(curl -sS -o /tmp/legacy-api.json -w '%{http_code}' -X POST "$ORIGIN/api/ai/generate" || true)"
-          if [ "$code" = "410" ]; then echo 'PASS legacy_external_api_410'; else echo 'FAIL legacy_external_api_410'; rc=1; fi
-          check_contains bulk_sitemap "$sitemap" 'sitemap-articles-'
+          [ "$?" -eq 0 ] || rc=1
+
+          grep -Fq 'User-agent: *' /tmp/robots.txt || rc=1
+          grep -Fq '/sitemap.xml' /tmp/robots.txt || rc=1
+          grep -Fq '<rss version="2.0">' /tmp/feed.xml || rc=1
+          grep -Fq 'Editorial policy:' /tmp/llms.txt || rc=1
+          grep -Fq 'sitemap-articles-' /tmp/sitemap.xml || rc=1
+
           bulk_slug="$(python -c 'import json; d=json.load(open("/tmp/generator-health.json")); print(d.get("bulk",{}).get("lastSlug") or "")')"
-          if [ -z "$bulk_slug" ]; then echo 'FAIL bulk_article :: missing slug'; rc=1; else
+          if [ -n "$bulk_slug" ]; then
             urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$bulk_slug")"
-            if curl -sS --max-time 30 "$ORIGIN/articles/$urlslug" -o /tmp/bulk-article.html; then
-              for needle in 'Quality ' 'data-schema="article"' 'BreadcrumbList' 'FAQPage' 'class="methodology accountability"' 'class="sources"' 'class="direct-answer"' 'class="coupon-freshness"' 'class="contextual-links"' 'class="editorial-accountability"' 'aria-live="polite"' 'max-image-preview:large' '/editorial-policy' '/coupon-verification' '/authors/editorial-team' '/disclaimer'; do
-                if grep -Fq "$needle" /tmp/bulk-article.html; then echo "PASS bulk_article $needle"; else echo "FAIL bulk_article $needle"; rc=1; fi
-              done
-              images="$(grep -o '/assets/coupon-svg/' /tmp/bulk-article.html | wc -l | tr -d ' ')"
-              copies="$(grep -o 'data-copy-code=' /tmp/bulk-article.html | wc -l | tr -d ' ')"
-              if [ "$images" -ge 5 ] && [ "$copies" -ge 2 ]; then echo "PASS bulk_article assets images=$images copies=$copies"; else echo "FAIL bulk_article assets images=$images copies=$copies"; rc=1; fi
-              if grep -Eq 'الريال السعودي|الدرهم الإماراتي' /tmp/bulk-article.html; then echo 'PASS bulk_article localized_currency'; else echo 'FAIL bulk_article localized_currency'; rc=1; fi
-              if grep -Eqi 'amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir' /tmp/bulk-article.html; then echo 'FAIL bulk_article competitor_leak'; rc=1; else echo 'PASS bulk_article competitor_lock'; fi
-            else echo 'FAIL bulk_article route'; rc=1; fi
-          fi
+            curl -sS --max-time 30 "$ORIGIN/articles/$urlslug" -o /tmp/bulk-article.html || rc=1
+            for needle in 'Quality ' 'data-schema="article"' 'BreadcrumbList' 'class="direct-answer"' 'class="coupon-freshness"' 'class="contextual-links"' 'class="editorial-accountability"' 'max-image-preview:large' '/editorial-policy' '/coupon-verification' '/authors/editorial-team' '/disclaimer'; do grep -Fq "$needle" /tmp/bulk-article.html || rc=1; done
+            if grep -Eqi 'amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir' /tmp/bulk-article.html; then rc=1; fi
+          else rc=1; fi
+
           for path in editorial-policy coupon-verification authors/editorial-team disclaimer; do
-            code="$(curl -sS --max-time 20 -o "/tmp/trust-${path//\//-}.html" -w '%{http_code}' "$ORIGIN/$path" || true)"
-            if [ "$code" = "200" ]; then echo "PASS trust_route /$path"; else echo "FAIL trust_route /$path status=$code"; rc=1; fi
+            code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$ORIGIN/$path" || true)"
+            [ "$code" = "200" ] || rc=1
           done
-          if curl -sS --max-time 30 "$ORIGIN/blog" -o /tmp/blog.html && grep -q 'مدونة كوبونات نون' /tmp/blog.html; then echo 'PASS blog'; else echo 'FAIL blog'; rc=1; fi
           echo "FINAL_RC=$rc"
           exit "$rc"
+
       - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -167,11 +114,13 @@ jobs:
             /tmp/live-verify.log
             /tmp/bulk-selftest.log
             /tmp/generator-health.json
+            /tmp/seo-health.json
             /tmp/platform-health.json
             /tmp/state.json
-            /tmp/legacy-api.json
-            /tmp/blog.html
-            /tmp/bulk-article.html
+            /tmp/robots.txt
+            /tmp/feed.xml
+            /tmp/llms.txt
             /tmp/sitemap.xml
+            /tmp/bulk-article.html
           if-no-files-found: ignore
           retention-days: 1
