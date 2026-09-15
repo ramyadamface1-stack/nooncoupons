@@ -1,0 +1,91 @@
+import {signatureDistance} from './quality-audit.js';
+
+const VERSION=1;
+const MAX_CLUSTER_ENTRIES=25000;
+const MAX_RELATED=6;
+const STOP=new Set(['من','على','في','الى','إلى','عن','مع','عند','قبل','بعد','نون','السعودية','الامارات','الإمارات','كود','خصم','طريقة','شراء','استخدام','دليل','هل','يعمل']);
+
+const now=()=>new Date().toISOString();
+const norm=s=>String(s||'').toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[إأآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').replace(/\s+/g,' ').trim();
+const tokens=s=>norm(s).split(' ').filter(x=>x.length>1&&!STOP.has(x));
+const h32=s=>{let h=2166136261;for(const ch of String(s||'')){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0};
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+export function keywordSimilarity(a,b){
+  const A=new Set(tokens(a)),B=new Set(tokens(b));if(!A.size||!B.size)return 0;
+  let hit=0;for(const x of A)if(B.has(x))hit++;
+  return hit/Math.max(A.size,B.size);
+}
+
+export function intentKey(topic){
+  return norm([topic?.country,topic?.category,topic?.intent,topic?.useCase,topic?.factor,topic?.scenario].join('|'));
+}
+
+export function clusterKey(topic){
+  const id=h32(`${topic?.country||'SA'}|${norm(topic?.category||'general')}`).toString(16).padStart(8,'0');
+  return `quality/global-index/v${VERSION}/${topic?.country||'SA'}/${id}.json`;
+}
+
+export function emptyCluster(topic){return {version:VERSION,country:topic?.country||'SA',category:topic?.category||'',updatedAt:null,entries:[]}}
+
+export async function loadCluster(env,topic,cache=new Map()){
+  const key=clusterKey(topic);if(cache.has(key))return cache.get(key);
+  let data=emptyCluster(topic);
+  try{const o=env?.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;if(o)data=await o.json()}catch{}
+  if(!Array.isArray(data.entries))data.entries=[];
+  cache.set(key,data);return data;
+}
+
+export function globalGate(article,topic,audit,cluster){
+  const entries=Array.isArray(cluster?.entries)?cluster.entries:[],kw=norm(article?.primaryKeyword||topic?.kw||''),slug=String(article?.slug||''),ik=intentKey(topic);
+  let exactKeyword=false,exactSlug=false,intentCollision=false,maxKeywordSimilarity=0,minDistance=32,nearest=null;
+  for(const e of entries){
+    if(!e)continue;
+    if(String(e.slug||'')===slug)exactSlug=true;
+    if(norm(e.primaryKeyword||'')===kw)exactKeyword=true;
+    if(e.intentKey&&e.intentKey===ik)intentCollision=true;
+    if(!e.intent||e.intent===topic?.intent){const s=keywordSimilarity(article?.primaryKeyword||topic?.kw,e.primaryKeyword||'');if(s>maxKeywordSimilarity){maxKeywordSimilarity=s;nearest=e}}
+    if(e.signature&&audit?.signature){const d=signatureDistance(audit.signature,e.signature);if(d<minDistance){minDistance=d;nearest=e}}
+  }
+  const semanticCollision=minDistance<5;
+  const cannibalization=maxKeywordSimilarity>=0.82;
+  const reasons=[];
+  if(exactSlug)reasons.push('global_duplicate_slug');
+  if(exactKeyword)reasons.push('global_duplicate_keyword');
+  if(intentCollision)reasons.push('global_duplicate_intent');
+  if(semanticCollision)reasons.push('global_semantic_collision');
+  if(cannibalization)reasons.push('global_keyword_cannibalization');
+  return {pass:reasons.length===0,reasons,minDistance,maxKeywordSimilarity:Math.round(maxKeywordSimilarity*1000)/1000,nearestSlug:nearest?.slug||null,indexSize:entries.length,intentKey:ik};
+}
+
+function relatedScore(topic,entry){
+  let s=0;if(entry.country===topic?.country)s+=4;if(entry.category===topic?.category)s+=5;if(entry.intent&&entry.intent!==topic?.intent)s+=2;
+  s+=Math.round(keywordSimilarity(topic?.kw||'',entry.primaryKeyword||'')*5);
+  return s;
+}
+
+export function pickRelated(cluster,topic,limit=MAX_RELATED){
+  return (cluster?.entries||[]).filter(e=>e?.slug&&e.primaryKeyword).map(e=>({...e,_score:relatedScore(topic,e)})).filter(e=>e._score>=5).sort((a,b)=>b._score-a._score||String(b.createdAt||'').localeCompare(String(a.createdAt||''))).slice(0,Math.max(0,limit));
+}
+
+export function injectContextualLinks(article,links=[]){
+  if(!article?.html||!links.length)return article;
+  const items=links.map(x=>`<li><a href="/articles/${encodeURI(x.slug)}">${esc(x.title||x.primaryKeyword)}</a><span> — ${esc(x.intentLabel||'دليل مرتبط')}</span></li>`).join('');
+  const section=`<section class="contextual-links"><h2>أدلة مرتبطة تساعدك في القرار</h2><p>اختر الدليل الأقرب لمرحلة قرارك بدل تكرار نفس الخطوات في أكثر من صفحة.</p><ul>${items}</ul></section>`;
+  article.html=String(article.html).replace(/<section class="methodology accountability">/i,section+'<section class="methodology accountability">');
+  article.contextualLinks=links.map(x=>({slug:x.slug,title:x.title||x.primaryKeyword}));
+  return article;
+}
+
+export function addToCluster(cluster,rec,topic){
+  const entry={slug:rec.slug,title:rec.title,primaryKeyword:rec.primaryKeyword,signature:rec.signature,country:rec.country,category:topic?.category||'',intent:topic?.intent||'',intentLabel:topic?.intentLabel||'',intentKey:intentKey(topic),createdAt:rec.createdAt||now()};
+  const entries=[entry,...(cluster.entries||[]).filter(x=>x?.slug!==entry.slug)].slice(0,MAX_CLUSTER_ENTRIES);
+  cluster.version=VERSION;cluster.country=topic?.country||rec.country;cluster.category=topic?.category||cluster.category||'';cluster.updatedAt=now();cluster.entries=entries;return cluster;
+}
+
+export async function flushClusters(env,cache,dirtyKeys){
+  if(!env?.CONTENT_FINAL)return;
+  for(const key of dirtyKeys){const c=cache.get(key);if(!c)continue;await env.CONTENT_FINAL.put(key,JSON.stringify(c),{httpMetadata:{contentType:'application/json; charset=utf-8'}})}
+}
+
+export const GLOBAL_INDEX_INFO={version:VERSION,maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:5,cannibalizationSimilarityMax:0.82,relatedLinksMax:MAX_RELATED};
