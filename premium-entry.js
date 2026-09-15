@@ -1,4 +1,5 @@
 import app from './auto-platform.js';
+import {applyKeywordMap,keywordLanding,augmentKeywordSitemap,KEYWORD_MAP_VERSION} from './keyword-pages.js';
 export {ControlPlane,GeneratorControl} from './auto-platform.js';
 
 const LEGACY_ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev';
@@ -64,6 +65,18 @@ async function enhanceBlog(req,env,res){
   return injectHead(res,add,'blog-v4','ar');
 }
 
+async function keywordLayer(req,env,res){
+  if(!res.ok)return res;
+  const u=new URL(req.url),path=u.pathname.replace(/\/+$/,'')||'/',origin=env.SITE_ORIGIN||u.origin;
+  const type=(res.headers.get('content-type')||'').toLowerCase();
+  if(!(type.includes('text/html')||type.includes('xml')))return res;
+  let text=await res.text();
+  if(type.includes('text/html'))text=applyKeywordMap(path,text,origin);
+  if(type.includes('xml'))text=augmentKeywordSitemap(path,text,origin);
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-keyword-map',KEYWORD_MAP_VERSION);
+  return new Response(text,{status:res.status,statusText:res.statusText,headers:h});
+}
+
 async function polishAndCanonicalize(req,env,res){
   const type=(res.headers.get('content-type')||'').toLowerCase();
   const textual=type.includes('text/html')||type.includes('xml')||type.includes('text/plain');
@@ -86,10 +99,12 @@ async function polishAndCanonicalize(req,env,res){
 export default{
   async fetch(req,env,ctx){
     const runtimeEnv=requestOriginEnv(req,env);
-    let res=await app.fetch(req,runtimeEnv,ctx);
-    const u=new URL(req.url);
+    const u=new URL(req.url),path=u.pathname.replace(/\/+$/,'')||'/',origin=runtimeEnv.SITE_ORIGIN||u.origin;
+    let res=req.method==='GET'?keywordLanding(path,origin):null;
+    if(!res)res=await app.fetch(req,runtimeEnv,ctx);
     if(req.method==='GET'&&u.pathname.startsWith('/articles/'))res=await enhanceArticle(req,runtimeEnv,res);
     else if(req.method==='GET'&&u.pathname==='/blog')res=await enhanceBlog(req,runtimeEnv,res);
+    res=await keywordLayer(req,runtimeEnv,res);
     res=await polishAndCanonicalize(req,runtimeEnv,res);
     return hardened(res);
   },
