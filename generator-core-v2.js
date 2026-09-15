@@ -1,15 +1,10 @@
-import {makeSeedArticle} from './seed-factory.js';
-
 const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
 const COUNTRIES=['SA','AE'];
-const DEFAULT_GEMINI_MODEL='gemini-3.5-flash';
-const DEFAULT_GROK_MODEL='grok-4.3';
-const DEFAULT_GROQ_MODEL='openai/gpt-oss-120b';
+const WORKERS_AI_MODEL='@cf/zai-org/glm-4.7-flash';
 const now=()=>new Date().toISOString();
 const norm=s=>String(s||'').toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').trim();
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
 const wc=s=>String(s||'').replace(/<[^>]+>/g,' ').trim().split(/\s+/).filter(Boolean).length;
-const parse=s=>{const x=String(s||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/```$/,'').trim();try{return JSON.parse(x)}catch{}const a=x.indexOf('{'),b=x.lastIndexOf('}');if(a>=0&&b>a)return JSON.parse(x.slice(a,b+1));throw new Error('provider_invalid_json')};
 
 async function ctl(env,path,init){const id=env.CONTROL.idFromName('primary');return env.CONTROL.get(id).fetch('https://control.internal'+path,init)}
 export async function readState(env){return (await ctl(env,'/state')).json()}
@@ -38,12 +33,7 @@ const ANGLES=[
 ];
 
 export function providerReadiness(env){
-  return {
-    gemini:Boolean(env.GEMINI_API_KEY),
-    grok:Boolean(env.XAI_API_KEY),
-    groq:Boolean(env.GROQ_API_KEY_1||env.GROQ_API_KEY_2),
-    any:Boolean(env.GEMINI_API_KEY||env.XAI_API_KEY||env.GROQ_API_KEY_1||env.GROQ_API_KEY_2)
-  };
+  return {workersAI:Boolean(env.AI),any:Boolean(env.AI),external:false};
 }
 
 export function pickTopic(state,attempt=0){
@@ -64,97 +54,48 @@ export function pickTopic(state,attempt=0){
   return null;
 }
 
-function promptFor(t,cfg,existing){
-  const market=t.country==='SA'?'saudi-arabia':'uae';
-  return `اكتب مقالة عربية أصلية احترافية لموقع متخصص في كوبونات Noon ${t.countryName}.\nPrimary keyword: ${t.kw}\nCategory: ${t.category}\nIntent: ${t.intent}\nCoupon code: ${t.code}\nBrand Lock=Noon فقط. Country Lock=${t.country}.\nممنوع اختلاق نسبة خصم أو حد أقصى أو مدة صلاحية أو أهلية أو claim غير متحقق. السلة وشروط نون الحالية هي المرجع النهائي.\nالمقال يجب أن يكون Answer-first وSEO/AEO/GEO/E-E-A-T، H1 واحد، 8 H2 على الأقل، H3، جدول مقارنة، FAQ من 4-7 أسئلة، خطوات استخدام، troubleshooting، قرار شراء، وروابط داخلية إلى / و/${market} و/coupons و/blog و/categories، ورابط خارجي إلى https://www.noon.com/. أضف CTA نسخ وتجربة وJSON-LD Article+FAQPage+BreadcrumbList.\nأضف 2-4 SVGs تحريرية خفيفة فقط إذا كانت تضيف معنى، مع role="img" وaria-label، ولا تستخدم لوجو مزيف.\nالحد الأدنى ${cfg.minWords} كلمة والهدف ${cfg.targetWords}. لا تكرر عبارات عامة ولا تذكر منافسين.\nتجنب الكلمات المنشورة التالية: ${existing.slice(0,55).join(' | ')}\nأعد JSON صالح فقط بالمفاتيح title,metaDescription,slug,primaryKeyword,secondaryKeywords,html,faq,sources,claims.`;
-}
-
-async function gemini(env,prompt){
-  if(!env.GEMINI_API_KEY)throw new Error('gemini_key_missing');
-  const model=env.GEMINI_MODEL||DEFAULT_GEMINI_MODEL;
-  const body={contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{temperature:.42,maxOutputTokens:24000,responseMimeType:'application/json'},tools:[{google_search:{}}]};
-  const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':env.GEMINI_API_KEY},body:JSON.stringify(body)});
-  if(!r.ok)throw new Error('gemini_'+r.status+'_'+(await r.text()).slice(0,220));
-  const d=await r.json();
-  const text=(d?.candidates?.[0]?.content?.parts||[]).map(p=>p?.text||'').join('').trim();
-  return {article:parse(text),provider:`gemini:${model}`};
-}
-
-async function grok(env,prompt){
-  if(!env.XAI_API_KEY)throw new Error('grok_key_missing');
-  const model=env.GROK_MODEL||DEFAULT_GROK_MODEL;
-  const body={model,input:prompt,store:false,text:{format:{type:'json_object'}},tools:[{type:'web_search'}],include:['web_search_call.action.sources']};
-  const r=await fetch('https://api.x.ai/v1/responses',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+env.XAI_API_KEY},body:JSON.stringify(body)});
-  if(!r.ok)throw new Error('grok_'+r.status+'_'+(await r.text()).slice(0,220));
-  const d=await r.json();
-  let text='';
-  for(const item of d?.output||[])if(item?.type==='message')for(const part of item.content||[])if(part?.type==='output_text')text+=part.text||'';
-  return {article:parse(text),provider:`grok:${model}`};
-}
-
-async function groq(env,prompt,keyIndex=0){
-  const keys=[env.GROQ_API_KEY_1,env.GROQ_API_KEY_2].filter(Boolean);
-  if(!keys.length)throw new Error('groq_keys_missing');
-  const key=keys[keyIndex%keys.length],model=env.GROQ_MODEL||DEFAULT_GROQ_MODEL;
-  const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+key},body:JSON.stringify({model,messages:[{role:'system',content:'Return one strict JSON object only. No markdown fences.'},{role:'user',content:prompt}],temperature:.5,response_format:{type:'json_object'},max_completion_tokens:16000})});
-  if(!r.ok)throw new Error('groq_'+r.status+'_'+(await r.text()).slice(0,220));
-  const d=await r.json();
-  return {article:parse(d?.choices?.[0]?.message?.content||''),provider:`groq:${model}:k${(keyIndex%keys.length)+1}`};
-}
-
-async function callProviderChain(env,prompt,attempt=0,preferred){
-  const primary=String(preferred||env.AI_PRIMARY_PROVIDER||'gemini').toLowerCase();
-  const order=[primary,'gemini','grok','groq'].filter((v,i,a)=>a.indexOf(v)===i);
-  const errors=[];
-  for(const p of order){
-    try{
-      if(p==='gemini'&&env.GEMINI_API_KEY)return await gemini(env,prompt);
-      if(p==='grok'&&env.XAI_API_KEY)return await grok(env,prompt);
-      if(p==='groq'&&(env.GROQ_API_KEY_1||env.GROQ_API_KEY_2)){
-        try{return await groq(env,prompt,attempt%2)}catch(e1){errors.push(e1.message);return await groq(env,prompt,(attempt+1)%2)}
-      }
-    }catch(e){errors.push(`${p}:${String(e?.message||e).slice(0,260)}`)}
-  }
-  const err=new Error(errors.length?errors.join(' | '):'no_ai_provider_configured');err.providerErrors=errors;throw err;
-}
-
-function fallback(t){
-  return makeSeedArticle({slug:slugify(t.kw),title:t.title.slice(0,68),metaDescription:(`دليل عملي حول ${t.kw} مع استخدام ${t.code} ومقارنة السعر النهائي وحل مشاكل الكوبون قبل الدفع على نون ${t.countryName}.`).slice(0,160),country:t.country,coupon:t.code,keyword:t.kw,focus:`${t.category} ${t.modifier}`,detail1:`عند شراء ${t.category} راجع المواصفات والبائع والسعر الأساسي قبل تطبيق القسيمة. ${t.modifier} اجعل المقارنة على نفس السلة حتى تكون النتيجة قابلة للقياس.`,detail2:`استخدم ${t.code} ككود متاح للتجربة فقط، ولا تفترض نسبة خصم ثابتة أو أهلية موحدة. السلة هي المرجع النهائي.`,detail3:`إذا لم يعمل الكود، اختبر سلة أصغر وغيّر عاملًا واحدًا في كل مرة، ثم قارن السعر النهائي والشحن والتوصيل قبل اتخاذ القرار.`,decision:`أفضل قرار في ${t.category} هو المنتج الذي يحقق احتياجك بسعر نهائي مناسب بعد مقارنة البائع والشروط، ثم يأتي دور القسيمة كأداة لتحسين الصفقة.`,variant:t.variant});
-}
-
 export function auditGenerated(a,t,cfg){
   const content=String(a.html||''),plain=content.replace(/<[^>]+>/g,' '),checks=[];const add=(n,p,w)=>checks.push({name:n,pass:!!p,weight:w});
-  const n=wc(content);
-  add('word_count',n>=cfg.minWords,20);add('primary_keyword',norm(plain).includes(norm(a.primaryKeyword||t.kw)),10);add('coupon',plain.includes(t.code),8);add('brand',/نون|Noon/i.test(plain),8);add('country',t.country==='SA'?/السعودية|Saudi/i.test(plain):/الإمارات|UAE|Emirates/i.test(plain),8);add('h1',(content.match(/<h1\b/gi)||[]).length===1,8);add('h2',(content.match(/<h2\b/gi)||[]).length>=6,8);add('faq',/الأسئلة الشائعة|FAQ/i.test(plain),6);add('internal',(content.match(/href=["']\//gi)||[]).length>=4,6);add('external',/https:\/\/www\.noon\.com\//i.test(content),5);add('schema',/application\/ld\+json/i.test(content),5);add('meta',String(a.metaDescription||'').length>=95,4);add('cta',/data-copy-code|Try it|جرّب|نسخ/i.test(content),4);add('sources',Array.isArray(a.sources)&&a.sources.length>=1,4);add('faq_data',Array.isArray(a.faq)&&a.faq.length>=4,4);
-  const leak=/amazon|temu|shein|namshi|أمازون|شي إن|تيمو/i.test(plain);add('brand_lock',!leak,12);const wrong=t.country==='SA'?/نون الإمارات|UAE Noon/i.test(plain):/نون السعودية|Saudi Noon/i.test(plain);add('country_lock',!wrong,12);
+  const n=wc(content),codes=[...new Set((plain.match(/\bNOV\d{3}\b/gi)||[]).map(x=>x.toUpperCase()))];
+  add('word_count',n>=Number(cfg.minWords||1000)&&n<=2000,20);
+  add('primary_keyword',norm(plain).includes(norm(a.primaryKeyword||t.kw)),10);
+  add('coupon',codes.length>=1&&codes.every(x=>x===String(t.code).toUpperCase()),10);
+  add('brand',/نون|Noon/i.test(plain),8);
+  add('country',t.country==='SA'?/السعودية|Saudi/i.test(plain):/الإمارات|UAE|Emirates/i.test(plain),8);
+  add('h1',(content.match(/<h1\b/gi)||[]).length===1,8);
+  add('h2',(content.match(/<h2\b/gi)||[]).length>=6,8);
+  add('faq',/الأسئلة الشائعة|FAQ/i.test(plain),6);
+  add('internal',(content.match(/href=["']\//gi)||[]).length>=4,6);
+  add('external',/https:\/\/www\.noon\.com\//i.test(content),5);
+  add('schema',/application\/ld\+json/i.test(content),5);
+  add('meta',String(a.metaDescription||'').length>=95,4);
+  add('cta',/data-copy-code|Try it|جرّب|نسخ/i.test(content),4);
+  add('sources',Array.isArray(a.sources)&&a.sources.length>=1,4);
+  add('faq_data',Array.isArray(a.faq)&&a.faq.length>=4,4);
+  const leak=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|extra|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|علي\s?اكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i.test(plain);
+  add('brand_lock',!leak,12);
+  const wrong=t.country==='SA'?/(نون\s*)?(الإمارات|الامارات)|\bUAE\b|Emirates/i:/(نون\s*)?(السعودية|المملكة العربية السعودية)|\bKSA\b|Saudi(?: Arabia)?/i;
+  const wrongCountry=wrong.test(plain);add('country_lock',!wrongCountry,12);
+  const ar=(plain.match(/[\u0600-\u06FF]/g)||[]).length,latin=(plain.match(/[A-Za-z]/g)||[]).length,arabicRatio=ar/Math.max(1,ar+latin);add('arabic_content',arabicRatio>=0.78,8);
   const total=checks.reduce((s,x)=>s+x.weight,0),passed=checks.reduce((s,x)=>s+(x.pass?x.weight:0),0),score=Math.round(passed/total*1000)/10;
-  return {score,wordCount:n,checks,productionReady:score>=cfg.qualityThreshold&&n>=cfg.minWords&&!leak&&!wrong};
+  return {score,wordCount:n,checks,productionReady:score>=Number(cfg.qualityThreshold||95)&&n>=Number(cfg.minWords||1000)&&n<=2000&&!leak&&!wrongCountry&&arabicRatio>=0.78};
 }
 
-export async function generateArticle(env,topic,cfg,state,attempt=0){
-  const existing=(state.articles||[]).map(x=>x.primaryKeyword||'').filter(Boolean),ready=providerReadiness(env);
-  let article,provider='local-fallback',lastProviderError=null;
-  if(ready.any){
-    try{const out=await callProviderChain(env,promptFor(topic,cfg,existing),attempt,cfg.provider);article=out.article;provider=out.provider}
-    catch(e){lastProviderError=String(e?.message||e);article=fallback(topic);provider='local-fallback'}
-  }else article=fallback(topic);
-  article.country=topic.country;article.coupon=topic.code;article.primaryKeyword=article.primaryKeyword||topic.kw;article.slug=slugify(article.slug||article.title||topic.kw);
-  let audit=auditGenerated(article,topic,cfg);
-  if(!audit.productionReady&&ready.any){
-    const bad=audit.checks.filter(x=>!x.pass).map(x=>x.name).join(', ');
-    const rp=`أصلح المقال التالي ليجتاز بوابة الجودة بدون اختلاق أي claim. لا تغير الدولة ${topic.country} ولا الكوبون ${topic.code} ولا الكلمة الأساسية ${topic.kw}. المشاكل: ${bad}. زد القيمة الفعلية وتجنب التكرار وأعد JSON بنفس المفاتيح فقط.\n${JSON.stringify(article)}`;
-    try{const out=await callProviderChain(env,rp,attempt+1,(provider.split(':')[0]||cfg.provider));const repaired=out.article;repaired.country=topic.country;repaired.coupon=topic.code;repaired.primaryKeyword=topic.kw;repaired.slug=slugify(repaired.slug||repaired.title||topic.kw);article=repaired;audit=auditGenerated(article,topic,cfg);provider+=` + repair:${out.provider}`}
-    catch(e){lastProviderError=(lastProviderError?lastProviderError+' | ':'')+String(e?.message||e)}
-  }
-  return {article,audit,provider,keysReady:ready.any,providerReadiness:ready,lastProviderError};
+export async function generateArticle(){
+  throw new Error('legacy_external_generator_disabled_use_generateWithWorkersAI');
 }
 
 export async function publishGenerated(env,article,topic,audit,provider){
-  const st=await readState(env);if((st.articles||[]).some(x=>norm(x.primaryKeyword||'')===norm(article.primaryKeyword||'')))throw new Error('keyword_cannibalization');
+  const st=await readState(env);
+  const slug=slugify(article.slug||article.title||article.primaryKeyword);
+  const duplicate=(st.articles||[]).find(x=>x.slug===slug||norm(x.primaryKeyword||'')===norm(article.primaryKeyword||''));
+  if(duplicate)throw new Error('keyword_or_slug_cannibalization');
   if(!env.CONTENT_FINAL)throw new Error('r2_binding_missing');
-  const slug=slugify(article.slug||article.title||article.primaryKeyword);const rec={id:crypto.randomUUID(),slug,title:article.title||slug,metaDescription:article.metaDescription||'',country:topic.country,coupon:topic.code,status:'published',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider,primaryKeyword:article.primaryKeyword||topic.kw};
+  const rec={id:crypto.randomUUID(),slug,title:article.title||slug,metaDescription:article.metaDescription||'',country:topic.country,coupon:topic.code,status:'published',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider,primaryKeyword:article.primaryKeyword||topic.kw};
   await env.CONTENT_FINAL.put('articles/'+slug+'.html',String(article.html||''),{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:rec.title,country:rec.country,status:'published',provider:String(provider).slice(0,100)}});
-  const r=await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});if(!r.ok)throw new Error('control_article_'+r.status);return rec;
+  const r=await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});
+  if(!r.ok)throw new Error('control_article_'+r.status);
+  return rec;
 }
 
-export const GENERATOR_DEFAULTS={enabled:true,model:DEFAULT_GEMINI_MODEL,targetWords:1800,minWords:1000,qualityThreshold:95};
+export const GENERATOR_DEFAULTS={enabled:true,model:WORKERS_AI_MODEL,targetWords:1500,minWords:1000,qualityThreshold:95};
