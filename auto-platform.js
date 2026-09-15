@@ -5,9 +5,12 @@ import {renderAdmin} from './admin-page.js';
 import {secureLogin} from './secure-admin-auth.js';
 import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin} from './admin-runtime.js';
 import {readState,pickTopic,generateArticle,publishGenerated,auditGenerated,providerReadiness} from './generator-core-v2.js';
+import {generateWithWorkersAI,workersAiBudget} from './workers-ai-generator.js';
 
 const now=()=>new Date().toISOString();
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
+async function ctl(env,path,init){const id=env.CONTROL.idFromName('primary');return env.CONTROL.get(id).fetch('https://control.internal'+path,init)}
 
 function hardenFallback(out,topic,cfg){
   if(out.audit.productionReady||!String(out.provider).startsWith('local-fallback'))return out;
@@ -16,6 +19,16 @@ function hardenFallback(out,topic,cfg){
   if(!/https:\/\/www\.noon\.com\//i.test(h))h=h.replace(/<\/article>\s*$/i,extras+'</article>');
   else if(!/data-copy-code/i.test(h))h=h.replace(/<\/article>\s*$/i,extras+'</article>');
   out.article.html=h;out.audit=auditGenerated(out.article,topic,cfg);return out;
+}
+
+async function saveFallbackDraft(env,article,topic,audit,provider){
+  if(!env.CONTENT_FINAL||!env.CONTROL)throw new Error('draft_storage_missing');
+  const slug=slugify(article.slug||article.title||topic.kw);
+  const rec={id:crypto.randomUUID(),slug,title:article.title||slug,metaDescription:article.metaDescription||'',country:topic.country,coupon:topic.code,status:'draft',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider,primaryKeyword:article.primaryKeyword||topic.kw};
+  await env.CONTENT_FINAL.put('articles/'+slug+'.html',String(article.html||''),{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:rec.title,country:rec.country,status:'draft',provider:String(provider).slice(0,100)}});
+  const r=await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});
+  if(!r.ok)throw new Error('control_draft_'+r.status);
+  return rec;
 }
 
 async function runOnce(env,{manual=false}={}){
@@ -28,14 +41,37 @@ async function runOnce(env,{manual=false}={}){
     const st=await readState(env),topic=pickTopic(st,attempt);
     if(!topic)throw new Error('topic_pool_exhausted');
     let out=await generateArticle(env,topic,cfg,st,attempt);
+
+    // External providers are tried first. If all are unavailable/failed, use capped Cloudflare Workers AI.
+    if(String(out.provider||'').startsWith('local-fallback')&&env.AI){
+      try{
+        const wai=await generateWithWorkersAI(env,topic,cfg,st,attempt);
+        if(!wai.skipped)out=wai;
+      }catch(e){out.lastProviderError=(out.lastProviderError?out.lastProviderError+' | ':'')+'workers-ai:'+String(e?.message||e)}
+    }
+
     out=hardenFallback(out,topic,cfg);
+
+    // Never auto-publish deterministic fallback. Manual runs may save it as a draft for review.
+    if(String(out.provider||'').startsWith('local-fallback')){
+      if(manual){
+        const rec=await saveFallbackDraft(env,out.article,topic,out.audit,out.provider);
+        const next={attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0)+1,failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:out.lastProviderError||null,lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:'local-fallback-draft',lastDurationMs:Date.now()-started};
+        await updateGeneratorStatus(env,next);
+        return {ok:true,draft:true,record:rec,audit:out.audit,provider:'local-fallback-draft',lastProviderError:out.lastProviderError||null};
+      }
+      const next={attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:out.lastProviderError||'no_publishable_ai_provider',lastProvider:'local-fallback-blocked',lastDurationMs:Date.now()-started};
+      await updateGeneratorStatus(env,next);
+      return {ok:true,skipped:'local_fallback_not_published',reason:next.lastError};
+    }
+
     if(!out.audit.productionReady)throw new Error('quality_gate_'+out.audit.score+'_words_'+out.audit.wordCount+(out.lastProviderError?'_provider_fallback':''));
     const rec=await publishGenerated(env,out.article,topic,out.audit,out.provider);
-    const next={attempts:attempt+1,published:Number(status.published||0)+1,failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:null,lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:out.provider,lastDurationMs:Date.now()-started};
+    const next={attempts:attempt+1,published:Number(status.published||0)+1,drafted:Number(status.drafted||0),failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:null,lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:out.provider,lastDurationMs:Date.now()-started};
     await updateGeneratorStatus(env,next);
     return {ok:true,record:rec,audit:out.audit,provider:out.provider,providerReadiness:out.providerReadiness,lastProviderError:out.lastProviderError||null};
   }catch(e){
-    const next={attempts:attempt+1,published:Number(status.published||0),failed:Number(status.failed||0)+1,lastRun:now(),lastError:String(e?.message||e),lastDurationMs:Date.now()-started};
+    const next={attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0)+1,lastRun:now(),lastError:String(e?.message||e),lastDurationMs:Date.now()-started};
     await updateGeneratorStatus(env,next);
     return {ok:false,error:next.lastError};
   }finally{await generatorUnlock(env,runId)}
@@ -55,20 +91,23 @@ export default{
     }
     if(u.pathname==='/api/generator-health'){
       const [cfg,status,st]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env),readState(env)]);
-      const providers=providerReadiness(env);
+      const providers=providerReadiness(env),workersAI=workersAiBudget(env,st);
       return json({
         ok:true,
-        version:'generator-2.0',
+        version:'generator-2.1',
         cron:'* * * * *',
         enabled:cfg.enabled,
+        publishPolicy:'external-ai-or-capped-workers-ai; local-fallback=draft/manual-only',
         preferredProvider:env.AI_PRIMARY_PROVIDER||'gemini',
-        providers,
-        models:{gemini:env.GEMINI_MODEL||'gemini-3.5-flash',grok:env.GROK_MODEL||'grok-4.3',groq:env.GROQ_MODEL||'openai/gpt-oss-120b'},
+        providers:{...providers,workersAI:workersAI.binding,anyAI:Boolean(providers.any||workersAI.binding)},
+        workersAI,
+        models:{gemini:env.GEMINI_MODEL||'gemini-3.5-flash',grok:env.GROK_MODEL||'grok-4.3',groq:env.GROQ_MODEL||'openai/gpt-oss-120b',workersAI:env.WORKERS_AI_MODEL||'@cf/zai-org/glm-4.7-flash'},
         r2Ready:Boolean(env.CONTENT_FINAL),
         controlReady:Boolean(env.CONTROL),
         generatorControlReady:Boolean(env.GENERATOR_CONTROL),
         articleCount:(st.articles||[]).length,
         publishedCount:(st.articles||[]).filter(a=>a.status==='published').length,
+        draftCount:(st.articles||[]).filter(a=>a.status==='draft').length,
         status
       });
     }
