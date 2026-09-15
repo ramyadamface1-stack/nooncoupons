@@ -72,11 +72,35 @@ async function runOnce(env,{manual=false}={}){
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
+    if(u.pathname==='/api/ai/generate')return json({error:'legacy_external_generation_disabled',version:'generator-3.0-cloudflare-only',provider:'workers-ai',use:'/api/admin/generate-now'},410);
+    if(u.pathname==='/api/platform-health')return json({ok:true,version:'platform-1.1-cloudflare-only',generatorVersion:'generator-3.0-cloudflare-only',control:Boolean(env.CONTROL),r2:Boolean(env.CONTENT_FINAL),workersAI:Boolean(env.AI),ai:{provider:'workers-ai',externalProviders:false},time:now()});
+    if(u.pathname==='/api/state'&&req.method==='GET'){
+      const r=await app.fetch(req,env,ctx);
+      if(!r.ok)return r;
+      try{
+        const s=await r.json();
+        s.settings={...(s.settings||{}),aiPrimary:'workers-ai',aiFallback:null};
+        return json(s,r.status);
+      }catch{return r}
+    }
     if(u.pathname==='/admin'||u.pathname==='/admin/')return renderAdmin(req,env);
     if(u.pathname==='/api/admin/login'&&req.method==='POST')return secureLogin(req,env);
     if(u.pathname==='/api/admin/generate-now'&&req.method==='POST'){
       if(!(await isAdmin(req,env)))return json({error:'unauthorized'},401);
       return json(await runOnce(env,{manual:true}));
+    }
+    if(u.pathname==='/api/admin/status'){
+      const r=await handleAdminApi(req,env);if(!r)return r;
+      if(!r.ok)return r;
+      try{
+        const d=await r.json();
+        delete d.groqReady;
+        d.workersAIReady=Boolean(env.AI);
+        d.generatorVersion='generator-3.0-cloudflare-only';
+        d.activeProvider='workers-ai';
+        d.config={...(d.config||{}),model:env.WORKERS_AI_MODEL||'@cf/zai-org/glm-4.7-flash'};
+        return json(d,r.status);
+      }catch{return r}
     }
     if(u.pathname.startsWith('/api/admin/')){
       const r=await handleAdminApi(req,env);if(r)return r;
@@ -89,9 +113,9 @@ export default{
         version:'generator-3.0-cloudflare-only',
         cron:'* * * * *',
         enabled:cfg.enabled,
-        publishPolicy:'cloudflare-workers-ai-only; quality>=threshold; no external providers; no automatic local fallback',
+        publishPolicy:'cloudflare-workers-ai-only; quality>=threshold; 1000-2000 words; strict brand/country/coupon locks; no external providers; no automatic local fallback',
         preferredProvider:'workers-ai',
-        providers:{workersAI:workersAI.binding,anyAI:workersAI.binding},
+        providers:{workersAI:workersAI.binding,anyAI:workersAI.binding,external:false},
         workersAI,
         models:{workersAI:env.WORKERS_AI_MODEL||'@cf/zai-org/glm-4.7-flash'},
         r2Ready:Boolean(env.CONTENT_FINAL),
