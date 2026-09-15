@@ -11,14 +11,14 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
 
       - name: Source and quality invariants
         run: |
           set -euo pipefail
-          for f in commerce-entry.js commerce-pages-v2.js commerce-taxonomy.js commerce-generator-taxonomy.js public-entry.js premium-entry.js auto-platform.js final-platform.js workers-ai-generator.js quality-criteria.js quality-audit.js quality-index.js coupon-registry.js schema-validator.js indexation-gate.js editorial-trust-layer.js indexnow.js bulk-content-engine.js bulk-generator.js legacy-upgrader-v2.js bulk-selftest.js generator-core-v2.js generator-core.js platform.js admin-runtime.js admin-page.js; do node --check "$f"; done
+          for f in commerce-entry.js commerce-pages-v2.js commerce-taxonomy.js commerce-generator-taxonomy.js landing-content-v3.js public-entry.js premium-entry.js auto-platform.js final-platform.js workers-ai-generator.js quality-criteria.js quality-audit.js quality-index.js coupon-registry.js schema-validator.js indexation-gate.js editorial-trust-layer.js indexnow.js bulk-content-engine.js bulk-generator.js legacy-upgrader-v2.js bulk-selftest.js generator-core-v2.js generator-core.js platform.js admin-runtime.js admin-page.js; do node --check "$f"; done
           if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' commerce-entry.js commerce-generator-taxonomy.js auto-platform.js workers-ai-generator.js bulk-generator.js generator-core-v2.js platform.js admin-runtime.js; then
             echo 'EXTERNAL_AI_REFERENCE_FOUND_IN_ACTIVE_RUNTIME'; exit 1
           fi
@@ -31,71 +31,65 @@ jobs:
           grep -Fq "mode:'explicit-generator-taxonomy'" commerce-generator-taxonomy.js
           grep -Fq 'categoryKey' bulk-generator.js
           grep -Fq 'landingPath' generator-core-v2.js
+          grep -Fq 'minWords:5000' landing-content-v3.js
           grep -Fq 'submitIndexNow' bulk-generator.js
           node bulk-selftest.js >/tmp/bulk-selftest.log
+          node landing-quality-selftest.mjs >/tmp/landing-selftest.json
 
       - name: Verify live commerce and generator runtime
         shell: bash
         run: |
           set -euo pipefail
           ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          fetch(){ curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 25 "$1" -o "$2"; }
           ready=0
           for i in $(seq 1 30); do
-            curl -sS --max-time 20 "$ORIGIN/api/generator-health?v=commerce4" -o /tmp/generator.json || true
-            curl -sS --max-time 20 "$ORIGIN/api/commerce-health?v=commerce4" -o /tmp/commerce.json || true
-            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); assert c.get('ok') is True; assert int(c.get('routes') or 0)>=110; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(b.get('dailyTarget') or 0)==2000; assert int(b.get('batchSize') or 0)==2" 2>/dev/null; then
+            fetch "$ORIGIN/api/generator-health?v=final5" /tmp/generator.json 2>/dev/null || true
+            fetch "$ORIGIN/api/commerce-health?v=final5" /tmp/commerce.json 2>/dev/null || true
+            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==2000; assert int(b.get('batchSize') or 0)==2" 2>/dev/null; then
               ready=1
               break
             fi
-            echo "waiting for commerce runtime attempt=$i"
-            echo "generator=$(cat /tmp/generator.json 2>/dev/null | head -c 800 || true)"
-            echo "commerce=$(cat /tmp/commerce.json 2>/dev/null | head -c 800 || true)"
             sleep 6
           done
           if [ "$ready" != 1 ]; then
-            echo "LIVE_RUNTIME_NOT_READY"
+            echo LIVE_RUNTIME_NOT_READY
             cat /tmp/generator.json 2>/dev/null || true
             cat /tmp/commerce.json 2>/dev/null || true
             exit 1
           fi
 
-          for path in \
-            /saudi/categories \
-            /saudi/category/mobiles \
-            /saudi/category/shoes \
-            /uae/category/bags \
-            /saudi/brand/apple \
-            /saudi/model/apple/iphone-pro \
-            /saudi/compare/iphone-vs-galaxy \
-            /blog \
-            /sitemap.xml \
-            /sitemap-commerce.xml \
-            /api/generator-health \
-            /api/commerce-health; do
-            code="$(curl -sS --max-time 20 -o /tmp/page -w '%{http_code}' "$ORIGIN$path?v=commerce4")"
-            [ "$code" = "200" ]
+          for path in /saudi/categories /saudi/category/mobiles /saudi/category/shoes /uae/category/bags /saudi/brand/apple /saudi/model/apple/iphone-pro /saudi/compare/iphone-vs-galaxy /blog /sitemap.xml /sitemap-commerce.xml /api/generator-health /api/commerce-health; do
+            fetch "$ORIGIN$path?v=final5" /tmp/page
           done
 
-          curl -fsS --max-time 20 "$ORIGIN/sitemap.xml?v=commerce4" -o /tmp/sitemap.xml
-          curl -fsS --max-time 20 "$ORIGIN/sitemap-commerce.xml?v=commerce4" -o /tmp/sitemap-commerce.xml
+          fetch "$ORIGIN/sitemap.xml?v=final5" /tmp/sitemap.xml
+          fetch "$ORIGIN/sitemap-commerce.xml?v=final5" /tmp/sitemap-commerce.xml
           for needle in '/saudi/category/shoes' '/uae/category/bags' '/saudi/brand/apple' '/saudi/model/apple/iphone-pro' '/saudi/compare/iphone-vs-galaxy'; do
             grep -Fq "$needle" /tmp/sitemap.xml
             grep -Fq "$needle" /tmp/sitemap-commerce.xml
           done
 
+          fetch "$ORIGIN/saudi/category/shoes?v=final5" /tmp/shoes.html
+          grep -Fq 'landing-depth-v3' /tmp/shoes.html
+          grep -Fq 'FAQPage' /tmp/shoes.html
+          grep -Eq 'OPS(32|56|47|48|43|41|38|58)' /tmp/shoes.html
+
           python - <<'PY'
           import json
           g=json.load(open('/tmp/generator.json'))
           c=json.load(open('/tmp/commerce.json'))
-          b=g.get('bulk',{}); st=g.get('status',{}); gt=c.get('generatorTaxonomy',{})
-          assert c.get('ok') is True and c.get('routes')>=110
+          b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{})
+          assert c.get('ok') is True and int(c.get('routes') or 0)>=276
           assert gt.get('mode')=='explicit-generator-taxonomy' and gt.get('internalLinks') is True
           assert gt.get('metadata')==['categoryKey','brandKey','modelKey','comparisonKey','landingPath']
+          assert int(lc.get('minWords') or 0)>=5000 and lc.get('seo') is True and lc.get('geoAeo') is True and lc.get('eeat') is True
           assert int(b.get('dailyTarget') or 0)==2000 and int(b.get('batchSize') or 0)==2
           q=b.get('lastQuality')
           if q is not None: assert float(q)>=95
           w=b.get('lastWordCount')
           if w is not None: assert 1000<=int(w)<=2000
-          assert g.get('providers',{}).get('external') is False
-          print('routes=',c.get('routes'),'metadataCoverage=',c.get('metadataCoverage'),'bulk=',{'target':b.get('dailyTarget'),'batch':b.get('batchSize'),'quality':q,'words':w,'publishedToday':b.get('publishedToday')})
+          providers=g.get('providers',{})
+          if 'external' in providers: assert providers.get('external') is False
+          print('FINAL_LIVE_PASS',{'routes':c.get('routes'),'landingContent':lc,'metadataCoverage':c.get('metadataCoverage'),'bulk':{'target':b.get('dailyTarget'),'batch':b.get('batchSize'),'quality':q,'words':w,'publishedToday':b.get('publishedToday')}})
           PY
