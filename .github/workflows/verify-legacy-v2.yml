@@ -52,14 +52,16 @@ jobs:
           PY
           slug="$(python -c 'import json; d=json.load(open("/tmp/health.json")); print(d.get("status",{}).get("legacyUpgradeLastSlug") or "")')"
           urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
-          curl -sS --max-time 30 "$ORIGIN/articles/$urlslug" -o /tmp/article.html
+          curl -sS -D /tmp/article.headers --max-time 30 "$ORIGIN/articles/$urlslug?public-ui=hidden-v1" -o /tmp/article.html
           grep -Fq 'class="legacy-specific"' /tmp/article.html
           grep -Fq 'data-legacy-pass=' /tmp/article.html
           grep -Fq 'class="methodology accountability"' /tmp/article.html
           grep -Fq 'class="faq"' /tmp/article.html
           grep -Fq 'FAQPage' /tmp/article.html
           grep -Fq 'BreadcrumbList' /tmp/article.html
-          grep -Fq 'Quality 100/100' /tmp/article.html
+          tr -d '\r' </tmp/article.headers | grep -iq '^x-public-quality-ui: hidden-v1$'
+          if grep -Fq 'class="quality-meta"' /tmp/article.html; then exit 1; fi
+          if grep -Fq 'Quality 100/100' /tmp/article.html; then exit 1; fi
           if grep -Eqi 'amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir' /tmp/article.html; then exit 1; fi
           state="$(curl -sS --max-time 30 "$ORIGIN/api/state")"
           printf '%s\n' "$state" >/tmp/state.json
@@ -83,5 +85,6 @@ jobs:
             /tmp/health.json
             /tmp/state.json
             /tmp/article.html
+            /tmp/article.headers
           if-no-files-found: ignore
           retention-days: 1
