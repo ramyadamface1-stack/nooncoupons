@@ -5,6 +5,7 @@ import {couponStatus,injectCouponFreshness,writeCouponFreshnessSnapshot,COUPON_R
 import {validateStructuredData,SCHEMA_GATE_INFO} from './schema-validator.js';
 import {evaluateIndexation,INDEXATION_GATE_INFO} from './indexation-gate.js';
 import {injectEditorialTrust,EDITORIAL_TRUST_INFO} from './editorial-trust-layer.js';
+import {submitIndexNow,INDEXNOW_INFO} from './indexnow.js';
 
 const now=()=>new Date().toISOString();
 const enc=s=>encodeURIComponent(String(s||'')).slice(0,1800);
@@ -48,12 +49,12 @@ async function writeCatalogs(env,day,countBefore,records){
   await env.CONTENT_FINAL.put('bulk/days.json',JSON.stringify({version:2,updatedAt:now(),days:next}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
 }
 
-export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batchSize=2}={}){
+export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batchSize=3}={}){
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing',patch:{bulkLastError:'r2_binding_missing',bulkLastRun:now()}};
   const pauseUntil=Date.parse(status.bulkAutoPauseUntil||'');
   if(Number.isFinite(pauseUntil)&&pauseUntil>Date.now())return {ok:true,skipped:'bulk_auto_brake',records:[],patch:{bulkLastRun:now(),bulkLastError:null,bulkAutoPauseUntil:status.bulkAutoPauseUntil,bulkNoPassStreak:Number(status.bulkNoPassStreak||0)}};
 
-  const day=now().slice(0,10),countBefore=String(status.bulkDay||'')===day?Math.max(0,Number(status.bulkPublishedToday||0)):0,target=Math.max(0,Math.min(5000,Number(dailyTarget??2000))),batch=Math.max(1,Math.min(5,Number(batchSize||2)));
+  const day=now().slice(0,10),countBefore=String(status.bulkDay||'')===day?Math.max(0,Number(status.bulkPublishedToday||0)):0,target=Math.max(0,Math.min(5000,Number(dailyTarget??2000))),batch=Math.max(1,Math.min(5,Number(batchSize||3)));
   if(target===0)return {ok:true,skipped:'bulk_paused',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:0,bulkLastRun:now(),bulkLastError:null,bulkEngine:BULK_ENGINE_INFO.version}};
   if(countBefore>=target)return {ok:true,skipped:'daily_target_reached',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:target,bulkLastRun:now(),bulkLastError:null,bulkEngine:BULK_ENGINE_INFO.version}};
 
@@ -124,6 +125,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   let freshnessSnapshot=null;
   if(records.length)freshnessSnapshot=await writeCouponFreshnessSnapshot(env,new Date());
   await writeCatalogs(env,day,countBefore,records);
+  const indexNow=await submitIndexNow(env,records);
   const total=Math.max(0,Number(status.bulkPublishedTotal||0))+records.length,last=records.at(-1)||null;
   const noPassStreak=records.length?0:Number(status.bulkNoPassStreak||0)+1;
   const autoPauseUntil=!records.length&&noPassStreak>=AUTO_BRAKE_AFTER?new Date(Date.now()+AUTO_BRAKE_MS).toISOString():null;
@@ -137,11 +139,12 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     bulkLastIndexationScore:last?.indexation?.score??status.bulkLastIndexationScore??null,bulkLastIndexable:last?.indexable??status.bulkLastIndexable??null,
     bulkFreshnessPublishable:freshnessSnapshot?.publishable??status.bulkFreshnessPublishable??null,bulkFreshnessReviewDue:freshnessSnapshot?.reviewDue??status.bulkFreshnessReviewDue??null,bulkFreshnessBlocked:freshnessSnapshot?.blocked??status.bulkFreshnessBlocked??null,
     bulkLastContextualLinks:last?.contextualLinks?.length??status.bulkLastContextualLinks??null,bulkLastCouponFreshness:last?.couponFreshness?.state||status.bulkLastCouponFreshness||null,
+    bulkIndexNowVersion:INDEXNOW_INFO.version,bulkIndexNowEnabled:indexNow.enabled,bulkIndexNowSubmitted:Number(status.bulkIndexNowSubmitted||0)+Number(indexNow.submitted||0),bulkIndexNowLastStatus:indexNow.status??status.bulkIndexNowLastStatus??null,bulkIndexNowLastError:indexNow.error||null,bulkIndexNowLastRun:records.length?now():status.bulkIndexNowLastRun||null,
     bulkNoPassStreak:noPassStreak,bulkAutoPauseUntil:autoPauseUntil,
     bulkRejectedQuality:Number(status.bulkRejectedQuality||0)+rejectedQuality,bulkRejectedDuplicate:Number(status.bulkRejectedDuplicate||0)+rejectedDuplicate,
     bulkRejectedGlobal:Number(status.bulkRejectedGlobal||0)+rejectedGlobal,bulkRejectedCoupon:Number(status.bulkRejectedCoupon||0)+rejectedCoupon,bulkRejectedLinks:Number(status.bulkRejectedLinks||0)+rejectedLinks,bulkRejectedSchema:Number(status.bulkRejectedSchema||0)+rejectedSchema,bulkRejectedIndexation:Number(status.bulkRejectedIndexation||0)+rejectedIndexation
   };
-  return {ok:true,engine:BULK_ENGINE_INFO.version,qualityLayer:'global-quality-v1',bootstrap,records,tries,rejectedQuality,rejectedDuplicate,rejectedGlobal,rejectedCoupon,rejectedLinks,rejectedSchema,rejectedIndexation,freshnessSnapshot,patch};
+  return {ok:true,engine:BULK_ENGINE_INFO.version,qualityLayer:'global-quality-v1',bootstrap,indexNow,records,tries,rejectedQuality,rejectedDuplicate,rejectedGlobal,rejectedCoupon,rejectedLinks,rejectedSchema,rejectedIndexation,freshnessSnapshot,patch};
 }
 
-export {buildBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO,SCHEMA_GATE_INFO,INDEXATION_GATE_INFO,EDITORIAL_TRUST_INFO};
+export {buildBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO,SCHEMA_GATE_INFO,INDEXATION_GATE_INFO,EDITORIAL_TRUST_INFO,INDEXNOW_INFO};
