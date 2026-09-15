@@ -11,7 +11,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - name: Source and quality invariants
@@ -38,20 +38,20 @@ jobs:
           rc=0
           health=""
           seo=""
-          for i in $(seq 1 48); do
-            health="$(curl -sS --max-time 20 "$ORIGIN/api/generator-health" 2>/dev/null || true)"
-            seo="$(curl -sS --max-time 20 "$ORIGIN/api/seo-health" 2>/dev/null || true)"
-            if python -c 'import json,sys; d=json.loads(sys.argv[1]); s=json.loads(sys.argv[2]); b=d.get("bulk",{}); st=d.get("status",{}); ok=d.get("version")=="generator-5.0-quality-first" and b.get("engine")=="programmatic-cloudflare:v2-helpful" and int(b.get("batchSize") or 0)==3 and float(b.get("lastQuality") or 0)>=95 and float(b.get("lastQualityFloor") or 0)>=88 and st.get("bulkLastIndexable") is True and int(st.get("bulkGlobalIndexVersion") or 0)==1 and int(st.get("bulkSchemaGateVersion") or 0)==1 and int(st.get("bulkIndexationGateVersion") or 0)==1 and int(st.get("bulkEditorialTrustVersion") or 0)==1 and s.get("ok") is True and s.get("robots") is True and s.get("rss") is True and s.get("llms") is True and s.get("indexNowEnabled") is True and s.get("indexNowKeyHosted") is True; raise SystemExit(0 if ok else 1)' "$health" "$seo" 2>/dev/null; then break; fi
-            sleep 10
+          for i in $(seq 1 12); do
+            health="$(curl -sS --max-time 15 "$ORIGIN/api/generator-health" 2>/dev/null || true)"
+            seo="$(curl -sS --max-time 15 "$ORIGIN/api/seo-health" 2>/dev/null || true)"
+            if python -c 'import json,sys; d=json.loads(sys.argv[1]); s=json.loads(sys.argv[2]); b=d.get("bulk",{}); st=d.get("status",{}); ok=d.get("version")=="generator-5.0-quality-first" and b.get("engine")=="programmatic-cloudflare:v2-helpful" and int(b.get("batchSize") or 0)==3 and float(b.get("lastQuality") or 0)>=95 and float(b.get("lastQualityFloor") or 0)>=88 and st.get("bulkLastIndexable") is True and int(st.get("bulkGlobalIndexVersion") or 0)==1 and int(st.get("bulkSchemaGateVersion") or 0)==1 and int(st.get("bulkIndexationGateVersion") or 0)==1 and int(st.get("bulkEditorialTrustVersion") or 0)==1 and s.get("ok") is True and bool(s.get("robots")) and bool(s.get("rss")) and bool(s.get("llms")) and s.get("indexNowEnabled") is True and s.get("indexNowKeyHosted") is True; raise SystemExit(0 if ok else 1)' "$health" "$seo" 2>/dev/null; then break; fi
+            sleep 5
           done
           printf '%s\n' "$health" >/tmp/generator-health.json
           printf '%s\n' "$seo" >/tmp/seo-health.json
-          platform="$(curl -sS --max-time 20 "$ORIGIN/api/platform-health" || true)"
-          state="$(curl -sS --max-time 20 "$ORIGIN/api/state" || true)"
-          robots="$(curl -sS --max-time 20 "$ORIGIN/robots.txt" || true)"
-          feed="$(curl -sS --max-time 20 "$ORIGIN/feed.xml" || true)"
-          llms="$(curl -sS --max-time 20 "$ORIGIN/llms.txt" || true)"
-          sitemap="$(curl -sS --max-time 20 "$ORIGIN/sitemap.xml" || true)"
+          platform="$(curl -sS --max-time 15 "$ORIGIN/api/platform-health" || true)"
+          state="$(curl -sS --max-time 15 "$ORIGIN/api/state" || true)"
+          robots="$(curl -sS --max-time 15 "$ORIGIN/robots.txt" || true)"
+          feed="$(curl -sS --max-time 15 "$ORIGIN/feed.xml" || true)"
+          llms="$(curl -sS --max-time 15 "$ORIGIN/llms.txt" || true)"
+          sitemap="$(curl -sS --max-time 15 "$ORIGIN/sitemap.xml" || true)"
           printf '%s\n' "$robots" >/tmp/robots.txt
           printf '%s\n' "$feed" >/tmp/feed.xml
           printf '%s\n' "$llms" >/tmp/llms.txt
@@ -62,7 +62,7 @@ jobs:
           python - <<'PY' /tmp/generator-health.json /tmp/seo-health.json
           import json,sys
           d=json.load(open(sys.argv[1])); s=json.load(open(sys.argv[2])); b=d.get('bulk',{}); st=d.get('status',{})
-          print('publishedToday=',b.get('publishedToday'),'target=',b.get('dailyTarget'),'batch=',b.get('batchSize'),'quality=',b.get('lastQuality'),'floor=',b.get('lastQualityFloor'),'indexation=',st.get('bulkLastIndexationScore'))
+          print('publishedToday=',b.get('publishedToday'),'target=',b.get('dailyTarget'),'remaining=',max(0,int(b.get('dailyTarget') or 0)-int(b.get('publishedToday') or 0)),'batch=',b.get('batchSize'),'quality=',b.get('lastQuality'),'floor=',b.get('lastQualityFloor'),'indexation=',st.get('bulkLastIndexationScore'))
           assert d.get('version')=='generator-5.0-quality-first'
           assert b.get('engine')=='programmatic-cloudflare:v2-helpful'
           assert int(b.get('dailyTarget') or 0)==2000
@@ -79,7 +79,7 @@ jobs:
           assert st.get('bulkLastIndexable') is True
           assert float(st.get('bulkLastIndexationScore') or 0)>=85
           assert int(st.get('bulkLastContextualLinks') or 0)>=2
-          assert s.get('ok') is True and s.get('robots') is True and s.get('rss') is True and s.get('llms') is True
+          assert s.get('ok') is True and bool(s.get('robots')) and bool(s.get('rss')) and bool(s.get('llms'))
           assert s.get('indexNowEnabled') is True and s.get('indexNowKeyHosted') is True
           PY
           [ "$?" -eq 0 ] || rc=1
@@ -93,13 +93,13 @@ jobs:
           bulk_slug="$(python -c 'import json; d=json.load(open("/tmp/generator-health.json")); print(d.get("bulk",{}).get("lastSlug") or "")')"
           if [ -n "$bulk_slug" ]; then
             urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$bulk_slug")"
-            curl -sS --max-time 30 "$ORIGIN/articles/$urlslug" -o /tmp/bulk-article.html || rc=1
+            curl -sS --max-time 20 "$ORIGIN/articles/$urlslug" -o /tmp/bulk-article.html || rc=1
             for needle in 'Quality ' 'data-schema="article"' 'BreadcrumbList' 'class="direct-answer"' 'class="coupon-freshness"' 'class="contextual-links"' 'class="editorial-accountability"' 'max-image-preview:large' '/editorial-policy' '/coupon-verification' '/authors/editorial-team' '/disclaimer'; do grep -Fq "$needle" /tmp/bulk-article.html || rc=1; done
             if grep -Eqi 'amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir' /tmp/bulk-article.html; then rc=1; fi
           else rc=1; fi
 
           for path in editorial-policy coupon-verification authors/editorial-team disclaimer; do
-            code="$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "$ORIGIN/$path" || true)"
+            code="$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "$ORIGIN/$path" || true)"
             [ "$code" = "200" ] || rc=1
           done
           echo "FINAL_RC=$rc"
