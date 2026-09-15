@@ -1,7 +1,7 @@
 import {MARKETS,CATEGORIES,BRANDS,COMPARISONS,marketKey,categoryKeyForArticle,articleCommerceLinks} from './commerce-taxonomy.js';
 
 const hash=s=>{let n=2166136261;for(const c of String(s||'')){n^=c.charCodeAt(0);n=Math.imul(n,16777619)}return n>>>0};
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
 const uniq=(xs)=>[...new Set((xs||[]).filter(Boolean))];
 
 const CATEGORY_MODEL_KEYS={
@@ -41,6 +41,7 @@ function seedFor(topic,seed){const n=Number(seed);return Number.isFinite(n)?Math
 function deepestPath(meta){if(meta.comparisonKey)return `/${meta.market}/compare/${meta.comparisonKey}`;if(meta.brandKey&&meta.modelKey)return `/${meta.market}/model/${meta.brandKey}/${meta.modelKey}`;if(meta.brandKey)return `/${meta.market}/brand/${meta.brandKey}`;return `/${meta.market}/category/${meta.categoryKey}`}
 function suffixOnce(text,suffix){const s=String(text||'').trim(),x=String(suffix||'').trim();return !x||s.toLowerCase().includes(x.toLowerCase())?s:`${s} ${x}`.trim()}
 function modelKeysFor(brandKey,categoryKey){const all=Object.keys(BRANDS[brandKey]?.models||{}),mapped=CATEGORY_MODEL_KEYS[brandKey]?.[categoryKey];if(Array.isArray(mapped))return mapped.filter(k=>all.includes(k));const categories=BRANDS[brandKey]?.categories||[];return categories.length===1?all:[]}
+function brandCategoryLabel(brandKey,categoryKey){const brand=BRANDS[brandKey]?.label||brandKey,category=CATEGORIES[categoryKey]?.label||categoryKey;return `${brand} ${category}`.trim()}
 
 export function applyCommerceTarget(topic={},seed){
   const n=seedFor(topic,seed),market=marketKey(topic.country),categoryKey=categoryKeyForArticle({category:topic.category,categoryKey:topic.categoryKey});
@@ -56,7 +57,7 @@ export function applyCommerceTarget(topic={},seed){
     }else if(brandKeys.length){
       brandKey=brandKeys[n%brandKeys.length];
       const models=modelKeysFor(brandKey,categoryKey);if(models.length)modelKey=models[Math.floor(n/Math.max(1,brandKeys.length))%models.length];
-      targetLabel=modelKey?`${BRANDS[brandKey].label} ${BRANDS[brandKey].models[modelKey].label}`:BRANDS[brandKey].label;
+      targetLabel=modelKey?`${BRANDS[brandKey].label} ${BRANDS[brandKey].models[modelKey].label}`:brandCategoryLabel(brandKey,categoryKey);
       kw=suffixOnce(kw,targetLabel);title=suffixOnce(title,targetLabel);
     }
   }
@@ -80,4 +81,4 @@ export function decorateArticleCommerce(article={},topic={}){
   return {...article,...fields,html};
 }
 
-export const COMMERCE_GENERATOR_INFO={version:4,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-compatible-models',internalLinks:true};
+export const COMMERCE_GENERATOR_INFO={version:5,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-compatible-models-with-specific-fallback',internalLinks:true};
