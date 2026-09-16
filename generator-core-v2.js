@@ -1,7 +1,7 @@
 import {applyCommerceTarget,decorateArticleCommerce,commerceRecordFields} from './commerce-generator-taxonomy.js';
 
-const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
-const COUNTRIES=['SA','AE'];
+const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
+const COUNTRIES=['SA','SA','SA','AE'];
 const WORKERS_AI_MODEL='@cf/zai-org/glm-4.7-flash';
 const now=()=>new Date().toISOString();
 const norm=s=>String(s||'').toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').trim();
@@ -54,7 +54,7 @@ export function pickTopic(state,attempt=0){
 
 export function auditGenerated(a,t,cfg){
   const content=String(a.html||''),plain=content.replace(/<[^>]+>/g,' '),checks=[];const add=(n,p,w)=>checks.push({name:n,pass:!!p,weight:w});
-  const n=wc(content),codes=[...new Set((plain.match(/\bNOV\d{3}\b/gi)||[]).map(x=>x.toUpperCase()))];
+  const n=wc(content),codes=[...new Set((plain.match(/\bOPS\d{2}\b/gi)||[]).map(x=>x.toUpperCase()))];
   add('word_count',n>=Number(cfg.minWords||1000)&&n<=2000,20);add('primary_keyword',norm(plain).includes(norm(a.primaryKeyword||t.kw)),10);add('coupon',codes.length>=1&&codes.every(x=>x===String(t.code).toUpperCase()),10);add('brand',/نون|Noon/i.test(plain),8);add('country',t.country==='SA'?/السعودية|Saudi/i.test(plain):/الإمارات|UAE|Emirates/i.test(plain),8);add('h1',(content.match(/<h1\b/gi)||[]).length===1,8);add('h2',(content.match(/<h2\b/gi)||[]).length>=6,8);add('faq',/الأسئلة الشائعة|FAQ/i.test(plain),6);add('internal',(content.match(/href=["']\//gi)||[]).length>=4,6);add('external',/https:\/\/www\.noon\.com\//i.test(content),5);add('schema',/application\/ld\+json/i.test(content),5);add('meta',String(a.metaDescription||'').length>=95,4);add('cta',/data-copy-code|Try it|جرّب|نسخ/i.test(content),4);add('sources',Array.isArray(a.sources)&&a.sources.length>=1,4);add('faq_data',Array.isArray(a.faq)&&a.faq.length>=4,4);
   const leak=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|extra|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|علي\s?اكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i.test(plain);add('brand_lock',!leak,12);
   const wrong=t.country==='SA'?/(نون\s*)?(الإمارات|الامارات)|\bUAE\b|Emirates/i:/(نون\s*)?(السعودية|المملكة العربية السعودية)|\bKSA\b|Saudi(?: Arabia)?/i,wrongCountry=wrong.test(plain);add('country_lock',!wrongCountry,12);
