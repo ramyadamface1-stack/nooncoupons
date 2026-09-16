@@ -27,6 +27,7 @@ jobs:
         run: |
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
+          echo "PRODUCTION_ORIGIN $ORIGIN"
           ready=0
           for i in $(seq 1 12); do
             health="$(curl -fsS --max-time 15 "$ORIGIN/api/generator-health" || true)"
@@ -44,7 +45,7 @@ jobs:
           grep -Fq 'market=AE' /tmp/blog.html
           grep -Fq 'topic=buying' /tmp/blog.html
           grep -Fq 'topic=coupon' /tmp/blog.html
-          curl -fsS -D /tmp/headers.txt --max-time 20 "$ORIGIN/blog?market=SA&topic=buying&page=2" -o /tmp/filtered.html
+          curl -fsS -D /tmp/headers.txt --max-time 20 "$ORIGIN/blog?market=SA&topic=buying&page=2&v=final7" -o /tmp/filtered.html
           tr -d '\r' </tmp/headers.txt | grep -iq '^x-robots-tag: noindex, follow$'
           grep -Fq 'id="premium-blog-browser"' /tmp/filtered.html
           grep -Fq 'صفحة 2' /tmp/filtered.html
