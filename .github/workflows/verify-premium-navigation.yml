@@ -1,8 +1,7 @@
-name: Verify Premium Navigation
+name: Verify Premium Navigation (diagnostic)
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
   workflow_dispatch:
 
 permissions:
