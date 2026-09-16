@@ -102,6 +102,26 @@ function entityBlock(ctx){
   return `<section class="section entity-summary"><h2>ملخص الكيانات والنية</h2><ul>${bits.join('')}</ul><p>هذه الصفحة مستقلة في عنوانها وكياناتها ونية البحث ومسارها الداخلي. لا نستخدم سعرًا ثابتًا أو نسبة خصم ثابتة كحقيقة دائمة؛ البيانات المتغيرة تُراجع في نون لحظة الشراء.</p></section>`;
 }
 
+async function relatedArticlesBlock(ctx,env){
+  try{
+    const o=env?.CONTENT_FINAL?await env.CONTENT_FINAL.get('bulk/latest.json'):null;
+    const d=o?await o.json():{articles:[]},rows=(d.articles||[]);
+    const marketCode=ctx.market==='uae'?'AE':'SA';
+    const scored=rows.map(a=>{
+      let score=0;
+      if(a.country===marketCode)score+=4; else return null;
+      if(ctx.type==='category'&&a.categoryKey===ctx.key)score+=12;
+      if(ctx.type==='brand'&&a.brandKey===ctx.key)score+=14;
+      if(ctx.type==='model'&&a.modelKey===ctx.key)score+=16;
+      if(ctx.type==='comparison'&&a.comparisonKey===ctx.key)score+=18;
+      if(a.landingPath===ctx.path)score+=20;
+      return score>4?{a,score}:null;
+    }).filter(Boolean).sort((x,y)=>y.score-x.score).slice(0,8);
+    if(!scored.length)return '';
+    return `<section class="section related-articles"><h2>مقالات مرتبطة مباشرة بهذه الصفحة</h2><p>هذه المقالات مختارة من بيانات التصنيف المحفوظة مع المقال نفسه، وليس من تطابق كلمات العنوان فقط.</p><div class="grid">${scored.map(({a})=>`<article class="box"><h3><a href="/articles/${esc(a.slug)}">${esc(a.title||a.primaryKeyword||a.slug)}</a></h3><p>${esc(a.primaryKeyword||'دليل شراء وكوبونات مرتبط')}</p></article>`).join('')}</div></section>`;
+  }catch{return ''}
+}
+
 function functionalBlock(ctx){
   if(ctx.type==='category')return `<section class="section functional-depth"><h2>خريطة قرار قسم ${esc(ctx.label)}</h2><div class="grid"><div class="box"><strong>ابدأ بالاستخدام</strong><p>حدد لماذا تحتاج منتجًا من هذا القسم قبل الفرز بالسعر.</p></div><div class="box"><strong>ثبّت المواصفات</strong><p>اكتب الخصائص الأساسية التي تجعل النتائج قابلة للمقارنة.</p></div><div class="box"><strong>قارن البائع والعرض</strong><p>راجع الضمان والشحن والإرجاع ثم اختبر الكوبون على السلة النهائية.</p></div></div></section>`;
   if(ctx.type==='brand')return `<section class="section functional-depth"><h2>كيف تختار داخل عائلات ${esc(ctx.label)}</h2><p>لا تقارن كل منتجات البراند كأنها مستوى واحد. ابدأ بالعائلة المناسبة لاستخدامك، ثم قارن الأجيال أو السعات أو المقاسات المتقاربة، وبعدها انتقل إلى صفحة الموديل أو المقال المتخصص قبل اختبار الكوبون.</p><p><strong>قاعدة القرار:</strong> العائلة أولًا ← المواصفات ثانيًا ← البائع والضمان ← السعر النهائي بعد الكود.</p></section>`;
@@ -136,4 +156,4 @@ export async function enhanceLandingPage(path,origin,res){
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
-export const LANDING_CONTENT_V3={version:3,minWords:5000,minChars:5000,imagesPerLanding:3,definitions:true,keywordClusters:true,couponGuide:true,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['WebPage','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true,relatedAuthorityLinks:true,functionalByLandingType:true};
+export const LANDING_CONTENT_V3={version:3,minWords:5000,minChars:5000,imagesPerLanding:3,definitions:true,keywordClusters:true,couponGuide:true,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['WebPage','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true,relatedAuthorityLinks:true,functionalByLandingType:true,metadataMatchedRelatedArticles:true};
