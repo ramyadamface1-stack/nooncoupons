@@ -1,0 +1,64 @@
+name: Tune Bulk Yield
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/tune-bulk-yield.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scope semantic uniqueness to matching search intent
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p=Path('quality-audit.js')
+          s=p.read_text()
+          old="const recent=Array.isArray(opts.recent)?opts.recent:[],distances=recent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=distances.length?Math.min(...distances):32;"
+          new="const recent=Array.isArray(opts.recent)?opts.recent:[],semanticRecent=Array.isArray(opts.semanticRecent)?opts.semanticRecent:recent,distances=semanticRecent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=distances.length?Math.min(...distances):32;"
+          assert old in s, 'quality-audit semantic source not found'
+          p.write_text(s.replace(old,new,1))
+
+          p=Path('quality-index.js')
+          s=p.read_text()
+          old="if(sameContext&&e.signature&&audit?.signature){const d=signatureDistance(audit.signature,e.signature);if(d<minDistance){minDistance=d;nearest=e}}"
+          new="if(sameContext&&(!e.intent||e.intent===topic?.intent)&&e.signature&&audit?.signature){const d=signatureDistance(audit.signature,e.signature);if(d<minDistance){minDistance=d;nearest=e}}"
+          assert old in s, 'quality-index semantic source not found'
+          p.write_text(s.replace(old,new,1))
+
+          p=Path('bulk-generator.js')
+          s=p.read_text()
+          old="auditRecent=dedupeRecent([...(cluster.entries||[]),...contextualRecent]).slice(0,25000),audit=auditSeoArticle(article,topic,{...cfg,minWords:Math.max(1000,Number(cfg.minWords||1000)),threshold:Math.max(95,Number(cfg.qualityThreshold||95)),recent:auditRecent});"
+          new="auditRecent=dedupeRecent([...(cluster.entries||[]),...contextualRecent]).slice(0,25000),semanticRecent=auditRecent.filter(x=>!x?.intent||x.intent===topic.intent),audit=auditSeoArticle(article,topic,{...cfg,minWords:Math.max(1000,Number(cfg.minWords||1000)),threshold:Math.max(95,Number(cfg.qualityThreshold||95)),recent:auditRecent,semanticRecent});"
+          assert old in s, 'bulk-generator audit source not found'
+          p.write_text(s.replace(old,new,1))
+          PY
+
+          node --check quality-audit.js
+          node --check quality-index.js
+          node --check bulk-generator.js
+          node bulk-selftest.js | tee /tmp/bulk-selftest.log
+          grep -Fq 'semanticRecent' quality-audit.js
+          grep -Fq 'e.intent===topic?.intent' quality-index.js
+          grep -Fq 'semanticRecent=auditRecent.filter' bulk-generator.js
+
+      - name: Commit tuned yield logic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add quality-audit.js quality-index.js bulk-generator.js
+          git commit -m 'Scope semantic uniqueness to matching search intent'
+          git push origin HEAD:main
