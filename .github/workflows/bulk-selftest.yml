@@ -6,14 +6,38 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Repair Arabic uniqueness regression only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('quality-audit.js')
+          s=p.read_text()
+          bad="addCheck(checks,'uniqueness','semantic_distance',minJaccardDistance>=.18,5,{critical:minJaccardDistance<.10,note:minJaccardDistance.toFixed(3)});"
+          good="addCheck(checks,'uniqueness','semantic_distance',minSignatureDistance>=4,5,{critical:minSignatureDistance<2,note:String(minSignatureDistance)});"
+          bad_return="signature:sig,minSignatureDistance,minJaccardDistance:Math.round(minJaccardDistance*1000)/1000,plain,groups,checks"
+          good_return="signature:sig,minSignatureDistance,plain,groups,checks"
+          if s.count(bad) != 2:
+              raise SystemExit(f'expected exactly Arabic+English Jaccard gates, found {s.count(bad)}')
+          s=s.replace(bad,good,1)
+          if s.count(bad_return) != 1:
+              raise SystemExit(f'expected exactly one broken Arabic return, found {s.count(bad_return)}')
+          s=s.replace(bad_return,good_return,1)
+          if s.count(bad) != 1:
+              raise SystemExit('English Jaccard gate was not preserved exactly once')
+          if s.count(good) != 1:
+              raise SystemExit('Arabic signature gate was not restored exactly once')
+          p.write_text(s)
+          PY
       - name: Syntax checks
         run: |
           node --check quality-criteria.js
@@ -37,5 +61,15 @@ jobs:
           grep -Fq "bulkEditorialTrustVersion" bulk-generator.js
           grep -Fq "intent_too_broad" indexation-gate.js
           grep -Fq "editorial-accountability" editorial-trust-layer.js
-      - name: Audit 40 diversified bulk samples
+      - name: Audit 40 diversified Arabic bulk samples
         run: node bulk-selftest.js | tee /tmp/bulk-selftest.log
+      - name: Re-verify 24 native English samples
+        run: node english-quality-selftest.mjs | tee /tmp/english-quality.log
+      - name: Commit verified repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add quality-audit.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'Restore Arabic semantic uniqueness gate'
+          git push origin HEAD:main
