@@ -4,7 +4,9 @@ import {auditEnglishSeoArticle} from './quality-audit.js';
 const STATE_KEY='english-canary/state.json';
 const DEFAULT_TARGET=2;
 const DEFAULT_CONTROLLED_TOTAL=2;
-const MAX_CONTROLLED_TOTAL=10;
+const MAX_CONTROLLED_TOTAL=20;
+const PROFILE_DIVERSITY_SLOTS=16;
+const INTENT_MAX_PER_BATCH=3;
 const START_CURSOR=760000;
 const MAX_SCAN=5000;
 const PROFILE_TO_CATEGORY={
@@ -52,8 +54,8 @@ async function findCandidate(env,state,slot){
     if(!categoryKey)continue;
     const candidate=buildEnglishNativeCandidate(topic);
     if(!candidate)continue;
-    if(slot<MAX_CONTROLLED_TOTAL&&usedProfiles.has(candidate.profileKey))continue;
-    if((intentCounts.get(candidate.intent)||0)>=2)continue;
+    if(slot<PROFILE_DIVERSITY_SLOTS&&usedProfiles.has(candidate.profileKey))continue;
+    if((intentCounts.get(candidate.intent)||0)>=INTENT_MAX_PER_BATCH)continue;
     const article=buildEnglishUsefulArticle(candidate,cursor);
     if(!article)continue;
     if(await env.CONTENT_FINAL.head('articles/'+article.slug+'.html'))continue;
