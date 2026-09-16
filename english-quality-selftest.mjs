@@ -8,6 +8,7 @@ while(samples.length<24&&attempts<5000){
  const candidate=buildEnglishNativeCandidate(topic);
  attempts++;
  if(!candidate)continue;
+ if(samples.some(x=>x.article.primaryKeyword===candidate.nativeKeyword))continue;
  const article=buildEnglishUsefulArticle(candidate,cursor);
  const audit=auditEnglishSeoArticle(article,candidate,{recent:samples.map(x=>({signature:x.audit.signature,primaryKeyword:x.article.primaryKeyword,slug:x.article.slug}))});
  samples.push({candidate,article,audit});
