@@ -1,99 +1,16 @@
-name: Verify Controlled English Expansion
+name: Controlled English Expansion Paused
 on:
-  push:
-    branches: [main]
-    paths: ['english-canary.js','wrangler.jsonc','.github/workflows/verify-english-controlled.yml']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  controlled-english-e2e:
+  controlled-expansion-guard:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Static controlled-expansion contract
+      - name: Confirm controlled expansion is still closed
         run: |
           set -euo pipefail
-          node --check english-canary.js
-          grep -Fq 'const MAX_CONTROLLED_TOTAL=10;' english-canary.js
-          grep -Fq 'ENGLISH_CONTROLLED_TOTAL": "10"' wrangler.jsonc
-          grep -Fq "desiredCountry=slot%2===0?'SA':'AE'" english-canary.js
-          grep -Fq 'audit.minJaccardDistance<0.18' english-canary.js
-          grep -Fq "Math.max(95,Number(env.QUALITY_PUBLISH_THRESHOLD||95))" english-canary.js
-      - name: Wait for ten controlled English articles
-        run: |
-          set -euo pipefail
-          ORIGIN="https://noondealsnow.com"
-          ok=0
-          for i in $(seq 1 80); do
-            curl -fsS --max-time 20 "$ORIGIN/api/english-canary-health" -o /tmp/en-health.json || true
-            if node - <<'NODE'
-          const fs=require('fs');
-          try{
-            const x=JSON.parse(fs.readFileSync('/tmp/en-health.json','utf8'));
-            const c=x.controlled||{}, rows=Array.isArray(c.records)?c.records:[];
-            const intents=new Map();
-            for(const r of rows) intents.set(r.intent,(intents.get(r.intent)||0)+1);
-            const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 &&
-              c.target===10 && c.complete===true && c.published===10 && rows.length===10 &&
-              c.sa===5 && c.ae===5 && c.uniqueProfiles===10 &&
-              new Set(rows.map(r=>r.slug)).size===10 && new Set(rows.map(r=>r.profileKey)).size===10 &&
-              Math.max(...intents.values())<=2 &&
-              rows.every((r,i)=>r.r2Present===true && r.language==='en' && r.languageIntent==='en' &&
-                r.languageSource==='native-intent-v6-canary' && r.minJaccardDistance>=0.18 && r.quality>=95 &&
-                (i<2 ? r.canary===true : r.canary===false));
-            process.exit(pass?0:1);
-          }catch{process.exit(1)}
-          NODE
-            then ok=1; break; fi
-            sleep 10
-          done
-          cat /tmp/en-health.json || true
-          test "$ok" = 1
-          node - <<'NODE'
-          const fs=require('fs');
-          const x=JSON.parse(fs.readFileSync('/tmp/en-health.json','utf8'));
-          fs.writeFileSync('/tmp/en-paths.txt',x.controlled.records.map(r=>r.urlPath).join('\n'));
-          NODE
-      - name: Verify all ten production pages
-        run: |
-          set -euo pipefail
-          ORIGIN="https://noondealsnow.com"
-          while IFS= read -r path; do
-            test -n "$path"
-            curl -fsS -D /tmp/page.h --max-time 20 "$ORIGIN$path" -o /tmp/page.html
-            grep -Fiq 'content-language: en' /tmp/page.h
-            grep -Fiq 'x-english-canary: v1' /tmp/page.h
-            grep -Fq '<html lang="en" dir="ltr">' /tmp/page.html
-            grep -Fq "<link rel=\"canonical\" href=\"$ORIGIN$path\">" /tmp/page.html
-            grep -Fq "hreflang=\"en\" href=\"$ORIGIN$path\"" /tmp/page.html
-            grep -Fq "hreflang=\"x-default\" href=\"$ORIGIN$path\"" /tmp/page.html
-            grep -Fq 'data-copy-code=' /tmp/page.html
-            grep -Fq 'href="https://www.noon.com/' /tmp/page.html
-            if grep -Eiq 'guide[[:space:]]+guide' /tmp/page.html; then echo "Duplicate guide wording: $path"; exit 1; fi
-            if grep -Eiq '(save|discount)[[:space:]]+(up to[[:space:]]+)?[0-9]{1,3}%' /tmp/page.html; then echo "Unsupported fixed discount claim: $path"; exit 1; fi
-          done < /tmp/en-paths.txt
-      - name: Verify English sitemap contains controlled cohort
-        run: |
-          set -euo pipefail
-          ORIGIN="https://noondealsnow.com"
-          curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en-sitemap.xml
-          while IFS= read -r path; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done < /tmp/en-paths.txt
-      - name: Verify Cloudflare-only runtime remains intact
-        run: |
-          set -euo pipefail
-          ORIGIN="https://noondealsnow.com"
-          curl -fsS --max-time 20 "$ORIGIN/api/platform-health" -o /tmp/platform.json
-          curl -fsS --max-time 20 "$ORIGIN/api/generator-health" -o /tmp/generator.json
-          node - <<'NODE'
-          const fs=require('fs');
-          const p=JSON.parse(fs.readFileSync('/tmp/platform.json','utf8'));
-          const g=JSON.parse(fs.readFileSync('/tmp/generator.json','utf8'));
-          if(!p.ok||p.ai?.provider!=='workers-ai'||p.ai?.externalProviders!==false||!p.r2) process.exit(1);
-          if(!g.ok||g.legacyProvidersRemoved!==true||g.providers?.external!==false||g.preferredProvider!=='workers-ai'||!g.r2Ready) process.exit(1);
-          NODE
-          echo ENGLISH_CONTROLLED_E2E=PASS
+          grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
+          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "2"' wrangler.jsonc
+          echo ENGLISH_CONTROLLED_EXPANSION=PAUSED
