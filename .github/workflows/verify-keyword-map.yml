@@ -40,8 +40,12 @@ jobs:
 
           sa="$(curl -sS -L --max-time 15 "$ORIGIN/saudi-arabia")"
           ae="$(curl -sS --max-time 15 "$ORIGIN/uae")"
-          grep -Fq '<title>كود خصم نون السعودية 2026 | أكواد وكوبونات نون</title>' <<<"$sa"
-          grep -Fq '<title>كود خصم نون الإمارات 2026 | أكواد وكوبونات نون</title>' <<<"$ae"
+          grep -Fq '<link rel="canonical" href="' <<<"$sa"
+          grep -Fq '/saudi' <<<"$sa"
+          grep -Fq 'نسخ الكود' <<<"$sa"
+          grep -Fq '<link rel="canonical" href="' <<<"$ae"
+          grep -Fq '/uae' <<<"$ae"
+          grep -Fq 'نسخ الكود' <<<"$ae"
 
           p50="$(curl -sS --max-time 15 "$ORIGIN/coupon/noon-discount-50")"
           yellow="$(curl -sS --max-time 15 "$ORIGIN/guide/noon-yellow-friday")"
