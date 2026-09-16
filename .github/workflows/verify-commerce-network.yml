@@ -1,7 +1,9 @@
 name: Verify Commerce Landing Network (diagnostic)
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['topic-hubs.js','commerce-entry.js','commerce-taxonomy.js','commerce-generator-taxonomy.js','landing-content-v3.js','landing-quality-selftest.mjs','.github/workflows/verify-commerce-network.yml']
   workflow_dispatch:
 
 permissions:
