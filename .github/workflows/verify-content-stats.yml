@@ -1,0 +1,38 @@
+name: Verify Instant Content Stats
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-content-stats.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify production content stats
+        run: |
+          set -euo pipefail
+          URL='https://noondealsnow.com/api/content-stats'
+          ok=0
+          for i in $(seq 1 24); do
+            if curl -fsS --max-time 20 "$URL?v=$i" -o /tmp/stats.json; then
+              if python3 - <<'PY'
+          import json
+          x=json.load(open('/tmp/stats.json'))
+          assert x.get('ok') is True
+          assert int(x.get('total') or 0)==int(x.get('arabic') or 0)+int(x.get('english') or 0)
+          assert int(x.get('arabic') or 0)>=3053
+          assert int(x.get('english') or 0)==20
+          assert int((x.get('englishByCountry') or {}).get('SA') or 0)==10
+          assert int((x.get('englishByCountry') or {}).get('AE') or 0)==10
+          q=(x.get('last') or {}).get('quality')
+          assert q is None or float(q)>=95
+          assert (x.get('last') or {}).get('error') is None
+          print('CONTENT_STATS',json.dumps(x,ensure_ascii=False))
+          PY
+              then ok=1; break; fi
+            fi
+            sleep 5
+          done
+          [ "$ok" = 1 ] || { echo 'CONTENT_STATS_NOT_READY'; cat /tmp/stats.json 2>/dev/null || true; exit 1; }
