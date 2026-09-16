@@ -1,0 +1,45 @@
+name: Verify Country City Quality
+on:
+  push:
+    branches: [main]
+    paths: ['commerce-pages-v2.js','commerce-taxonomy.js','commerce-entry.js','.github/workflows/verify-country-city-quality.yml']
+  workflow_dispatch:
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - name: Static country and city contract
+        run: |
+          set -euo pipefail
+          node --check commerce-pages-v2.js
+          node --check commerce-taxonomy.js
+          grep -Fq "async function countryPage" commerce-pages-v2.js
+          grep -Fq "async function cityPage" commerce-pages-v2.js
+          grep -Fq "x-city-evidence" commerce-pages-v2.js
+          grep -Fq "noindex, follow" commerce-pages-v2.js
+          grep -Fq "نسخ الكود" commerce-pages-v2.js
+          grep -Fq "CATEGORY_VISUALS" commerce-pages-v2.js
+          grep -Fq "CITIES" commerce-taxonomy.js
+      - name: Verify deployed country and city safeguards
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          for i in $(seq 1 18); do
+            sa="$(curl -sS -D /tmp/sa.h --max-time 20 "$ORIGIN/saudi" || true)"
+            if grep -Fq 'نسخ الكود' <<<"$sa" && grep -Fqi 'canonical' <<<"$sa"; then break; fi
+            sleep 5
+          done
+          grep -Fq 'نسخ الكود' <<<"$sa"
+          grep -Fq 'تسوق حسب القسم' <<<"$sa"
+          grep -Fq 'أهم المدن' <<<"$sa"
+          grep -Fq 'category-art' <<<"$sa"
+          city="$(curl -sS -D /tmp/city.h --max-time 20 "$ORIGIN/saudi/city/riyadh")"
+          grep -Fqi 'x-city-evidence:' /tmp/city.h
+          evidence="$(awk -F': ' 'tolower($1)=="x-city-evidence"{gsub("\r","",$2);print $2}' /tmp/city.h)"
+          robots="$(awk -F': ' 'tolower($1)=="x-robots-tag"{gsub("\r","",$2);print $2}' /tmp/city.h)"
+          if [ "$evidence" = "insufficient" ]; then test "$robots" = "noindex, follow"; fi
+          grep -Fq 'لا ندعي' <<<"$city"
+          echo COUNTRY_CITY_QUALITY=PASS
