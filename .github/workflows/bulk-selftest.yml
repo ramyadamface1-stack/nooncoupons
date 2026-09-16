@@ -38,4 +38,4 @@ jobs:
           grep -Fq "intent_too_broad" indexation-gate.js
           grep -Fq "editorial-accountability" editorial-trust-layer.js
       - name: Audit 40 diversified bulk samples
-        run: node bulk-selftest.js
+        run: node bulk-selftest.js | tee /tmp/bulk-selftest.log
