@@ -24,8 +24,10 @@ jobs:
           node --check bulk-content-engine.js
           node --check public-entry.js
           grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
-          grep -Eq '"ENGLISH_CONTROLLED_TOTAL": "(2|10)"' wrangler.jsonc
-          grep -Fq 'const MAX_CONTROLLED_TOTAL=10;' english-canary.js
+          grep -Eq '"ENGLISH_CONTROLLED_TOTAL": "(2|10|20)"' wrangler.jsonc
+          grep -Fq 'const MAX_CONTROLLED_TOTAL=20;' english-canary.js
+          grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
+          grep -Fq 'const INTENT_MAX_PER_BATCH=3;' english-canary.js
           grep -Fq "audit.minJaccardDistance<0.18" english-canary.js
           grep -Fq "languageSource:'arabic-primary'" bulk-generator.js
           grep -Fq "native-intent-v6-canary" commerce-pages-v2.js
@@ -50,7 +52,7 @@ jobs:
             const controlled=x.controlled||{};
             const slugs=new Set(rows.map(r=>r.slug));
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 && rows.length===2 &&
-              [2,10].includes(Number(controlled.target)) && Number(controlled.published)>=2 && Number(controlled.published)<=Number(controlled.target) &&
+              [2,10,20].includes(Number(controlled.target)) && Number(controlled.published)>=2 && Number(controlled.published)<=Number(controlled.target) &&
               [...expected].every(s=>slugs.has(s)) && slugs.size===2 &&
               rows.every(r=>r.r2Present===true && r.language==='en' && r.languageIntent==='en' &&
                 r.languageSource==='native-intent-v6-canary' && r.canary===true && (!r.phase || r.phase==='canary') &&
@@ -98,7 +100,7 @@ jobs:
           curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en-sitemap.xml
           count="$(grep -o '<url>' /tmp/en-sitemap.xml | wc -l | tr -d ' ')"
           test "$count" -ge 2
-          test "$count" -le 10
+          test "$count" -le 20
           while IFS= read -r path; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done < /tmp/paths.txt
           curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
           grep -Fq "$ORIGIN/sitemap-en-articles.xml" /tmp/main-sitemap.xml
