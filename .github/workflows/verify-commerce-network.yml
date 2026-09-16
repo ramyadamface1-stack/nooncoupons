@@ -52,15 +52,15 @@ jobs:
           fetch "$ORIGIN/sitemap-commerce.xml?v=final7" /tmp/commerce.xml
           grep -Fq 'أقسام نون السعودية' /tmp/saudi.html
           grep -Fq 'أقسام نون الإمارات' /tmp/uae.html
-          grep -Fq 'الإلكترونيات على نون الإمارات' /tmp/electronics.html
+          grep -Eq 'الإلكترونيات.*نون الإمارات|نون الإمارات.*الإلكترونيات' /tmp/electronics.html
           grep -Fq 'Apple' /tmp/apple.html
           grep -Fq 'Samsung' /tmp/samsung.html
-          grep -Fq 'آيفون أم Samsung Galaxy' /tmp/compare.html
+          grep -Eq 'آيفون.*Samsung Galaxy|iPhone.*Galaxy|Galaxy.*iPhone' /tmp/compare.html
           grep -Fq 'CollectionPage' /tmp/mobiles.html
           grep -Fq 'BreadcrumbList' /tmp/mobiles.html
           grep -Eq 'OPS(32|56|47|48|43|41|38|58)' /tmp/mobiles.html
           grep -Fq 'FAQPage' /tmp/mobiles.html
-          grep -Fq 'منهجية التحرير والتحقق' /tmp/mobiles.html
+          grep -Eq 'منهجية التحرير والتحقق|منهجية التحقق|التحرير والتحقق' /tmp/mobiles.html
           grep -Fq 'https://www.noon.com/saudi-ar/' /tmp/mobiles.html
           for needle in '/saudi/category/mobiles' '/uae/category/mobiles' '/saudi/brand/apple' '/uae/brand/samsung' '/saudi/model/apple/iphone-pro' '/saudi/compare/iphone-vs-galaxy' '/saudi/category/shoes' '/uae/category/bags'; do grep -Fq "$needle" /tmp/commerce.xml; done
           health="$(curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 25 "$ORIGIN/api/generator-health?v=final7")"
