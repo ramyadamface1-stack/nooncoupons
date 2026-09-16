@@ -67,7 +67,7 @@ export function applyCommerceTarget(topic={},seed){
   const n=seedFor(topic,seed),market=marketKey(topic.country),categoryKey=categoryKeyForArticle({category:topic.category,categoryKey:topic.categoryKey});
   let brandKey=null,modelKey=null,comparisonKey=null,targetLabel=CATEGORIES[categoryKey]?.label||topic.category||'';
   const kw=String(topic.kw||''),title=String(topic.title||topic.kw||'');
-  const eligibleBrands=Object.keys(BRANDS).filter(k=>BRANDS[k].categories?.includes(categoryKey)),brandKeys=weightedBrands(categoryKey,eligibleBrands),comparisonKeys=Object.keys(COMPARISONS),comparisonMode=categoryKey==='mobiles'&&n%9===0;
+  const eligibleBrands=Object.keys(BRANDS).filter(k=>BRANDS[k].categories?.includes(categoryKey)),brandKeys=weightedBrands(categoryKey,eligibleBrands),comparisonKeys=Object.keys(COMPARISONS),comparisonMode=categoryKey==='mobiles'&&n%6===0,brandOnlyMode=n%5===0;
   if(comparisonMode){
     comparisonKey=comparisonKeys[Math.floor(n/9)%comparisonKeys.length];
     const cmp=COMPARISONS[comparisonKey];brandKey=cmp.a;
@@ -75,7 +75,7 @@ export function applyCommerceTarget(topic={},seed){
     targetLabel=cmp.title;
   }else if(brandKeys.length){
     brandKey=brandKeys[n%brandKeys.length];
-    const models=modelKeysFor(brandKey,categoryKey);if(models.length)modelKey=models[Math.floor(n/Math.max(1,brandKeys.length))%models.length];
+    const models=modelKeysFor(brandKey,categoryKey);if(models.length&&!brandOnlyMode)modelKey=models[Math.floor(n/Math.max(1,brandKeys.length))%models.length];
     targetLabel=modelKey?`${BRANDS[brandKey].label} ${BRANDS[brandKey].models[modelKey].label}`:brandCategoryLabel(brandKey,categoryKey);
   }
   const meta={market,categoryKey,brandKey,modelKey,comparisonKey};
@@ -102,4 +102,4 @@ export function decorateArticleCommerce(article={},topic={}){
   return {...article,...fields,commerceTarget:t.targetLabel,html};
 }
 
-export const COMMERCE_GENERATOR_INFO={version:6,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-independent-from-primary-keyword',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true,priorityBrandWeighting:true};
+export const COMMERCE_GENERATOR_INFO={version:6,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-independent-from-primary-keyword',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true,priorityBrandWeighting:true,comparisonCadence:'1-in-6-mobile',brandOnlyCadence:'1-in-5'};
