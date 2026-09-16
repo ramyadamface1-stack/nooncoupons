@@ -125,14 +125,14 @@ export function auditSeoArticle(article,topic,opts={}){
   const sameKeyword=recentKeywords.has(norm(keyword)),sameSlug=recentSlugs.has(slug);
   addCheck(checks,'uniqueness','unique_keyword',!sameKeyword,4,{critical:sameKeyword});
   addCheck(checks,'uniqueness','unique_slug',!sameSlug,4,{critical:sameSlug});
-  addCheck(checks,'uniqueness','semantic_distance',minJaccardDistance>=.18,5,{critical:minJaccardDistance<.10,note:minJaccardDistance.toFixed(3)});
+  addCheck(checks,'uniqueness','semantic_distance',minSignatureDistance>=4,5,{critical:minSignatureDistance<2,note:String(minSignatureDistance)});
   addCheck(checks,'uniqueness','blueprint_diversity',recent.length<3||!recent.slice(0,3).every(r=>r.blueprint===article?.blueprint),2);
 
   const groups=groupScores(checks),weights={seo:15,content:18,trust:15,aeo:9,geo:7,eeat:8,technical:8,image:6,ux:6,language:4,uniqueness:14};
   let sum=0,total=0;for(const [g,v] of Object.entries(groups)){const gw=weights[g]||1;sum+=v*gw;total+=gw}
   const score=clamp(sum/Math.max(1,total)),p0=checks.filter(x=>x.critical&&!x.pass),failed=checks.filter(x=>!x.pass),groupFloor=Math.min(...['seo','content','trust','aeo','geo','eeat','technical','uniqueness'].map(g=>groups[g]??0)),threshold=Math.max(95,Number(opts.threshold||opts.qualityThreshold||95));
   const productionReady=p0.length===0&&score>=threshold&&groupFloor>=88&&wordCount>=minWords&&wordCount<=2000;
-  return {score,wordCount,productionReady,signature:sig,minSignatureDistance,minJaccardDistance:Math.round(minJaccardDistance*1000)/1000,plain,groups,checks,failed:failed.map(x=>x.name),p0:p0.map(x=>x.name),measuredChecks:checks.length,criteriaCatalogCount:QUALITY_CRITERIA_COUNT,criteriaCatalog:QUALITY_CRITERIA,groupFloor,arabicRatio:Math.round(arabicRatio*1000)/1000};
+  return {score,wordCount,productionReady,signature:sig,minSignatureDistance,plain,groups,checks,failed:failed.map(x=>x.name),p0:p0.map(x=>x.name),measuredChecks:checks.length,criteriaCatalogCount:QUALITY_CRITERIA_COUNT,criteriaCatalog:QUALITY_CRITERIA,groupFloor,arabicRatio:Math.round(arabicRatio*1000)/1000};
 }
 
 export function auditSummary(a){return {score:a.score,wordCount:a.wordCount,productionReady:a.productionReady,groups:a.groups,p0:a.p0,failed:a.failed,minSignatureDistance:a.minSignatureDistance,signature:a.signature,measuredChecks:a.measuredChecks,criteriaCatalogCount:a.criteriaCatalogCount}}
