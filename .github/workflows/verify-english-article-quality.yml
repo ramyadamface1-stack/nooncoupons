@@ -1,0 +1,20 @@
+name: Verify English Article Quality
+on:
+  push:
+    branches: [main]
+    paths: ['bulk-content-engine.js','quality-audit.js','english-quality-selftest.mjs','.github/workflows/verify-english-article-quality.yml']
+  workflow_dispatch:
+jobs:
+  english-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - name: Syntax
+        run: |
+          node --check bulk-content-engine.js
+          node --check quality-audit.js
+          node --check english-quality-selftest.mjs
+      - name: Audit 24 native English commercial samples
+        run: node english-quality-selftest.mjs
