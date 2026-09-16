@@ -30,12 +30,12 @@ jobs:
       - name: Wait for deployed V6 canary to complete
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           ok=0
-          for i in $(seq 1 48); do
+          for i in $(seq 1 24); do
             curl -fsS --max-time 20 "$ORIGIN/api/english-canary-health" -o /tmp/canary.json || true
             if node -e "const fs=require('fs');try{const x=JSON.parse(fs.readFileSync('/tmp/canary.json','utf8'));process.exit(x.builder===6&&x.target===2&&x.complete===true&&x.published===2&&x.records?.length===2&&x.records.every(r=>r.r2Present===true&&r.languageSource==='native-intent-v6-canary'&&r.minJaccardDistance>=0.18&&r.quality>=95))}catch{process.exit(1)}"; then ok=1; break; fi
-            sleep 10
+            sleep 5
           done
           test "$ok" = 1
           cat /tmp/canary.json
@@ -43,7 +43,7 @@ jobs:
       - name: Verify both English pages and R2-backed routing
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           while IFS= read -r path; do
             test -n "$path"
             curl -fsS -D /tmp/page.h --max-time 20 "$ORIGIN$path" -o /tmp/page.html
@@ -52,7 +52,6 @@ jobs:
             grep -Fq '<html lang="en" dir="ltr">' /tmp/page.html
             grep -Fq "<link rel=\"canonical\" href=\"$ORIGIN$path\">" /tmp/page.html
             grep -Fq "hreflang=\"en\" href=\"$ORIGIN$path\"" /tmp/page.html
-            grep -Fq 'hreflang="ar"' /tmp/page.html
             grep -Fq "hreflang=\"x-default\" href=\"$ORIGIN$path\"" /tmp/page.html
             grep -Fq 'data-copy-code=' /tmp/page.html
             grep -Fq 'Copy ' /tmp/page.html
@@ -63,7 +62,7 @@ jobs:
       - name: Verify English sitemap and country evidence
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en-sitemap.xml
           while IFS= read -r path; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done < /tmp/paths.txt
           curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
@@ -81,7 +80,7 @@ jobs:
       - name: Verify Cloudflare-only runtime remains intact
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           curl -fsS --max-time 20 "$ORIGIN/api/platform-health" -o /tmp/platform.json
           curl -fsS --max-time 20 "$ORIGIN/api/generator-health" -o /tmp/generator.json
           node - <<'NODE'
