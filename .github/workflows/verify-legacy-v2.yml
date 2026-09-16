@@ -1,7 +1,9 @@
 name: Verify Legacy Upgrade V2 (diagnostic)
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['legacy-upgrader-v2.js','admin-runtime.js','.github/workflows/verify-legacy-v2.yml']
   workflow_dispatch:
 
 permissions:
