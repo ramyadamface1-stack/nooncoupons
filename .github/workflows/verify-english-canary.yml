@@ -2,7 +2,7 @@ name: Verify English Canary End to End
 on:
   push:
     branches: [main]
-    paths: ['english-canary.js','commerce-entry.js','commerce-pages-v2.js','bulk-generator.js','public-entry.js','wrangler.jsonc','.github/workflows/verify-english-canary.yml']
+    paths: ['english-canary.js','commerce-entry.js','commerce-pages-v2.js','bulk-generator.js','bulk-content-engine.js','public-entry.js','wrangler.jsonc','.github/workflows/verify-english-canary.yml']
   workflow_dispatch:
 jobs:
   canary-e2e:
@@ -19,13 +19,14 @@ jobs:
           node --check commerce-entry.js
           node --check commerce-pages-v2.js
           node --check bulk-generator.js
+          node --check bulk-content-engine.js
           node --check public-entry.js
           grep -Fq "ENGLISH_CANARY_TOTAL\": \"2" wrangler.jsonc
-          grep -Fq "minJaccardDistance<0.18" /dev/null 2>/dev/null || true
           grep -Fq "audit.minJaccardDistance<0.18" english-canary.js
           grep -Fq "languageSource:'arabic-primary'" bulk-generator.js
           grep -Fq "native-intent-v6-canary" commerce-pages-v2.js
           grep -Fq "const market=noonUrl.includes('/uae-ar/')?'AE':'SA'" public-entry.js
+          grep -Fq 'const metaLead=/\bguide$/i.test(kw)?kw:`${kw} guide`;' bulk-content-engine.js
       - name: Wait for deployed V6 canary to complete
         run: |
           set -euo pipefail
@@ -51,10 +52,12 @@ jobs:
             grep -Fq '<html lang="en" dir="ltr">' /tmp/page.html
             grep -Fq "<link rel=\"canonical\" href=\"$ORIGIN$path\">" /tmp/page.html
             grep -Fq "hreflang=\"en\" href=\"$ORIGIN$path\"" /tmp/page.html
+            grep -Fq 'hreflang="ar"' /tmp/page.html
             grep -Fq "hreflang=\"x-default\" href=\"$ORIGIN$path\"" /tmp/page.html
             grep -Fq 'data-copy-code=' /tmp/page.html
             grep -Fq 'Copy ' /tmp/page.html
-            grep -Fq 'Noon' /tmp/page.html
+            grep -Fq 'href="https://www.noon.com/' /tmp/page.html
+            if grep -Eiq 'guide[[:space:]]+guide' /tmp/page.html; then echo 'Duplicate guide wording found'; exit 1; fi
             if grep -Eiq '(save|discount)[[:space:]]+(up to[[:space:]]+)?[0-9]{1,3}%' /tmp/page.html; then echo 'Unsupported fixed discount claim found'; exit 1; fi
           done < /tmp/paths.txt
       - name: Verify English sitemap and country evidence
