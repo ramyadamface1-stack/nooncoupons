@@ -2,7 +2,8 @@ name: Add Instant Content Stats
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/add-content-stats.yml']
+    paths:
+      - '.github/workflows/add-content-stats.yml'
 permissions:
   contents: write
 jobs:
@@ -22,43 +23,42 @@ jobs:
           new="import {runEnglishCanary,serveEnglishCanaryArticle,serveEnglishCanaryHealth,englishCanaryHealth,englishCanarySitemap} from './english-canary.js';"
           if old in s:
               s=s.replace(old,new,1)
-          elif 'englishCanaryHealth' not in s.split('\n',8)[5]:
+          elif 'englishCanaryHealth' not in s:
               raise SystemExit('english import marker not found')
           if 'async function contentStats(' not in s:
               marker='\nexport default{\n'
-              fn=r'''\nasync function contentStats(req,env,ctx){
-  let generator={};
-  try{
-    const u=new URL(req.url);u.pathname='/api/generator-health';u.search='';
-    const r=await app.fetch(new Request(u.toString(),{method:'GET',headers:req.headers}),env,ctx);
-    generator=await r.json();
-  }catch{}
-  let english={};
-  try{english=await englishCanaryHealth(env)}catch{}
-  const bulk=generator?.bulk||{};
-  const controlled=english?.controlled||{};
-  const arabic=Number(bulk.publishedTotal||0);
-  const englishTotal=Number(controlled.published||0);
-  return {
-    ok:true,
-    total:arabic+englishTotal,
-    arabic,
-    english:englishTotal,
-    englishByCountry:{SA:Number(controlled.sa||0),AE:Number(controlled.ae||0)},
-    publishedTodayArabic:Number(bulk.publishedToday||0),
-    dailyTargetArabic:Number(bulk.dailyTarget||0),
-    last:{slug:bulk.lastSlug||null,quality:bulk.lastQuality??null,wordCount:bulk.lastWordCount??null,run:bulk.lastRun||null,error:bulk.lastError||null},
-    englishControlled:{target:Number(controlled.target||0),complete:Boolean(controlled.complete),remaining:Number(controlled.remaining||0)},
-    source:'live-runtime',
-    generatedAt:new Date().toISOString()
-  };
-}
-'''
+              lines=[
+                  '',
+                  'async function contentStats(req,env,ctx){',
+                  '  let generator={};',
+                  '  try{',
+                  "    const u=new URL(req.url);u.pathname='/api/generator-health';u.search='';",
+                  "    const r=await app.fetch(new Request(u.toString(),{method:'GET',headers:req.headers}),env,ctx);",
+                  '    generator=await r.json();',
+                  '  }catch{}',
+                  '  let english={};',
+                  '  try{english=await englishCanaryHealth(env)}catch{}',
+                  '  const bulk=generator?.bulk||{};',
+                  '  const controlled=english?.controlled||{};',
+                  '  const arabic=Number(bulk.publishedTotal||0);',
+                  '  const englishTotal=Number(controlled.published||0);',
+                  '  return {',
+                  '    ok:true,total:arabic+englishTotal,arabic,english:englishTotal,',
+                  '    englishByCountry:{SA:Number(controlled.sa||0),AE:Number(controlled.ae||0)},',
+                  '    publishedTodayArabic:Number(bulk.publishedToday||0),dailyTargetArabic:Number(bulk.dailyTarget||0),',
+                  '    last:{slug:bulk.lastSlug||null,quality:bulk.lastQuality??null,wordCount:bulk.lastWordCount??null,run:bulk.lastRun||null,error:bulk.lastError||null},',
+                  '    englishControlled:{target:Number(controlled.target||0),complete:Boolean(controlled.complete),remaining:Number(controlled.remaining||0)},',
+                  "    source:'live-runtime',generatedAt:new Date().toISOString()",
+                  '  };',
+                  '}',
+                  ''
+              ]
+              fn='\n'.join(lines)
               if marker not in s: raise SystemExit('export marker not found')
               s=s.replace(marker,fn+marker,1)
           needle="if(req.method==='GET'&&path==='/api/commerce-health')return new Response(JSON.stringify(await health(env),null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});"
-          add="if(req.method==='GET'&&path==='/api/content-stats')return new Response(JSON.stringify(await contentStats(req,env,ctx),null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});"+needle
           if "path==='/api/content-stats'" not in s:
+              add="if(req.method==='GET'&&path==='/api/content-stats')return new Response(JSON.stringify(await contentStats(req,env,ctx),null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});"+needle
               if needle not in s: raise SystemExit('commerce health marker not found')
               s=s.replace(needle,add,1)
           p.write_text(s)
