@@ -12,13 +12,15 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     env:
       CF_TOKEN_1: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CF_TOKEN_2: ${{ secrets.CLOUDFLARE_TOKEN }}
       CF_TOKEN_3: ${{ secrets.CF_API_TOKEN }}
+      ZONE_NAME: noondealsnow.com
+      GOOGLE_VERIFICATION: google-site-verification=LmU-uUjdxfArIxwpCxeSn7eKDIcUrc3zU2CqS8zmxrQ
     steps:
-      - name: Verify Cloudflare API access
+      - name: Verify Cloudflare API access and Google TXT
         shell: bash
         run: |
           set -euo pipefail
@@ -43,7 +45,7 @@ jobs:
           ZONE_CODE=$(curl -sS -o zone.json -w '%{http_code}' \
             -H "Authorization: Bearer $TOKEN" \
             -H 'Content-Type: application/json' \
-            'https://api.cloudflare.com/client/v4/zones?name=noondealsnow.com')
+            "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}")
           ZONE_SUCCESS=$(jq -r '.success // false' zone.json)
           ZONE_COUNT=$(jq -r '.result | length' zone.json)
           echo "ZONE_LOOKUP_HTTP=$ZONE_CODE"
@@ -54,5 +56,72 @@ jobs:
             exit 4
           fi
 
-          jq -r '.result[] | "ZONE_NAME=" + .name + "\nZONE_STATUS=" + .status + "\nZONE_ID=" + .id' zone.json
+          ZONE_ID=$(jq -r '.result[0].id' zone.json)
+          ZONE_STATUS=$(jq -r '.result[0].status' zone.json)
+          echo "ZONE_NAME=$ZONE_NAME"
+          echo "ZONE_STATUS=$ZONE_STATUS"
+          echo "ZONE_ID=$ZONE_ID"
+
+          RECORDS_CODE=$(curl -sS -G -o records.json -w '%{http_code}' \
+            -H "Authorization: Bearer $TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data-urlencode 'type=TXT' \
+            --data-urlencode "name=${ZONE_NAME}" \
+            "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records")
+          RECORDS_SUCCESS=$(jq -r '.success // false' records.json)
+          if [ "$RECORDS_CODE" != "200" ] || [ "$RECORDS_SUCCESS" != "true" ]; then
+            echo "DNS_LIST_HTTP=$RECORDS_CODE"
+            jq -c '{success,errors,messages}' records.json
+            exit 5
+          fi
+
+          MATCH_COUNT=$(jq --arg v "$GOOGLE_VERIFICATION" '[.result[] | select(.type=="TXT" and .content==$v)] | length' records.json)
+          echo "GOOGLE_TXT_EXISTING_MATCHES=$MATCH_COUNT"
+
+          if [ "$MATCH_COUNT" -eq 0 ]; then
+            PAYLOAD=$(jq -nc --arg name "$ZONE_NAME" --arg content "$GOOGLE_VERIFICATION" '{type:"TXT",name:$name,content:$content,ttl:1}')
+            CREATE_CODE=$(curl -sS -o create.json -w '%{http_code}' \
+              -X POST \
+              -H "Authorization: Bearer $TOKEN" \
+              -H 'Content-Type: application/json' \
+              --data "$PAYLOAD" \
+              "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records")
+            CREATE_SUCCESS=$(jq -r '.success // false' create.json)
+            echo "GOOGLE_TXT_CREATE_HTTP=$CREATE_CODE"
+            echo "GOOGLE_TXT_CREATE_SUCCESS=$CREATE_SUCCESS"
+            if [ "$CREATE_CODE" != "200" ] || [ "$CREATE_SUCCESS" != "true" ]; then
+              jq -c '{success,errors,messages}' create.json
+              exit 6
+            fi
+            echo "GOOGLE_TXT_ACTION=created"
+          else
+            echo "GOOGLE_TXT_ACTION=already_present"
+          fi
+
+          curl -sS -G -o confirm.json \
+            -H "Authorization: Bearer $TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data-urlencode 'type=TXT' \
+            --data-urlencode "name=${ZONE_NAME}" \
+            "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records"
+          CONFIRMED=$(jq --arg v "$GOOGLE_VERIFICATION" '[.result[] | select(.type=="TXT" and .content==$v)] | length' confirm.json)
+          echo "GOOGLE_TXT_API_CONFIRMED=$CONFIRMED"
+          if [ "$CONFIRMED" -lt 1 ]; then
+            exit 7
+          fi
+
+          PUBLIC_OK=0
+          for i in $(seq 1 12); do
+            if dig +short @1.1.1.1 TXT "$ZONE_NAME" | tr -d '"' | grep -Fqx "$GOOGLE_VERIFICATION"; then
+              PUBLIC_OK=1
+              break
+            fi
+            sleep 5
+          done
+          echo "GOOGLE_TXT_PUBLIC_DNS=$PUBLIC_OK"
+          if [ "$PUBLIC_OK" -ne 1 ]; then
+            exit 8
+          fi
+
           echo "CLOUDFLARE_CONNECTION=verified"
+          echo "GOOGLE_DNS_VERIFICATION=ready"
