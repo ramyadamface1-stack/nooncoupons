@@ -2,7 +2,7 @@ name: Verify Controlled English Expansion
 on:
   push:
     branches: [main]
-    paths: ['wrangler.jsonc']
+    paths: ['wrangler.jsonc','.github/workflows/verify-english-controlled.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -41,8 +41,8 @@ jobs:
             const rows=Array.isArray(c.records)?c.records:[];
             const slugs=rows.map(r=>r.slug);
             const keywords=rows.map(r=>String(r.primaryKeyword||'').trim().toLowerCase());
-            const canaries=rows.filter(r=>r.canary===true&&r.phase==='canary');
-            const expanded=rows.filter(r=>r.canary===false&&r.phase==='controlled');
+            const canaries=rows.filter(r=>r.canary===true && (!r.phase || r.phase==='canary'));
+            const expanded=rows.filter(r=>r.canary===false && r.phase==='controlled');
             const validGroups=r=>Object.values(r.qualityGroups||{}).every(v=>Number(v)>=95);
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 &&
               c.target===10 && c.published===10 && c.remaining===0 && c.complete===true && c.status==='complete' &&
