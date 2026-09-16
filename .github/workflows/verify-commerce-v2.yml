@@ -49,17 +49,29 @@ jobs:
           ORIGIN="https://noondealsnow.com"
           ready=0
           for i in $(seq 1 30); do
-            if curl -fsS --max-time 20 "$ORIGIN/api/commerce-health?v=3" -o /tmp/health.json && grep -Fq '"routes": 110' /tmp/health.json && grep -Fq '"generatorTaxonomy"' /tmp/health.json && grep -Fq '"explicit-generator-taxonomy"' /tmp/health.json; then ready=1; break; fi
+            if curl -fsS --max-time 20 "$ORIGIN/api/commerce-health?v=4" -o /tmp/health.json && node - <<'NODE'
+          const fs=require('fs');
+          try{
+            const x=JSON.parse(fs.readFileSync('/tmp/health.json','utf8'));
+            const pass=x.ok===true && Number(x.routes)>=110 &&
+              x.architecture==='market-city-category-brand-model-comparison-article' &&
+              x.generatorTaxonomy?.mode==='explicit-generator-taxonomy' &&
+              Number(x.generatorTaxonomy?.version)>=6;
+            process.exit(pass?0:1);
+          }catch{process.exit(1)}
+          NODE
+            then ready=1; break; fi
             sleep 6
           done
+          cat /tmp/health.json || true
           [ "$ready" = 1 ]
-          curl -fsS --max-time 20 "$ORIGIN/saudi/categories?v=3" -o /tmp/categories.html
-          curl -fsS --max-time 20 "$ORIGIN/saudi/category/shoes?v=3" -o /tmp/shoes.html
-          curl -fsS --max-time 20 "$ORIGIN/uae/category/bags?v=3" -o /tmp/bags.html
-          curl -fsS --max-time 20 "$ORIGIN/saudi/brand/apple?v=3" -o /tmp/brand.html
-          curl -fsS --max-time 20 "$ORIGIN/saudi/model/apple/iphone-pro?v=3" -o /tmp/model.html
-          curl -fsS --max-time 20 "$ORIGIN/saudi/compare/iphone-vs-galaxy?v=3" -o /tmp/compare.html
-          curl -fsS --max-time 20 "$ORIGIN/sitemap-commerce.xml?v=3" -o /tmp/sitemap.xml
+          curl -fsS --max-time 20 "$ORIGIN/saudi/categories?v=4" -o /tmp/categories.html
+          curl -fsS --max-time 20 "$ORIGIN/saudi/category/shoes?v=4" -o /tmp/shoes.html
+          curl -fsS --max-time 20 "$ORIGIN/uae/category/bags?v=4" -o /tmp/bags.html
+          curl -fsS --max-time 20 "$ORIGIN/saudi/brand/apple?v=4" -o /tmp/brand.html
+          curl -fsS --max-time 20 "$ORIGIN/saudi/model/apple/iphone-pro?v=4" -o /tmp/model.html
+          curl -fsS --max-time 20 "$ORIGIN/saudi/compare/iphone-vs-galaxy?v=4" -o /tmp/compare.html
+          curl -fsS --max-time 20 "$ORIGIN/sitemap-commerce.xml?v=4" -o /tmp/sitemap.xml
           grep -Fq '/saudi/category/shoes' /tmp/sitemap.xml
           grep -Fq '/uae/category/bags' /tmp/sitemap.xml
           grep -Fq '/saudi/model/apple/iphone-pro' /tmp/sitemap.xml
