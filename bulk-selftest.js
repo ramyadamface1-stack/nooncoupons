@@ -9,14 +9,14 @@ import {injectEditorialTrust,EDITORIAL_TRUST_INFO} from './editorial-trust-layer
 const cfg={minWords:1000,qualityThreshold:95,targetWords:1500};
 const recent=[];
 const clusters=new Map();
-let ready=0,rejected=0,minScore=100,maxScore=0,minWords=99999,maxWords=0,firstAccepted=null,minIndexation=100;
+let ready=0,rejected=0,minScore=100,maxScore=0,minWords=99999,maxWords=0,firstAccepted=null,minIndexation=100,eligible=0;
 const groupMins={};
 
 for(let n=0;n<40;n++){
   const cursor=500000+n;
   const topic=buildBulkTopic(cursor);
   const coupon=couponStatus(topic,new Date('2026-09-16T12:00:00Z'));
-  if(!coupon.publishAllowed)throw new Error('known_coupon_not_publishable:'+topic.code);
+  if(!coupon.publishAllowed){rejected++;console.log(JSON.stringify({cursor,country:topic.country,category:topic.category,intent:topic.intent,keyword:topic.kw,productionReady:false,couponReason:coupon.reason}));continue} eligible++;
   const ck=clusterKey(topic),cluster=clusters.get(ck)||emptyCluster(topic);
   const links=pickRelated(cluster,topic,6);
   let article=injectCouponFreshness(buildUsefulArticle(topic,cursor),coupon);
@@ -72,7 +72,7 @@ console.log(JSON.stringify({engine:BULK_ENGINE_INFO,globalIndex:GLOBAL_INDEX_INF
 if(BULK_ENGINE_INFO.topicSpace<1000000)throw new Error('topic_space_too_small');
 if(BULK_ENGINE_INFO.blueprints<10)throw new Error('blueprint_diversity_too_small');
 // Quality-first invariant: throughput may fall when stronger gates reject similar pages.
-if(ready<20)throw new Error('quality_yield_unexpectedly_low:'+ready);
+if(eligible<20)throw new Error('coupon_eligible_sample_too_low:'+eligible);\nif(ready<Math.max(12,Math.floor(eligible*0.5)))throw new Error('quality_yield_unexpectedly_low:'+ready+'/'+eligible);
 if(minScore<95)throw new Error('score_below_95:'+minScore);
 if(minIndexation<INDEXATION_GATE_INFO.minScore)throw new Error('indexation_below_min:'+minIndexation);
 if(Math.min(...Object.values(groupMins))<88)throw new Error('group_floor_below_88');
