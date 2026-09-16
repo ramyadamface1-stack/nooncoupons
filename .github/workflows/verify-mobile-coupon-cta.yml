@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           ready=0
           for i in $(seq 1 12); do
             health="$(curl -fsS --max-time 15 "$ORIGIN/api/generator-health" || true)"
@@ -41,7 +41,7 @@ jobs:
             sleep 5
           done
           [ "$ready" = 1 ]
-          grep -Eq 'data-sticky-copy="NOV[0-9]{3}"' /tmp/article.html
+          grep -Eq 'data-sticky-copy="OPS[0-9]{2}"' /tmp/article.html
           grep -Fq 'فتح نون' /tmp/article.html
           grep -Fq 'navigator.clipboard.writeText' /tmp/article.html
           grep -Fq '@media(max-width:760px)' /tmp/article.html
