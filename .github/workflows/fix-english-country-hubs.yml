@@ -1,0 +1,36 @@
+name: Fix English Country Hubs
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/fix-english-country-hubs.yml']
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish all controlled English guides on country hubs
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('commerce-pages-v2.js')
+          s=p.read_text()
+          old="const path=`/en/${market}`,rows=(await englishMarketRows(env,market)).slice(0,9),title="
+          new="const path=`/en/${market}`,rows=(await englishMarketRows(env,market)),title="
+          if old not in s:
+              raise SystemExit('expected country hub slice not found')
+          s=s.replace(old,new,1)
+          p.write_text(s)
+          PY
+          grep -F 'rows=(await englishMarketRows(env,market)),title=' commerce-pages-v2.js
+      - name: Commit fix
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add commerce-pages-v2.js
+          git commit -m 'Show all controlled English guides on country hubs'
+          git push origin HEAD:main
