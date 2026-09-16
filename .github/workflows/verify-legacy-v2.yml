@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           health=""
           for i in $(seq 1 48); do
             health="$(curl -sS --max-time 20 "$ORIGIN/api/generator-health" || true)"
