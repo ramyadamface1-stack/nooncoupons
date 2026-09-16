@@ -45,13 +45,29 @@ const CATEGORY_MODEL_KEYS={
 function seedFor(topic,seed){const n=Number(seed);return Number.isFinite(n)?Math.abs(Math.trunc(n)):hash([topic?.kw,topic?.title,topic?.category,topic?.country].join('|'))}
 function deepestPath(meta){if(meta.comparisonKey)return `/${meta.market}/compare/${meta.comparisonKey}`;if(meta.brandKey&&meta.modelKey)return `/${meta.market}/model/${meta.brandKey}/${meta.modelKey}`;if(meta.brandKey)return `/${meta.market}/brand/${meta.brandKey}`;return `/${meta.market}/category/${meta.categoryKey}`}
 function modelKeysFor(brandKey,categoryKey){const all=Object.keys(BRANDS[brandKey]?.models||{}),mapped=CATEGORY_MODEL_KEYS[brandKey]?.[categoryKey];if(Array.isArray(mapped))return mapped.filter(k=>all.includes(k));const categories=BRANDS[brandKey]?.categories||[];return categories.length===1?all:[]}
+const PRIORITY_BRANDS={
+ mobiles:['apple','samsung','xiaomi','oppo','honor','huawei'],
+ laptops:['apple','lenovo','asus','hp','dell','acer'],
+ tablets:['apple','samsung','xiaomi','huawei'],
+ gaming:['sony','lenovo','asus','acer'],
+ tvs:['samsung','lg','sony'],
+ appliances:['dyson','philips','lg'],
+ shoes:['nike','adidas','skechers','puma'],
+ bags:['samsonite','americanTourister'],
+ beauty:['dyson','philips','braun','nivea','loreal']
+};
+function weightedBrands(categoryKey,brandKeys){
+ const preferred=(PRIORITY_BRANDS[categoryKey]||[]).filter(k=>brandKeys.includes(k));
+ return preferred.length?[...preferred,...preferred,...brandKeys]:brandKeys;
+}
+
 function brandCategoryLabel(brandKey,categoryKey){const brand=BRANDS[brandKey]?.label||brandKey,category=CATEGORIES[categoryKey]?.label||categoryKey;return `${brand} ${category}`.trim()}
 
 export function applyCommerceTarget(topic={},seed){
   const n=seedFor(topic,seed),market=marketKey(topic.country),categoryKey=categoryKeyForArticle({category:topic.category,categoryKey:topic.categoryKey});
   let brandKey=null,modelKey=null,comparisonKey=null,targetLabel=CATEGORIES[categoryKey]?.label||topic.category||'';
   const kw=String(topic.kw||''),title=String(topic.title||topic.kw||'');
-  const brandKeys=Object.keys(BRANDS).filter(k=>BRANDS[k].categories?.includes(categoryKey)),comparisonKeys=Object.keys(COMPARISONS),comparisonMode=categoryKey==='mobiles'&&n%9===0;
+  const eligibleBrands=Object.keys(BRANDS).filter(k=>BRANDS[k].categories?.includes(categoryKey)),brandKeys=weightedBrands(categoryKey,eligibleBrands),comparisonKeys=Object.keys(COMPARISONS),comparisonMode=categoryKey==='mobiles'&&n%9===0;
   if(comparisonMode){
     comparisonKey=comparisonKeys[Math.floor(n/9)%comparisonKeys.length];
     const cmp=COMPARISONS[comparisonKey];brandKey=cmp.a;
@@ -86,4 +102,4 @@ export function decorateArticleCommerce(article={},topic={}){
   return {...article,...fields,commerceTarget:t.targetLabel,html};
 }
 
-export const COMMERCE_GENERATOR_INFO={version:6,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-independent-from-primary-keyword',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true};
+export const COMMERCE_GENERATOR_INFO={version:6,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-independent-from-primary-keyword',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true,priorityBrandWeighting:true};
