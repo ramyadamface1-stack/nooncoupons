@@ -22,17 +22,17 @@ jobs:
           if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' commerce-entry.js commerce-generator-taxonomy.js auto-platform.js workers-ai-generator.js bulk-generator.js generator-core-v2.js platform.js admin-runtime.js; then
             echo 'EXTERNAL_AI_REFERENCE_FOUND_IN_ACTIVE_RUNTIME'; exit 1
           fi
-          grep -Fq '"main": "commerce-entry.js"' wrangler.jsonc
-          grep -Fq '"BULK_DAILY_TARGET": "5000"' wrangler.jsonc
-          grep -Fq '"BULK_BATCH_SIZE": "4"' wrangler.jsonc
-          grep -Fq '"QUALITY_PUBLISH_THRESHOLD": "95"' wrangler.jsonc
-          grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
-          grep -Fq '"* * * * *"' wrangler.jsonc
-          grep -Fq "mode:'explicit-generator-taxonomy'" commerce-generator-taxonomy.js
-          grep -Fq 'categoryKey' bulk-generator.js
-          grep -Fq 'landingPath' generator-core-v2.js
-          grep -Fq 'minWords:5000' landing-content-v3.js
-          grep -Fq 'submitIndexNow' bulk-generator.js
+          echo CHECK_WRANGLER_MAIN; grep -Fq '"main": "commerce-entry.js"' wrangler.jsonc
+          echo CHECK_BULK_TARGET; grep -Fq '"BULK_DAILY_TARGET": "5000"' wrangler.jsonc
+          echo CHECK_BULK_BATCH; grep -Fq '"BULK_BATCH_SIZE": "4"' wrangler.jsonc
+          echo CHECK_QUALITY_THRESHOLD; grep -Fq '"QUALITY_PUBLISH_THRESHOLD": "95"' wrangler.jsonc
+          echo CHECK_INDEXNOW_ENABLED; grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
+          echo CHECK_CRON; grep -Fq '"* * * * *"' wrangler.jsonc
+          echo CHECK_TAXONOMY; grep -Fq "mode:'explicit-generator-taxonomy'" commerce-generator-taxonomy.js
+          echo CHECK_CATEGORY_METADATA; grep -Fq 'categoryKey' bulk-generator.js
+          echo CHECK_LANDING_METADATA; grep -Fq 'landingPath' generator-core-v2.js
+          echo CHECK_LANDING_WORD_FLOOR; grep -Fq 'minWords:5000' landing-content-v3.js
+          echo CHECK_INDEXNOW_INTEGRATION; grep -Fq 'submitIndexNow' bulk-generator.js
           echo CHECK_BULK_SELFTEST
           node bulk-selftest.js | tee /tmp/bulk-selftest.log
           echo CHECK_LANDING_SELFTEST
