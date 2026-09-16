@@ -1,0 +1,45 @@
+name: Repair English Canary Metadata
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/repair-english-canary-meta.yml']
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sanitize legacy canary metadata at read time
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('english-canary.js')
+          s=p.read_text()
+          if "const sanitizeMeta=" not in s:
+              needle="const now=()=>new Date().toISOString();\n"
+              repl=needle+"const sanitizeMeta=s=>String(s||'').replace(/\\bguide\\s+guide\\b/gi,'guide');\n"
+              if needle not in s:
+                  raise SystemExit('now helper anchor missing')
+              s=s.replace(needle,repl,1)
+          old="const s=await o.json();return {...emptyState(env),...s,target:targetFromEnv(env),records:Array.isArray(s.records)?s.records:[]}"
+          new="const s=await o.json();const records=Array.isArray(s.records)?s.records.map(r=>({...r,metaDescription:sanitizeMeta(r?.metaDescription)})):[];return {...emptyState(env),...s,target:targetFromEnv(env),records}"
+          if old in s:
+              s=s.replace(old,new,1)
+          elif new not in s:
+              raise SystemExit('readState anchor missing')
+          p.write_text(s)
+          PY
+          node --check english-canary.js
+          grep -Fq "const sanitizeMeta=" english-canary.js
+          grep -Fq "metaDescription:sanitizeMeta" english-canary.js
+      - name: Commit repair
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add english-canary.js
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Sanitize legacy English canary metadata"
+          git push origin HEAD:main
