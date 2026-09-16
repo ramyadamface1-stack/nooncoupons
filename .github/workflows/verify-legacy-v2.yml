@@ -39,7 +39,17 @@ jobs:
           grep -Eq '<html|<!doctype' /tmp/blog.html
           echo CHECK_SITEMAP
           curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --max-time 30 "$ORIGIN/sitemap.xml?v=legacy-contract" >/tmp/sitemap.xml
-          grep -Fq '<urlset' /tmp/sitemap.xml
+          if grep -Fq '<urlset' /tmp/sitemap.xml; then
+            grep -Fq '<loc>' /tmp/sitemap.xml
+            echo SITEMAP_MODE=urlset
+          elif grep -Fq '<sitemapindex' /tmp/sitemap.xml; then
+            grep -Fq '<sitemap' /tmp/sitemap.xml
+            grep -Fq '<loc>' /tmp/sitemap.xml
+            echo SITEMAP_MODE=index
+          else
+            echo 'Sitemap is neither a urlset nor a sitemapindex'
+            exit 1
+          fi
           echo LEGACY_PUBLIC_COMPAT_PASS
       - name: Upload diagnostics
         if: always()
