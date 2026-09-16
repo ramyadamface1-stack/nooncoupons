@@ -6,6 +6,7 @@ const DEFAULT_TARGET=2;
 const DEFAULT_CONTROLLED_TOTAL=2;
 const MAX_CONTROLLED_TOTAL=20;
 const PROFILE_DIVERSITY_SLOTS=16;
+const PROFILE_MAX_PER_BATCH=2;
 const INTENT_MAX_PER_BATCH=3;
 const START_CURSOR=760000;
 const MAX_SCAN=5000;
@@ -44,8 +45,8 @@ function categoryKeyFor(profileKey){return PROFILE_TO_CATEGORY[profileKey]||null
 
 async function findCandidate(env,state,slot){
   const desiredCountry=slot%2===0?'SA':'AE',recent=recentForAudit(state.records),threshold=Math.max(95,Number(env.QUALITY_PUBLISH_THRESHOLD||95));
-  const usedProfiles=new Set((state.records||[]).map(r=>r.profileKey).filter(Boolean)),intentCounts=new Map();
-  for(const r of state.records||[])if(r.intent)intentCounts.set(r.intent,(intentCounts.get(r.intent)||0)+1);
+  const usedProfiles=new Set((state.records||[]).map(r=>r.profileKey).filter(Boolean)),profileCounts=new Map(),intentCounts=new Map();
+  for(const r of state.records||[]){if(r.profileKey)profileCounts.set(r.profileKey,(profileCounts.get(r.profileKey)||0)+1);if(r.intent)intentCounts.set(r.intent,(intentCounts.get(r.intent)||0)+1)}
   let cursor=Math.max(START_CURSOR,Number(state.cursor||START_CURSOR));
   for(let tries=0;tries<MAX_SCAN;tries++,cursor++){
     const topic=buildBulkTopic(cursor);
@@ -55,6 +56,7 @@ async function findCandidate(env,state,slot){
     const candidate=buildEnglishNativeCandidate(topic);
     if(!candidate)continue;
     if(slot<PROFILE_DIVERSITY_SLOTS&&usedProfiles.has(candidate.profileKey))continue;
+    if((profileCounts.get(candidate.profileKey)||0)>=PROFILE_MAX_PER_BATCH)continue;
     if((intentCounts.get(candidate.intent)||0)>=INTENT_MAX_PER_BATCH)continue;
     const article=buildEnglishUsefulArticle(candidate,cursor);
     if(!article)continue;
