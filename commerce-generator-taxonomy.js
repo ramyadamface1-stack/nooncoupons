@@ -63,11 +63,20 @@ function weightedBrands(categoryKey,brandKeys){
 
 function brandCategoryLabel(brandKey,categoryKey){const brand=BRANDS[brandKey]?.label||brandKey,category=CATEGORIES[categoryKey]?.label||categoryKey;return `${brand} ${category}`.trim()}
 
-export function applyCommerceTarget(topic={},seed){
+export function boundedCoverageCorrection(seed,underTarget=[]){
+ const n=Math.abs(Number(seed)||0),u=new Set(Array.isArray(underTarget)?underTarget:[]);
+ if(u.has('category')&&n%11===0)return 'category';
+ if(u.has('brand')&&n%13===0)return 'brand';
+ if(u.has('model')&&n%17===0)return 'model';
+ if(u.has('comparison')&&n%19===0)return 'comparison';
+ return '';
+}
+
+export function applyCommerceTarget(topic={},seed,coverageSignal={}){
   const n=seedFor(topic,seed),market=marketKey(topic.country),categoryKey=categoryKeyForArticle({category:topic.category,categoryKey:topic.categoryKey});
   let brandKey=null,modelKey=null,comparisonKey=null,targetLabel=CATEGORIES[categoryKey]?.label||topic.category||'';
   const kw=String(topic.kw||''),title=String(topic.title||topic.kw||'');
-  const eligibleBrands=Object.keys(BRANDS).filter(k=>BRANDS[k].categories?.includes(categoryKey)),brandKeys=weightedBrands(categoryKey,eligibleBrands),comparisonKeys=Object.keys(COMPARISONS),comparisonMode=categoryKey==='mobiles'&&n%6===0,categoryOnlyMode=n%7===0,brandOnlyMode=n%5===0;
+  const eligibleBrands=Object.keys(BRANDS).filter(k=>BRANDS[k].categories?.includes(categoryKey)),brandKeys=weightedBrands(categoryKey,eligibleBrands),comparisonKeys=Object.keys(COMPARISONS),correction=boundedCoverageCorrection(n,coverageSignal?.underTarget),comparisonMode=categoryKey==='mobiles'&&(n%6===0||correction==='comparison'),categoryOnlyMode=n%7===0||correction==='category',brandOnlyMode=n%5===0||correction==='brand',modelBoost=correction==='model';
   if(categoryOnlyMode){
     targetLabel=CATEGORIES[categoryKey]?.label||topic.category||'';
   }else if(comparisonMode){
@@ -77,7 +86,7 @@ export function applyCommerceTarget(topic={},seed){
     targetLabel=cmp.title;
   }else if(brandKeys.length){
     brandKey=brandKeys[n%brandKeys.length];
-    const models=modelKeysFor(brandKey,categoryKey);if(models.length&&!brandOnlyMode)modelKey=models[Math.floor(n/Math.max(1,brandKeys.length))%models.length];
+    const models=modelKeysFor(brandKey,categoryKey);if(models.length&&!brandOnlyMode)modelKey=models[Math.floor(n/Math.max(1,brandKeys.length))%models.length];if(modelBoost&&models.length)modelKey=models[n%models.length];
     targetLabel=modelKey?`${BRANDS[brandKey].label} ${BRANDS[brandKey].models[modelKey].label}`:brandCategoryLabel(brandKey,categoryKey);
   }
   const meta={market,categoryKey,brandKey,modelKey,comparisonKey};
@@ -111,4 +120,4 @@ export function decorateArticleCommerce(article={},topic={}){
   return {...article,...fields,commerceTarget:t.targetLabel,html};
 }
 
-export const COMMERCE_GENERATOR_INFO={version:6,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-independent-from-primary-keyword',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true,priorityBrandWeighting:true,comparisonCadence:'1-in-6-mobile',categoryOnlyCadence:'1-in-7',brandOnlyCadence:'1-in-5',coverageTargets:'category-aware'};
+export const COMMERCE_GENERATOR_INFO={version:6,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-independent-from-primary-keyword',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true,priorityBrandWeighting:true,comparisonCadence:'1-in-6-mobile',categoryOnlyCadence:'1-in-7',brandOnlyCadence:'1-in-5',coverageTargets:'category-aware',adaptiveCorrection:'bounded-only',adaptiveCadence:'11/13/17/19'};
