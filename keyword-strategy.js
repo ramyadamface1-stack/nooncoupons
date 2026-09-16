@@ -1,5 +1,13 @@
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+const MONTHS_AR=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const freshness=()=>{const d=new Date();return `${MONTHS_AR[d.getUTCMonth()]} ${d.getUTCFullYear()}`};
+const HIGH_VALUE_SCENARIOS=new Set(['وقت العروض','قبل الدفع','للطلب الأول','لحساب حالي','عند رفض الكود']);
+function commercialFreshness(t,intent,s){
+  if(intent!=='coupon')return '';
+  if(!HIGH_VALUE_SCENARIOS.has(t.scenario)&&!HIGH_VALUE_SCENARIOS.has(s))return '';
+  return freshness();
+}
 
 const SCENARIO_MAP={
   'قبل الدفع':'قبل الدفع','وقت العروض':'وقت العروض','مع الشحن':'مع الشحن','قبل اختيار البائع':'قبل اختيار البائع','عند مقارنة الأسعار':'عند مقارنة الأسعار',
@@ -27,7 +35,7 @@ function market(t){return clean(t.market)}
 function cat(t){return clean(t.category)}
 
 const BUILDERS={
-  coupon:(t,s)=>`كود خصم نون ${market(t)} على ${cat(t)} ${s}`,
+  coupon:(t,s)=>`كود خصم نون ${market(t)} على ${cat(t)} ${commercialFreshness(t,'coupon',s)} ${s}`,
   howto:(t,s)=>`استخدام كود نون ${market(t)} مع ${cat(t)} ${s}`,
   compare:(t,s)=>`مقارنة سعر ${cat(t)} على نون ${market(t)} ${s}`,
   trouble:(t,s)=>`كود نون لا يعمل على ${cat(t)} في ${market(t)} ${s}`,
@@ -65,7 +73,7 @@ function fitKeyword(raw,t,intent,s){
 export function applyKeywordStrategy(topic){
   const rawIntent=topic.intent,intent=effectiveIntent(topic),s=scenario(topic,intent),builder=BUILDERS[intent]||BUILDERS.decision;
   const kw=fitKeyword(builder(topic,s),topic,intent,s),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
-  return {...topic,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||topic.intentLabel||'دليل',kw,slug,title,keywordStrategy:'search-intent-v2',keywordWordCount:words,searchIntentFamily:intent};
+  return {...topic,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||topic.intentLabel||'دليل',kw,slug,title,keywordStrategy:'search-intent-v3-sales',keywordWordCount:words,searchIntentFamily:intent};
 }
 
-export const KEYWORD_STRATEGY_INFO={version:'search-intent-v2',philosophy:'natural-query-first',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch'],maxRecommendedWords:14};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v3-sales',philosophy:'natural-query-first',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch'],maxRecommendedWords:14};
