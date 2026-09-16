@@ -139,6 +139,23 @@ function englishHead(origin,path,title,desc,market){
  const arPath=path.replace(/^\/en/,'');
  return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | Noon Coupons</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin+path)}"><link rel="alternate" hreflang="en" href="${esc(origin+path)}"><link rel="alternate" hreflang="ar" href="${esc(origin+arPath)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+arPath)}"><style>${CSS}</style>`;
 }
+async function englishCategoryPage(market,key,origin,env){
+ const mk=MARKETS[market],cat=CATEGORIES[key];if(!mk||!cat)return null;
+ const label=EN_CATEGORY_LABELS[key]||key,path=`/en/${market}/category/${key}`;
+ const rows=marketRows(await latestArticles(env),market).filter(a=>a.categoryKey===key||a.commerceCategory===key).slice(0,12);
+ const title=`Noon ${label} coupons in ${market==='saudi'?'Saudi Arabia':'the UAE'}`;
+ const desc=`Coupon-focused ${label} hub for Noon ${market==='saudi'?'Saudi Arabia':'UAE'}, with eligible guides, brands and practical checkout guidance.`;
+ const code=codeFor(market+':category:'+key);
+ const hero=`<header class="hero"><div class="w"><div class="crumbs"><a href="/en/${market}">Country hub</a> · <a href="/${market}/category/${key}">العربية</a></div><h1>${esc(title)}</h1><p>${esc(desc)}</p></div></header>`;
+ const coupon=`<aside class="coupon"><div><small>Coupon-first action</small><h2>Copy code <span class="code">${code}</span></h2><p class="lead">Try the code against an eligible cart. Do not assume a fixed discount until Noon confirms it at checkout.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside>`;
+ const brands=Object.entries(BRANDS).filter(([,b])=>b.categories?.includes(key)).map(([bk,b])=>`<article class="card"><h3>${esc(b.label)}</h3><p>Brand navigation within the ${esc(label)} category.</p><a class="read" href="/${market}/brand/${bk}">View Arabic brand hub →</a></article>`).join('');
+ const evidence=rows.length>=3;
+ const main=`${coupon}<section class="section"><h2>${esc(label)} shopping guidance</h2><div class="check"><div class="box"><strong>Before copying a code</strong><p>Check seller, product eligibility, minimum cart rules and account status.</p></div><div class="box"><strong>At checkout</strong><p>The final Noon total is the source of truth for whether a coupon applies.</p></div></div></section><section class="section"><h2>Relevant brands</h2><div class="grid4">${brands||'<div class="empty">Brand hubs will be added only where they are relevant to this category.</div>'}</div></section><section class="section"><h2>Eligible guides</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">This English category stays out of search until it has enough supporting content.</div>'}</section>`;
+ const robots=evidence?'index,follow,max-image-preview:large':'noindex,follow';
+ const head=englishHead(origin,path,title,desc,market).replace('content="index,follow,max-image-preview:large"',`content="${robots}"`);
+ return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${head}</head><body>${hero}<main class="w">${main}</main></body></html>`,'category-en',{'x-content-language':'en','x-english-evidence':evidence?'content-backed':'insufficient','x-robots-tag':robots});
+}
+
 async function englishCountryPage(market,origin,env){
  const mk=MARKETS[market];if(!mk)return null;
  const path=`/en/${market}`,rows=marketRows(await latestArticles(env),market).slice(0,9),title=`Noon coupons in ${market==='saudi'?'Saudi Arabia':'the UAE'}`,desc=`Coupon-first shopping hub for Noon ${market==='saudi'?'Saudi Arabia':'UAE'}, with categories, cities and buying guides.`,code=codeFor('country:'+market);
@@ -238,7 +255,9 @@ async function comparisonPage(market, key, origin, env) {
 }
 
 export async function commerceLanding(path, origin, env) {
-  let m = path.match(/^\/en\/(saudi|uae)$/);
+  let m = path.match(/^\/en\/(saudi|uae)\/category\/([a-z0-9-]+)$/);
+  if (m) return englishCategoryPage(m[1],m[2],origin,env);
+  m = path.match(/^\/en\/(saudi|uae)$/);
   if (m) return englishCountryPage(m[1],origin,env);
   m = path.match(/^\/(saudi|uae)$/);
   if (m) return countryPage(m[1],origin,env);
