@@ -11,7 +11,7 @@ jobs:
       - name: Probe canary and generator health
         run: |
           set +e
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           echo '=== ENGLISH CANARY ==='
           curl -sS -D /tmp/canary.h --max-time 20 "$ORIGIN/api/english-canary-health" -o /tmp/canary.json
           cat /tmp/canary.h
@@ -23,4 +23,4 @@ jobs:
           echo
           exit 0
 
-# probe trigger 2026-09-16T10:30Z
+# probe trigger 2026-09-16T10:40Z production origin
