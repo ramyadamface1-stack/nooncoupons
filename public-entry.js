@@ -58,6 +58,7 @@ async function publicView(req,res,env){
         fallbackCode=String(rec?.code||rec?.couponCode||'').toUpperCase();
       }catch{}
     }
+    const market=noonUrl.includes('/uae-ar/')?'AE':'SA';
     html=mobileCouponBar(html,noonUrl,fallbackCode,market);
     h.set('x-mobile-coupon-cta','v1');
     h.set('x-noon-market-route',noonUrl.includes('/uae-ar/')?'AE':'SA');

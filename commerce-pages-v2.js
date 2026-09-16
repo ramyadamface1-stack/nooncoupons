@@ -10,6 +10,7 @@ import {
   CITIES,
   CATEGORY_VISUALS,
 } from './commerce-taxonomy.js';
+import {englishCanaryRecords} from './english-canary.js';
 
 const CODES = ['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -50,6 +51,16 @@ function marketRows(all, market) {
 
 function articleCard(a) {
   return `<article class="card"><small>${a.country === 'AE' ? 'الإمارات' : 'السعودية'}</small><h3><a href="/articles/${enc(a.slug)}">${esc(a.title || a.primaryKeyword || a.slug)}</a></h3><p>${esc((a.metaDescription || '').slice(0,180))}</p><a class="read" href="/articles/${enc(a.slug)}">اقرأ الدليل ←</a></article>`;
+}
+
+async function englishMarketRows(env, market) {
+  const country = MARKETS[market]?.country;
+  if (!country) return [];
+  return (await englishCanaryRecords(env)).filter((a) => a?.slug && a.indexable !== false && a.country === country && a.languageSource === 'native-intent-v6-canary');
+}
+
+function englishArticleCard(a) {
+  return `<article class="card"><small>${a.country === 'AE' ? 'UAE' : 'Saudi Arabia'} · ${esc(a.intent || 'guide')}</small><h3><a href="/en/articles/${enc(a.slug)}">${esc(a.title || a.primaryKeyword || a.slug)}</a></h3><p>${esc((a.metaDescription || '').slice(0,180))}</p><a class="read" href="/en/articles/${enc(a.slug)}">Read guide →</a></article>`;
 }
 
 function breadcrumbs(market, parts = []) {
@@ -142,7 +153,7 @@ function englishHead(origin,path,title,desc,market){
 async function englishCategoryPage(market,key,origin,env){
  const mk=MARKETS[market],cat=CATEGORIES[key];if(!mk||!cat)return null;
  const label=EN_CATEGORY_LABELS[key]||key,path=`/en/${market}/category/${key}`;
- const rows=marketRows(await latestArticles(env),market).filter(a=>a.categoryKey===key||a.commerceCategory===key).slice(0,12);
+ const rows=(await englishMarketRows(env,market)).filter(a=>a.categoryKey===key).slice(0,12);
  const title=`Noon ${label} coupons in ${market==='saudi'?'Saudi Arabia':'the UAE'}`;
  const desc=`Coupon-focused ${label} hub for Noon ${market==='saudi'?'Saudi Arabia':'UAE'}, with eligible guides, brands and practical checkout guidance.`;
  const code=codeFor(market+':category:'+key);
@@ -150,7 +161,7 @@ async function englishCategoryPage(market,key,origin,env){
  const coupon=`<aside class="coupon"><div><small>Coupon-first action</small><h2>Copy code <span class="code">${code}</span></h2><p class="lead">Try the code against an eligible cart. Do not assume a fixed discount until Noon confirms it at checkout.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside>`;
  const brands=Object.entries(BRANDS).filter(([,b])=>b.categories?.includes(key)).map(([bk,b])=>`<article class="card"><h3>${esc(b.label)}</h3><p>Brand navigation within the ${esc(label)} category.</p><a class="read" href="/${market}/brand/${bk}">View Arabic brand hub →</a></article>`).join('');
  const evidence=rows.length>=3;
- const main=`${coupon}<section class="section"><h2>${esc(label)} shopping guidance</h2><div class="check"><div class="box"><strong>Before copying a code</strong><p>Check seller, product eligibility, minimum cart rules and account status.</p></div><div class="box"><strong>At checkout</strong><p>The final Noon total is the source of truth for whether a coupon applies.</p></div></div></section><section class="section"><h2>Relevant brands</h2><div class="grid4">${brands||'<div class="empty">Brand hubs will be added only where they are relevant to this category.</div>'}</div></section><section class="section"><h2>Eligible guides</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">This English category stays out of search until it has enough supporting content.</div>'}</section>`;
+ const main=`${coupon}<section class="section"><h2>${esc(label)} shopping guidance</h2><div class="check"><div class="box"><strong>Before copying a code</strong><p>Check seller, product eligibility, minimum cart rules and account status.</p></div><div class="box"><strong>At checkout</strong><p>The final Noon total is the source of truth for whether a coupon applies.</p></div></div></section><section class="section"><h2>Relevant brands</h2><div class="grid4">${brands||'<div class="empty">Brand hubs will be added only where they are relevant to this category.</div>'}</div></section><section class="section"><h2>Eligible guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">This English category stays out of search until it has enough supporting content.</div>'}</section>`;
  const robots=evidence?'index,follow,max-image-preview:large':'noindex,follow';
  const head=englishHead(origin,path,title,desc,market).replace('content="index,follow,max-image-preview:large"',`content="${robots}"`);
  return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${head}</head><body>${hero}<main class="w">${main}</main></body></html>`,'category-en',{'x-content-language':'en','x-english-evidence':evidence?'content-backed':'insufficient','x-robots-tag':robots});
@@ -158,10 +169,10 @@ async function englishCategoryPage(market,key,origin,env){
 
 async function englishCountryPage(market,origin,env){
  const mk=MARKETS[market];if(!mk)return null;
- const path=`/en/${market}`,rows=marketRows(await latestArticles(env),market).slice(0,9),title=`Noon coupons in ${market==='saudi'?'Saudi Arabia':'the UAE'}`,desc=`Coupon-first shopping hub for Noon ${market==='saudi'?'Saudi Arabia':'UAE'}, with categories, cities and buying guides.`,code=codeFor('country:'+market);
+ const path=`/en/${market}`,rows=(await englishMarketRows(env,market)).slice(0,9),title=`Noon coupons in ${market==='saudi'?'Saudi Arabia':'the UAE'}`,desc=`Coupon-first shopping hub for Noon ${market==='saudi'?'Saudi Arabia':'UAE'}, with categories, cities and buying guides.`,code=codeFor('country:'+market);
  const cities=(CITIES[market]||[]).map(c=>`<article class="card"><small>${esc(c.ar)}</small><h3>${esc(c.en)}</h3><p>Local navigation for shoppers in ${esc(c.en)} without claiming a city-specific discount unless verified.</p></article>`).join('');
  const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/en/${market}">English</a> · <a href="/${market}">العربية</a></div><h1>${title}</h1><p>${desc}</p><aside class="coupon"><div><small>Primary action</small><h2>Copy code <span class="code">${code}</span></h2><p class="lead">Check eligibility in your cart; the final Noon checkout is the reference.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside></div></header>`;
- const main=`<section class="section"><h2>Shop by category</h2>${englishCategoryGrid(market)}</section><section class="section"><h2>Major cities</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>Latest eligible guides</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">Eligible English guides will appear here as they are published.</div>'}</section>`;
+ const main=`<section class="section"><h2>Shop by category</h2>${englishCategoryGrid(market)}</section><section class="section"><h2>Major cities</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>Latest eligible guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">Eligible English guides will appear here as they are published.</div>'}</section>`;
  return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${englishHead(origin,path,title,desc,market)}</head><body>${hero}<main class="w">${main}</main></body></html>`,'country-en',{'x-commerce-market':market,'x-content-language':'en'});
 }
 
