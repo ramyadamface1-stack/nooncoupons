@@ -29,10 +29,13 @@ jobs:
           import json
           d=json.load(open('/tmp/landing-audit.json'))
           assert d['ok'] is True
-          assert d['routes'] >= 110
+          assert d['routes'] >= 288
           assert d['uniqueRenders'] == d['routes']
           assert d['uniqueSeeds'] == d['routes']
           assert d['minWords'] >= 5000
+          assert d.get('minChars',0) >= 5000
+          assert d.get('imagesPerLanding',0) >= 3
+          assert d.get('definitions') is True and d.get('keywordClusters') is True and d.get('couponGuide') is True
           assert d['seo'] is True and d['geoAeo'] is True and d['eeat'] is True
           assert {'WebPage','FAQPage','Organization'}.issubset(set(d['schema']))
           print('LANDING_QUALITY_V3_PASS',d)
@@ -48,10 +51,18 @@ jobs:
               curl -sS -D /tmp/h -o /tmp/p --max-time 20 "$ORIGIN$path?landing-v3=1" || ok=0
               grep -qi '^x-landing-content: v3' /tmp/h || ok=0
               wc="$(tr -d '\r' </tmp/h | awk -F': ' 'tolower($1)=="x-landing-word-count"{print $2}' | tail -1)"
+              cc="$(tr -d '\r' </tmp/h | awk -F': ' 'tolower($1)=="x-landing-char-count"{print $2}' | tail -1)"
+              imgs="$(tr -d '\r' </tmp/h | awk -F': ' 'tolower($1)=="x-landing-images"{print $2}' | tail -1)"
               [ "${wc:-0}" -ge 5000 ] || ok=0
+              [ "${cc:-0}" -ge 5000 ] || ok=0
+              [ "${imgs:-0}" -ge 3 ] || ok=0
               grep -Fq 'landing-depth-v3' /tmp/p || ok=0
               grep -Fq 'FAQPage' /tmp/p || ok=0
               grep -Fq 'منهجية التحرير والتحقق' /tmp/p || ok=0
+              grep -Fq 'landing-visuals' /tmp/p || ok=0
+              grep -Fq 'landing-definitions' /tmp/p || ok=0
+              grep -Fq 'landing-keywords' /tmp/p || ok=0
+              grep -Fq 'landing-coupon-guide' /tmp/p || ok=0
             done
             [ "$ok" = 1 ] && ready=1 && break
             sleep 6
