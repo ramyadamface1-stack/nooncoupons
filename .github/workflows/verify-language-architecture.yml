@@ -1,0 +1,44 @@
+name: Verify Language Architecture
+on:
+  push:
+    branches: [main]
+    paths: ['commerce-pages-v2.js','.github/workflows/verify-language-architecture.yml']
+  workflow_dispatch:
+jobs:
+  language:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - name: Static language contract
+        run: |
+          set -euo pipefail
+          node --check commerce-pages-v2.js
+          grep -Fq 'hreflang="ar"' commerce-pages-v2.js
+          grep -Fq 'hreflang="en"' commerce-pages-v2.js
+          grep -Fq 'hreflang="x-default"' commerce-pages-v2.js
+          grep -Fq 'x-english-evidence' commerce-pages-v2.js
+          grep -Fq 'noindex,follow' commerce-pages-v2.js
+      - name: Verify deployed reciprocal language hubs
+        run: |
+          set -euo pipefail
+          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          for i in $(seq 1 18); do
+            ar="$(curl -sS --max-time 20 "$ORIGIN/saudi" || true)"
+            en="$(curl -sS -D /tmp/en.h --max-time 20 "$ORIGIN/en/saudi" || true)"
+            if grep -Fq 'hreflang="en"' <<<"$ar" && grep -Fq 'hreflang="ar"' <<<"$en"; then break; fi
+            sleep 5
+          done
+          grep -Fq '<html lang="ar" dir="rtl">' <<<"$ar"
+          grep -Fq 'hreflang="en"' <<<"$ar"
+          grep -Fq '/en/saudi' <<<"$ar"
+          grep -Fq '<html lang="en" dir="ltr">' <<<"$en"
+          grep -Fq 'hreflang="ar"' <<<"$en"
+          grep -Fq '/saudi' <<<"$en"
+          cat="$(curl -sS -D /tmp/cat.h --max-time 20 "$ORIGIN/en/saudi/category/mobiles")"
+          evidence="$(awk -F': ' 'tolower($1)=="x-english-evidence"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
+          robots="$(awk -F': ' 'tolower($1)=="x-robots-tag"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
+          if [ "$evidence" = "insufficient" ]; then grep -Fq 'noindex' <<<"$robots"; fi
+          grep -Fq 'Copy code' <<<"$cat"
+          echo LANGUAGE_ARCHITECTURE=PASS
