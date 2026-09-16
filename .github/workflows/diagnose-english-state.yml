@@ -36,3 +36,4 @@ jobs:
           console.log('PLATFORM',JSON.stringify({ok:p.ok,ai:p.ai,r2:Boolean(p.r2)}));
           console.log('GENERATOR',JSON.stringify({ok:g.ok,preferredProvider:g.preferredProvider,legacyProvidersRemoved:g.legacyProvidersRemoved,providers:g.providers,r2Ready:g.r2Ready,bulk:g.bulk&&{enabled:g.bulk.enabled,lastError:g.bulk.lastError,lastQuality:g.bulk.lastQuality,lastWordCount:g.bulk.lastWordCount,publishedTotal:g.bulk.publishedTotal,publishedToday:g.bulk.publishedToday}}));
           NODE
+# audit-trigger: 2026-09-16T18:50Z
