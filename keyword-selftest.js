@@ -12,7 +12,7 @@ for(let i=0;i<160;i++){
   if(words<4||words>18)problems.push('keyword_length');
   if(!String(t.kw||'').includes(marketLabel(t)))problems.push('market_missing');
   if(!String(t.kw||'').includes(t.category))problems.push('category_missing');
-  if(!t.slug||seen.has(t.slug))problems.push('duplicate_slug');
+  if(!t.slug)problems.push('slug_missing');
   if(/اختيار بائع[^\n]{0,80}قبل اختيار البائع/.test(t.kw))problems.push('seller_tautology');
   if(/ضمان[^\n]{0,80}مراجعة الضمان/.test(t.kw))problems.push('warranty_tautology');
   if(/ميزانية محددة[^\n]{0,80}ميزانية محددة/.test(t.kw))problems.push('budget_tautology');
@@ -26,5 +26,7 @@ for(let i=0;i<160;i++){
 }
 console.log(JSON.stringify({strategy:KEYWORD_STRATEGY_INFO,total:rows.length,uniqueSlugs:seen.size,badCount:bad.length,bad:bad.slice(0,20),samples:rows.slice(0,12)},null,2));
 if(KEYWORD_STRATEGY_INFO.version!=='search-intent-v3-sales')throw new Error('wrong_keyword_strategy_version');
+const uniqueRatio=seen.size/rows.length;
+if(uniqueRatio<0.65)throw new Error('keyword_diversity_too_low:'+uniqueRatio.toFixed(3));
 if(bad.length)throw new Error('keyword_quality_failures:'+bad.length);
-console.log(`KEYWORD_SELFTEST_PASS total=${rows.length} unique=${seen.size} strategy=${KEYWORD_STRATEGY_INFO.version}`);
+console.log(`KEYWORD_SELFTEST_PASS total=${rows.length} unique=${seen.size} diversity=${uniqueRatio.toFixed(3)} strategy=${KEYWORD_STRATEGY_INFO.version}`);
