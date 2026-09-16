@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths: ['bulk-content-engine.js','quality-audit.js','english-quality-selftest.mjs','.github/workflows/verify-english-article-quality.yml']
   workflow_dispatch:
+# V6 structural gate rerun; quality thresholds are unchanged.
 jobs:
   english-quality:
     runs-on: ubuntu-latest
