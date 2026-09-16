@@ -2,6 +2,7 @@ import app from './premium-entry.js';
 export {ControlPlane,GeneratorControl} from './premium-entry.js';
 
 const GOOGLE_SITE_VERIFICATION='LmU-uUjdxfArIxwpCxeSn7eKDIcUrc3zU2CqS8zmxrQ';
+const GA4_MEASUREMENT_ID='G-1551Z7DJ2C';
 const NOON_MARKETS={
   'ar-AE':'https://www.noon.com/uae-ar/',
   'ar-SA':'https://www.noon.com/saudi-ar/'
@@ -18,6 +19,13 @@ function injectGoogleVerification(html){
   const text=String(html||'');
   if(/<meta\s+name=["']google-site-verification["']/i.test(text))return text;
   const tag=`<meta name="google-site-verification" content="${GOOGLE_SITE_VERIFICATION}">`;
+  return /<\/head>/i.test(text)?text.replace(/<\/head>/i,tag+'</head>'):text;
+}
+
+function injectGoogleAnalytics(html){
+  const text=String(html||'');
+  if(text.includes(GA4_MEASUREMENT_ID)||/googletagmanager\.com\/gtag\/js/i.test(text))return text;
+  const tag=`<script async src="https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA4_MEASUREMENT_ID}');document.addEventListener('click',function(e){const el=e.target&&e.target.closest?e.target.closest('button,a,[data-copy-code],[data-copy],[data-sticky-copy]'):null;if(!el)return;const code=el.getAttribute('data-copy-code')||el.getAttribute('data-copy')||el.getAttribute('data-sticky-copy')||'';if(code){gtag('event','copy_code',{coupon_code:String(code).toUpperCase(),page_path:location.pathname})}if(el.tagName==='A'&&/https?:\\/\\/(?:www\\.)?noon\\.com\\//i.test(el.href||'')){gtag('event','shop_click',{destination:'noon',page_path:location.pathname})}});</script>`;
   return /<\/head>/i.test(text)?text.replace(/<\/head>/i,tag+'</head>'):text;
 }
 
@@ -49,10 +57,12 @@ function mobileCouponBar(html,noonUrl,fallbackCode='',market='SA'){
 
 async function publicView(req,res,env){
   const u=new URL(req.url),path=u.pathname.replace(/\/+$/,'')||'/';
-  if(req.method!=='GET'||!(path==='/'||path.startsWith('/articles/')||path==='/blog'))return res;
+  if(req.method!=='GET')return res;
   const type=(res.headers.get('content-type')||'').toLowerCase();
   if(!res.ok||!type.includes('text/html'))return res;
-  let html=injectGoogleVerification(cleanPublicQa(await res.text(),path));
+  const isPublic=!path.startsWith('/admin')&&!path.startsWith('/api/');
+  if(!isPublic)return res;
+  let html=injectGoogleAnalytics(injectGoogleVerification(cleanPublicQa(await res.text(),path)));
   const h=new Headers(res.headers);
   if(path.startsWith('/articles/')){
     const noonUrl=noonMarketUrl(h.get('content-language'));
@@ -74,6 +84,7 @@ async function publicView(req,res,env){
   h.delete('content-length');
   h.set('x-public-quality-ui','hidden-v1');
   h.set('x-google-site-verification','html-meta-v1');
+  h.set('x-ga4-measurement','G-1551Z7DJ2C');
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
@@ -82,4 +93,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const PUBLIC_ENTRY_INFO={version:6,internalQualityVisible:false,adminQualityPreserved:true,mobileCouponCta:true,marketAwareNoonLinks:true,googleSiteVerification:true};
+export const PUBLIC_ENTRY_INFO={version:7,internalQualityVisible:false,adminQualityPreserved:true,mobileCouponCta:true,marketAwareNoonLinks:true,googleSiteVerification:true,ga4MeasurementId:GA4_MEASUREMENT_ID,conversionEvents:['copy_code','shop_click']};
