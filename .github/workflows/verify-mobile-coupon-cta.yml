@@ -23,7 +23,7 @@ jobs:
           grep -Fq 'https://www.noon.com/saudi-ar/' public-entry.js
           grep -Fq 'https://www.noon.com/uae-ar/' public-entry.js
           grep -Fq 'navigator.clipboard.writeText' public-entry.js
-          grep -Fq 'PUBLIC_ENTRY_INFO={version:4' public-entry.js
+          grep -Fq 'PUBLIC_ENTRY_INFO={version:5' public-entry.js
           grep -Fq 'marketAwareNoonLinks:true' public-entry.js
       - name: Live mobile CTA checks
         shell: bash
