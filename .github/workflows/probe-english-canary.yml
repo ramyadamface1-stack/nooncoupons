@@ -22,3 +22,5 @@ jobs:
           cat /tmp/generator.json
           echo
           exit 0
+
+# probe trigger 2026-09-16T10:30Z
