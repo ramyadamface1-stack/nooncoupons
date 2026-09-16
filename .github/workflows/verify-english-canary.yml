@@ -45,8 +45,10 @@ jobs:
             const x=JSON.parse(fs.readFileSync('/tmp/repair.json','utf8'));
             const pass=x.ok===true && x.targetCount===2 && x.totalStateRecords===2 &&
               Array.isArray(x.unexpectedEnglishRecords) && x.unexpectedEnglishRecords.length===0 &&
-              x.stateClean===true && x.r2HtmlClean===true && x.r2MetadataClean===true &&
-              x.marker?.complete===true && x.marker?.version==='guide-guide-v1';
+              Array.isArray(x.unexpectedR2Objects) && x.unexpectedR2Objects.length===0 &&
+              x.stateClean===true && x.r2HtmlClean===true && x.r2MetadataClean===true && x.reconciledToTwo===true &&
+              x.marker?.complete===true && x.marker?.version==='guide-guide-v1' &&
+              x.cleanupMarker?.complete===true && x.cleanupMarker?.version==='two-canaries-v1' && x.cleanupMarker?.removedCount===8;
             process.exit(pass?0:1);
           }catch{process.exit(1)}
           NODE
@@ -107,14 +109,30 @@ jobs:
             grep -Fq "<link rel=\"canonical\" href=\"$ORIGIN$path\">" /tmp/page.html
             grep -Fq "hreflang=\"en\" href=\"$ORIGIN$path\"" /tmp/page.html
             grep -Fq "hreflang=\"x-default\" href=\"$ORIGIN$path\"" /tmp/page.html
-            if grep -Eiq 'hreflang=["'"']ar([_-][A-Za-z]+)?["'"']' /tmp/page.html; then echo "Unexpected Arabic hreflang without mapped equivalent: $path"; exit 1; fi
+            if grep -Eiq 'hreflang="ar([_-][A-Za-z]+)?"' /tmp/page.html; then echo "Unexpected Arabic hreflang without mapped equivalent: $path"; exit 1; fi
             grep -Fq 'data-copy-code=' /tmp/page.html
             grep -Fq 'Copy ' /tmp/page.html
             grep -Fq 'href="https://www.noon.com/' /tmp/page.html
             grep -Eiq '<meta[^>]+name="description"[^>]+content="[^"]+"' /tmp/page.html
             if grep -Eiq 'guide[[:space:]]+guide' /tmp/page.html; then echo "Duplicate guide wording found: $path"; exit 1; fi
-            if grep -Eiq '(save|discount)[[:space:]]+(up to[[:space:]]+)?[0-9]{1,3}%' /tmp/page.html; then echo "Unsupported fixed discount claim found: $path"; exit 1; fi
+            if grep -Eiq "(save|discount)[[:space:]]+(up to[[:space:]]+)?[0-9]{1,3}%" /tmp/page.html; then echo "Unsupported fixed discount claim found: $path"; exit 1; fi
           done < /tmp/paths.txt
+      - name: Verify unintended English pages are gone
+        run: |
+          set -euo pipefail
+          ORIGIN="https://noondealsnow.com"
+          for slug in \
+            en-noon-cart-coupon-saudi-arabia-office-guide \
+            en-noon-final-price-uae-kids-guide \
+            en-noon-coupon-code-saudi-arabia-home-guide \
+            en-noon-coupon-eligibility-uae-beauty-guide \
+            en-smart-buying-on-noon-saudi-arabia-laptops-and-computing-checkout-guide \
+            en-noon-final-price-uae-sports-and-fitness-shopping-guide \
+            en-best-time-to-try-a-noon-coupon-saudi-arabia-tvs-and-displays-shopping-guide \
+            en-noon-cart-coupon-uae-home-and-kitchen-checkout-guide; do
+            code="$(curl -sS -o /tmp/gone.html -w '%{http_code}' --max-time 20 "$ORIGIN/en/articles/$slug")"
+            if [ "$code" = "200" ]; then echo "UNINTENDED_ENGLISH_PAGE_STILL_LIVE $slug"; exit 1; fi
+          done
       - name: Verify English sitemap and country evidence
         run: |
           set -euo pipefail
