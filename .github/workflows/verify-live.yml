@@ -32,7 +32,7 @@ jobs:
           grep -Fq 'categoryKey' bulk-generator.js
           grep -Fq 'landingPath' generator-core-v2.js
           grep -Fq 'minWords:5000' landing-content-v3.js
-          grep -Fq 'submitIndexNow' bulk-generator.js
+          grep -Fq 'submitIndexNow' bulk-content-engine.js
           node bulk-selftest.js | tee /tmp/bulk-selftest.log
           node landing-quality-selftest.mjs >/tmp/landing-selftest.json
 
