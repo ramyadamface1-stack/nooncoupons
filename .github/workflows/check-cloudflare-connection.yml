@@ -17,6 +17,7 @@ jobs:
       CF_TOKEN_1: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CF_TOKEN_2: ${{ secrets.CLOUDFLARE_TOKEN }}
       CF_TOKEN_3: ${{ secrets.CF_API_TOKEN }}
+      ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
       ZONE_NAME: noondealsnow.com
       GOOGLE_VERIFICATION: google-site-verification=LmU-uUjdxfArIxwpCxeSn7eKDIcUrc3zU2CqS8zmxrQ
     steps:
@@ -33,11 +34,13 @@ jobs:
           VERIFY_CODE=$(curl -sS -o verify.json -w '%{http_code}' \
             -H "Authorization: Bearer $TOKEN" \
             -H 'Content-Type: application/json' \
-            https://api.cloudflare.com/client/v4/user/tokens/verify)
+            "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/tokens/verify")
           VERIFY_SUCCESS=$(jq -r '.success // false' verify.json)
+          VERIFY_STATUS=$(jq -r '.result.status // "unknown"' verify.json)
           echo "TOKEN_VERIFY_HTTP=$VERIFY_CODE"
           echo "TOKEN_VERIFY_SUCCESS=$VERIFY_SUCCESS"
-          if [ "$VERIFY_CODE" != "200" ] || [ "$VERIFY_SUCCESS" != "true" ]; then
+          echo "TOKEN_STATUS=$VERIFY_STATUS"
+          if [ "$VERIFY_CODE" != "200" ] || [ "$VERIFY_SUCCESS" != "true" ] || [ "$VERIFY_STATUS" != "active" ]; then
             jq -c '{success,errors,messages}' verify.json
             exit 3
           fi
@@ -45,14 +48,15 @@ jobs:
           ZONE_CODE=$(curl -sS -o zone.json -w '%{http_code}' \
             -H "Authorization: Bearer $TOKEN" \
             -H 'Content-Type: application/json' \
-            "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}")
+            "https://api.cloudflare.com/client/v4/zones?name=${ZONE_NAME}&account.id=${ACCOUNT_ID}")
           ZONE_SUCCESS=$(jq -r '.success // false' zone.json)
-          ZONE_COUNT=$(jq -r '.result | length' zone.json)
+          ZONE_COUNT=$(jq -r '.result | length' zone.json 2>/dev/null || echo 0)
           echo "ZONE_LOOKUP_HTTP=$ZONE_CODE"
           echo "ZONE_LOOKUP_SUCCESS=$ZONE_SUCCESS"
           echo "ZONE_COUNT=$ZONE_COUNT"
           if [ "$ZONE_CODE" != "200" ] || [ "$ZONE_SUCCESS" != "true" ] || [ "$ZONE_COUNT" -lt 1 ]; then
             jq -c '{success,errors,messages,result_info}' zone.json
+            echo "ZONE_LOOKUP_HINT=Token needs Zone Zone Read to discover the zone id"
             exit 4
           fi
 
