@@ -15,6 +15,7 @@ const CODES = ['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const enc = (s) => encodeURI(String(s || ''));
 const safeJson = (x) => JSON.stringify(x).replace(/</g, '\\u003c');
+const EN_CATEGORY_LABELS={electronics:'Electronics',mobiles:'Mobiles',laptops:'Laptops',tablets:'Tablets',tvs:'TVs',computers:'Computers',gaming:'Gaming',audio:'Audio','home-kitchen':'Home & Kitchen',appliances:'Appliances',beauty:'Beauty','women-fashion':"Women's Fashion",'men-fashion':"Men's Fashion",shoes:'Shoes',bags:'Bags','baby-kids':'Baby & Kids',sports:'Sports',automotive:'Automotive',grocery:'Grocery',travel:'Travel','school-supplies':'School Supplies',gifts:'Gifts',pets:'Pet Supplies'};
 
 const CSS = `
 *{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#f8fafc;color:#111827}
@@ -131,6 +132,22 @@ function shell(origin, path, title, desc, rows, hero, main, market, current = ''
   return `<!doctype html><html lang="ar" dir="rtl"><head>${pageHead(origin,path,title,desc,rows)}</head><body>${hero}<main class="w">${main}</main>${spider(market,current)}</body></html>`;
 }
 
+function englishCategoryGrid(market){
+ return `<div class="grid4">${Object.keys(CATEGORIES).map(k=>`<article class="card visual-card"><div>${visualSvg(k,EN_CATEGORY_LABELS[k]||k)}<span class="visual-theme">${esc(CATEGORY_VISUALS[k]?.theme||'shopping')}</span><h3><a href="/en/${market}/category/${k}">${esc(EN_CATEGORY_LABELS[k]||k)}</a></h3><p>Explore coupon-focused guides and eligible shopping content for this category.</p></div><a class="read" href="/en/${market}/category/${k}">Explore category →</a></article>`).join('')}</div>`;
+}
+function englishHead(origin,path,title,desc,market){
+ const arPath=path.replace(/^\/en/,'');
+ return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | Noon Coupons</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin+path)}"><link rel="alternate" hreflang="en" href="${esc(origin+path)}"><link rel="alternate" hreflang="ar" href="${esc(origin+arPath)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+arPath)}"><style>${CSS}</style>`;
+}
+async function englishCountryPage(market,origin,env){
+ const mk=MARKETS[market];if(!mk)return null;
+ const path=`/en/${market}`,rows=marketRows(await latestArticles(env),market).slice(0,9),title=`Noon coupons in ${market==='saudi'?'Saudi Arabia':'the UAE'}`,desc=`Coupon-first shopping hub for Noon ${market==='saudi'?'Saudi Arabia':'UAE'}, with categories, cities and buying guides.`,code=codeFor('country:'+market);
+ const cities=(CITIES[market]||[]).map(c=>`<article class="card"><small>${esc(c.ar)}</small><h3>${esc(c.en)}</h3><p>Local navigation for shoppers in ${esc(c.en)} without claiming a city-specific discount unless verified.</p></article>`).join('');
+ const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/en/${market}">English</a> · <a href="/${market}">العربية</a></div><h1>${title}</h1><p>${desc}</p><aside class="coupon"><div><small>Primary action</small><h2>Copy code <span class="code">${code}</span></h2><p class="lead">Check eligibility in your cart; the final Noon checkout is the reference.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside></div></header>`;
+ const main=`<section class="section"><h2>Shop by category</h2>${englishCategoryGrid(market)}</section><section class="section"><h2>Major cities</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>Latest eligible guides</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">Eligible English guides will appear here as they are published.</div>'}</section>`;
+ return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${englishHead(origin,path,title,desc,market)}</head><body>${hero}<main class="w">${main}</main></body></html>`,'country-en',{'x-commerce-market':market,'x-content-language':'en'});
+}
+
 async function countryPage(market,origin,env){
  const mk=MARKETS[market];if(!mk)return null;
  const rows=marketRows(await latestArticles(env),market).slice(0,12),path=`/${market}`,code=codeFor('country:'+market);
@@ -221,7 +238,9 @@ async function comparisonPage(market, key, origin, env) {
 }
 
 export async function commerceLanding(path, origin, env) {
-  let m = path.match(/^\/(saudi|uae)$/);
+  let m = path.match(/^\/en\/(saudi|uae)$/);
+  if (m) return englishCountryPage(m[1],origin,env);
+  m = path.match(/^\/(saudi|uae)$/);
   if (m) return countryPage(m[1],origin,env);
   m = path.match(/^\/(saudi|uae)\/city\/([a-z0-9-]+)$/);
   if (m) return cityPage(m[1],m[2],origin,env);
