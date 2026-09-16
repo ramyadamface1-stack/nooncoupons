@@ -1,8 +1,7 @@
-name: Verify Mobile Coupon CTA
+name: Verify Mobile Coupon CTA (diagnostic)
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
   workflow_dispatch:
 
 permissions:
