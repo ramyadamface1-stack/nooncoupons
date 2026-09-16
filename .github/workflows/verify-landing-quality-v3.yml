@@ -43,7 +43,7 @@ jobs:
       - name: Live sample verification
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           ready=0
           for i in $(seq 1 25); do
             ok=1
