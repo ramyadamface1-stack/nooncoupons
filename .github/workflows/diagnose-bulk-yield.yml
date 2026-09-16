@@ -12,22 +12,37 @@ permissions:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
+    timeout-minutes: 6
     steps:
-      - name: Read live generator rejection counters
+      - name: Read live rejection reasons after telemetry deploy
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS --retry 5 --retry-all-errors --max-time 25 'https://noondealsnow.com/api/generator-health?yield=1' -o /tmp/g.json
+          ready=0
+          for i in $(seq 1 36); do
+            curl -fsS --retry 3 --retry-all-errors --max-time 25 "https://noondealsnow.com/api/generator-health?yield=$i" -o /tmp/g.json || true
+            if python3 - <<'PY'
+          import json
+          g=json.load(open('/tmp/g.json'))
+          s=g.get('status') or {}
+          reasons=s.get('bulkLastQualityRejectReasons')
+          assert isinstance(reasons,dict) and len(reasons)>0
+          PY
+            then ready=1; break; fi
+            sleep 6
+          done
+          [ "$ready" = 1 ] || { echo QUALITY_REASON_TELEMETRY_NOT_READY; cat /tmp/g.json; exit 1; }
           python3 - <<'PY'
           import json
           g=json.load(open('/tmp/g.json'))
           s=g.get('status') or {}
           b=g.get('bulk') or {}
-          keys=['bulkPublishedTotal','bulkPublishedToday','bulkCursorV2','bulkRejectedQuality','bulkRejectedDuplicate','bulkRejectedGlobal','bulkRejectedCoupon','bulkRejectedLinks','bulkRejectedSchema','bulkRejectedIndexation','bulkNoPassStreak','bulkAutoPauseUntil','bulkLastRun','bulkLastError']
-          print('BULK_HEALTH',json.dumps(b,ensure_ascii=False))
-          print('BULK_STATUS',json.dumps({k:s.get(k) for k in keys},ensure_ascii=False))
-          print('YIELD_DIAG',json.dumps({
+          reasons=s.get('bulkLastQualityRejectReasons') or {}
+          ordered=sorted(reasons.items(),key=lambda x:(-x[1],x[0]))
+          counters={
             'published':int(s.get('bulkPublishedTotal') or b.get('publishedTotal') or 0),
+            'today':int(s.get('bulkPublishedToday') or b.get('publishedToday') or 0),
+            'cursor':int(s.get('bulkCursorV2') or 0),
             'quality':int(s.get('bulkRejectedQuality') or 0),
             'global':int(s.get('bulkRejectedGlobal') or 0),
             'coupon':int(s.get('bulkRejectedCoupon') or 0),
@@ -35,5 +50,10 @@ jobs:
             'schema':int(s.get('bulkRejectedSchema') or 0),
             'indexation':int(s.get('bulkRejectedIndexation') or 0),
             'duplicate':int(s.get('bulkRejectedDuplicate') or 0),
-          },ensure_ascii=False))
+            'lastRun':s.get('bulkLastRun'),
+            'lastError':s.get('bulkLastError')
+          }
+          print('YIELD_COUNTERS',json.dumps(counters,ensure_ascii=False))
+          print('QUALITY_REASONS',json.dumps(ordered,ensure_ascii=False))
+          print('LAST_ARTICLE',json.dumps({'slug':b.get('lastSlug'),'quality':b.get('lastQuality'),'words':b.get('lastWordCount')},ensure_ascii=False))
           PY
