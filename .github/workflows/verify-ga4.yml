@@ -1,0 +1,47 @@
+name: Verify GA4 Production
+
+on:
+  push:
+    paths:
+      - 'public-entry.js'
+      - '.github/workflows/verify-ga4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify GA4 on production pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://noondealsnow.com'
+          MID='G-1551Z7DJ2C'
+          ARTICLE='en-noon-coupon-eligibility-saudi-arabia-travel-guide'
+
+          check_public() {
+            local path="$1"
+            curl -fsSL --retry 4 --retry-delay 2 -D headers.txt "$ORIGIN$path" -o body.html
+            grep -Fq "googletagmanager.com/gtag/js?id=$MID" body.html
+            grep -Fq "gtag('config','$MID')" body.html
+            grep -Fq "'copy_code'" body.html
+            grep -Fq "'shop_click'" body.html
+            grep -Fiq "x-ga4-measurement: $MID" headers.txt
+            echo "GA4_PUBLIC_OK=$path"
+          }
+
+          check_public '/'
+          check_public "/articles/$ARTICLE"
+
+          ADMIN_CODE=$(curl -sS -o admin.html -w '%{http_code}' "$ORIGIN/admin")
+          if grep -Fq "$MID" admin.html; then
+            echo 'GA4_ADMIN_EXCLUSION=false'
+            exit 4
+          fi
+          echo "GA4_ADMIN_HTTP=$ADMIN_CODE"
+          echo 'GA4_ADMIN_EXCLUSION=true'
+          echo 'GA4_PRODUCTION_VERIFIED=true'
