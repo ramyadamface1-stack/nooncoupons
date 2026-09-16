@@ -34,7 +34,7 @@ jobs:
           ok=0
           for i in $(seq 1 24); do
             curl -fsS --max-time 20 "$ORIGIN/api/english-canary-health" -o /tmp/canary.json || true
-            if node -e "const fs=require('fs');try{const x=JSON.parse(fs.readFileSync('/tmp/canary.json','utf8'));process.exit(x.builder===6&&x.target===2&&x.complete===true&&x.published===2&&x.records?.length===2&&x.records.every(r=>r.r2Present===true&&r.languageSource==='native-intent-v6-canary'&&r.minJaccardDistance>=0.18&&r.quality>=95))}catch{process.exit(1)}"; then ok=1; break; fi
+            if node -e "const fs=require('fs');try{const x=JSON.parse(fs.readFileSync('/tmp/canary.json','utf8'));const pass=x.builder===6&&x.target===2&&x.complete===true&&x.published===2&&x.records?.length===2&&x.records.every(r=>r.r2Present===true&&r.languageSource==='native-intent-v6-canary'&&r.minJaccardDistance>=0.18&&r.quality>=95);process.exit(pass?0:1)}catch{process.exit(1)}"; then ok=1; break; fi
             sleep 5
           done
           test "$ok" = 1
