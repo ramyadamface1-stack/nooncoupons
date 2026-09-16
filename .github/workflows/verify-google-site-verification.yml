@@ -1,0 +1,36 @@
+name: Verify Google Site Verification
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - public-entry.js
+      - .github/workflows/verify-google-site-verification.yml
+  workflow_dispatch:
+
+jobs:
+  verify-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Wait for production and verify Google tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://noondealsnow.com/"
+          TOKEN='LmU-uUjdxfArIxwpCxeSn7eKDIcUrc3zU2CqS8zmxrQ'
+          for i in $(seq 1 30); do
+            headers="$(mktemp)"
+            body="$(mktemp)"
+            if curl -fsSL -D "$headers" "$URL" -o "$body"; then
+              if grep -Fq "name=\"google-site-verification\"" "$body" && grep -Fq "content=\"$TOKEN\"" "$body"; then
+                echo "Production Google verification meta tag is present."
+                grep -i '^x-google-site-verification:' "$headers" || true
+                exit 0
+              fi
+            fi
+            echo "Attempt $i: production has not picked up the verification tag yet."
+            sleep 10
+          done
+          echo "Google verification tag was not found on production within the verification window."
+          exit 1
