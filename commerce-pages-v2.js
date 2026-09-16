@@ -94,7 +94,8 @@ function schema(origin, path, title, desc, rows) {
 }
 
 function pageHead(origin, path, title, desc, rows) {
-  return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | كوبونات نون</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin + path)}"><script type="application/ld+json">${safeJson(schema(origin,path,title,desc,rows))}</script><style>${CSS}</style>`;
+  const enPath='/en'+path, alternates=`<link rel="alternate" hreflang="ar" href="${esc(origin+path)}"><link rel="alternate" hreflang="en" href="${esc(origin+enPath)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+path)}">`;
+  return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | كوبونات نون</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin + path)}">${alternates}<script type="application/ld+json">${safeJson(schema(origin,path,title,desc,rows))}</script><style>${CSS}</style>`;
 }
 
 function couponBox(market, key, label) {
