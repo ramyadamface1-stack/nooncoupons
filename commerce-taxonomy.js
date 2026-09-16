@@ -5,6 +5,43 @@ export const MARKETS={
   uae:{country:'AE',label:'الإمارات',name:'نون الإمارات',noon:'https://www.noon.com/uae-ar/'}
 };
 
+export const CITIES={
+  saudi:[
+    {key:'riyadh',ar:'الرياض',en:'Riyadh'},{key:'jeddah',ar:'جدة',en:'Jeddah'},{key:'makkah',ar:'مكة',en:'Makkah'},
+    {key:'madinah',ar:'المدينة المنورة',en:'Madinah'},{key:'dammam',ar:'الدمام',en:'Dammam'},{key:'khobar',ar:'الخبر',en:'Khobar'}
+  ],
+  uae:[
+    {key:'dubai',ar:'دبي',en:'Dubai'},{key:'abu-dhabi',ar:'أبوظبي',en:'Abu Dhabi'},{key:'sharjah',ar:'الشارقة',en:'Sharjah'},
+    {key:'ajman',ar:'عجمان',en:'Ajman'},{key:'ras-al-khaimah',ar:'رأس الخيمة',en:'Ras Al Khaimah'},{key:'fujairah',ar:'الفجيرة',en:'Fujairah'}
+  ]
+};
+
+export const CATEGORY_VISUALS={
+  electronics:{icon:'📷',theme:'smart-tech',alt:'إلكترونيات وكوبونات نون'},
+  mobiles:{icon:'📱',theme:'mobile-tech',alt:'جوالات وكوبونات نون'},
+  laptops:{icon:'💻',theme:'computing',alt:'لابتوبات وكوبونات نون'},
+  tablets:{icon:'▣',theme:'tablet-tech',alt:'تابلت وكوبونات نون'},
+  tvs:{icon:'📺',theme:'home-screen',alt:'تلفزيونات وكوبونات نون'},
+  computers:{icon:'⌨',theme:'computing',alt:'كمبيوتر وملحقات وكوبونات نون'},
+  gaming:{icon:'🎮',theme:'gaming',alt:'ألعاب إلكترونية وكوبونات نون'},
+  audio:{icon:'🎧',theme:'audio',alt:'سماعات وصوتيات وكوبونات نون'},
+  'home-kitchen':{icon:'⌂',theme:'home',alt:'البيت والمطبخ وكوبونات نون'},
+  appliances:{icon:'◫',theme:'appliances',alt:'أجهزة منزلية وكوبونات نون'},
+  beauty:{icon:'✦',theme:'beauty',alt:'الجمال والعناية وكوبونات نون'},
+  'women-fashion':{icon:'♢',theme:'fashion',alt:'أزياء نسائية وكوبونات نون'},
+  'men-fashion':{icon:'♢',theme:'fashion',alt:'أزياء رجالية وكوبونات نون'},
+  shoes:{icon:'◒',theme:'fashion',alt:'أحذية وكوبونات نون'},
+  bags:{icon:'▱',theme:'travel',alt:'حقائب وكوبونات نون'},
+  'baby-kids':{icon:'★',theme:'kids',alt:'البيبي والأطفال وكوبونات نون'},
+  sports:{icon:'●',theme:'sports',alt:'رياضة ولياقة وكوبونات نون'},
+  automotive:{icon:'◆',theme:'automotive',alt:'سيارات وكوبونات نون'},
+  grocery:{icon:'◉',theme:'grocery',alt:'بقالة وكوبونات نون'},
+  travel:{icon:'✈',theme:'travel',alt:'سفر وكوبونات نون'},
+  'school-supplies':{icon:'✎',theme:'school',alt:'مستلزمات المدرسة وكوبونات نون'},
+  gifts:{icon:'◇',theme:'gifts',alt:'هدايا وكوبونات نون'},
+  pets:{icon:'♡',theme:'pets',alt:'مستلزمات الحيوانات الأليفة وكوبونات نون'}
+};
+
 export const CATEGORIES={
   electronics:{label:'الإلكترونيات',desc:'كاميرات وشاشات كمبيوتر وراوترات وتخزين وأجهزة ذكية مع مراجعة التوافق والنسخة والبائع والضمان.',terms:['الكاميرات','الشاشات','الراوترات','التخزين الخارجي','الساعات الذكية','الأجهزة القابلة للارتداء']},
   mobiles:{label:'الجوالات',desc:'هواتف حسب البراند والعائلة والسعة والنسخة والبائع والضمان والسعر النهائي.',terms:['الجوالات'],brands:true},
@@ -82,5 +119,5 @@ export function modelKeyForArticle(a={},brandKey=brandKeyForArticle(a)){if(a.mod
 export function comparisonKeyForArticle(a={}){if(a.comparisonKey&&COMPARISONS[a.comparisonKey])return a.comparisonKey;const text=norm([a.title,a.primaryKeyword,a.metaDescription].filter(Boolean).join(' '));for(const [k,c] of Object.entries(COMPARISONS)){const A=BRANDS[c.a],B=BRANDS[c.b];if(A.aliases.some(x=>text.includes(norm(x)))&&B.aliases.some(x=>text.includes(norm(x))))return k}return null}
 export function commerceMeta(a={}){const market=marketKey(a.country),categoryKey=categoryKeyForArticle(a),detectedBrand=brandKeyForArticle(a),brandKey=detectedBrand&&BRANDS[detectedBrand]?.categories?.includes(categoryKey)?detectedBrand:null,modelKey=brandKey?modelKeyForArticle(a,brandKey):null,comparisonKey=categoryKey==='mobiles'?comparisonKeyForArticle(a):null;return {market,categoryKey,brandKey,modelKey,comparisonKey}}
 export function articleCommerceLinks(a={}){const m=commerceMeta(a),out=[{path:`/${m.market}/categories`,label:`أقسام ${MARKETS[m.market].name}`},{path:`/${m.market}/category/${m.categoryKey}`,label:CATEGORIES[m.categoryKey].label}];if(m.brandKey)out.push({path:`/${m.market}/brand/${m.brandKey}`,label:BRANDS[m.brandKey].label});if(m.brandKey&&m.modelKey)out.push({path:`/${m.market}/model/${m.brandKey}/${m.modelKey}`,label:BRANDS[m.brandKey].models[m.modelKey].label});if(m.comparisonKey)out.push({path:`/${m.market}/compare/${m.comparisonKey}`,label:'المقارنة المرتبطة'});return out}
-export function commercePaths(){const out=[];for(const m of Object.keys(MARKETS)){out.push(`/${m}/categories`);for(const k of Object.keys(CATEGORIES))out.push(`/${m}/category/${k}`);for(const [bKey,b] of Object.entries(BRANDS)){out.push(`/${m}/brand/${bKey}`);for(const modelKey of Object.keys(b.models))out.push(`/${m}/model/${bKey}/${modelKey}`)}for(const k of Object.keys(COMPARISONS))out.push(`/${m}/compare/${k}`)}return out}
-export const COMMERCE_TAXONOMY_INFO={version:3,categories:Object.keys(CATEGORIES).length,brands:Object.keys(BRANDS).length,models:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisons:Object.keys(COMPARISONS).length,routes:commercePaths().length,architecture:'market-category-brand-model-comparison-article'};
+export function commercePaths(){const out=[];for(const m of Object.keys(MARKETS)){out.push(`/${m}`,`/${m}/categories`);for(const city of CITIES[m]||[])out.push(`/${m}/city/${city.key}`);for(const k of Object.keys(CATEGORIES))out.push(`/${m}/category/${k}`);for(const [bKey,b] of Object.entries(BRANDS)){out.push(`/${m}/brand/${bKey}`);for(const modelKey of Object.keys(b.models))out.push(`/${m}/model/${bKey}/${modelKey}`)}for(const k of Object.keys(COMPARISONS))out.push(`/${m}/compare/${k}`)}return out}
+export const COMMERCE_TAXONOMY_INFO={version:4,categories:Object.keys(CATEGORIES).length,brands:Object.keys(BRANDS).length,models:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisons:Object.keys(COMPARISONS).length,cities:Object.values(CITIES).reduce((n,a)=>n+a.length,0),visualCategories:Object.keys(CATEGORY_VISUALS).length,routes:commercePaths().length,architecture:'market-city-category-brand-model-comparison-article'};
