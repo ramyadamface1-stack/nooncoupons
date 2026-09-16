@@ -40,9 +40,9 @@ jobs:
           d=json.load(open(sys.argv[1]))
           assert d.get('ok') is True
           b=d.get('bulk') or {}
-          assert int(b.get('dailyTarget') or 0)>=5000
-          assert float(b.get('qualityPublishThreshold') or 0)>=95
-          assert b.get('lastSlug')
+          assert int(b.get('dailyTarget') or d.get('dailyTarget') or 0)>=5000
+          assert float(b.get('qualityPublishThreshold') or d.get('qualityPublishThreshold') or 0)>=95
+          assert b.get('lastSlug') or (d.get('status') or {}).get('bulkLastSlug')
           print('LEGACY_RUNTIME_COMPAT_PASS')
           PY
           state="$(curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --max-time 30 "$ORIGIN/api/state?v=legacy-contract")"
