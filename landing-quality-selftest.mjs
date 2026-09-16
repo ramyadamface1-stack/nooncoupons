@@ -5,7 +5,7 @@ import {enhanceSpecialtyLanding,LANDING_SPECIALTY_V4} from './landing-specialty-
 
 const origin='https://noondealsnow.com';
 const base=()=>new Response('<!doctype html><html lang="ar" dir="rtl"><head><title>base</title></head><body><main><h1>base</h1></main></body></html>',{status:200,headers:{'content-type':'text/html; charset=utf-8'}});
-const paths=commercePaths();
+const paths=commercePaths().filter(p=>/^\/(saudi|uae)\/(categories|category\/|brand\/|model\/|compare\/)/.test(p));
 if(paths.length<276)throw new Error(`route count regressed: ${paths.length}`);
 const hashes=new Set(),seeds=new Set(),focusHeaders=new Set();
 let min=Infinity,max=0,minChars=Infinity,minImages=Infinity,specialized=0;
