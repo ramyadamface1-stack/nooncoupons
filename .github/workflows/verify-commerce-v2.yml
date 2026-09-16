@@ -14,9 +14,13 @@ on:
       - ".github/workflows/verify-commerce-v2.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 7
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -42,7 +46,7 @@ jobs:
       - name: Wait for deployed commerce network
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           ready=0
           for i in $(seq 1 30); do
             if curl -fsS --max-time 20 "$ORIGIN/api/commerce-health?v=3" -o /tmp/health.json && grep -Fq '"routes": 110' /tmp/health.json && grep -Fq '"generatorTaxonomy"' /tmp/health.json && grep -Fq '"explicit-generator-taxonomy"' /tmp/health.json; then ready=1; break; fi
