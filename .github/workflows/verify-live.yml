@@ -33,8 +33,11 @@ jobs:
           grep -Fq 'landingPath' generator-core-v2.js
           grep -Fq 'minWords:5000' landing-content-v3.js
           grep -Fq 'submitIndexNow' bulk-content-engine.js
+          echo CHECK_BULK_SELFTEST
           node bulk-selftest.js | tee /tmp/bulk-selftest.log
+          echo CHECK_LANDING_SELFTEST
           node landing-quality-selftest.mjs | tee /tmp/landing-selftest.json
+          echo SOURCE_INVARIANTS_PASS
 
       - name: Verify live commerce and generator runtime
         shell: bash
