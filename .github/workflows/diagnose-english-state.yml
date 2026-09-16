@@ -30,10 +30,33 @@ jobs:
           const g=read('generator-health');
           const marker=r.qualityMarker||{};
           console.log('REPAIR',JSON.stringify({ok:r.ok,version:r.version,controlledTarget:r.controlledTarget,totalStateRecords:r.totalStateRecords,stateClean:r.stateClean,r2MetadataClean:r.r2MetadataClean,controlledQualityClean:r.controlledQualityClean,unexpectedEnglishRecords:r.unexpectedEnglishRecords,unexpectedR2Objects:r.unexpectedR2Objects,marker:{complete:marker.complete,version:marker.version,droppedCount:marker.droppedCount,dropped:marker.dropped,stateRecordsBefore:marker.stateRecordsBefore,stateRecordsAfter:marker.stateRecordsAfter}}));
-          console.log('QUALITY_STATE',JSON.stringify(r.qualityState||[]));
-          console.log('QUALITY_R2',JSON.stringify(r.qualityR2||[]));
-          console.log('CONTROLLED',JSON.stringify({builder:c.builder,target:c.target,complete:c.complete,published:c.published,controlled:c.controlled&&{target:c.controlled.target,published:c.controlled.published,remaining:c.controlled.remaining,complete:c.controlled.complete,status:c.controlled.status,sa:c.controlled.sa,ae:c.controlled.ae,uniqueProfiles:c.controlled.uniqueProfiles,records:(c.controlled.records||[]).map(x=>({slug:x.slug,phase:x.phase,canary:x.canary,quality:x.quality,qualityFloor:x.qualityFloor,wordCount:x.wordCount,minJaccardDistance:x.minJaccardDistance,metaDescription:x.metaDescription,r2Present:x.r2Present,status:x.status,indexable:x.indexable,provider:x.provider}))}}));
+          console.log('CONTROLLED',JSON.stringify({builder:c.builder,target:c.target,complete:c.complete,published:c.published,controlled:c.controlled&&{target:c.controlled.target,published:c.controlled.published,remaining:c.controlled.remaining,complete:c.controlled.complete,status:c.controlled.status,sa:c.controlled.sa,ae:c.controlled.ae,uniqueProfiles:c.controlled.uniqueProfiles}}));
           console.log('PLATFORM',JSON.stringify({ok:p.ok,ai:p.ai,r2:Boolean(p.r2)}));
           console.log('GENERATOR',JSON.stringify({ok:g.ok,preferredProvider:g.preferredProvider,legacyProvidersRemoved:g.legacyProvidersRemoved,providers:g.providers,r2Ready:g.r2Ready,bulk:g.bulk&&{enabled:g.bulk.enabled,lastError:g.bulk.lastError,lastQuality:g.bulk.lastQuality,lastWordCount:g.bulk.lastWordCount,publishedTotal:g.bulk.publishedTotal,publishedToday:g.bulk.publishedToday}}));
           NODE
-# audit-trigger: 2026-09-16T18:50Z
+      - name: Diagnose sitemap and English market hubs
+        run: |
+          set -euo pipefail
+          ORIGIN="https://noondealsnow.com"
+          curl -fsS --max-time 20 "$ORIGIN/api/english-canary-health" -o /tmp/controlled.json
+          curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en.xml
+          curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main.xml
+          curl -fsS --max-time 20 "$ORIGIN/en/saudi" -o /tmp/sa.html
+          curl -fsS --max-time 20 "$ORIGIN/en/uae" -o /tmp/ae.html
+          echo "EN_URL_COUNT=$(grep -o '<url>' /tmp/en.xml | wc -l | tr -d ' ')"
+          if grep -Fq "$ORIGIN/sitemap-en-articles.xml" /tmp/main.xml; then echo 'MAIN_HAS_EN_CHILD=yes'; else echo 'MAIN_HAS_EN_CHILD=no'; fi
+          node - <<'NODE'
+          const fs=require('fs');
+          const x=JSON.parse(fs.readFileSync('/tmp/controlled.json','utf8'));
+          const sa=fs.readFileSync('/tmp/sa.html','utf8'), ae=fs.readFileSync('/tmp/ae.html','utf8'), sm=fs.readFileSync('/tmp/en.xml','utf8');
+          const missingSitemap=[],missingHub=[];
+          for(const r of x.controlled.records||[]){
+            if(!sm.includes('https://noondealsnow.com'+r.urlPath)) missingSitemap.push(r.slug);
+            const h=r.country==='SA'?sa:ae;
+            if(!h.includes(r.urlPath)) missingHub.push(r.slug);
+          }
+          console.log('MISSING_EN_SITEMAP='+JSON.stringify(missingSitemap));
+          console.log('MISSING_MARKET_HUB='+JSON.stringify(missingHub));
+          NODE
+          head -c 250 /tmp/main.xml | tr '\n' ' '; echo
+# audit-trigger: 2026-09-16T18:58Z
