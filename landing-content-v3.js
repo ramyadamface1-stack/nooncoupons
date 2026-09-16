@@ -39,6 +39,26 @@ const INTENTS=[
 'باحث يريد فهم القسم قبل الشراء','مستخدم يقارن بين براندين','مستخدم يعرف البراند لكنه لم يحدد العائلة','مستخدم وصل إلى موديل ويبحث عن أفضل صفقة','مستخدم يملك كود خصم ويريد التأكد من فائدته','مستخدم يقارن بين السعودية والإمارات','مستخدم يريد تجنب بائع أو ضمان غير مناسب','مستخدم يبحث عن بديل قريب داخل نفس الفئة'
 ];
 
+
+const OWNER_CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
+const KEYWORD_MODIFIERS=['كود خصم','كوبون خصم','عروض','أفضل سعر','دليل شراء','مقارنة','خصم نون','عروض نون'];
+function visualBlock(ctx,seed){
+  const labels=[ctx.label,ctx.mk.name,'كوبونات وعروض'];
+  return `<section class="section landing-visuals"><h2>صور توضيحية ودليل بصري عن ${esc(ctx.label)}</h2><p>الرسومات التالية توضح مسار البحث والاختيار واختبار الكوبون داخل ${esc(ctx.mk.name)}، وهي عناصر توضيحية خاصة بالصفحة وليست صورًا لمنتج أو سعر ثابت.</p><div class="grid">${labels.map((label,i)=>`<figure class="card"><svg role="img" aria-labelledby="v${seed}-${i}" viewBox="0 0 640 360" width="100%" height="auto" xmlns="http://www.w3.org/2000/svg"><title id="v${seed}-${i}">${esc(label)} — ${esc(ctx.label)}</title><rect width="640" height="360" rx="28" fill="#f8fafc"/><rect x="28" y="28" width="584" height="304" rx="24" fill="#fff" stroke="#e5e7eb"/><circle cx="${120+i*25}" cy="130" r="54" fill="#facc15"/><path d="M210 110h330M210 150h260M90 245h450" stroke="#312e81" stroke-width="18" stroke-linecap="round"/><text x="320" y="305" text-anchor="middle" font-size="24" font-family="Arial" fill="#111827">${esc(label)}</text></svg><figcaption>${esc(label)}: مخطط بصري يساعد على فهم موضوع الصفحة قبل الانتقال إلى المقالات أو السلة.</figcaption></figure>`).join('')}</div></section>`;
+}
+function definitionsBlock(ctx){
+  const defs=[['كود الخصم','رمز يُختبر داخل السلة وقد تختلف أهليته حسب الحساب والمنتج والبائع والوقت.'],['العرض','سعر أو ميزة ترويجية متغيرة؛ المرجع النهائي هو ما يظهر في نون لحظة الشراء.'],['السعر النهائي','إجمالي السلة بعد الخصم والشحن وأي رسوم ظاهرة قبل الدفع.'],['صفحة الهبوط','صفحة تجمع نية بحث محددة مع تعريفات وعروض وأدلة ومقالات وروابط مرتبطة.'],['نية البحث','الهدف الذي يحاول المستخدم الوصول إليه، مثل العثور على كوبون أو مقارنة منتجين أو اختيار فئة.']];
+  return `<section class="section landing-definitions"><h2>تعريفات مهمة قبل استخدام عروض ${esc(ctx.label)}</h2><dl>${defs.map(([a,b])=>`<div class="box"><dt><strong>${esc(a)}</strong></dt><dd>${esc(b)} وفي هذه الصفحة نطبقه على ${esc(ctx.label)} داخل ${esc(ctx.mk.name)}.</dd></div>`).join('')}</dl></section>`;
+}
+function keywordBlock(ctx,seed){
+  const kws=rotate(KEYWORD_MODIFIERS,seed).map(x=>`${x} ${ctx.label} ${ctx.mk.label}`);
+  return `<section class="section landing-keywords"><h2>موضوعات وكلمات البحث المرتبطة بـ ${esc(ctx.label)}</h2><p>تغطي الصفحة نيات بحث مترابطة بصورة طبيعية دون تكرار مصطنع للكلمات. من أهم الموضوعات: ${kws.map(esc).join('، ')}. يتم توزيع هذه العبارات داخل التعريفات والأسئلة وأدلة الاختيار والروابط الداخلية بما يخدم القارئ أولًا.</p><div class="chips">${kws.slice(0,8).map(k=>`<span class="box">${esc(k)}</span>`).join('')}</div></section>`;
+}
+function couponGuideBlock(ctx,seed){
+  const codes=rotate(OWNER_CODES,seed).slice(0,4);
+  return `<section class="section landing-coupon-guide"><h2>أكواد وكوبونات خصم مرتبطة بـ ${esc(ctx.label)}</h2><p>يمكن تجربة الأكواد التالية من قائمة الموقع على السلة المناسبة: ${codes.map(c=>`<strong class="code">${c}</strong>`).join(' ')}. لا نثبت نسبة خصم غير مؤكدة؛ نجاح الكود وقيمته الفعلية يتحددان داخل السلة على ${esc(ctx.mk.name)}.</p><ol><li>اختر المنتج أو الفئة المناسبة أولًا.</li><li>ثبت البائع والنسخة والكمية.</li><li>سجل الإجمالي قبل الكود.</li><li>جرّب الكود ثم قارن الإجمالي النهائي.</li><li>ارجع إلى المقالات الداخلية إذا احتجت مقارنة أعمق قبل الدفع.</li></ol></section>`;
+}
+
 const QA=[
 ['هل الكود مضمون على كل المنتجات؟','لا. أهلية الكود قد تختلف حسب الحساب والمنتج والبائع والسلة والوقت. اختبر الكود على السلة نفسها واعتمد الإجمالي النهائي الظاهر قبل الدفع.'],
 ['هل أقل سعر ظاهر يعني أفضل صفقة؟','ليس بالضرورة. قارن حالة المنتج والبائع والضمان والشحن وسياسة الإرجاع والإجمالي بعد الكود.'],
@@ -93,13 +113,13 @@ export async function enhanceLandingPage(path,origin,res){
   let html=await res.text();if(html.includes('id="landing-depth-v3"'))return new Response(html,{status:res.status,headers:res.headers});
   const seed=hash(path),angles=rotate(ANGLES,seed).slice(0,40);
   const faq=faqBlock(ctx,seed);
-  let body=`<div id="landing-depth-v3" data-content-version="3" data-route-seed="${seed}">${entityBlock(ctx)}${angles.map((a,i)=>section(ctx,seed,i,a)).join('')}${faq.html}${eeatBlock(ctx)}</div>`;
-  const floor=5000;let n=words(body),extra=0;
-  while(n<floor&&extra<20){body+=section(ctx,seed+extra*101,angles.length+extra,ANGLES[(seed+extra)%ANGLES.length]);extra++;n=words(body)}
+  let body=`<div id="landing-depth-v3" data-content-version="3" data-route-seed="${seed}">${entityBlock(ctx)}${visualBlock(ctx,seed)}${definitionsBlock(ctx)}${keywordBlock(ctx,seed)}${couponGuideBlock(ctx,seed)}${angles.map((a,i)=>section(ctx,seed,i,a)).join('')}${faq.html}${eeatBlock(ctx)}</div>`;
+  const floor=5000;const charFloor=5000;let n=words(body),extra=0;
+  while((n<floor||body.replace(/<[^>]*>/g,' ').length<charFloor)&&extra<20){body+=section(ctx,seed+extra*101,angles.length+extra,ANGLES[(seed+extra)%ANGLES.length]);extra++;n=words(body)}
   const schema=extraSchema(origin,path,ctx,faq.items);
   html=html.replace(/<\/head>/i,`<meta name="content-depth" content="${n}"><meta name="landing-content-version" content="3"><script type="application/ld+json">${JSON.stringify(schema).replace(/</g,'\\u003c')}</script></head>`).replace(/<\/main>/i,`${body}</main>`);
-  const h=new Headers(res.headers);h.delete('content-length');h.set('x-landing-content','v3');h.set('x-landing-word-count',String(n));h.set('x-landing-unique-seed',String(seed));h.set('x-landing-schema','webpage-faq-organization');
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-landing-content','v3');h.set('x-landing-word-count',String(n));h.set('x-landing-char-count',String(body.replace(/<[^>]*>/g,' ').length));h.set('x-landing-images','3');h.set('x-landing-unique-seed',String(seed));h.set('x-landing-schema','webpage-faq-organization');
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
-export const LANDING_CONTENT_V3={version:3,minWords:5000,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['WebPage','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true};
+export const LANDING_CONTENT_V3={version:3,minWords:5000,minChars:5000,imagesPerLanding:3,definitions:true,keywordClusters:true,couponGuide:true,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['WebPage','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true};
