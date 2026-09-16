@@ -28,7 +28,7 @@ export function auditSeoArticle(article,topic,opts={}){
   const html=String(article?.html||''),plain=strip(html),wordCount=words(plain).length,keyword=String(article?.primaryKeyword||topic?.kw||''),title=String(article?.title||''),meta=String(article?.metaDescription||''),slug=String(article?.slug||'');
   const country=topic?.country==='AE'?'AE':'SA',market=country==='SA'?'السعودية':'الإمارات',currency=country==='SA'?'الريال السعودي':'الدرهم الإماراتي',currencyCode=country==='SA'?'SAR':'AED',wrongCountry=country==='SA'?/(?:الإمارات|الامارات|\bUAE\b|Emirates)/i:/(?:السعودية|المملكة العربية السعودية|\bKSA\b|Saudi(?: Arabia)?)/i;
   const checks=[],pstats=paragraphStats(html),h1=count(html,/<h1\b/gi),h2=count(html,/<h2\b/gi),h3=count(html,/<h3\b/gi),imgs=[...html.matchAll(/<img\b[^>]*>/gi)].map(m=>m[0]);
-  const codes=[...new Set((plain.match(/\bNOV\d{3}\b/gi)||[]).map(x=>x.toUpperCase()))],targetCode=String(topic?.code||article?.coupon||'').toUpperCase();
+  const codes=[...new Set((plain.match(/\b[A-Z]{2,8}\d{1,6}\b/g)||[]).map(x=>x.toUpperCase()))],targetCode=String(topic?.code||article?.coupon||'').toUpperCase();
   const ar=count(plain,/[\u0600-\u06FF]/g),latin=count(plain,/[A-Za-z]/g),arabicRatio=ar/Math.max(1,ar+latin);
   const intro=strip(html.slice(0,Math.min(html.length,7000))),exactKw=exactOccurrences(plain,keyword),sig=contentSignature(plain);
   const recent=Array.isArray(opts.recent)?opts.recent:[],distances=recent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=distances.length?Math.min(...distances):32;
@@ -81,7 +81,7 @@ export function auditSeoArticle(article,topic,opts={}){
 
   addCheck(checks,'geo','country_localization',plain.includes(market),4,{critical:true});
   addCheck(checks,'geo','currency_localization',plain.includes(currency)&&plain.includes(currencyCode),3);
-  addCheck(checks,'geo','market_internal_link',country==='SA'?/href=["']\/saudi-arabia/i.test(html):/href=["']\/uae/i.test(html),2);
+  addCheck(checks,'geo','market_internal_link',country==='SA'?/href=["']\/saudi(?:["']|\/)/i.test(html):/href=["']\/uae(?:["']|\/)/i.test(html),2);
   addCheck(checks,'geo','national_scope_truthful',/data-scope=["']national["']/i.test(html),2);
   addCheck(checks,'geo','arabic_localization',arabicRatio>=0.9,3,{critical:arabicRatio<0.78,note:arabicRatio.toFixed(3)});
 
