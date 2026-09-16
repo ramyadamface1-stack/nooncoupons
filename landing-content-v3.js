@@ -102,6 +102,14 @@ function entityBlock(ctx){
   return `<section class="section entity-summary"><h2>ملخص الكيانات والنية</h2><ul>${bits.join('')}</ul><p>هذه الصفحة مستقلة في عنوانها وكياناتها ونية البحث ومسارها الداخلي. لا نستخدم سعرًا ثابتًا أو نسبة خصم ثابتة كحقيقة دائمة؛ البيانات المتغيرة تُراجع في نون لحظة الشراء.</p></section>`;
 }
 
+function functionalBlock(ctx){
+  if(ctx.type==='category')return `<section class="section functional-depth"><h2>خريطة قرار قسم ${esc(ctx.label)}</h2><div class="grid"><div class="box"><strong>ابدأ بالاستخدام</strong><p>حدد لماذا تحتاج منتجًا من هذا القسم قبل الفرز بالسعر.</p></div><div class="box"><strong>ثبّت المواصفات</strong><p>اكتب الخصائص الأساسية التي تجعل النتائج قابلة للمقارنة.</p></div><div class="box"><strong>قارن البائع والعرض</strong><p>راجع الضمان والشحن والإرجاع ثم اختبر الكوبون على السلة النهائية.</p></div></div></section>`;
+  if(ctx.type==='brand')return `<section class="section functional-depth"><h2>كيف تختار داخل عائلات ${esc(ctx.label)}</h2><p>لا تقارن كل منتجات البراند كأنها مستوى واحد. ابدأ بالعائلة المناسبة لاستخدامك، ثم قارن الأجيال أو السعات أو المقاسات المتقاربة، وبعدها انتقل إلى صفحة الموديل أو المقال المتخصص قبل اختبار الكوبون.</p><p><strong>قاعدة القرار:</strong> العائلة أولًا ← المواصفات ثانيًا ← البائع والضمان ← السعر النهائي بعد الكود.</p></section>`;
+  if(ctx.type==='model')return `<section class="section functional-depth"><h2>Checklist قبل شراء ${esc(ctx.label)}</h2><ul><li>طابق اسم العائلة ورقم أو جيل الموديل.</li><li>ثبّت السعة أو المقاس أو النسخة قبل مقارنة السعر.</li><li>راجع البائع والضمان والملحقات المضمنة.</li><li>قارن الإجمالي النهائي بعد الشحن والكوبون.</li><li>ارجع لصفحة البراند إذا احتجت بديلًا من عائلة أخرى.</li></ul></section>`;
+  if(ctx.type==='comparison')return `<section class="section functional-depth"><h2>مصفوفة قرار: ${esc(ctx.label)}</h2><table><thead><tr><th>المعيار</th><th>ماذا تفحص؟</th></tr></thead><tbody><tr><td>الاستخدام</td><td>أي خيار يطابق احتياجك اليومي فعلًا؟</td></tr><tr><td>المواصفات</td><td>قارن نفس المستوى والسعة أو الفئة قدر الإمكان.</td></tr><tr><td>البائع والضمان</td><td>لا تجعل فرق السعر يخفي اختلاف الضمان أو الحالة.</td></tr><tr><td>التكلفة النهائية</td><td>قارن السلة بعد الشحن والكوبون، لا السعر الاسمي فقط.</td></tr></tbody></table><p>لا نعلن فائزًا عامًا؛ النتيجة تتغير حسب استخدامك والنسخة والبائع والسعر الحي.</p></section>`;
+  return `<section class="section functional-depth"><h2>ابدأ من القسم المناسب</h2><p>استخدم دليل الأقسام لتضييق نطاق البحث، ثم انتقل إلى البراند والعائلة والمقارنة والمقالات المتخصصة بدل فتح نتائج غير مترابطة.</p></section>`;
+}
+
 function relatedHubBlock(ctx){
   const base='/'+ctx.market,links=[{p:base+'/categories',l:'كل أقسام '+ctx.mk.name},{p:ctx.market==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code',l:'كود خصم نون '+ctx.mk.label}];
   if(ctx.category)links.push({p:base+'/category/'+ctx.key,l:'دليل '+ctx.category.label});
@@ -119,7 +127,7 @@ export async function enhanceLandingPage(path,origin,res){
   let html=await res.text();if(html.includes('id="landing-depth-v3"'))return new Response(html,{status:res.status,headers:res.headers});
   const seed=hash(path),angles=rotate(ANGLES,seed).slice(0,40);
   const faq=faqBlock(ctx,seed);
-  let body=`<div id="landing-depth-v3" data-content-version="3" data-route-seed="${seed}">${entityBlock(ctx)}${visualBlock(ctx,seed)}${definitionsBlock(ctx)}${keywordBlock(ctx,seed)}${couponGuideBlock(ctx,seed)}${angles.map((a,i)=>section(ctx,seed,i,a)).join('')}${faq.html}${relatedHubBlock(ctx)}${eeatBlock(ctx)}</div>`;
+  let body=`<div id="landing-depth-v3" data-content-version="3" data-route-seed="${seed}">${entityBlock(ctx)}${functionalBlock(ctx)}${visualBlock(ctx,seed)}${definitionsBlock(ctx)}${keywordBlock(ctx,seed)}${couponGuideBlock(ctx,seed)}${angles.map((a,i)=>section(ctx,seed,i,a)).join('')}${faq.html}${relatedHubBlock(ctx)}${eeatBlock(ctx)}</div>`;
   const floor=5000;const charFloor=5000;let n=words(body),extra=0;
   while((n<floor||body.replace(/<[^>]*>/g,' ').length<charFloor)&&extra<20){body+=section(ctx,seed+extra*101,angles.length+extra,ANGLES[(seed+extra)%ANGLES.length]);extra++;n=words(body)}
   const schema=extraSchema(origin,path,ctx,faq.items);
@@ -128,4 +136,4 @@ export async function enhanceLandingPage(path,origin,res){
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
-export const LANDING_CONTENT_V3={version:3,minWords:5000,minChars:5000,imagesPerLanding:3,definitions:true,keywordClusters:true,couponGuide:true,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['WebPage','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true,relatedAuthorityLinks:true};
+export const LANDING_CONTENT_V3={version:3,minWords:5000,minChars:5000,imagesPerLanding:3,definitions:true,keywordClusters:true,couponGuide:true,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['WebPage','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true,relatedAuthorityLinks:true,functionalByLandingType:true};
