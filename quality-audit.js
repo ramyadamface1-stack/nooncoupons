@@ -125,7 +125,7 @@ export function auditSeoArticle(article,topic,opts={}){
   const sameKeyword=recentKeywords.has(norm(keyword)),sameSlug=recentSlugs.has(slug);
   addCheck(checks,'uniqueness','unique_keyword',!sameKeyword,4,{critical:sameKeyword});
   addCheck(checks,'uniqueness','unique_slug',!sameSlug,4,{critical:sameSlug});
-  addCheck(checks,'uniqueness','semantic_distance',minSignatureDistance>=5,5,{critical:minSignatureDistance<3,note:String(minSignatureDistance)});
+  addCheck(checks,'uniqueness','semantic_distance',minSignatureDistance>=4,5,{critical:minSignatureDistance<2,note:String(minSignatureDistance)});
   addCheck(checks,'uniqueness','blueprint_diversity',recent.length<3||!recent.slice(0,3).every(r=>r.blueprint===article?.blueprint),2);
 
   const groups=groupScores(checks),weights={seo:15,content:18,trust:15,aeo:9,geo:7,eeat:8,technical:8,image:6,ux:6,language:4,uniqueness:14};
