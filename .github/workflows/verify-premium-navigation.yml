@@ -1,7 +1,9 @@
 name: Verify Premium Navigation (diagnostic)
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['premium-entry.js','topic-hubs.js','.github/workflows/verify-premium-navigation.yml']
   workflow_dispatch:
 
 permissions:
