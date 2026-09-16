@@ -9,11 +9,14 @@ while(samples.length<24&&attempts<5000){
  attempts++;
  if(!candidate)continue;
  if(samples.some(x=>x.article.primaryKeyword===candidate.nativeKeyword))continue;
+ if(samples.some(x=>x.candidate.intent===candidate.intent&&x.candidate.country===candidate.country&&x.candidate.profileKey===candidate.profileKey))continue;
  const article=buildEnglishUsefulArticle(candidate,cursor);
  const audit=auditEnglishSeoArticle(article,candidate,{recent:samples.map(x=>({signature:x.audit.signature,plain:x.audit.plain,primaryKeyword:x.article.primaryKeyword,slug:x.article.slug}))});
  samples.push({candidate,article,audit});
 }
 if(samples.length<20)throw new Error('EN_SAMPLE_COVERAGE_TOO_LOW '+samples.length);
+ const intentCoverage=new Set(samples.map(x=>x.candidate.intent));
+ if(intentCoverage.size<5)throw new Error('EN_INTENT_COVERAGE_TOO_LOW '+intentCoverage.size);
 const bad=samples.filter(x=>!x.audit.productionReady);
 const summary={samples:samples.length,attempts,minScore:Math.min(...samples.map(x=>x.audit.score)),minWords:Math.min(...samples.map(x=>x.audit.wordCount)),maxWords:Math.max(...samples.map(x=>x.audit.wordCount)),minJaccardDistance:Math.min(...samples.map(x=>x.audit.minJaccardDistance)),minEnglishRatio:Math.min(...samples.map(x=>x.audit.englishRatio)),distanceDistribution:samples.map(x=>({keyword:x.article.primaryKeyword,distance:x.audit.minJaccardDistance,simhashDistance:x.audit.minSignatureDistance})),failures:bad.map(x=>({keyword:x.article.primaryKeyword,score:x.audit.score,words:x.audit.wordCount,p0:x.audit.p0,failed:x.audit.failed,groups:x.audit.groups}))};
 console.log(JSON.stringify(summary,null,2));
