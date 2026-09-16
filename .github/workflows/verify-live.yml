@@ -40,14 +40,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           fetch(){ curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 25 "$1" -o "$2"; }
           checked_fetch(){ echo "CHECK_FETCH $1"; fetch "$ORIGIN$1?v=final7" /tmp/page || { echo "FETCH_FAILED $1"; exit 1; }; }
           ready=0
           for i in $(seq 1 30); do
             fetch "$ORIGIN/api/generator-health?v=final7" /tmp/generator.json 2>/dev/null || true
             fetch "$ORIGIN/api/commerce-health?v=final7" /tmp/commerce.json 2>/dev/null || true
-            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==5000; assert int(b.get('batchSize') or 0)==4" 2>/dev/null; then
+            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==2000; assert int(b.get('batchSize') or 0)==2" 2>/dev/null; then
               ready=1
               echo "RUNTIME_READY attempt=$i"
               break
@@ -96,7 +96,7 @@ jobs:
           assert gt.get('mode')=='explicit-generator-taxonomy' and gt.get('internalLinks') is True, 'generator taxonomy'
           assert gt.get('metadata')==['categoryKey','brandKey','modelKey','comparisonKey','landingPath'], 'metadata contract'
           assert int(lc.get('minWords') or 0)>=5000 and lc.get('seo') is True and lc.get('geoAeo') is True and lc.get('eeat') is True, 'landing quality contract'
-          assert int(b.get('dailyTarget') or 0)==5000 and int(b.get('batchSize') or 0)==4, 'bulk target/batch'
+          assert int(b.get('dailyTarget') or 0)==2000 and int(b.get('batchSize') or 0)==2, 'bulk target/batch'
           q=b.get('lastQuality')
           if q is not None: assert float(q)>=95, f'last quality {q}'
           w=b.get('lastWordCount')
