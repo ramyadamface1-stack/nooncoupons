@@ -1,0 +1,38 @@
+name: Diagnose English Production State
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diagnose-english-state.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read production health endpoints
+        run: |
+          set -euo pipefail
+          ORIGIN="https://noondealsnow.com"
+          for ep in english-canary-repair-health english-canary-health platform-health generator-health; do
+            code="$(curl -sS -o "/tmp/$ep.json" -w '%{http_code}' --max-time 20 "$ORIGIN/api/$ep" || true)"
+            echo "ENDPOINT $ep HTTP=$code"
+          done
+      - name: Summarize repair and controlled state
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const read=n=>{try{return JSON.parse(fs.readFileSync('/tmp/'+n+'.json','utf8'))}catch(e){return {parseError:String(e)}}};
+          const r=read('english-canary-repair-health');
+          const c=read('english-canary-health');
+          const p=read('platform-health');
+          const g=read('generator-health');
+          const marker=r.qualityMarker||{};
+          console.log('REPAIR',JSON.stringify({ok:r.ok,version:r.version,controlledTarget:r.controlledTarget,totalStateRecords:r.totalStateRecords,stateClean:r.stateClean,r2MetadataClean:r.r2MetadataClean,controlledQualityClean:r.controlledQualityClean,unexpectedEnglishRecords:r.unexpectedEnglishRecords,unexpectedR2Objects:r.unexpectedR2Objects,marker:{complete:marker.complete,version:marker.version,droppedCount:marker.droppedCount,dropped:marker.dropped,stateRecordsBefore:marker.stateRecordsBefore,stateRecordsAfter:marker.stateRecordsAfter}}));
+          console.log('QUALITY_STATE',JSON.stringify(r.qualityState||[]));
+          console.log('QUALITY_R2',JSON.stringify(r.qualityR2||[]));
+          console.log('CONTROLLED',JSON.stringify({builder:c.builder,target:c.target,complete:c.complete,published:c.published,controlled:c.controlled&&{target:c.controlled.target,published:c.controlled.published,remaining:c.controlled.remaining,complete:c.controlled.complete,status:c.controlled.status,sa:c.controlled.sa,ae:c.controlled.ae,uniqueProfiles:c.controlled.uniqueProfiles,records:(c.controlled.records||[]).map(x=>({slug:x.slug,phase:x.phase,canary:x.canary,quality:x.quality,qualityFloor:x.qualityFloor,wordCount:x.wordCount,minJaccardDistance:x.minJaccardDistance,metaDescription:x.metaDescription,r2Present:x.r2Present,status:x.status,indexable:x.indexable,provider:x.provider}))}}));
+          console.log('PLATFORM',JSON.stringify({ok:p.ok,ai:p.ai,r2:Boolean(p.r2)}));
+          console.log('GENERATOR',JSON.stringify({ok:g.ok,preferredProvider:g.preferredProvider,legacyProvidersRemoved:g.legacyProvidersRemoved,providers:g.providers,r2Ready:g.r2Ready,bulk:g.bulk&&{enabled:g.bulk.enabled,lastError:g.bulk.lastError,lastQuality:g.bulk.lastQuality,lastWordCount:g.bulk.lastWordCount,publishedTotal:g.bulk.publishedTotal,publishedToday:g.bulk.publishedToday}}));
+          NODE
