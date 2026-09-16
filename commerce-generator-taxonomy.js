@@ -3,6 +3,11 @@ import {MARKETS,CATEGORIES,BRANDS,COMPARISONS,marketKey,categoryKeyForArticle,ar
 const hash=s=>{let n=2166136261;for(const c of String(s||'')){n^=c.charCodeAt(0);n=Math.imul(n,16777619)}return n>>>0};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uniq=(xs)=>[...new Set((xs||[]).filter(Boolean))];
+const moneyLinks=(market)=>{const base=market==='uae'?'/uae':'/saudi-arabia',country=market==='uae'?'الإمارات':'السعودية';return [
+ {path:base+'/noon-coupon-code',label:'كود خصم نون '+country},
+ {path:base+'/noon-coupon-code-today',label:'أكواد نون '+country+' اليوم'},
+ {path:base+'/noon-coupon-code-2026',label:'أكواد نون '+country+' 2026'}
+]};
 
 const CATEGORY_MODEL_KEYS={
   apple:{mobiles:['iphone','iphone-pro','iphone-plus-pro-max'],tablets:['ipad'],laptops:['macbook'],audio:['airpods']},
@@ -58,7 +63,7 @@ export function applyCommerceTarget(topic={},seed){
     targetLabel=modelKey?`${BRANDS[brandKey].label} ${BRANDS[brandKey].models[modelKey].label}`:brandCategoryLabel(brandKey,categoryKey);
   }
   const meta={market,categoryKey,brandKey,modelKey,comparisonKey};
-  const landingPath=deepestPath(meta),commerceLinks=articleCommerceLinks({...topic,...meta,title,primaryKeyword:kw});
+  const landingPath=deepestPath(meta),commerceLinks=[...articleCommerceLinks({...topic,...meta,title,primaryKeyword:kw}),...moneyLinks(market)];
   return {...topic,kw,title,topicIndex:topic.topicIndex??n,...meta,landingPath,targetLabel,commerceTarget:targetLabel,commercePrompt:`اربط الدليل تجاريًا بموضوع ${targetLabel} داخل ${CATEGORIES[categoryKey]?.label||topic.category||''} دون تغيير نية البحث الأساسية أو حشو الكلمة المفتاحية.`,commerceLinks};
 }
 
@@ -81,4 +86,4 @@ export function decorateArticleCommerce(article={},topic={}){
   return {...article,...fields,commerceTarget:t.targetLabel,html};
 }
 
-export const COMMERCE_GENERATOR_INFO={version:6,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-independent-from-primary-keyword',primaryKeywordMutation:false,internalLinks:true};
+export const COMMERCE_GENERATOR_INFO={version:6,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-independent-from-primary-keyword',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true};
