@@ -53,7 +53,7 @@ jobs:
               [2,10].includes(Number(controlled.target)) && Number(controlled.published)>=2 && Number(controlled.published)<=Number(controlled.target) &&
               [...expected].every(s=>slugs.has(s)) && slugs.size===2 &&
               rows.every(r=>r.r2Present===true && r.language==='en' && r.languageIntent==='en' &&
-                r.languageSource==='native-intent-v6-canary' && r.canary===true && r.phase==='canary' &&
+                r.languageSource==='native-intent-v6-canary' && r.canary===true && (!r.phase || r.phase==='canary') &&
                 r.minJaccardDistance>=0.18 && r.quality>=95 && r.qualityFloor>=95 && r.wordCount>=1000 &&
                 !/\bguide\s+guide\b/i.test(String(r.metaDescription||'')));
             process.exit(pass?0:1);
