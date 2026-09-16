@@ -12,7 +12,7 @@ const HUBS={
 '/topics/uae':{title:'أدلة نون الإمارات',description:'أحدث الأدلة المخصصة لسوق نون الإمارات.',country:'AE'}
 };
 const MARKETS={saudi:{country:'SA',label:'السعودية',name:'نون السعودية',noon:'https://www.noon.com/saudi-ar/'},uae:{country:'AE',label:'الإمارات',name:'نون الإمارات',noon:'https://www.noon.com/uae-ar/'}};
-const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
+const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58','OPS32','OPS56'];
 const CATS={
   electronics:{label:'الإلكترونيات',desc:'اختيار الإلكترونيات مع مراجعة النسخة والبائع والضمان والسعر النهائي.',terms:['التلفزيونات','الكاميرات','الشاشات','الراوترات','التخزين الخارجي','التابلت','الساعات الذكية','الأجهزة القابلة للارتداء']},
   mobiles:{label:'الجوالات',desc:'الجوالات حسب السعة والنسخة الإقليمية والبائع والضمان والكوبون.',terms:['الجوالات'],brands:true},
