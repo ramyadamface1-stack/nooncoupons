@@ -1,0 +1,39 @@
+name: Diagnose Bulk Yield
+
+on:
+  push:
+    paths:
+      - '.github/workflows/diagnose-bulk-yield.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read live generator rejection counters
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --retry 5 --retry-all-errors --max-time 25 'https://noondealsnow.com/api/generator-health?yield=1' -o /tmp/g.json
+          python3 - <<'PY'
+          import json
+          g=json.load(open('/tmp/g.json'))
+          s=g.get('status') or {}
+          b=g.get('bulk') or {}
+          keys=['bulkPublishedTotal','bulkPublishedToday','bulkCursorV2','bulkRejectedQuality','bulkRejectedDuplicate','bulkRejectedGlobal','bulkRejectedCoupon','bulkRejectedLinks','bulkRejectedSchema','bulkRejectedIndexation','bulkNoPassStreak','bulkAutoPauseUntil','bulkLastRun','bulkLastError']
+          print('BULK_HEALTH',json.dumps(b,ensure_ascii=False))
+          print('BULK_STATUS',json.dumps({k:s.get(k) for k in keys},ensure_ascii=False))
+          print('YIELD_DIAG',json.dumps({
+            'published':int(s.get('bulkPublishedTotal') or b.get('publishedTotal') or 0),
+            'quality':int(s.get('bulkRejectedQuality') or 0),
+            'global':int(s.get('bulkRejectedGlobal') or 0),
+            'coupon':int(s.get('bulkRejectedCoupon') or 0),
+            'links':int(s.get('bulkRejectedLinks') or 0),
+            'schema':int(s.get('bulkRejectedSchema') or 0),
+            'indexation':int(s.get('bulkRejectedIndexation') or 0),
+            'duplicate':int(s.get('bulkRejectedDuplicate') or 0),
+          },ensure_ascii=False))
+          PY
