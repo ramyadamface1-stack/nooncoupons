@@ -9,7 +9,7 @@ permissions:
 jobs:
   controlled-expansion-e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,8 +23,10 @@ jobs:
           node --check bulk-content-engine.js
           node --check bulk-content-engine-base.js
           grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
-          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "10"' wrangler.jsonc
-          grep -Fq 'const MAX_CONTROLLED_TOTAL=10;' english-canary.js
+          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "20"' wrangler.jsonc
+          grep -Fq 'const MAX_CONTROLLED_TOTAL=20;' english-canary.js
+          grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
+          grep -Fq 'const INTENT_MAX_PER_BATCH=3;' english-canary.js
           grep -Fq "audit.minJaccardDistance<0.18" english-canary.js
           grep -Fq "provider:isCanary?'programmatic-cloudflare:english-v6-canary':'programmatic-cloudflare:english-v6-controlled'" english-canary.js
           grep -Fq "export * from './bulk-content-engine-base.js';" bulk-content-engine.js
@@ -37,14 +39,14 @@ jobs:
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
           ok=0
-          for i in $(seq 1 90); do
+          for i in $(seq 1 120); do
             curl -fsS --max-time 20 "$ORIGIN/api/english-canary-repair-health" -o /tmp/repair.json || true
             if node - <<'NODE'
           const fs=require('fs');
           try{
             const x=JSON.parse(fs.readFileSync('/tmp/repair.json','utf8'));
             const q=x.qualityMarker||{};
-            const pass=x.ok===true && x.version==='english-copy-v2' && x.controlledTarget===10 && x.totalStateRecords===10 &&
+            const pass=x.ok===true && x.version==='english-copy-v2' && x.controlledTarget===20 && x.totalStateRecords===20 &&
               x.controlledQualityClean===true && x.stateClean===true && x.r2MetadataClean===true &&
               Array.isArray(x.unexpectedEnglishRecords) && x.unexpectedEnglishRecords.length===0 &&
               Array.isArray(x.unexpectedR2Objects) && x.unexpectedR2Objects.length===0 &&
@@ -63,7 +65,7 @@ jobs:
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
           ok=0
-          for i in $(seq 1 90); do
+          for i in $(seq 1 120); do
             curl -fsS --max-time 20 "$ORIGIN/api/english-canary-health" -o /tmp/controlled.json || true
             if node - <<'NODE'
           const fs=require('fs');
@@ -82,10 +84,16 @@ jobs:
               return meta.length>0 && meta.length<=155 && /[.!?]$/.test(meta) &&
                 !/\bguide\s+guide\b/i.test(meta) && !/\bcart\s+test\b/i.test(identity);
             };
+            const profileCounts=new Map(),intentCounts=new Map();
+            for(const r of rows){
+              if(r.profileKey)profileCounts.set(r.profileKey,(profileCounts.get(r.profileKey)||0)+1);
+              if(r.intent)intentCounts.set(r.intent,(intentCounts.get(r.intent)||0)+1);
+            }
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 &&
-              c.target===10 && c.published===10 && c.remaining===0 && c.complete===true && c.status==='complete' &&
-              rows.length===10 && c.sa===5 && c.ae===5 && c.uniqueProfiles===10 &&
-              new Set(slugs).size===10 && new Set(keywords).size===10 && canaries.length===2 && expanded.length===8 &&
+              c.target===20 && c.published===20 && c.remaining===0 && c.complete===true && c.status==='complete' &&
+              rows.length===20 && c.sa===10 && c.ae===10 && Number(c.uniqueProfiles)>=16 &&
+              new Set(slugs).size===20 && new Set(keywords).size===20 && canaries.length===2 && expanded.length===18 &&
+              Math.max(...profileCounts.values())<=2 && Math.max(...intentCounts.values())<=3 &&
               !slugs.includes('en-best-time-to-try-a-noon-coupon-uae-office-cart-test') &&
               rows.every(r=>r.r2Present===true && r.status==='published' && r.indexable===true &&
                 r.language==='en' && r.languageIntent==='en' && r.languageSource==='native-intent-v6-canary' &&
@@ -107,7 +115,7 @@ jobs:
           const rows=x.controlled.records;
           fs.writeFileSync('/tmp/paths.tsv',rows.map(r=>[r.urlPath,r.marketPath,r.categoryKey||'',r.slug].join('\t')).join('\n'));
           NODE
-      - name: Audit all 10 live English pages
+      - name: Audit all 20 live English pages
         run: |
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
@@ -155,7 +163,7 @@ jobs:
           ORIGIN="https://noondealsnow.com"
           curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en-sitemap.xml
           count="$(grep -o '<url>' /tmp/en-sitemap.xml | wc -l | tr -d ' ')"
-          test "$count" = "10"
+          test "$count" = "20"
           ! grep -Fq 'en-best-time-to-try-a-noon-coupon-uae-office-cart-test' /tmp/en-sitemap.xml
           cut -f1 /tmp/paths.tsv | while IFS= read -r path; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done
           curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
@@ -186,5 +194,5 @@ jobs:
           if(!p.ok||p.ai?.provider!=='workers-ai'||p.ai?.externalProviders!==false||!p.r2) process.exit(1);
           if(!g.ok||g.legacyProvidersRemoved!==true||g.providers?.external!==false||g.preferredProvider!=='workers-ai'||!g.r2Ready) process.exit(1);
           if(b.enabled!==true||b.lastError!==null||Number(b.lastQuality||0)<95||Number(b.lastWordCount||0)<1000) process.exit(1);
-          console.log('CONTROLLED_ENGLISH_10_COPY_V2=PASS',JSON.stringify({published:g.bulk?.publishedTotal,publishedToday:g.bulk?.publishedToday,lastQuality:b.lastQuality,lastWordCount:b.lastWordCount}));
+          console.log('CONTROLLED_ENGLISH_20_COPY_V2=PASS',JSON.stringify({published:g.bulk?.publishedTotal,publishedToday:g.bulk?.publishedToday,lastQuality:b.lastQuality,lastWordCount:b.lastWordCount}));
           NODE
