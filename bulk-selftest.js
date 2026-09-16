@@ -68,7 +68,7 @@ if(broad.indexable||!broad.reasons.includes('intent_too_broad'))throw new Error(
 const matureNoLinks=evaluateIndexation(firstAccepted.article,firstAccepted.topic,{globalGate:{...duplicateGate,pass:true},contextualLinks:0,clusterSize:4,schemaGate:{pass:true},coupon:{publishAllowed:true}});
 if(matureNoLinks.indexable||!matureNoLinks.reasons.includes('weak_cluster_support'))throw new Error('mature_cluster_without_links_was_not_blocked:'+JSON.stringify(matureNoLinks));
 
-console.log(JSON.stringify({engine:BULK_ENGINE_INFO,globalIndex:GLOBAL_INDEX_INFO,couponRegistry:COUPON_REGISTRY_INFO,schemaGate:SCHEMA_GATE_INFO,indexationGate:INDEXATION_GATE_INFO,editorialTrust:EDITORIAL_TRUST_INFO,ready,rejected,minScore,maxScore,minIndexation,minWords,maxWords,groupMins,clusters:clusters.size},null,2));
+console.log(JSON.stringify({engine:BULK_ENGINE_INFO,globalIndex:GLOBAL_INDEX_INFO,couponRegistry:COUPON_REGISTRY_INFO,schemaGate:SCHEMA_GATE_INFO,indexationGate:INDEXATION_GATE_INFO,editorialTrust:EDITORIAL_TRUST_INFO,eligible,ready,rejected,minScore,maxScore,minIndexation,minWords,maxWords,groupMins,clusters:clusters.size},null,2));
 if(BULK_ENGINE_INFO.topicSpace<1000000)throw new Error('topic_space_too_small');
 if(BULK_ENGINE_INFO.blueprints<10)throw new Error('blueprint_diversity_too_small');
 // Quality-first invariant: throughput may fall when stronger gates reject similar pages.
