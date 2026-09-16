@@ -4,7 +4,7 @@ import {topicLanding,topicSitemap,augmentWithTopicSitemap,topicNavHtml,articleTo
 import {archiveLanding,ARCHIVE_INFO} from './archive-pages.js';
 export {ControlPlane,GeneratorControl} from './auto-platform.js';
 
-const LEGACY_ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev';
+const LEGACY_ORIGIN='https://noondealsnow.com';
 const enc=s=>encodeURI(String(s||''));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
