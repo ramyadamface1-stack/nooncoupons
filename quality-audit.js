@@ -125,23 +125,25 @@ export function auditSeoArticle(article,topic,opts={}){
   const sameKeyword=recentKeywords.has(norm(keyword)),sameSlug=recentSlugs.has(slug);
   addCheck(checks,'uniqueness','unique_keyword',!sameKeyword,4,{critical:sameKeyword});
   addCheck(checks,'uniqueness','unique_slug',!sameSlug,4,{critical:sameSlug});
-  addCheck(checks,'uniqueness','semantic_distance',minSignatureDistance>=4,5,{critical:minSignatureDistance<2,note:String(minSignatureDistance)});
+  addCheck(checks,'uniqueness','semantic_distance',minJaccardDistance>=.18,5,{critical:minJaccardDistance<.10,note:minJaccardDistance.toFixed(3)});
   addCheck(checks,'uniqueness','blueprint_diversity',recent.length<3||!recent.slice(0,3).every(r=>r.blueprint===article?.blueprint),2);
 
   const groups=groupScores(checks),weights={seo:15,content:18,trust:15,aeo:9,geo:7,eeat:8,technical:8,image:6,ux:6,language:4,uniqueness:14};
   let sum=0,total=0;for(const [g,v] of Object.entries(groups)){const gw=weights[g]||1;sum+=v*gw;total+=gw}
   const score=clamp(sum/Math.max(1,total)),p0=checks.filter(x=>x.critical&&!x.pass),failed=checks.filter(x=>!x.pass),groupFloor=Math.min(...['seo','content','trust','aeo','geo','eeat','technical','uniqueness'].map(g=>groups[g]??0)),threshold=Math.max(95,Number(opts.threshold||opts.qualityThreshold||95));
   const productionReady=p0.length===0&&score>=threshold&&groupFloor>=88&&wordCount>=minWords&&wordCount<=2000;
-  return {score,wordCount,productionReady,signature:sig,minSignatureDistance,groups,checks,failed:failed.map(x=>x.name),p0:p0.map(x=>x.name),measuredChecks:checks.length,criteriaCatalogCount:QUALITY_CRITERIA_COUNT,criteriaCatalog:QUALITY_CRITERIA,groupFloor,arabicRatio:Math.round(arabicRatio*1000)/1000};
+  return {score,wordCount,productionReady,signature:sig,minSignatureDistance,minJaccardDistance:Math.round(minJaccardDistance*1000)/1000,plain,groups,checks,failed:failed.map(x=>x.name),p0:p0.map(x=>x.name),measuredChecks:checks.length,criteriaCatalogCount:QUALITY_CRITERIA_COUNT,criteriaCatalog:QUALITY_CRITERIA,groupFloor,arabicRatio:Math.round(arabicRatio*1000)/1000};
 }
 
 export function auditSummary(a){return {score:a.score,wordCount:a.wordCount,productionReady:a.productionReady,groups:a.groups,p0:a.p0,failed:a.failed,minSignatureDistance:a.minSignatureDistance,signature:a.signature,measuredChecks:a.measuredChecks,criteriaCatalogCount:a.criteriaCatalogCount}}
 
 
+function englishShingleSet(text,n=5){const a=words(norm(text));const out=new Set();for(let i=0;i<=a.length-n;i++)out.add(a.slice(i,i+n).join(' '));return out}
+function englishJaccardDistance(a,b){const A=englishShingleSet(a),B=englishShingleSet(b);if(!A.size||!B.size)return 1;let inter=0;for(const x of A)if(B.has(x))inter++;return 1-inter/(A.size+B.size-inter)}
 export function auditEnglishSeoArticle(article,topic,opts={}){
  const html=String(article?.html||''),plain=strip(html),wordCount=words(plain).length,keyword=String(article?.primaryKeyword||topic?.nativeKeyword||''),title=String(article?.title||''),meta=String(article?.metaDescription||''),slug=String(article?.slug||''),checks=[];
  const latin=count(plain,/[A-Za-z]/g),ar=count(plain,/[؀-ۿ]/g),englishRatio=latin/Math.max(1,latin+ar),h1=count(html,/<h1\b/gi),h2=count(html,/<h2\b/gi),pstats=paragraphStats(html),targetCode=String(topic?.code||article?.coupon||'').toUpperCase();
- const recent=Array.isArray(opts.recent)?opts.recent:[],sig=contentSignature(plain),distances=recent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=distances.length?Math.min(...distances):32;
+ const recent=Array.isArray(opts.recent)?opts.recent:[],sig=contentSignature(plain),distances=recent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=distances.length?Math.min(...distances):32,jaccardDistances=recent.map(r=>r.plain?englishJaccardDistance(plain,r.plain):1),minJaccardDistance=jaccardDistances.length?Math.min(...jaccardDistances):1;
  addCheck(checks,'seo','identity',Boolean(keyword&&title&&slug),4,{critical:true});addCheck(checks,'seo','title_alignment',overlap(title,keyword)>=.45,4,{critical:true});addCheck(checks,'seo','meta',meta.length>=105&&meta.length<=165,3);addCheck(checks,'seo','one_h1',h1===1,4,{critical:true});
  addCheck(checks,'content','word_floor',wordCount>=900&&wordCount<=1800,5,{critical:wordCount<750||wordCount>2000,note:String(wordCount)});addCheck(checks,'content','sections',h2>=6,3);addCheck(checks,'content','readability',pstats.count>=8&&pstats.max<=150,2);
  addCheck(checks,'trust','official_source',/https:\/\/www\.noon\.com\//i.test(html),5,{critical:true});addCheck(checks,'trust','no_fixed_unverified_discount',!/(?:save|discount)\s+(?:up to\s+)?\d{1,3}%|guaranteed coupon|guaranteed discount/i.test(plain),5,{critical:true});addCheck(checks,'trust','checkout_truth',/checkout|cart/i.test(plain)&&/source of truth|final reference|final commercial reference/i.test(plain),3);
