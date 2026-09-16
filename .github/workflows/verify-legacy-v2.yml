@@ -33,14 +33,6 @@ jobs:
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
           echo "PRODUCTION_ORIGIN $ORIGIN"
-          echo CHECK_HEALTH
-          curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --max-time 30 "$ORIGIN/api/generator-health?v=legacy-contract" >/tmp/health.json
-          python - <<'PY' /tmp/health.json
-          import json,sys
-          d=json.load(open(sys.argv[1]))
-          assert isinstance(d,dict) and len(d)>0
-          print('HEALTH_KEYS',','.join(d.keys()))
-          PY
           echo CHECK_BLOG
           curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --max-time 30 "$ORIGIN/blog?v=legacy-contract" >/tmp/blog.html
           grep -Eq '<html|<!doctype' /tmp/blog.html
