@@ -4,33 +4,16 @@ on:
     branches: [main]
     paths: ['bulk-content-engine.js','quality-audit.js','english-quality-selftest.mjs','.github/workflows/verify-english-article-quality.yml']
   workflow_dispatch:
-
+# V6 structural gate; quality thresholds are unchanged.
 permissions:
-  contents: write
-
+  contents: read
 jobs:
   english-quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
       - uses: actions/setup-node@v4
         with: {node-version: 22}
-      - name: Remove duplicate guide wording from English meta
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('bulk-content-engine.js')
-          s=p.read_text()
-          old=" const meta=`Practical ${kw} guide: copy ${t.code}, check cart eligibility, seller, shipping and the final checkout total before you buy.`.slice(0,160);"
-          new=" const metaLead=/\\bguide$/i.test(kw)?kw:`${kw} guide`;\n const meta=`Practical ${metaLead}: copy ${t.code}, check cart eligibility, seller, shipping and the final checkout total before you buy.`.slice(0,160);"
-          if old in s:
-              s=s.replace(old,new,1)
-              p.write_text(s)
-          elif new not in s:
-              raise SystemExit('English meta pattern not found')
-          PY
       - name: Syntax
         run: |
           node --check bulk-content-engine.js
@@ -38,7 +21,7 @@ jobs:
           node --check english-quality-selftest.mjs
       - name: Audit 24 native English commercial samples
         run: node english-quality-selftest.mjs
-      - name: Verify meta wording invariant
+      - name: Verify English metadata wording invariant
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -46,11 +29,3 @@ jobs:
           assert 'const metaLead=/\\bguide$/i.test(kw)?kw:`${kw} guide`;' in s
           assert 'Practical ${kw} guide:' not in s
           PY
-      - name: Commit verified meta cleanup
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add bulk-content-engine.js
-          git diff --cached --quiet && exit 0
-          git commit -m 'Fix duplicate guide wording in English metadata'
-          git push origin HEAD:main
