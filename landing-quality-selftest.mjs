@@ -13,15 +13,15 @@ for(const path of paths){
   let res=await enhanceLandingPage(path,origin,base());
   res=await enhanceSpecialtyLanding(path,origin,res);
   if(res.status!==200)throw new Error(`bad status ${path}`);
-  const wc=Number(res.headers.get('x-landing-word-count')||0);
+  const wc=Number(res.headers.get('x-landing-word-count')||0),cc=Number(res.headers.get('x-landing-char-count')||0),imgs=Number(res.headers.get('x-landing-images')||0);
   const seed=res.headers.get('x-landing-unique-seed');
   const focus=res.headers.get('x-landing-semantic-focus')||'';
-  if(wc<5000)throw new Error(`word floor ${path}: ${wc}`);
+  if(wc<5000)throw new Error(`word floor ${path}: ${wc}`);if(cc<5000)throw new Error(`char floor ${path}: ${cc}`);if(imgs<3)throw new Error(`image floor ${path}: ${imgs}`);
   if(!seed)throw new Error(`missing seed ${path}`);
   if(res.headers.get('x-landing-specialty')!=='v4')throw new Error(`missing specialty header ${path}`);
   if(!focus)throw new Error(`missing semantic focus ${path}`);
   const html=await res.text();
-  for(const needle of ['landing-depth-v3','landing-specialty-v4','FAQPage','WebPage','Organization','منهجية التحرير والتحقق','ملخص الكيانات والنية','كيف تختلف هذه الصفحة عن الصفحات الأخرى؟','الشفافية والمصادر قبل اتخاذ القرار'])if(!html.includes(needle))throw new Error(`missing ${needle} ${path}`);
+  for(const needle of ['landing-depth-v3','landing-specialty-v4','FAQPage','WebPage','Organization','منهجية التحرير والتحقق','ملخص الكيانات والنية','landing-visuals','landing-definitions','landing-keywords','landing-coupon-guide','<svg','كيف تختلف هذه الصفحة عن الصفحات الأخرى؟','الشفافية والمصادر قبل اتخاذ القرار'])if(!html.includes(needle))throw new Error(`missing ${needle} ${path}`);
   if(html.includes('specialty-focus'))specialized++;
   const h=crypto.createHash('sha256').update(html).digest('hex');
   hashes.add(h);seeds.add(seed);focusHeaders.add(focus);min=Math.min(min,wc);max=Math.max(max,wc);
