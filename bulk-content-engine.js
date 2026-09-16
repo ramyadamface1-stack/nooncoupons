@@ -24,6 +24,10 @@ const PROFILES={
   pets:{factors:['المقاس','النوع المستهدف','الخامة','سهولة التنظيف','الكمية'],uses:['استخدام يومي','سفر','منزل صغير','حيوان صغير','حيوان كبير','شراء متكرر'],checks:['المقاس المناسب','نوع الحيوان المعلن','تعليمات الاستخدام','تفاصيل الخامة']}
 };
 
+const PRIORITY_CATEGORIES=[
+['الجوالات','mobile'],['اللابتوبات','computing'],['الأجهزة المنزلية','appliance'],['الأحذية','fashion'],['الحقائب','fashion'],['مستحضرات التجميل','beauty'],['التلفزيونات','screen'],['أجهزة الألعاب','computing'],['التابلت','computing'],['العطور','beauty']
+];
+
 const CATEGORIES=[
 ['الجوالات','mobile'],['اللابتوبات','computing'],['التابلت','computing'],['السماعات','audio'],['الساعات الذكية','mobile'],['التلفزيونات','screen'],['أجهزة الألعاب','computing'],['إكسسوارات الألعاب','computing'],['الكاميرات','mobile'],['إكسسوارات الكمبيوتر','computing'],['الأزياء النسائية','fashion'],['الأزياء الرجالية','fashion'],['الأحذية','fashion'],['الحقائب','fashion'],['العطور','beauty'],['مستحضرات التجميل','beauty'],['العناية بالبشرة','beauty'],['العناية بالشعر','beauty'],['العناية الشخصية','beauty'],['الأجهزة المنزلية','appliance'],['المطبخ','kitchen'],['الأثاث','home'],['الديكور','home'],['أدوات التنظيف','home'],['البقالة','grocery'],['مستلزمات المدرسة','office'],['ألعاب الأطفال','kids'],['مستلزمات المواليد','baby'],['الرياضة واللياقة','fitness'],['الهدايا','home'],['شنط السفر','travel'],['إكسسوارات السيارات','auto'],['المكتب المنزلي','office'],['الأجهزة القابلة للارتداء','mobile'],['الطابعات','office'],['الشاشات','screen'],['الراوترات','computing'],['التخزين الخارجي','computing'],['الأجهزة الصوتية','audio'],['منتجات القهوة','kitchen'],['أدوات الطبخ','kitchen'],['المفروشات','home'],['الإضاءة','home'],['تنظيم المنزل','home'],['معدات التخييم','fitness'],['الدراجات','fitness'],['الألعاب التعليمية','kids'],['مستلزمات الحيوانات الأليفة','pets']
 ];
@@ -78,9 +82,11 @@ function faqSection(t){const faq=[{q:`كيف أستخدم ${t.code} على نو�
 
 export function buildBulkTopic(cursor=0){
   const TOPIC_SPACE=1036800,raw=Math.max(0,Number(cursor)||0);let q=((raw%TOPIC_SPACE)*7919+104729)%TOPIC_SPACE;
-  const country=q%2===0?'SA':'AE';q=Math.floor(q/2);const [category,profileKey]=CATEGORIES[q%CATEGORIES.length];q=Math.floor(q/CATEGORIES.length);const [intentId,intentFn]=INTENTS[q%INTENTS.length];q=Math.floor(q/INTENTS.length);const scenario=SCENARIOS[q%SCENARIOS.length];q=Math.floor(q/SCENARIOS.length);const profile=PROFILES[profileKey],factor=profile.factors[q%profile.factors.length];q=Math.floor(q/profile.factors.length);const useCase=profile.uses[q%profile.uses.length],m=MARKETS[country],code=CODES[(Math.floor(raw/7)+q)%CODES.length];
+  const country=q%2===0?'SA':'AE';q=Math.floor(q/2);
+  const prioritySlot=raw%5<3,categoryPool=prioritySlot?PRIORITY_CATEGORIES:CATEGORIES;
+  const [category,profileKey]=categoryPool[q%categoryPool.length];q=Math.floor(q/categoryPool.length);const [intentId,intentFn]=INTENTS[q%INTENTS.length];q=Math.floor(q/INTENTS.length);const scenario=SCENARIOS[q%SCENARIOS.length];q=Math.floor(q/SCENARIOS.length);const profile=PROFILES[profileKey],factor=profile.factors[q%profile.factors.length];q=Math.floor(q/profile.factors.length);const useCase=profile.uses[q%profile.uses.length],m=MARKETS[country],code=CODES[(Math.floor(raw/7)+q)%CODES.length];
   const labels={coupon:'كود خصم',howto:'استخدام كود',compare:'مقارنة سعر',trouble:'حل رفض الكود',question:'هل يعمل الكود',seller:'اختيار بائع',decision:'دليل شراء',finalprice:'السعر النهائي',value:'التوفير',cart:'مراجعة سلة',timing:'توقيت الكوبون',smartbuy:'شراء ذكي',eligibility:'شروط الكود',checklist:'خطوات قبل الدفع',multi:'شراء عدة منتجات',returns:'مراجعة الإرجاع',warranty:'فحص الضمان',budget:'اختيار بميزانية'};
-  const base={country,market:m.name,currency:m.currency,currencyCode:m.currencyCode,marketPath:m.path,category,profileKey,factors:profile.factors,checks:profile.checks,useCase,factor,scenario,code,intent:intentId,intentLabel:labels[intentId]||'دليل'};const kw=intentFn(base).replace(/\s+/g,' ').trim(),slug=slugify(kw);return {...base,kw,slug,title:titleFromKeyword(kw,base),topicIndex:q,totalTopicSpace:TOPIC_SPACE};
+  const base={country,market:m.name,currency:m.currency,currencyCode:m.currencyCode,marketPath:m.path,category,profileKey,factors:profile.factors,checks:profile.checks,useCase,factor,scenario,code,intent:intentId,intentLabel:labels[intentId]||'دليل'};const kw=intentFn(base).replace(/\s+/g,' ').trim(),slug=slugify(kw);return {...base,kw,slug,title:titleFromKeyword(kw,base),topicIndex:q,totalTopicSpace:TOPIC_SPACE,commercialPriority:prioritySlot?'high':'standard'};
 }
 
 export function buildUsefulArticle(topic,cursor=0){
