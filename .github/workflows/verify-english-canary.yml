@@ -2,11 +2,12 @@ name: Verify English Canary End to End
 on:
   push:
     branches: [main]
-    paths: ['english-canary.js','commerce-entry.js','commerce-pages-v2.js','bulk-generator.js','bulk-content-engine.js','public-entry.js','wrangler.jsonc','.github/workflows/verify-english-canary.yml']
+    paths: ['english-canary.js','english-canary-repair.js','commerce-entry.js','commerce-pages-v2.js','bulk-generator.js','bulk-content-engine.js','public-entry.js','wrangler.jsonc','.github/workflows/verify-english-canary.yml']
   workflow_dispatch:
 jobs:
   canary-e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,30 +17,82 @@ jobs:
         run: |
           set -euo pipefail
           node --check english-canary.js
+          node --check english-canary-repair.js
           node --check commerce-entry.js
           node --check commerce-pages-v2.js
           node --check bulk-generator.js
           node --check bulk-content-engine.js
           node --check public-entry.js
-          grep -Fq "ENGLISH_CANARY_TOTAL\": \"2" wrangler.jsonc
+          grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
+          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "2"' wrangler.jsonc
           grep -Fq "audit.minJaccardDistance<0.18" english-canary.js
           grep -Fq "languageSource:'arabic-primary'" bulk-generator.js
           grep -Fq "native-intent-v6-canary" commerce-pages-v2.js
           grep -Fq "const market=noonUrl.includes('/uae-ar/')?'AE':'SA'" public-entry.js
           grep -Fq 'const metaLead=/\bguide$/i.test(kw)?kw:`${kw} guide`;' bulk-content-engine.js
-      - name: Wait for deployed V6 canary to complete
+          grep -Fq 'en-noon-coupon-eligibility-saudi-arabia-travel-guide' english-canary-repair.js
+          grep -Fq 'en-smart-buying-on-noon-uae-headphones-and-audio-guide' english-canary-repair.js
+      - name: Verify persistent R2 repair
         run: |
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
           ok=0
-          for i in $(seq 1 24); do
+          for i in $(seq 1 48); do
+            curl -fsS --max-time 20 "$ORIGIN/api/english-canary-repair-health" -o /tmp/repair.json || true
+            if node - <<'NODE'
+          const fs=require('fs');
+          try{
+            const x=JSON.parse(fs.readFileSync('/tmp/repair.json','utf8'));
+            const pass=x.ok===true && x.targetCount===2 && x.totalStateRecords===2 &&
+              Array.isArray(x.unexpectedEnglishRecords) && x.unexpectedEnglishRecords.length===0 &&
+              x.stateClean===true && x.r2HtmlClean===true && x.r2MetadataClean===true &&
+              x.marker?.complete===true && x.marker?.version==='guide-guide-v1';
+            process.exit(pass?0:1);
+          }catch{process.exit(1)}
+          NODE
+            then ok=1; break; fi
+            sleep 5
+          done
+          cat /tmp/repair.json || true
+          test "$ok" = 1
+      - name: Verify deployed V6 canary state
+        run: |
+          set -euo pipefail
+          ORIGIN="https://noondealsnow.com"
+          ok=0
+          for i in $(seq 1 36); do
             curl -fsS --max-time 20 "$ORIGIN/api/english-canary-health" -o /tmp/canary.json || true
-            if node -e "const fs=require('fs');try{const x=JSON.parse(fs.readFileSync('/tmp/canary.json','utf8'));const pass=x.builder===6&&x.target===2&&x.complete===true&&x.published===2&&x.records?.length===2&&x.records.every(r=>r.r2Present===true&&r.languageSource==='native-intent-v6-canary'&&r.minJaccardDistance>=0.18&&r.quality>=95);process.exit(pass?0:1)}catch{process.exit(1)}"; then ok=1; break; fi
+            if node - <<'NODE'
+          const fs=require('fs');
+          try{
+            const x=JSON.parse(fs.readFileSync('/tmp/canary.json','utf8'));
+            const expected=new Set([
+              'en-noon-coupon-eligibility-saudi-arabia-travel-guide',
+              'en-smart-buying-on-noon-uae-headphones-and-audio-guide'
+            ]);
+            const rows=Array.isArray(x.records)?x.records:[];
+            const controlled=x.controlled||{};
+            const controlledRows=Array.isArray(controlled.records)?controlled.records:[];
+            const slugs=new Set(rows.map(r=>r.slug));
+            const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 && rows.length===2 &&
+              controlled.target===2 && controlled.published===2 && controlled.complete===true && controlledRows.length===2 &&
+              [...expected].every(s=>slugs.has(s)) && slugs.size===2 &&
+              rows.every(r=>r.r2Present===true && r.language==='en' && r.languageIntent==='en' &&
+                r.languageSource==='native-intent-v6-canary' && r.minJaccardDistance>=0.18 && r.quality>=95 &&
+                !/\bguide\s+guide\b/i.test(String(r.metaDescription||'')));
+            process.exit(pass?0:1);
+          }catch{process.exit(1)}
+          NODE
+            then ok=1; break; fi
             sleep 5
           done
           test "$ok" = 1
           cat /tmp/canary.json
-          node -e "const fs=require('fs');const x=JSON.parse(fs.readFileSync('/tmp/canary.json','utf8'));fs.writeFileSync('/tmp/slugs.txt',x.records.map(r=>r.slug).join('\n'));fs.writeFileSync('/tmp/paths.txt',x.records.map(r=>r.urlPath).join('\n'))"
+          node - <<'NODE'
+          const fs=require('fs');
+          const x=JSON.parse(fs.readFileSync('/tmp/canary.json','utf8'));
+          fs.writeFileSync('/tmp/paths.txt',x.records.map(r=>r.urlPath).join('\n'));
+          NODE
       - name: Verify both English pages and R2-backed routing
         run: |
           set -euo pipefail
@@ -47,30 +100,35 @@ jobs:
           while IFS= read -r path; do
             test -n "$path"
             curl -fsS -D /tmp/page.h --max-time 20 "$ORIGIN$path" -o /tmp/page.html
+            grep -Fiq 'HTTP/2 200' /tmp/page.h || grep -Fiq 'HTTP/1.1 200' /tmp/page.h
             grep -Fiq 'content-language: en' /tmp/page.h
             grep -Fiq 'x-english-canary: v1' /tmp/page.h
             grep -Fq '<html lang="en" dir="ltr">' /tmp/page.html
             grep -Fq "<link rel=\"canonical\" href=\"$ORIGIN$path\">" /tmp/page.html
             grep -Fq "hreflang=\"en\" href=\"$ORIGIN$path\"" /tmp/page.html
             grep -Fq "hreflang=\"x-default\" href=\"$ORIGIN$path\"" /tmp/page.html
+            if grep -Eiq 'hreflang=["'"']ar([_-][A-Za-z]+)?["'"']' /tmp/page.html; then echo "Unexpected Arabic hreflang without mapped equivalent: $path"; exit 1; fi
             grep -Fq 'data-copy-code=' /tmp/page.html
             grep -Fq 'Copy ' /tmp/page.html
             grep -Fq 'href="https://www.noon.com/' /tmp/page.html
-            if grep -Eiq 'guide[[:space:]]+guide' /tmp/page.html; then echo 'Duplicate guide wording found'; exit 1; fi
-            if grep -Eiq '(save|discount)[[:space:]]+(up to[[:space:]]+)?[0-9]{1,3}%' /tmp/page.html; then echo 'Unsupported fixed discount claim found'; exit 1; fi
+            grep -Eiq '<meta[^>]+name="description"[^>]+content="[^"]+"' /tmp/page.html
+            if grep -Eiq 'guide[[:space:]]+guide' /tmp/page.html; then echo "Duplicate guide wording found: $path"; exit 1; fi
+            if grep -Eiq '(save|discount)[[:space:]]+(up to[[:space:]]+)?[0-9]{1,3}%' /tmp/page.html; then echo "Unsupported fixed discount claim found: $path"; exit 1; fi
           done < /tmp/paths.txt
       - name: Verify English sitemap and country evidence
         run: |
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
           curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en-sitemap.xml
+          count="$(grep -o '<url>' /tmp/en-sitemap.xml | wc -l | tr -d ' ')"
+          test "$count" = "2"
           while IFS= read -r path; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done < /tmp/paths.txt
           curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
           grep -Fq "$ORIGIN/sitemap-en-articles.xml" /tmp/main-sitemap.xml
           curl -fsS --max-time 20 "$ORIGIN/en/saudi" -o /tmp/saudi.html
           curl -fsS --max-time 20 "$ORIGIN/en/uae" -o /tmp/uae.html
-          grep -Fq '/en/articles/' /tmp/saudi.html
-          grep -Fq '/en/articles/' /tmp/uae.html
+          grep -Fq '/en/articles/en-noon-coupon-eligibility-saudi-arabia-travel-guide' /tmp/saudi.html
+          grep -Fq '/en/articles/en-smart-buying-on-noon-uae-headphones-and-audio-guide' /tmp/uae.html
           for market in saudi uae; do
             curl -fsS -D /tmp/cat.h --max-time 20 "$ORIGIN/en/$market/category/mobiles" -o /tmp/cat.html
             ev="$(awk -F': ' 'tolower($1)=="x-english-evidence"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
