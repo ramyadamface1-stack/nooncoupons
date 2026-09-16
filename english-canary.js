@@ -14,6 +14,7 @@ const PROFILE_TO_CATEGORY={
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const enc=s=>encodeURI(String(s||''));
 const now=()=>new Date().toISOString();
+const sanitizeMeta=s=>String(s||'').replace(/\bguide\s+guide\b/gi,'guide');
 const jsonResponse=(x,status=200)=>new Response(JSON.stringify(x,null,2),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const xmlResponse=s=>new Response(s,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public,max-age=60,s-maxage=300'}});
 const xmlEsc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
@@ -22,7 +23,7 @@ const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
 function targetFromEnv(env){return Math.max(0,Math.min(2,Number(env.ENGLISH_CANARY_TOTAL||DEFAULT_TARGET)||DEFAULT_TARGET))}
 function emptyState(env){return {version:1,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:targetFromEnv(env),status:'active',cursor:START_CURSOR,records:[],updatedAt:now()}}
 async function readState(env){
-  try{const o=await env.CONTENT_FINAL?.get(STATE_KEY);if(!o)return emptyState(env);const s=await o.json();return {...emptyState(env),...s,target:targetFromEnv(env),records:Array.isArray(s.records)?s.records:[]}}
+  try{const o=await env.CONTENT_FINAL?.get(STATE_KEY);if(!o)return emptyState(env);const s=await o.json();const records=Array.isArray(s.records)?s.records.map(r=>({...r,metaDescription:sanitizeMeta(r?.metaDescription)})):[];return {...emptyState(env),...s,target:targetFromEnv(env),records}}
   catch{return emptyState(env)}
 }
 async function writeState(env,state){
