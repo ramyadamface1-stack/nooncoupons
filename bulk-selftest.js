@@ -72,7 +72,8 @@ console.log(JSON.stringify({engine:BULK_ENGINE_INFO,globalIndex:GLOBAL_INDEX_INF
 if(BULK_ENGINE_INFO.topicSpace<1000000)throw new Error('topic_space_too_small');
 if(BULK_ENGINE_INFO.blueprints<10)throw new Error('blueprint_diversity_too_small');
 // Quality-first invariant: throughput may fall when stronger gates reject similar pages.
-if(eligible<20)throw new Error('coupon_eligible_sample_too_low:'+eligible);\nif(ready<Math.max(12,Math.floor(eligible*0.5)))throw new Error('quality_yield_unexpectedly_low:'+ready+'/'+eligible);
+if(eligible<20)throw new Error('coupon_eligible_sample_too_low:'+eligible);
+if(ready<Math.max(12,Math.floor(eligible*0.5)))throw new Error('quality_yield_unexpectedly_low:'+ready+'/'+eligible);
 if(minScore<95)throw new Error('score_below_95:'+minScore);
 if(minIndexation<INDEXATION_GATE_INFO.minScore)throw new Error('indexation_below_min:'+minIndexation);
 if(Math.min(...Object.values(groupMins))<88)throw new Error('group_floor_below_88');
