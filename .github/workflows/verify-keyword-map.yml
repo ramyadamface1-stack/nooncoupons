@@ -38,7 +38,7 @@ jobs:
           grep -Fq 'كود خصم نون: أكواد نون للسعودية والإمارات' <<<"$home"
           grep -Fq 'id="search-intent-hubs"' <<<"$home"
 
-          sa="$(curl -sS --max-time 15 "$ORIGIN/saudi-arabia")"
+          sa="$(curl -sS -L --max-time 15 "$ORIGIN/saudi-arabia")"
           ae="$(curl -sS --max-time 15 "$ORIGIN/uae")"
           grep -Fq '<title>كود خصم نون السعودية 2026 | أكواد وكوبونات نون</title>' <<<"$sa"
           grep -Fq '<title>كود خصم نون الإمارات 2026 | أكواد وكوبونات نون</title>' <<<"$ae"
