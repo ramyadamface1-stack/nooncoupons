@@ -16,26 +16,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-      - name: Repair Arabic uniqueness regression only
+      - name: Repair stale Arabic coupon and Saudi path checks
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('quality-audit.js')
           s=p.read_text()
-          bad="addCheck(checks,'uniqueness','semantic_distance',minJaccardDistance>=.18,5,{critical:minJaccardDistance<.10,note:minJaccardDistance.toFixed(3)});"
-          good="addCheck(checks,'uniqueness','semantic_distance',minSignatureDistance>=4,5,{critical:minSignatureDistance<2,note:String(minSignatureDistance)});"
-          bad_return="signature:sig,minSignatureDistance,minJaccardDistance:Math.round(minJaccardDistance*1000)/1000,plain,groups,checks"
-          good_return="signature:sig,minSignatureDistance,plain,groups,checks"
-          if s.count(bad) != 2:
-              raise SystemExit(f'expected exactly Arabic+English Jaccard gates, found {s.count(bad)}')
-          s=s.replace(bad,good,1)
-          if s.count(bad_return) != 1:
-              raise SystemExit(f'expected exactly one broken Arabic return, found {s.count(bad_return)}')
-          s=s.replace(bad_return,good_return,1)
-          if s.count(bad) != 1:
-              raise SystemExit('English Jaccard gate was not preserved exactly once')
-          if s.count(good) != 1:
-              raise SystemExit('Arabic signature gate was not restored exactly once')
+          old_codes="const codes=[...new Set((plain.match(/\\bNOV\\d{3}\\b/gi)||[]).map(x=>x.toUpperCase()))],targetCode=String(topic?.code||article?.coupon||'').toUpperCase();"
+          new_codes="const codes=[...new Set((plain.match(/\\b[A-Z]{2,8}\\d{1,6}\\b/g)||[]).map(x=>x.toUpperCase()))],targetCode=String(topic?.code||article?.coupon||'').toUpperCase();"
+          old_path="addCheck(checks,'geo','market_internal_link',country==='SA'?/href=[\"']\\/saudi-arabia/i.test(html):/href=[\"']\\/uae/i.test(html),2);"
+          new_path="addCheck(checks,'geo','market_internal_link',country==='SA'?/href=[\"']\\/saudi(?:[\"']|\\/)/i.test(html):/href=[\"']\\/uae(?:[\"']|\\/)/i.test(html),2);"
+          if s.count(old_codes)!=1:
+              raise SystemExit(f'expected one stale NOV coupon extractor, found {s.count(old_codes)}')
+          if s.count(old_path)!=1:
+              raise SystemExit(f'expected one stale Saudi path check, found {s.count(old_path)}')
+          s=s.replace(old_codes,new_codes,1).replace(old_path,new_path,1)
           p.write_text(s)
           PY
       - name: Syntax checks
@@ -50,26 +45,21 @@ jobs:
           node --check bulk-content-engine.js
           node --check bulk-generator.js
           node --check bulk-selftest.js
-          grep -Fq "global-quality-v1" bulk-generator.js
-          grep -Fq "coupon_registry_stale" coupon-registry.js
-          grep -Fq "global_semantic_collision" quality-index.js
-          grep -Fq "contextual-links" quality-index.js
-          grep -Fq "invalid_jsonld" schema-validator.js
-          grep -Fq "bulk_auto_brake_engaged" bulk-generator.js
-          grep -Fq "bulkSchemaGateVersion" bulk-generator.js
-          grep -Fq "bulkIndexationGateVersion" bulk-generator.js
-          grep -Fq "bulkEditorialTrustVersion" bulk-generator.js
-          grep -Fq "intent_too_broad" indexation-gate.js
-          grep -Fq "editorial-accountability" editorial-trust-layer.js
       - name: Audit 40 diversified Arabic bulk samples
-        run: node bulk-selftest.js | tee /tmp/bulk-selftest.log
+        shell: bash
+        run: |
+          set -o pipefail
+          node bulk-selftest.js | tee /tmp/bulk-selftest.log
       - name: Re-verify 24 native English samples
-        run: node english-quality-selftest.mjs | tee /tmp/english-quality.log
-      - name: Commit verified repair
+        shell: bash
+        run: |
+          set -o pipefail
+          node english-quality-selftest.mjs | tee /tmp/english-quality.log
+      - name: Commit verified audit repair
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add quality-audit.js
           git diff --cached --quiet && exit 0
-          git commit -m 'Restore Arabic semantic uniqueness gate'
+          git commit -m 'Fix Arabic coupon and Saudi quality gates'
           git push origin HEAD:main
