@@ -146,7 +146,7 @@ async function cityPage(market,key,origin,env){
  const path=`/${market}/city/${key}`,title=`كوبونات نون ${city.ar}`,desc=`دليل بحث محلي داخل ${mk.name} لزوار ${city.ar}، مع الأقسام والكوبونات والمقالات ذات الصلة. لا ندعي أن صلاحية الكود تختلف حسب المدينة دون دليل.`;
  const hero=`<header class="hero"><div class="w">${breadcrumbs(market,[{label:city.ar}])}<h1>${title}</h1><p>${desc}</p></div></header>`;
  const main=`${couponBox(market,'city:'+key,city.ar)}<section class="section"><h2>الأقسام المتاحة</h2>${categoryGrid(market)}</section><section class="section"><h2>محتوى مرتبط بـ ${city.ar}</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">لن ننشئ محتوى مدينة مكررًا؛ ستظهر هنا فقط المقالات التي لها ارتباط حقيقي بالمدينة.</div>'}</section>`;
- return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market),'city',{'x-commerce-city':key,'x-robots-tag':rows.length?'index, follow':'noindex, follow'});
+ return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market),'city',{'x-commerce-city':key,'x-city-evidence':rows.length?'content-backed':'insufficient','x-robots-tag':rows.length?'index, follow':'noindex, follow'});
 }
 
 async function directoryPage(market, origin, env) {
