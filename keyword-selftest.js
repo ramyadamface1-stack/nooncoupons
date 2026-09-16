@@ -8,7 +8,7 @@ for(let i=0;i<160;i++){
   const t=buildBulkTopic(600000+i);
   const words=String(t.kw||'').trim().split(/\s+/).filter(Boolean).length;
   const problems=[];
-  if(t.keywordStrategy!=='search-intent-v2')problems.push('wrong_strategy');
+  if(t.keywordStrategy!=='search-intent-v3-sales')problems.push('wrong_strategy');
   if(words<4||words>18)problems.push('keyword_length');
   if(!String(t.kw||'').includes(marketLabel(t)))problems.push('market_missing');
   if(!String(t.kw||'').includes(t.category))problems.push('category_missing');
@@ -25,6 +25,6 @@ for(let i=0;i<160;i++){
   if(problems.length)bad.push(rows.at(-1));
 }
 console.log(JSON.stringify({strategy:KEYWORD_STRATEGY_INFO,total:rows.length,uniqueSlugs:seen.size,badCount:bad.length,bad:bad.slice(0,20),samples:rows.slice(0,12)},null,2));
-if(KEYWORD_STRATEGY_INFO.version!=='search-intent-v2')throw new Error('wrong_keyword_strategy_version');
+if(KEYWORD_STRATEGY_INFO.version!=='search-intent-v3-sales')throw new Error('wrong_keyword_strategy_version');
 if(bad.length)throw new Error('keyword_quality_failures:'+bad.length);
 console.log(`KEYWORD_SELFTEST_PASS total=${rows.length} unique=${seen.size} strategy=${KEYWORD_STRATEGY_INFO.version}`);
