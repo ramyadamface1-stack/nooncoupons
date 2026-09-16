@@ -1,8 +1,7 @@
-name: Verify Commerce Landing Network
+name: Verify Commerce Landing Network (diagnostic)
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
   workflow_dispatch:
 
 permissions:
