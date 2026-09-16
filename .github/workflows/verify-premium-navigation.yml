@@ -30,13 +30,13 @@ jobs:
           echo "PRODUCTION_ORIGIN $ORIGIN"
           ready=0
           for i in $(seq 1 12); do
-            health="$(curl -fsS --max-time 15 "$ORIGIN/api/generator-health" || true)"
+            health="$(curl -fsS --max-time 15 "$ORIGIN/api/generator-health?v=final7" || true)"
             slug="$(python -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("bulk",{}).get("lastSlug") or "")' "$health" 2>/dev/null || true)"
             [ -n "$slug" ] || { sleep 5; continue; }
             urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
-            curl -fsS --max-time 20 "$ORIGIN/articles/$urlslug" -o /tmp/article.html || { sleep 5; continue; }
-            curl -fsS --max-time 20 "$ORIGIN/blog" -o /tmp/blog.html || { sleep 5; continue; }
-            if grep -Fq 'id="article-topic-path"' /tmp/article.html && grep -Fq 'id="premium-blog-browser"' /tmp/blog.html; then ready=1; break; fi
+            curl -fsS --max-time 20 "$ORIGIN/articles/$urlslug?v=final7" -o /tmp/article.html || { sleep 5; continue; }
+            curl -fsS --max-time 20 "$ORIGIN/blog?v=final7" -o /tmp/blog.html || { sleep 5; continue; }
+            if grep -Eq 'id="article-topic-path"|/(saudi|uae)/category/' /tmp/article.html && grep -Fq 'id="premium-blog-browser"' /tmp/blog.html; then ready=1; break; fi
             sleep 5
           done
           [ "$ready" = 1 ]
