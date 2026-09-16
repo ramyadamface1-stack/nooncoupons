@@ -53,3 +53,5 @@ jobs:
           git add quality-audit.js
           git commit -m 'Restore Arabic semantic uniqueness gate'
           git push origin HEAD:main
+
+# one-shot repair trigger 2026-09-16
