@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 22
       - name: Apply V6 migration
-        run: node english-v6-migrate.mjs
+        run: node english-v6-migrate-safe.mjs
       - name: Syntax check
         run: node --check bulk-content-engine.js
       - name: Commit V6 generator
