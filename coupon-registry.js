@@ -1,9 +1,9 @@
 const DAY=86400000;
-const OWNER_CATALOG_UPDATED_AT='2026-09-13T00:00:00.000Z';
+const OWNER_CATALOG_UPDATED_AT='2026-09-16T00:00:00.000Z';
 const REVIEW_AFTER_DAYS=14;
 const BLOCK_AFTER_DAYS=30;
 
-const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
+const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
 
 export const COUPON_REGISTRY=Object.freeze(Object.fromEntries(CODES.map(code=>[code,Object.freeze({
   code,
@@ -52,7 +52,7 @@ export async function writeCouponFreshnessSnapshot(env,at=new Date()){
     for(const country of ['SA','AE'])rows.push(couponStatus({code,country},at));
   }
   const summary={
-    version:'owner-supplied-v1',
+    version:'owner-supplied-v2',
     generatedAt:at.toISOString(),
     catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,
     reviewAfterDays:REVIEW_AFTER_DAYS,
@@ -67,4 +67,4 @@ export async function writeCouponFreshnessSnapshot(env,at=new Date()){
   return summary;
 }
 
-export const COUPON_REGISTRY_INFO={version:'owner-supplied-v1',codes:CODES.length,reviewAfterDays:REVIEW_AFTER_DAYS,blockAfterDays:BLOCK_AFTER_DAYS,catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,officialVerification:false};
+export const COUPON_REGISTRY_INFO={version:'owner-supplied-v2',codes:CODES.length,reviewAfterDays:REVIEW_AFTER_DAYS,blockAfterDays:BLOCK_AFTER_DAYS,catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,officialVerification:false};
