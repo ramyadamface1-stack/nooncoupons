@@ -7,6 +7,8 @@ import {
   articleCommerceLinks,
   commercePaths,
   COMMERCE_TAXONOMY_INFO,
+  CITIES,
+  CATEGORY_VISUALS,
 } from './commerce-taxonomy.js';
 
 const CODES = ['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
@@ -19,10 +21,10 @@ const CSS = `
 a{color:inherit}.w{width:min(1180px,92%);margin:auto}.hero{padding:44px 0;background:linear-gradient(135deg,#111827,#312e81);color:#fff}
 .hero h1{font-size:clamp(30px,5vw,50px);line-height:1.3;margin:14px 0}.hero p,.lead{line-height:1.9;color:#667085}.hero p{color:#e5e7eb;max-width:900px}.crumbs,.chips{display:flex;gap:8px;flex-wrap:wrap}.crumbs a{color:#ddd6fe}
 .section{padding:30px 0}.section h2{font-size:clamp(23px,3vw,32px)}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
-.card,.box{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:18px}.card h3{line-height:1.55;margin:8px 0}.card p{color:#667085;line-height:1.8}.card a{text-decoration:none}.read{color:#6d28d9;font-weight:900}
+.card,.box{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:18px}.card h3{line-height:1.55;margin:8px 0}.card p{color:#667085;line-height:1.8}.card a{text-decoration:none}.visual-card{min-height:220px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;position:relative}.visual-card:before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 15% 15%,rgba(109,40,217,.12),transparent 45%);pointer-events:none}.visual-icon{font-size:42px;line-height:1}.visual-theme{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#6d28d9;font-weight:900}.country-hero{padding:58px 0;background:linear-gradient(135deg,#111827,#312e81);color:#fff}.city-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.read{color:#6d28d9;font-weight:900}
 .chips a{display:inline-block;background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:9px 13px;text-decoration:none;font-weight:800}.coupon{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;background:#fffbeb;border:1px solid #fde68a;border-radius:20px;padding:20px;margin:24px 0}
 .code{display:inline-block;background:#111827;color:#fff;border-radius:10px;padding:7px 11px;font-weight:900}.cta{display:inline-block;background:#facc15;text-decoration:none;font-weight:900;padding:13px 16px;border-radius:12px}.check{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.check .box{line-height:1.85}.spider{padding:28px 0;background:#111827;color:#fff}.empty{background:#fff;border:1px dashed #cbd5e1;border-radius:18px;padding:20px;color:#64748b}.table{width:100%;border-collapse:collapse;background:#fff}.table th,.table td{border:1px solid #e5e7eb;padding:12px;text-align:right;vertical-align:top}
-@media(max-width:900px){.grid,.grid4{grid-template-columns:1fr 1fr}}@media(max-width:620px){.grid,.grid4,.check,.coupon{grid-template-columns:1fr}}
+@media(max-width:900px){.grid,.grid4,.city-grid{grid-template-columns:1fr 1fr}}@media(max-width:620px){.grid,.grid4,.city-grid,.check,.coupon{grid-template-columns:1fr}}
 `;
 
 async function latestArticles(env) {
@@ -102,7 +104,7 @@ function couponBox(market, key, label) {
 }
 
 function categoryGrid(market, current = '') {
-  return `<div class="grid4">${Object.entries(CATEGORIES).filter(([k]) => k !== current).map(([k,c]) => `<article class="card"><h3><a href="/${market}/category/${k}">${esc(c.label)}</a></h3><p>${esc(c.desc)}</p><a class="read" href="/${market}/category/${k}">افتح القسم ←</a></article>`).join('')}</div>`;
+  return `<div class="grid4">${Object.entries(CATEGORIES).filter(([k]) => k !== current).map(([k,c]) => {const v=CATEGORY_VISUALS[k]||{icon:'◆',theme:'shopping',alt:c.label};return `<article class="card visual-card" aria-label="${esc(v.alt)}"><div><div class="visual-icon" aria-hidden="true">${v.icon}</div><span class="visual-theme">${esc(v.theme)}</span><h3><a href="/${market}/category/${k}">${esc(c.label)}</a></h3><p>${esc(c.desc)}</p></div><a class="read" href="/${market}/category/${k}">افتح القسم ←</a></article>`}).join('')}</div>`;
 }
 
 function brandGrid(market, current = '', category = '') {
@@ -120,6 +122,25 @@ function htmlResponse(body, kind, headers = {}) {
 
 function shell(origin, path, title, desc, rows, hero, main, market, current = '') {
   return `<!doctype html><html lang="ar" dir="rtl"><head>${pageHead(origin,path,title,desc,rows)}</head><body>${hero}<main class="w">${main}</main>${spider(market,current)}</body></html>`;
+}
+
+async function countryPage(market,origin,env){
+ const mk=MARKETS[market];if(!mk)return null;
+ const rows=marketRows(await latestArticles(env),market).slice(0,12),path=`/${market}`,code=codeFor('country:'+market);
+ const title=`كوبونات وعروض ${mk.name}`,desc=`بوابة ${mk.name} للكوبونات والأقسام والمدن والأدلة العربية والإنجليزية المرتبطة بقرار الشراء.`;
+ const cities=(CITIES[market]||[]).map(c=>`<article class="card"><small>${esc(c.en)}</small><h3><a href="/${market}/city/${c.key}">${esc(c.ar)}</a></h3><p>محتوى وكوبونات ${esc(mk.name)} المرتبطة بالبحث من ${esc(c.ar)} بدون ادعاء اختلاف خصم غير موثق حسب المدينة.</p></article>`).join('');
+ const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/">الرئيسية</a></div><h1>${title}</h1><p>${desc}</p><aside class="coupon"><div><small>الكوبون هو الإجراء الأساسي</small><h2>انسخ الكود <span class="code">${code}</span></h2><p class="lead">تحقق من أهلية الكود داخل سلتك؛ لا نفترض نسبة خصم ثابتة.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='تم نسخ الكود'">نسخ الكود</button></aside></div></header>`;
+ const main=`<section class="section"><h2>تسوق حسب القسم</h2><p class="lead">واجهة بصرية للأقسام بدل قائمة تدوينات تقليدية.</p>${categoryGrid(market)}</section><section class="section"><h2>أهم المدن</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>أحدث الأدلة والكوبونات</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">تظهر المقالات المؤهلة تلقائيًا.</div>'}</section>`;
+ return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market),'country',{'x-commerce-market':market});
+}
+
+async function cityPage(market,key,origin,env){
+ const mk=MARKETS[market],city=(CITIES[market]||[]).find(c=>c.key===key);if(!mk||!city)return null;
+ const rows=marketRows(await latestArticles(env),market).filter(a=>new RegExp(city.ar+'|'+city.en,'i').test(String(a.title||'')+' '+String(a.primaryKeyword||''))).slice(0,12);
+ const path=`/${market}/city/${key}`,title=`كوبونات نون ${city.ar}`,desc=`دليل بحث محلي داخل ${mk.name} لزوار ${city.ar}، مع الأقسام والكوبونات والمقالات ذات الصلة. لا ندعي أن صلاحية الكود تختلف حسب المدينة دون دليل.`;
+ const hero=`<header class="hero"><div class="w">${breadcrumbs(market,[{label:city.ar}])}<h1>${title}</h1><p>${desc}</p></div></header>`;
+ const main=`${couponBox(market,'city:'+key,city.ar)}<section class="section"><h2>الأقسام المتاحة</h2>${categoryGrid(market)}</section><section class="section"><h2>محتوى مرتبط بـ ${city.ar}</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">لن ننشئ محتوى مدينة مكررًا؛ ستظهر هنا فقط المقالات التي لها ارتباط حقيقي بالمدينة.</div>'}</section>`;
+ return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market),'city',{'x-commerce-city':key,'x-robots-tag':rows.length?'index, follow':'noindex, follow'});
 }
 
 async function directoryPage(market, origin, env) {
@@ -193,7 +214,11 @@ async function comparisonPage(market, key, origin, env) {
 }
 
 export async function commerceLanding(path, origin, env) {
-  let m = path.match(/^\/(saudi|uae)\/categories$/);
+  let m = path.match(/^\/(saudi|uae)$/);
+  if (m) return countryPage(m[1],origin,env);
+  m = path.match(/^\/(saudi|uae)\/city\/([a-z0-9-]+)$/);
+  if (m) return cityPage(m[1],m[2],origin,env);
+  m = path.match(/^\/(saudi|uae)\/categories$/);
   if (m) return directoryPage(m[1], origin, env);
   m = path.match(/^\/(saudi|uae)\/category\/([a-z0-9-]+)$/);
   if (m) return categoryPage(m[1],m[2],origin,env);
