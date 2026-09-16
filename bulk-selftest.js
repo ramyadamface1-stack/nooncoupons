@@ -15,7 +15,7 @@ const groupMins={};
 for(let n=0;n<40;n++){
   const cursor=500000+n;
   const topic=buildBulkTopic(cursor);
-  const coupon=couponStatus(topic,new Date('2026-09-15T12:00:00Z'));
+  const coupon=couponStatus(topic,new Date('2026-09-16T12:00:00Z'));
   if(!coupon.publishAllowed)throw new Error('known_coupon_not_publishable:'+topic.code);
   const ck=clusterKey(topic),cluster=clusters.get(ck)||emptyCluster(topic);
   const links=pickRelated(cluster,topic,6);
