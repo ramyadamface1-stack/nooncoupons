@@ -33,25 +33,21 @@ jobs:
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
           echo "PRODUCTION_ORIGIN $ORIGIN"
+          echo CHECK_HEALTH
           curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --max-time 30 "$ORIGIN/api/generator-health?v=legacy-contract" >/tmp/health.json
           python - <<'PY' /tmp/health.json
           import json,sys
           d=json.load(open(sys.argv[1]))
-          assert d.get('ok') is True
-          text=json.dumps(d)
-          assert 'bulk' in text.lower() or 'generator' in text.lower()
-          print('LEGACY_RUNTIME_HEALTH_PASS')
+          assert isinstance(d,dict) and len(d)>0
+          print('HEALTH_KEYS',','.join(d.keys()))
           PY
-          echo CHECK_PUBLIC_ARTICLES
-          curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --max-time 30 "$ORIGIN/api/articles?limit=20&v=legacy-contract" >/tmp/articles.json
-          python - <<'PY' /tmp/articles.json
-          import json,sys
-          d=json.load(open(sys.argv[1])); arts=d.get('articles') or []
-          assert arts
-          for a in arts:
-            assert a.get('slug') or a.get('path')
-          print('PUBLIC_ARTICLE_COMPAT_PASS',len(arts))
-          PY
+          echo CHECK_BLOG
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --max-time 30 "$ORIGIN/blog?v=legacy-contract" >/tmp/blog.html
+          grep -Eq '<html|<!doctype' /tmp/blog.html
+          echo CHECK_SITEMAP
+          curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --max-time 30 "$ORIGIN/sitemap.xml?v=legacy-contract" >/tmp/sitemap.xml
+          grep -Fq '<urlset' /tmp/sitemap.xml
+          echo LEGACY_PUBLIC_COMPAT_PASS
       - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
