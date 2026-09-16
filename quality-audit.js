@@ -31,7 +31,7 @@ export function auditSeoArticle(article,topic,opts={}){
   const codes=[...new Set((plain.match(/\b[A-Z]{2,8}\d{1,6}\b/g)||[]).map(x=>x.toUpperCase()))],targetCode=String(topic?.code||article?.coupon||'').toUpperCase();
   const ar=count(plain,/[\u0600-\u06FF]/g),latin=count(plain,/[A-Za-z]/g),arabicRatio=ar/Math.max(1,ar+latin);
   const intro=strip(html.slice(0,Math.min(html.length,7000))),exactKw=exactOccurrences(plain,keyword),sig=contentSignature(plain);
-  const recent=Array.isArray(opts.recent)?opts.recent:[],distances=recent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=distances.length?Math.min(...distances):32;
+  const recent=Array.isArray(opts.recent)?opts.recent:[],semanticRecent=Array.isArray(opts.semanticRecent)?opts.semanticRecent:recent,distances=semanticRecent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=distances.length?Math.min(...distances):32;
   const recentKeywords=new Set(recent.map(r=>norm(r.primaryKeyword||''))),recentSlugs=new Set(recent.map(r=>String(r.slug||'')));
 
   addCheck(checks,'seo','article_identity',Boolean(keyword&&title&&slug),3,{critical:true});
