@@ -1,0 +1,58 @@
+name: Check Cloudflare Connection
+
+on:
+  push:
+    paths:
+      - '.github/workflows/check-cloudflare-connection.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    env:
+      CF_TOKEN_1: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_TOKEN_2: ${{ secrets.CLOUDFLARE_TOKEN }}
+      CF_TOKEN_3: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - name: Verify Cloudflare API access
+        shell: bash
+        run: |
+          set -euo pipefail
+          TOKEN="${CF_TOKEN_1:-${CF_TOKEN_2:-${CF_TOKEN_3:-}}}"
+          if [ -z "$TOKEN" ]; then
+            echo "CLOUDFLARE_CONNECTION=missing_secret"
+            exit 2
+          fi
+
+          VERIFY_CODE=$(curl -sS -o verify.json -w '%{http_code}' \
+            -H "Authorization: Bearer $TOKEN" \
+            -H 'Content-Type: application/json' \
+            https://api.cloudflare.com/client/v4/user/tokens/verify)
+          VERIFY_SUCCESS=$(jq -r '.success // false' verify.json)
+          echo "TOKEN_VERIFY_HTTP=$VERIFY_CODE"
+          echo "TOKEN_VERIFY_SUCCESS=$VERIFY_SUCCESS"
+          if [ "$VERIFY_CODE" != "200" ] || [ "$VERIFY_SUCCESS" != "true" ]; then
+            jq -c '{success,errors,messages}' verify.json
+            exit 3
+          fi
+
+          ZONE_CODE=$(curl -sS -o zone.json -w '%{http_code}' \
+            -H "Authorization: Bearer $TOKEN" \
+            -H 'Content-Type: application/json' \
+            'https://api.cloudflare.com/client/v4/zones?name=noondealsnow.com')
+          ZONE_SUCCESS=$(jq -r '.success // false' zone.json)
+          ZONE_COUNT=$(jq -r '.result | length' zone.json)
+          echo "ZONE_LOOKUP_HTTP=$ZONE_CODE"
+          echo "ZONE_LOOKUP_SUCCESS=$ZONE_SUCCESS"
+          echo "ZONE_COUNT=$ZONE_COUNT"
+          if [ "$ZONE_CODE" != "200" ] || [ "$ZONE_SUCCESS" != "true" ] || [ "$ZONE_COUNT" -lt 1 ]; then
+            jq -c '{success,errors,messages,result_info}' zone.json
+            exit 4
+          fi
+
+          jq -r '.result[] | "ZONE_NAME=" + .name + "\nZONE_STATUS=" + .status + "\nZONE_ID=" + .id' zone.json
+          echo "CLOUDFLARE_CONNECTION=verified"
