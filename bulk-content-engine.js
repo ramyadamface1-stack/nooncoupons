@@ -40,6 +40,12 @@ function englishMeta(kw,code){
   return wordSafeMeta(long.length<=155?long:short,155);
 }
 
+function cleanEnglishHtml(html){
+  return String(html||'')
+    .replace(/\bcart\s+test\b/gi,'checkout checklist')
+    .replace(/\bguide\s+guide\b/gi,'guide');
+}
+
 export function buildEnglishNativeCandidate(topic){
   return normalizeEnglishCandidate(buildEnglishNativeCandidateBase(topic));
 }
@@ -51,5 +57,6 @@ export function buildEnglishUsefulArticle(candidate,cursor=0){
   const kw=String(article.primaryKeyword||normalized?.nativeKeyword||'').replace(/\bcart test\b/gi,'checkout checklist').replace(/\s+/g,' ').trim();
   const title=String(article.title||kw).replace(/\bcart test\b/gi,'checkout checklist').replace(/\s+/g,' ').trim();
   const slug=String(article.slug||'').replace(/cart-test\b/gi,'checkout-checklist');
-  return {...article,slug,title,primaryKeyword:kw,metaDescription:englishMeta(kw,normalized?.code||article.coupon||'')};
+  const html=cleanEnglishHtml(article.html);
+  return {...article,slug,title,primaryKeyword:kw,metaDescription:englishMeta(kw,normalized?.code||article.coupon||''),html};
 }
