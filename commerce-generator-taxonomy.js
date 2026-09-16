@@ -85,6 +85,13 @@ export function applyCommerceTarget(topic={},seed){
   return {...topic,kw,title,topicIndex:topic.topicIndex??n,...meta,landingPath,targetLabel,commerceTarget:targetLabel,commercePrompt:`اربط الدليل تجاريًا بموضوع ${targetLabel} داخل ${CATEGORIES[categoryKey]?.label||topic.category||''} دون تغيير نية البحث الأساسية أو حشو الكلمة المفتاحية.`,commerceLinks};
 }
 
+export function commerceCoverageTarget(categoryKey){
+  const priority=Object.prototype.hasOwnProperty.call(PRIORITY_BRANDS,categoryKey);
+  return priority
+    ? {categoryDirectMin:12,brandDirectMin:16,modelDirectMin:28,comparisonDirectMin:categoryKey==='mobiles'?10:0}
+    : {categoryDirectMin:12,brandDirectMin:10,modelDirectMin:12,comparisonDirectMin:0};
+}
+
 export function commerceRecordFields(topic={}){
   const t=applyCommerceTarget(topic,topic.topicIndex);
   return {market:t.market,categoryKey:t.categoryKey,brandKey:t.brandKey,modelKey:t.modelKey,comparisonKey:t.comparisonKey,landingPath:t.landingPath,commerceTarget:t.targetLabel,commerceTaxonomyVersion:COMMERCE_GENERATOR_INFO.version};
@@ -104,4 +111,4 @@ export function decorateArticleCommerce(article={},topic={}){
   return {...article,...fields,commerceTarget:t.targetLabel,html};
 }
 
-export const COMMERCE_GENERATOR_INFO={version:6,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-independent-from-primary-keyword',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true,priorityBrandWeighting:true,comparisonCadence:'1-in-6-mobile',categoryOnlyCadence:'1-in-7',brandOnlyCadence:'1-in-5'};
+export const COMMERCE_GENERATOR_INFO={version:6,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-independent-from-primary-keyword',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true,priorityBrandWeighting:true,comparisonCadence:'1-in-6-mobile',categoryOnlyCadence:'1-in-7',brandOnlyCadence:'1-in-5',coverageTargets:'category-aware'};
