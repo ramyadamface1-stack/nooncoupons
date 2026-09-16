@@ -2,7 +2,7 @@ name: Verify Controlled English Expansion
 on:
   push:
     branches: [main]
-    paths: ['wrangler.jsonc','.github/workflows/verify-english-controlled.yml']
+    paths: ['wrangler.jsonc','english-canary.js','english-canary-repair.js','bulk-content-engine.js','bulk-content-engine-base.js','commerce-entry.js','.github/workflows/verify-english-controlled.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,13 +19,45 @@ jobs:
         run: |
           set -euo pipefail
           node --check english-canary.js
+          node --check english-canary-repair.js
           node --check bulk-content-engine.js
+          node --check bulk-content-engine-base.js
           grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
           grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "10"' wrangler.jsonc
           grep -Fq 'const MAX_CONTROLLED_TOTAL=10;' english-canary.js
           grep -Fq "audit.minJaccardDistance<0.18" english-canary.js
           grep -Fq "provider:isCanary?'programmatic-cloudflare:english-v6-canary':'programmatic-cloudflare:english-v6-controlled'" english-canary.js
+          grep -Fq "export * from './bulk-content-engine-base.js';" bulk-content-engine.js
+          grep -Fq "nativeVariant='checkout checklist'" bulk-content-engine.js
+          grep -Fq "coupon timing guide" bulk-content-engine.js
           grep -Fq 'const metaLead=/\bguide$/i.test(kw)?kw:`${kw} guide`;' bulk-content-engine.js
+          grep -Fq "QUALITY_MARKER_KEY='english-canary/quality-copy-v2.json'" english-canary-repair.js
+      - name: Verify persistent English copy repair in R2 and state
+        run: |
+          set -euo pipefail
+          ORIGIN="https://noondealsnow.com"
+          ok=0
+          for i in $(seq 1 90); do
+            curl -fsS --max-time 20 "$ORIGIN/api/english-canary-repair-health" -o /tmp/repair.json || true
+            if node - <<'NODE'
+          const fs=require('fs');
+          try{
+            const x=JSON.parse(fs.readFileSync('/tmp/repair.json','utf8'));
+            const q=x.qualityMarker||{};
+            const pass=x.ok===true && x.version==='english-copy-v2' && x.controlledTarget===10 && x.totalStateRecords===10 &&
+              x.controlledQualityClean===true && x.stateClean===true && x.r2MetadataClean===true &&
+              Array.isArray(x.unexpectedEnglishRecords) && x.unexpectedEnglishRecords.length===0 &&
+              Array.isArray(x.unexpectedR2Objects) && x.unexpectedR2Objects.length===0 &&
+              q.complete===true && q.version==='english-copy-v2' && q.droppedCount===1 &&
+              Array.isArray(q.dropped) && q.dropped.includes('en-best-time-to-try-a-noon-coupon-uae-office-cart-test');
+            process.exit(pass?0:1);
+          }catch{process.exit(1)}
+          NODE
+            then ok=1; break; fi
+            sleep 10
+          done
+          cat /tmp/repair.json || true
+          test "$ok" = 1
       - name: Wait for controlled batch to complete and audit state
         run: |
           set -euo pipefail
@@ -44,15 +76,21 @@ jobs:
             const canaries=rows.filter(r=>r.canary===true && (!r.phase || r.phase==='canary'));
             const expanded=rows.filter(r=>r.canary===false && r.phase==='controlled');
             const validGroups=r=>Object.values(r.qualityGroups||{}).every(v=>Number(v)>=95);
+            const copyClean=r=>{
+              const meta=String(r.metaDescription||'').trim();
+              const identity=[r.slug,r.title,r.primaryKeyword,meta].join(' ');
+              return meta.length>0 && meta.length<=155 && /[.!?]$/.test(meta) &&
+                !/\bguide\s+guide\b/i.test(meta) && !/\bcart\s+test\b/i.test(identity);
+            };
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 &&
               c.target===10 && c.published===10 && c.remaining===0 && c.complete===true && c.status==='complete' &&
               rows.length===10 && c.sa===5 && c.ae===5 && c.uniqueProfiles===10 &&
               new Set(slugs).size===10 && new Set(keywords).size===10 && canaries.length===2 && expanded.length===8 &&
+              !slugs.includes('en-best-time-to-try-a-noon-coupon-uae-office-cart-test') &&
               rows.every(r=>r.r2Present===true && r.status==='published' && r.indexable===true &&
                 r.language==='en' && r.languageIntent==='en' && r.languageSource==='native-intent-v6-canary' &&
                 Number(r.quality)>=95 && Number(r.qualityFloor)>=95 && Number(r.wordCount)>=1000 &&
-                Number(r.minJaccardDistance)>=0.18 && validGroups(r) &&
-                !/\bguide\s+guide\b/i.test(String(r.metaDescription||''))) &&
+                Number(r.minJaccardDistance)>=0.18 && validGroups(r) && copyClean(r)) &&
               canaries.every(r=>r.provider==='programmatic-cloudflare:english-v6-canary') &&
               expanded.every(r=>r.provider==='programmatic-cloudflare:english-v6-controlled');
             process.exit(pass?0:1);
@@ -91,7 +129,16 @@ jobs:
             grep -Fq 'FAQPage' /tmp/page.html
             grep -Fq 'data-schema="article"' /tmp/page.html
             grep -Eiq '<meta[^>]+name="description"[^>]+content="[^"]+"' /tmp/page.html
-            if grep -Eiq 'guide[[:space:]]+guide' /tmp/page.html; then echo "GUIDE_GUIDE $slug"; exit 1; fi
+            if grep -Eiq 'guide[[:space:]]+guide|cart[[:space:]]+test' /tmp/page.html; then echo "ENGLISH_COPY_DEFECT $slug"; exit 1; fi
+            python - <<'PY'
+          import re,html
+          s=open('/tmp/page.html',encoding='utf-8').read()
+          m=re.search(r'<meta[^>]+name="description"[^>]+content="([^"]+)"',s,re.I)
+          assert m, 'meta description missing'
+          v=html.unescape(m.group(1)).strip()
+          assert 1 <= len(v) <= 155, (len(v),v)
+          assert v[-1] in '.!?', v
+          PY
             if grep -Eiq "(save|discount)[[:space:]]+(up to[[:space:]]+)?[0-9]{1,3}%" /tmp/page.html; then echo "UNSUPPORTED_PERCENT $slug"; exit 1; fi
             if [ -n "$category" ]; then
               curl -fsS -D /tmp/cat.h --max-time 20 "$ORIGIN$market/category/$category" -o /tmp/cat.html
@@ -100,6 +147,8 @@ jobs:
               if [ "$ev" = "insufficient" ]; then grep -Fqi 'noindex' <<<"$rb"; fi
             fi
           done < /tmp/paths.tsv
+          old_code="$(curl -sS -o /tmp/old-weak.html -w '%{http_code}' --max-time 20 "$ORIGIN/en/articles/en-best-time-to-try-a-noon-coupon-uae-office-cart-test")"
+          test "$old_code" != "200"
       - name: Verify sitemap, hubs, and indexation readiness
         run: |
           set -euo pipefail
@@ -107,6 +156,7 @@ jobs:
           curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en-sitemap.xml
           count="$(grep -o '<url>' /tmp/en-sitemap.xml | wc -l | tr -d ' ')"
           test "$count" = "10"
+          ! grep -Fq 'en-best-time-to-try-a-noon-coupon-uae-office-cart-test' /tmp/en-sitemap.xml
           cut -f1 /tmp/paths.tsv | while IFS= read -r path; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done
           curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
           grep -Fq "$ORIGIN/sitemap-en-articles.xml" /tmp/main-sitemap.xml
@@ -116,8 +166,8 @@ jobs:
           const fs=require('fs');
           const x=JSON.parse(fs.readFileSync('/tmp/controlled.json','utf8'));
           for(const r of x.controlled.records){
-            const html=fs.readFileSync(r.country==='SA'?'/tmp/saudi.html':'/tmp/uae.html','utf8');
-            if(!html.includes(r.urlPath)) process.exit(1);
+            const h=fs.readFileSync(r.country==='SA'?'/tmp/saudi.html':'/tmp/uae.html','utf8');
+            if(!h.includes(r.urlPath)) process.exit(1);
           }
           NODE
           curl -fsS --max-time 20 "$ORIGIN/robots.txt" -o /tmp/robots.txt
@@ -136,5 +186,5 @@ jobs:
           if(!p.ok||p.ai?.provider!=='workers-ai'||p.ai?.externalProviders!==false||!p.r2) process.exit(1);
           if(!g.ok||g.legacyProvidersRemoved!==true||g.providers?.external!==false||g.preferredProvider!=='workers-ai'||!g.r2Ready) process.exit(1);
           if(b.enabled!==true||b.lastError!==null||Number(b.lastQuality||0)<95||Number(b.lastWordCount||0)<1000) process.exit(1);
-          console.log('CONTROLLED_ENGLISH_10=PASS',JSON.stringify({published:g.bulk?.publishedTotal,publishedToday:g.bulk?.publishedToday,lastQuality:b.lastQuality,lastWordCount:b.lastWordCount}));
+          console.log('CONTROLLED_ENGLISH_10_COPY_V2=PASS',JSON.stringify({published:g.bulk?.publishedTotal,publishedToday:g.bulk?.publishedToday,lastQuality:b.lastQuality,lastWordCount:b.lastWordCount}));
           NODE
