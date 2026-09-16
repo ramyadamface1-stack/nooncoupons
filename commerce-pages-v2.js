@@ -119,7 +119,7 @@ function brandGrid(market, current = '', category = '') {
 
 function spider(market, current = '') {
   const keys = ['mobiles','electronics','computers','gaming','home-kitchen','beauty','shoes','bags','sports','automotive'];
-  return `<section class="spider"><div class="w"><h2>تحرك داخل شبكة الموقع</h2><div class="chips"><a href="/">الرئيسية</a><a href="/${market==='saudi'? 'saudi-arabia':'uae'}/noon-coupon-code">كود خصم نون ${market==='saudi'?'السعودية':'الإمارات'}</a><a href="/${market}/categories">كل الأقسام</a>${keys.filter((k) => k !== current).map((k) => `<a href="/${market}/category/${k}">${esc(CATEGORIES[k].label)}</a>`).join('')}<a href="/blog">كل المقالات</a></div></div></section>`;
+  return `<section class="spider"><div class="w"><h2>تحرك داخل شبكة الموقع</h2><div class="chips"><a href="/">الرئيسية</a><a href="/${market}/noon-coupon-code">كود خصم نون ${market==='saudi'?'السعودية':'الإمارات'}</a><a href="/${market}/categories">كل الأقسام</a>${keys.filter((k) => k !== current).map((k) => `<a href="/${market}/category/${k}">${esc(CATEGORIES[k].label)}</a>`).join('')}<a href="/blog">كل المقالات</a></div></div></section>`;
 }
 
 function htmlResponse(body, kind, headers = {}) {
@@ -244,7 +244,7 @@ export function commerceArticlePathHtml(article = {}) {
 
 export function commerceNavHtml() {
   const keys = ['mobiles','electronics','computers','gaming','home-kitchen','beauty','shoes','bags','sports','automotive'];
-  return `<section id="commerce-network-nav" style="padding:30px 0;background:#eef2ff"><div style="width:min(1180px,92%);margin:auto"><h2>تصفح أقسام نون</h2><p>ابدأ من السوق ثم القسم، وبعدها البراند والموديل والمقال المناسب.</p><div class="chips"><a href="/saudi-arabia/noon-coupon-code">كود خصم نون السعودية</a><a href="/uae/noon-coupon-code">كود خصم نون الإمارات</a><a href="/saudi/categories">أقسام السعودية</a><a href="/uae/categories">أقسام الإمارات</a>${keys.map((k) => `<a href="/saudi/category/${k}">${esc(CATEGORIES[k].label)}</a>`).join('')}</div></div></section>`;
+  return `<section id="commerce-network-nav" style="padding:30px 0;background:#eef2ff"><div style="width:min(1180px,92%);margin:auto"><h2>تصفح أقسام نون</h2><p>ابدأ من السوق ثم القسم، وبعدها البراند والموديل والمقال المناسب.</p><div class="chips"><a href="/saudi/noon-coupon-code">كود خصم نون السعودية</a><a href="/uae/noon-coupon-code">كود خصم نون الإمارات</a><a href="/saudi/categories">أقسام السعودية</a><a href="/uae/categories">أقسام الإمارات</a>${keys.map((k) => `<a href="/saudi/category/${k}">${esc(CATEGORIES[k].label)}</a>`).join('')}</div></div></section>`;
 }
 
 export function commerceSitemap(origin) {
