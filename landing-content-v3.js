@@ -102,6 +102,12 @@ function entityBlock(ctx){
   return `<section class="section entity-summary"><h2>ملخص الكيانات والنية</h2><ul>${bits.join('')}</ul><p>هذه الصفحة مستقلة في عنوانها وكياناتها ونية البحث ومسارها الداخلي. لا نستخدم سعرًا ثابتًا أو نسبة خصم ثابتة كحقيقة دائمة؛ البيانات المتغيرة تُراجع في نون لحظة الشراء.</p></section>`;
 }
 
+function relatedHubBlock(ctx){
+  const base='/'+ctx.market,links=[{p:base+'/categories',l:'كل أقسام '+ctx.mk.name},{p:ctx.market==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code',l:'كود خصم نون '+ctx.mk.label}];
+  if(ctx.category)links.push({p:base+'/category/'+ctx.key,l:'دليل '+ctx.category.label});
+  if(ctx.brand)links.push({p:base+'/brand/'+Object.keys(BRANDS).find(k=>BRANDS[k]===ctx.brand),l:'كل أدلة '+ctx.brand.label});
+  return `<section class="section related-authority"><h2>روابط مرتبطة تساعدك على إكمال القرار</h2><p>استخدم هذه الروابط للانتقال بين مستوى السوق والقسم والبراند وصفحة الكوبون من غير فقدان سياق المقارنة.</p><nav class="chips" aria-label="روابط تجارية مرتبطة">${links.filter((x,i,a)=>a.findIndex(y=>y.p===x.p)===i).map(x=>`<a href="${esc(x.p)}">${esc(x.l)}</a>`).join('')}</nav></section>`;
+}
 function eeatBlock(ctx){return `<section class="section editorial-method"><h2>منهجية التحرير والتحقق</h2><p>نكتب هذه الصفحة لمساعدة المستخدم على المقارنة وليس لإصدار حكم مطلق. نفصل بين المعلومات الثابتة نسبيًا مثل اسم البراند أو عائلة المنتج، وبين المعلومات المتغيرة مثل السعر والمخزون والبائع وأهلية الكوبون. أي عنصر متغير يجب فحصه على ${esc(ctx.mk.name)} قبل الدفع.</p><p>عند وجود أكثر من بائع أو نسخة، نعتبر كل تركيبة حالة مستقلة. لا نفترض أن الضمان أو الملحقات أو حالة المنتج واحدة بين كل النتائج. كما لا ننسب إلى نون أو البراند أي تعهد لم يظهر في الصفحة الحية. هذا الأسلوب يرفع قابلية التحقق ويقلل الادعاءات غير المسندة.</p><p>آخر تحديث تحريري لهذه الطبقة: 16 سبتمبر 2026. الغرض من تاريخ التحديث هو توضيح إصدار منهج الصفحة، وليس الادعاء بأن كل سعر أو مخزون ثابت منذ هذا التاريخ.</p></section>`}
 
 function faqBlock(ctx,seed){const qs=rotate(QA,seed).slice(0,8);return {html:`<section class="section faq"><h2>أسئلة شائعة عن ${esc(ctx.label)}</h2>${qs.map(([q,a])=>`<details><summary>${esc(q)}</summary><p>${esc(a)} في سياق ${esc(ctx.label)} على ${esc(ctx.mk.name)}، راجع دائمًا تفاصيل السلة الحية قبل الدفع.</p></details>`).join('')}</section>`,items:qs.map(([q,a])=>({'@type':'Question',name:q,acceptedAnswer:{'@type':'Answer',text:`${a} في سياق ${ctx.label} على ${ctx.mk.name}، راجع تفاصيل السلة الحية قبل الدفع.`}}))};}
@@ -113,7 +119,7 @@ export async function enhanceLandingPage(path,origin,res){
   let html=await res.text();if(html.includes('id="landing-depth-v3"'))return new Response(html,{status:res.status,headers:res.headers});
   const seed=hash(path),angles=rotate(ANGLES,seed).slice(0,40);
   const faq=faqBlock(ctx,seed);
-  let body=`<div id="landing-depth-v3" data-content-version="3" data-route-seed="${seed}">${entityBlock(ctx)}${visualBlock(ctx,seed)}${definitionsBlock(ctx)}${keywordBlock(ctx,seed)}${couponGuideBlock(ctx,seed)}${angles.map((a,i)=>section(ctx,seed,i,a)).join('')}${faq.html}${eeatBlock(ctx)}</div>`;
+  let body=`<div id="landing-depth-v3" data-content-version="3" data-route-seed="${seed}">${entityBlock(ctx)}${visualBlock(ctx,seed)}${definitionsBlock(ctx)}${keywordBlock(ctx,seed)}${couponGuideBlock(ctx,seed)}${angles.map((a,i)=>section(ctx,seed,i,a)).join('')}${faq.html}${relatedHubBlock(ctx)}${eeatBlock(ctx)}</div>`;
   const floor=5000;const charFloor=5000;let n=words(body),extra=0;
   while((n<floor||body.replace(/<[^>]*>/g,' ').length<charFloor)&&extra<20){body+=section(ctx,seed+extra*101,angles.length+extra,ANGLES[(seed+extra)%ANGLES.length]);extra++;n=words(body)}
   const schema=extraSchema(origin,path,ctx,faq.items);
@@ -122,4 +128,4 @@ export async function enhanceLandingPage(path,origin,res){
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
-export const LANDING_CONTENT_V3={version:3,minWords:5000,minChars:5000,imagesPerLanding:3,definitions:true,keywordClusters:true,couponGuide:true,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['WebPage','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true};
+export const LANDING_CONTENT_V3={version:3,minWords:5000,minChars:5000,imagesPerLanding:3,definitions:true,keywordClusters:true,couponGuide:true,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['WebPage','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true,relatedAuthorityLinks:true};
