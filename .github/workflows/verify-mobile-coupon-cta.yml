@@ -30,6 +30,7 @@ jobs:
         run: |
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
+          echo "PRODUCTION_ORIGIN $ORIGIN"
           ready=0
           for i in $(seq 1 12); do
             health="$(curl -fsS --max-time 15 "$ORIGIN/api/generator-health" || true)"
