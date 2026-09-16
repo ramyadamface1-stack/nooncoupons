@@ -213,7 +213,7 @@ export function commerceArticlePathHtml(article = {}) {
 
 export function commerceNavHtml() {
   const keys = ['mobiles','electronics','computers','gaming','home-kitchen','beauty','shoes','bags','sports','automotive'];
-  return `<section id="commerce-network-nav" style="padding:30px 0;background:#eef2ff"><div style="width:min(1180px,92%);margin:auto"><h2>تصفح أقسام نون</h2><p>ابدأ من السوق ثم القسم، وبعدها البراند والموديل والمقال المناسب.</p><div class="chips"><a href="/saudi/categories">نون السعودية</a><a href="/uae/categories">نون الإمارات</a>${keys.map((k) => `<a href="/saudi/category/${k}">${esc(CATEGORIES[k].label)}</a>`).join('')}</div></div></section>`;
+  return `<section id="commerce-network-nav" style="padding:30px 0;background:#eef2ff"><div style="width:min(1180px,92%);margin:auto"><h2>تصفح أقسام نون</h2><p>ابدأ من السوق ثم القسم، وبعدها البراند والموديل والمقال المناسب.</p><div class="chips"><a href="/saudi-arabia/noon-coupon-code">كود خصم نون السعودية</a><a href="/uae/noon-coupon-code">كود خصم نون الإمارات</a><a href="/saudi/categories">أقسام السعودية</a><a href="/uae/categories">أقسام الإمارات</a>${keys.map((k) => `<a href="/saudi/category/${k}">${esc(CATEGORIES[k].label)}</a>`).join('')}</div></div></section>`;
 }
 
 export function commerceSitemap(origin) {
