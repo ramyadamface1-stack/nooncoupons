@@ -33,6 +33,28 @@ function scenario(t,intent){
 }
 function market(t){return clean(t.market)}
 function cat(t){return clean(t.category)}
+function specificityParts(t,intent){
+  const u=clean(t.useCase),f=clean(t.factor),parts=['compare','seller','value','finalprice','warranty'].includes(intent)?[f,u]:[u,f];
+  return [...new Set(parts.filter(Boolean))].sort((a,b)=>a.length-b.length);
+}
+function addSpecificity(kw,t,intent,s){
+  let out=clean(kw),added=0;
+  for(const part of specificityParts(t,intent)){
+    if(out.includes(part)){added++;continue}
+    const candidate=clean(`${out} ${part}`);
+    if(candidate.length<=70){out=candidate;added++}
+  }
+  if(added)return out;
+  const sc=clean(s);
+  if(sc&&out.includes(sc)){
+    const base=clean(out.replace(sc,' '));
+    for(const part of specificityParts(t,intent)){
+      const candidate=clean(`${base} ${part}`);
+      if(candidate.length<=70)return candidate;
+    }
+  }
+  return out;
+}
 
 const BUILDERS={
   coupon:(t,s)=>`كود خصم نون ${market(t)} على ${cat(t)} ${commercialFreshness(t,'coupon',s)} ${s}`,
@@ -72,8 +94,8 @@ function fitKeyword(raw,t,intent,s){
 
 export function applyKeywordStrategy(topic){
   const rawIntent=topic.intent,intent=effectiveIntent(topic),s=scenario(topic,intent),builder=BUILDERS[intent]||BUILDERS.decision;
-  const kw=fitKeyword(builder(topic,s),topic,intent,s),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
-  return {...topic,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||topic.intentLabel||'دليل',kw,slug,title,keywordStrategy:'search-intent-v3-sales',keywordWordCount:words,searchIntentFamily:intent};
+  const baseKw=fitKeyword(builder(topic,s),topic,intent,s),kw=addSpecificity(baseKw,topic,intent,s),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
+  return {...topic,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||topic.intentLabel||'دليل',kw,slug,title,keywordStrategy:'search-intent-v4-longtail',keywordWordCount:words,searchIntentFamily:intent};
 }
 
-export const KEYWORD_STRATEGY_INFO={version:'search-intent-v3-sales',philosophy:'natural-query-first',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch'],maxRecommendedWords:14};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v4-longtail',philosophy:'natural-query-first',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch'],maxRecommendedWords:14};

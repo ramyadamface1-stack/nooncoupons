@@ -83,8 +83,9 @@ export function globalGate(article,topic,audit,cluster){
     if(String(e.slug||'')===slug)exactSlug=true;
     if(norm(e.primaryKeyword||'')===kw)exactKeyword=true;
     if(e.intentKey&&e.intentKey===ik)intentCollision=true;
-    if(!e.intent||e.intent===topic?.intent){const s=keywordSimilarity(article?.primaryKeyword||topic?.kw,e.primaryKeyword||'');if(s>maxKeywordSimilarity){maxKeywordSimilarity=s;nearest=e}}
-    if(e.signature&&audit?.signature){const d=signatureDistance(audit.signature,e.signature);if(d<minDistance){minDistance=d;nearest=e}}
+    const sameContext=(!e.country||e.country===topic?.country)&&(!e.category||e.category===topic?.category);
+    if(sameContext&&(!e.intent||e.intent===topic?.intent)){const s=keywordSimilarity(article?.primaryKeyword||topic?.kw,e.primaryKeyword||'');if(s>maxKeywordSimilarity){maxKeywordSimilarity=s;nearest=e}}
+    if(sameContext&&e.signature&&audit?.signature){const d=signatureDistance(audit.signature,e.signature);if(d<minDistance){minDistance=d;nearest=e}}
   }
   const semanticCollision=minDistance<5;
   const cannibalization=maxKeywordSimilarity>=0.82;
