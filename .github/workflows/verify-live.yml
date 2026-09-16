@@ -33,7 +33,7 @@ jobs:
           grep -Fq 'landingPath' generator-core-v2.js
           grep -Fq 'minWords:5000' landing-content-v3.js
           grep -Fq 'submitIndexNow' bulk-generator.js
-          node bulk-selftest.js >/tmp/bulk-selftest.log
+          node bulk-selftest.js | tee /tmp/bulk-selftest.log
           node landing-quality-selftest.mjs >/tmp/landing-selftest.json
 
       - name: Verify live commerce and generator runtime
