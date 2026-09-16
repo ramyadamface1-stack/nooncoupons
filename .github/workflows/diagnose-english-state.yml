@@ -59,4 +59,4 @@ jobs:
           console.log('MISSING_MARKET_HUB='+JSON.stringify(missingHub));
           NODE
           head -c 250 /tmp/main.xml | tr '\n' ' '; echo
-# audit-trigger: 2026-09-16T18:58Z
+# live-hub-recheck: 2026-09-16T19:00Z
