@@ -1,6 +1,6 @@
 import app from './site.js';
 
-const ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev';
+const ORIGIN='https://noondealsnow.com';
 const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
 const CATEGORIES=['electronics','mobiles','laptops','gaming','tv','home-appliances','kitchen','home','fashion-men','fashion-women','kids-fashion','beauty','perfumes','grocery','baby','toys','sports','health','watches','jewelry','bags','shoes','automotive','tools','books','stationery','pet-supplies','travel','garden','office','smart-home','audio','cameras','tablets','wearables','coffee','air-care','cleaning','lighting','gifts','deals','new-arrivals'];
 const GUIDES=['how-to-use-noon-coupon','coupon-not-working','saudi-noon-saving-guide','uae-noon-saving-guide','first-order-guide','payment-methods-and-coupons','coupon-vs-offer','smart-cart-checklist'];
@@ -30,7 +30,7 @@ export default {
     if(path==='/sitemap-coupons.xml') return xml(urlset(CODES.map(x=>`/coupon/${x.toLowerCase()}`)));
     if(path==='/sitemap-coupons-saudi.xml') return xml(urlset(CODES.map(x=>`/saudi-arabia/coupon/${x.toLowerCase()}`)));
     if(path==='/sitemap-coupons-uae.xml') return xml(urlset(CODES.map(x=>`/uae/coupon/${x.toLowerCase()}`)));
-    let m=path.match(/^\/(saudi-arabia|uae)\/coupon\/(nov\d+)$/i);
+    let m=path.match(/^\/(saudi-arabia|uae)\/coupon\/(ops\d+)$/i);
     if(m){const code=m[2].toUpperCase();if(CODES.includes(code))return new Response(countryCoupon(code,m[1]==='saudi-arabia'?'SA':'AE'),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});}
     return app.fetch(request,env,ctx);
   },
