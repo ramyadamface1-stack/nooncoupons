@@ -83,6 +83,26 @@ function faqSection(t){const faq=[{q:`كيف أستخدم ${t.code} على نو�
 export const ENGLISH_NATIVE_INVENTORY={markets:{SA:'Saudi Arabia',AE:'UAE'},categories:{mobile:'mobiles',computing:'laptops and computing',audio:'headphones and audio',screen:'TVs and displays',fashion:'fashion',beauty:'beauty',appliance:'home appliances',kitchen:'home and kitchen',home:'home',grocery:'grocery',kids:'kids',baby:'baby',fitness:'sports and fitness',travel:'travel',auto:'automotive',office:'office',pets:'pet supplies'},intents:{coupon:'Noon coupon code',finalprice:'Noon final price',value:'Noon savings',cart:'Noon cart coupon',timing:'best time to try a Noon coupon',smartbuy:'smart buying on Noon',eligibility:'Noon coupon eligibility'}};
 export function buildEnglishNativeCandidate(topic){const market=ENGLISH_NATIVE_INVENTORY.markets[topic.country],category=ENGLISH_NATIVE_INVENTORY.categories[topic.profileKey],intent=ENGLISH_NATIVE_INVENTORY.intents[topic.intent];if(!market||!category||!intent)return null;const kw=`${intent} ${market} ${category}`.replace(/\s+/g,' ').trim();return {...topic,language:'en',nativeKeyword:kw,nativeSlug:slugify(kw),nativeMarket:market,nativeCategory:category};}
 
+export function buildEnglishUsefulArticle(candidate,cursor=0){
+ if(!candidate?.nativeKeyword||candidate.language!=='en')return null;
+ const t=candidate,market=t.nativeMarket,cat=t.nativeCategory,kw=t.nativeKeyword,slug='en-'+t.nativeSlug;
+ const title=kw.length<=70?kw:`Noon ${cat} coupons in ${market}`.slice(0,70);
+ const meta=`Practical ${kw} guide: copy ${t.code}, check cart eligibility, seller, shipping and the final checkout total before you buy.`.slice(0,160);
+ const sections=[
+  ['How to test the coupon without guessing the discount',`Build the cart first and record the total. Copy ${t.code} exactly, apply it once, then compare the same cart after the update. A successful code entry is not enough on its own: the final checkout total and product suitability are what matter.`],
+  [`What to check when buying ${cat}`,`Compare the product specification, seller, delivery, return terms and the final price. Keep the product and quantity fixed while testing a coupon so you can tell whether the total changed because of the code or because the cart itself changed.`],
+  ['Coupon eligibility and checkout',`Do not assume that one account result applies to every shopper. Check the message shown by Noon for your account and cart. Product, seller, quantity, payment method and campaign conditions can affect eligibility.`],
+  ['If the code is rejected',`Confirm the market, re-enter ${t.code}, and test a smaller cart with one eligible-looking item. Add other items one at a time. This makes it easier to identify what changed instead of repeatedly testing the same cart without evidence.`],
+  ['How to judge real savings',`Compare product price, shipping, any visible cart discount and the final payable total. We do not state an unverified fixed percentage or cap. The checkout shown for your account is the practical source of truth.`],
+  ['Editorial method and source',`This guide separates product choice from coupon outcome. NoonCoupons treats the current Noon cart and published checkout conditions as the final reference for variable eligibility and price. Coupon codes are presented for testing, not as a guarantee of a fixed result.`]
+ ];
+ const body=sections.map(([h,p],i)=>`<section><h2>${esc(h)}</h2><p>${esc(p)}</p>${i===0?`<div class="coupon-actions"><button type="button" data-copy-code="${t.code}" aria-label="Copy Noon coupon ${t.code}">Copy ${t.code}</button><span class="copy-feedback" aria-live="polite"></span></div>`:''}</section>`).join('');
+ const faq=[{q:`How do I use ${t.code} on Noon ${market}?`,a:`Copy ${t.code} into the coupon field, then check the final cart total before payment.`},{q:`Is ${t.code} guaranteed for every account?`,a:'No. Eligibility can vary by the current cart, account and campaign conditions shown by Noon.'},{q:`What should I do if the coupon is rejected?`,a:'Confirm the market and code, then test one item and add other items gradually.'}];
+ const faqHtml=faq.map(x=>`<details><summary><h3>${esc(x.q)}</h3></summary><p>${esc(x.a)}</p></details>`).join('');
+ const html=`<article lang="en" dir="ltr" data-language-source="native-intent"><p class="eyebrow">Noon ${esc(market)} · ${esc(cat)}</p><h1>${esc(title)}</h1><p class="direct-answer"><strong>Quick answer:</strong> Copy ${t.code}, test it on a stable cart, and use the final Noon checkout total as the reference.</p><nav class="article-toc"><a href="/en/${t.country==='SA'?'saudi':'uae'}">Country hub</a> · <a href="/${t.country==='SA'?'saudi':'uae'}">العربية</a></nav>${body}<section class="faq"><h2>Frequently asked questions</h2>${faqHtml}</section><section class="sources"><h2>Source transparency</h2><p>The final commercial reference is <a href="https://www.noon.com/" rel="noopener external sponsored">Noon's official website</a> and the checkout shown for your account at the time of purchase.</p></section></article>`;
+ return {slug,title,metaDescription:meta,country:t.country,coupon:t.code,primaryKeyword:kw,language:'en',languageSource:'native-intent',blueprint:'english-commercial-v1',faq,sources:['https://www.noon.com/'],claims:[],html};
+}
+
 export function buildBulkTopic(cursor=0){
   const TOPIC_SPACE=1036800,raw=Math.max(0,Number(cursor)||0);let q=((raw%TOPIC_SPACE)*7919+104729)%TOPIC_SPACE;
   const country=q%2===0?'SA':'AE';q=Math.floor(q/2);
@@ -99,4 +119,4 @@ export function buildUsefulArticle(topic,cursor=0){
   const fq=faqSection(t);body+=exampleSection(t)+finalSection(t)+methodologySection(t)+sourcesSection(t)+fq.html+'</article>';return {slug:t.slug,title:t.title,metaDescription:metaFor(t),country:t.country,coupon:t.code,primaryKeyword:t.kw,blueprint,faq:fq.faq,sources:['https://www.noon.com/'],claims:[],html:body};
 }
 
-export const BULK_ENGINE_INFO={englishNativeInventory:1,version:'programmatic-cloudflare:v2-helpful',topicSpace:1036800,blueprints:BLUEPRINTS.length,codes:CODES.length,countries:Object.keys(MARKETS),qualityFirst:true};
+export const BULK_ENGINE_INFO={englishNativeInventory:1,englishArticleBuilder:1,version:'programmatic-cloudflare:v2-helpful',topicSpace:1036800,blueprints:BLUEPRINTS.length,codes:CODES.length,countries:Object.keys(MARKETS),qualityFirst:true};
