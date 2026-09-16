@@ -1,7 +1,9 @@
 name: Verify Mobile Coupon CTA (diagnostic)
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['public-entry.js','.github/workflows/verify-mobile-coupon-cta.yml']
   workflow_dispatch:
 
 permissions:
