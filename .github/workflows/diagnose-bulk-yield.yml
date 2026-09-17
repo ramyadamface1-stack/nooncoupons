@@ -50,10 +50,14 @@ jobs:
             'schema':int(s.get('bulkRejectedSchema') or 0),
             'indexation':int(s.get('bulkRejectedIndexation') or 0),
             'duplicate':int(s.get('bulkRejectedDuplicate') or 0),
+            'runningAt':s.get('bulkRunningAt'),
+            'autoPauseUntil':s.get('bulkAutoPauseUntil'),
+            'noPassStreak':s.get('bulkNoPassStreak'),
             'lastRun':s.get('bulkLastRun'),
             'lastError':s.get('bulkLastError')
           }
           print('YIELD_COUNTERS',json.dumps(counters,ensure_ascii=False))
           print('QUALITY_REASONS',json.dumps(ordered,ensure_ascii=False))
+          print('RUNTIME_BATCH',json.dumps({'configuredSteady':b.get('batchSize'),'dailyTarget':b.get('dailyTarget'),'publishedTotal':b.get('publishedTotal')},ensure_ascii=False))
           print('LAST_ARTICLE',json.dumps({'slug':b.get('lastSlug'),'quality':b.get('lastQuality'),'words':b.get('lastWordCount')},ensure_ascii=False))
           PY
