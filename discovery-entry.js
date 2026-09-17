@@ -3,13 +3,18 @@ export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const enc=s=>encodeURI(String(s||''));
+let latestCache={at:0,value:null};
 
 async function latest(env){
+  const now=Date.now();
+  if(latestCache.value&&now-latestCache.at<120000)return latestCache.value;
   try{
-    if(!env.CONTENT_FINAL)return {articles:[]};
+    if(!env.CONTENT_FINAL)return latestCache.value||{articles:[]};
     const o=await env.CONTENT_FINAL.get('bulk/latest.json');
-    return o?await o.json():{articles:[]};
-  }catch{return {articles:[]}}
+    const value=o?await o.json():{articles:[]};
+    latestCache={at:now,value};
+    return value;
+  }catch{return latestCache.value||{articles:[]}}
 }
 
 function keyPages(origin){
@@ -24,6 +29,34 @@ function keyPages(origin){
     '/uae/noon-coupon-code-today',
     '/uae/noon-coupon-code-2026'
   ].map(path=>({loc:origin+path,lastmod:null}));
+}
+
+function marketForPath(path){return path.startsWith('/uae/')?'AE':path.startsWith('/saudi-arabia/')?'SA':null}
+function discoveryHtml(path,articles){
+  const market=marketForPath(path);
+  let rows=(articles||[]).filter(a=>a?.slug&&a.indexable!==false);
+  if(market)rows=rows.filter(a=>a.country===market);
+  rows=rows.sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,12);
+  if(!rows.length)return '';
+  const country=market==='AE'?'الإمارات':market==='SA'?'السعودية':'السعودية والإمارات';
+  const links=rows.map(a=>`<li><a href="/articles/${enc(a.slug)}">${esc(a.title||a.primaryKeyword||a.slug)}</a></li>`).join('');
+  return `<section id="crawl-discovery-links" dir="rtl" aria-label="أحدث أدلة نون"><div style="width:min(1050px,92%);margin:34px auto;padding:22px;border:1px solid #e5e7eb;border-radius:18px;background:#fff"><strong>أحدث أدلة نون ${country}</strong><p style="color:#64748b;line-height:1.8">روابط مباشرة إلى أحدث الأدلة التي اجتازت بوابة الجودة لمساعدة محركات البحث والزوار على اكتشاف المحتوى الجديد.</p><ul style="columns:2;gap:28px;line-height:1.9">${links}</ul><p><a href="/blog">كل الأدلة</a> · <a href="/coupons">كل الكوبونات</a></p></div></section>`;
+}
+
+async function injectDiscoveryLinks(req,env,res){
+  if(!res.ok||req.method!=='GET')return res;
+  const type=(res.headers.get('content-type')||'').toLowerCase();
+  if(!type.includes('text/html'))return res;
+  const path=new URL(req.url).pathname.replace(/\/+$/,'')||'/';
+  const eligible=path==='/'||path==='/coupons'||/^\/(?:saudi-arabia|uae)\/noon-coupon-code(?:-today|-2026)?$/.test(path);
+  if(!eligible)return res;
+  let html=await res.text();
+  if(html.includes('id="crawl-discovery-links"'))return res;
+  const data=await latest(env),block=discoveryHtml(path,data.articles||[]);
+  if(!block)return new Response(html,{status:res.status,statusText:res.statusText,headers:res.headers});
+  html=/<\/body>/i.test(html)?html.replace(/<\/body>/i,block+'</body>'):html+block;
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-crawl-discovery-links','v1');h.set('x-discovery-manifest-cache','120s-isolate');
+  return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
 async function prioritySitemap(env,origin){
@@ -47,10 +80,7 @@ async function augmentRootSitemap(res,origin){
   const type=(res.headers.get('content-type')||'').toLowerCase();
   if(!type.includes('xml'))return res;
   let body=await res.text();
-  if(!body.includes('/sitemap-priority.xml')){
-    if(/<sitemapindex\b/i.test(body))body=body.replace(/<\/sitemapindex>/i,`<sitemap><loc>${esc(origin)}/sitemap-priority.xml</loc></sitemap></sitemapindex>`);
-    else if(/<urlset\b/i.test(body))body=body.replace(/<\/urlset>/i,`<url><loc>${esc(origin)}/sitemap-priority.xml</loc></url></urlset>`);
-  }
+  if(!body.includes('/sitemap-priority.xml')&&/<sitemapindex\b/i.test(body))body=body.replace(/<\/sitemapindex>/i,`<sitemap><loc>${esc(origin)}/sitemap-priority.xml</loc></sitemap></sitemapindex>`);
   const h=new Headers(res.headers);h.delete('content-length');h.set('x-priority-sitemap-discovery','v1');
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
@@ -61,9 +91,10 @@ export default{
     if(req.method==='GET'&&u.pathname==='/sitemap-priority.xml')return prioritySitemap(env,origin);
     let res=await app.fetch(req,env,ctx);
     if(req.method==='GET'&&u.pathname==='/sitemap.xml')res=await augmentRootSitemap(res,origin);
+    res=await injectDiscoveryLinks(req,env,res);
     return res;
   },
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const DISCOVERY_ENTRY_INFO={version:1,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyCommercialPages:9};
+export const DISCOVERY_ENTRY_INFO={version:2,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyCommercialPages:9,discoveryLinks:true,discoveryLinkCount:12,manifestCacheSeconds:120};
