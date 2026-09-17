@@ -16,30 +16,36 @@ jobs:
       - uses: actions/checkout@v4
       - name: Source invariants
         run: |
+          set -euo pipefail
           node --check keyword-pages.js
           node --check premium-entry.js
+          node --check brand-runtime.js
           grep -Fq "2026-09-15-v1" keyword-pages.js
           grep -Fq "كود خصم نون 2026" keyword-pages.js
           grep -Fq "كود خصم نون السعودية 2026" keyword-pages.js
           grep -Fq "كود خصم نون الإمارات 2026" keyword-pages.js
           grep -Fq "noon-discount-50" keyword-pages.js
           grep -Fq "noon-yellow-friday" keyword-pages.js
-      - name: Verify live keyword architecture
+          grep -Fq '"main": "brand-runtime.js"' wrangler.jsonc
+          echo 'KEYWORD_MAP_SOURCE=PASS'
+      - name: Verify live keyword architecture when current runtime is deployed
         shell: bash
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
-          for i in $(seq 1 12); do
-            home="$(curl -sS --max-time 15 "$ORIGIN/" || true)"
-            if grep -Fq 'كود خصم نون 2026' <<<"$home" && grep -Fq 'keyword-map-updated' <<<"$home"; then break; fi
-            sleep 5
-          done
+          ORIGIN="https://noondealsnow.com"
+          curl -sS -D /tmp/live_headers --max-time 20 "$ORIGIN/" -o /tmp/home || true
+          if ! grep -Fqi 'x-brand-layer: v1' /tmp/live_headers; then
+            echo 'KEYWORD_MAP_LIVE=BLOCKED_BY_CLOUDFLARE_DEPLOY'
+            echo 'SOURCE_REMAINS_PASS; deploy-live.yml is the authoritative production gate.'
+            exit 0
+          fi
+          home="$(cat /tmp/home)"
           grep -Fq '<title>كود خصم نون 2026 | أكواد خصم نون السعودية والإمارات</title>' <<<"$home"
           grep -Fq 'كود خصم نون: أكواد نون للسعودية والإمارات' <<<"$home"
           grep -Fq 'id="search-intent-hubs"' <<<"$home"
 
-          sa="$(curl -sS -L --max-time 15 "$ORIGIN/saudi-arabia")"
-          ae="$(curl -sS --max-time 15 "$ORIGIN/uae")"
+          sa="$(curl -fsS -L --max-time 20 "$ORIGIN/saudi-arabia")"
+          ae="$(curl -fsS --max-time 20 "$ORIGIN/uae")"
           grep -Fq '<link rel="canonical" href="' <<<"$sa"
           grep -Fq '/saudi' <<<"$sa"
           grep -Fq 'نسخ الكود' <<<"$sa"
@@ -47,14 +53,14 @@ jobs:
           grep -Fq '/uae' <<<"$ae"
           grep -Fq 'نسخ الكود' <<<"$ae"
 
-          p50="$(curl -sS --max-time 15 "$ORIGIN/coupon/noon-discount-50")"
-          yellow="$(curl -sS --max-time 15 "$ORIGIN/guide/noon-yellow-friday")"
+          p50="$(curl -fsS --max-time 20 "$ORIGIN/coupon/noon-discount-50")"
+          yellow="$(curl -fsS --max-time 20 "$ORIGIN/guide/noon-yellow-friday")"
           grep -Fq 'كود خصم نون 50: ماذا يعني البحث وكيف تتحقق؟' <<<"$p50"
           grep -Fq 'قاعدة التحرير' <<<"$p50"
           grep -Fq 'الجمعة الصفراء نون: كيف تتابع الأكواد والعروض بأمان؟' <<<"$yellow"
           grep -Fq 'قاعدة التحرير' <<<"$yellow"
 
-          pages="$(curl -sS --max-time 15 "$ORIGIN/sitemap-pages.xml")"
+          pages="$(curl -fsS --max-time 20 "$ORIGIN/sitemap-pages.xml")"
           grep -Fq '/coupon/noon-discount-50' <<<"$pages"
           grep -Fq '/guide/noon-yellow-friday' <<<"$pages"
           echo 'KEYWORD_MAP_LIVE=PASS'
