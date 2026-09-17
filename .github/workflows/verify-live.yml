@@ -25,7 +25,7 @@ jobs:
           echo CHECK_WRANGLER_MAIN; grep -Fq '"main": "commerce-entry.js"' wrangler.jsonc
           echo CHECK_BULK_TARGET; grep -Fq '"BULK_DAILY_TARGET": "10000"' wrangler.jsonc
           echo CHECK_BULK_BATCH; grep -Fq '"BULK_BATCH_SIZE": "10"' wrangler.jsonc
-          echo CHECK_CATCHUP_TOTAL; grep -Fq '"BULK_CATCHUP_TOTAL": "8000"' wrangler.jsonc
+          echo CHECK_CATCHUP_TOTAL; grep -Fq '"BULK_CATCHUP_TOTAL": "16000"' wrangler.jsonc
           echo CHECK_CATCHUP_BATCH; grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "24"' wrangler.jsonc
           echo CHECK_CATCHUP_LOGIC; grep -Fq 'publishedTotal<catchupGoal?catchupBatch:steadyBatch' admin-runtime.js
           echo CHECK_BATCH_CEILING; grep -Fq 'Math.min(48,Number(batchSize||3))' bulk-generator.js
@@ -46,12 +46,12 @@ jobs:
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
           fetch(){ curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 25 "$1" -o "$2"; }
-          checked_fetch(){ echo "CHECK_FETCH $1"; fetch "$ORIGIN$1?v=catchup8k" /tmp/page || { echo "FETCH_FAILED $1"; exit 1; }; }
+          checked_fetch(){ echo "CHECK_FETCH $1"; fetch "$ORIGIN$1?v=catchup16k" /tmp/page || { echo "FETCH_FAILED $1"; exit 1; }; }
           ready=0
           for i in $(seq 1 30); do
-            fetch "$ORIGIN/api/generator-health?v=catchup8k-$i" /tmp/generator.json 2>/dev/null || true
-            fetch "$ORIGIN/api/commerce-health?v=catchup8k-$i" /tmp/commerce.json 2>/dev/null || true
-            fetch "$ORIGIN/api/content-stats?v=catchup8k-$i" /tmp/stats.json 2>/dev/null || true
+            fetch "$ORIGIN/api/generator-health?v=catchup16k-$i" /tmp/generator.json 2>/dev/null || true
+            fetch "$ORIGIN/api/commerce-health?v=catchup16k-$i" /tmp/commerce.json 2>/dev/null || true
+            fetch "$ORIGIN/api/content-stats?v=catchup16k-$i" /tmp/stats.json 2>/dev/null || true
             if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); s=json.load(open('/tmp/stats.json')); b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert s.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==10000; assert int(b.get('batchSize') or 0)==10; assert int(s.get('dailyTargetArabic') or 0)==10000" 2>/dev/null; then
               ready=1
               echo "RUNTIME_READY attempt=$i"
@@ -72,8 +72,8 @@ jobs:
           done
 
           echo CHECK_SITEMAPS
-          fetch "$ORIGIN/sitemap.xml?v=catchup8k" /tmp/sitemap.xml
-          fetch "$ORIGIN/sitemap-commerce.xml?v=catchup8k" /tmp/sitemap-commerce.xml
+          fetch "$ORIGIN/sitemap.xml?v=catchup16k" /tmp/sitemap.xml
+          fetch "$ORIGIN/sitemap-commerce.xml?v=catchup16k" /tmp/sitemap-commerce.xml
           if grep -Fq '<sitemapindex' /tmp/sitemap.xml; then
             grep -Fq '/sitemap-commerce.xml' /tmp/sitemap.xml || { echo MISSING_COMMERCE_CHILD_SITEMAP; exit 1; }
           else
@@ -86,7 +86,7 @@ jobs:
           [ "$count" -ge 276 ] || { echo "COMMERCE_SITEMAP_ROUTE_COUNT $count"; exit 1; }
 
           echo CHECK_SHOES_V3
-          fetch "$ORIGIN/saudi/category/shoes?v=catchup8k" /tmp/shoes.html
+          fetch "$ORIGIN/saudi/category/shoes?v=catchup16k" /tmp/shoes.html
           grep -Fq 'landing-depth-v3' /tmp/shoes.html || { echo MISSING_LANDING_V3; exit 1; }
           grep -Fq 'FAQPage' /tmp/shoes.html || { echo MISSING_FAQ_SCHEMA; exit 1; }
           grep -Eq 'OPS(32|56|47|48|43|41|38|58)' /tmp/shoes.html || { echo MISSING_OWNER_OFFER_CODE; exit 1; }
