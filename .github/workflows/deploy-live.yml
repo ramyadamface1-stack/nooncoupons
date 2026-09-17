@@ -1,0 +1,76 @@
+name: Deploy Live Worker
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nooncoupons-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Validate worker source
+        run: |
+          set -euo pipefail
+          node --check network-entry.js
+          grep -Fq '"main": "network-entry.js"' wrangler.jsonc
+          grep -Fq '"BULK_DAILY_TARGET": "15000"' wrangler.jsonc
+          grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
+      - name: Deploy existing worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
+        run: npx wrangler deploy
+      - name: Verify deployed network runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://noondealsnow.com'
+          ready=0
+          for i in $(seq 1 24); do
+            curl -fsS --retry 2 --connect-timeout 10 --max-time 20 "$ORIGIN/api/generator-health?deploy=$GITHUB_SHA-$i" -o /tmp/g.json || true
+            curl -fsS --retry 2 --connect-timeout 10 --max-time 20 "$ORIGIN/api/content-stats?deploy=$GITHUB_SHA-$i" -o /tmp/s.json || true
+            if python - <<'PY'
+import json
+try:
+ g=json.load(open('/tmp/g.json')); s=json.load(open('/tmp/s.json')); b=g.get('bulk',{})
+ assert int(b.get('dailyTarget') or 0)==15000
+ assert int(b.get('batchSize') or 0)==16
+ assert int(s.get('dailyTargetArabic') or 0)==15000
+except Exception:
+ raise SystemExit(1)
+PY
+            then ready=1; break; fi
+            sleep 5
+          done
+          [ "$ready" = 1 ] || { echo 'LIVE_RUNTIME_DID_NOT_MATCH_DEPLOYED_CONFIG'; exit 1; }
+          python - <<'PY' > /tmp/article_path
+import json, urllib.parse
+s=json.load(open('/tmp/s.json'))
+slug=(s.get('last') or {}).get('slug')
+if not slug: raise SystemExit(1)
+print('/articles/'+urllib.parse.quote(slug,safe=''))
+PY
+          ARTICLE_PATH="$(cat /tmp/article_path)"
+          curl -fsS --retry 3 "$ORIGIN$ARTICLE_PATH?deploy=$GITHUB_SHA" -D /tmp/h -o /tmp/a.html
+          grep -Fqi 'x-article-network: v1' /tmp/h
+          grep -Fq 'id="article-link-network"' /tmp/a.html
+          grep -Fq 'اقرأ أيضًا قبل الشراء' /tmp/a.html
+          missing_alt="$(grep -Eo '<img\b[^>]*>' /tmp/a.html | grep -Eiv 'alt=["'"'][^"'"']+["'"']' | wc -l | tr -d ' ')"
+          [ "$missing_alt" = '0' ]
+          echo 'PRODUCTION_NETWORK_VERIFIED=1'
