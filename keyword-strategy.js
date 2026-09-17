@@ -1,4 +1,5 @@
 import {expandNoonTopic,NOON_TOPIC_EXPANSION_INFO} from './noon-topic-expansion.js';
+import {APPROVED_COUPON_CODES} from './approved-coupons.js';
 
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
@@ -108,7 +109,9 @@ function fitKeyword(raw,t,intent,s){
 export function applyKeywordStrategy(topic){
   const expanded=expandNoonTopic(topic,topic.topicIndex??topic.diversitySeed??0),rawIntent=expanded.intent,intent=effectiveIntent(expanded),s=scenario(expanded,intent),builder=BUILDERS[intent]||BUILDERS.decision;
   const baseKw=fitKeyword(builder(expanded,s),expanded,intent,s),kw=addSpecificity(baseKw,expanded,intent,s),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
-  return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,keywordStrategy:'search-intent-v6-noon-hierarchy',keywordWordCount:words,searchIntentFamily:intent};
+  const couponSeed=Math.abs(Number(topic.topicIndex??topic.diversitySeed??0));
+  const code=APPROVED_COUPON_CODES[couponSeed%APPROVED_COUPON_CODES.length];
+  return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,code,keywordStrategy:'search-intent-v6-noon-hierarchy',keywordWordCount:words,searchIntentFamily:intent};
 }
 
-export const KEYWORD_STRATEGY_INFO={version:'search-intent-v6-noon-hierarchy',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,seasonalKeywords:true,seasonalMonth:freshness(),topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation'],maxRecommendedWords:16,maxKeywordCharacters:70};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v6-noon-hierarchy',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,seasonalKeywords:true,seasonalMonth:freshness(),topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,approvedCouponCount:APPROVED_COUPON_CODES.length,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation','unapproved-coupon-code'],maxRecommendedWords:16,maxKeywordCharacters:70};
