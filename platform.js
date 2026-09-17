@@ -6,7 +6,7 @@ import {SEED_BATCH_B} from './seed-batch-b.js';
 import {SEED_BATCH_C} from './seed-batch-c.js';
 
 const ALL_SEED_ARTICLES=[...SEED_ARTICLES,...SEED_BATCH_A,...SEED_BATCH_B,...SEED_BATCH_C];
-const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58','OPS32','OPS56'];
+const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
 const LIVE_MARKETS=['SA','AE'];
 const now=()=>new Date().toISOString();
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
@@ -57,7 +57,7 @@ function auditArticle(a){
   add('Cross-Brand Isolation',!leakage,5);
   const wrongCountry=country==='SA'?/(نون\s*)?(الإمارات|الامارات)|\bUAE\b|Emirates/i.test(plain):country==='AE'?/(نون\s*)?(السعودية|المملكة العربية السعودية)|\bKSA\b|Saudi(?: Arabia)?/i.test(plain):true;
   add('Country Lock',!wrongCountry,5);
-  const codes=[...new Set((plain.match(/\bNOV\d{3}\b/gi)||[]).map(x=>x.toUpperCase()))];
+  const codes=[...new Set((plain.match(/\bOPS\d{2}\b/gi)||[]).map(x=>x.toUpperCase()))];
   add('Coupon Lock',!coupon||(codes.length>=1&&codes.every(x=>x===coupon.toUpperCase())),5);
   const total=checks.reduce((s,c)=>s+c.weight,0),passed=checks.reduce((s,c)=>s+(c.pass?c.weight:0),0),score=Math.round(passed/total*1000)/10;
   const hardPass=!unsupported&&!leakage&&!wrongCountry&&(!coupon||(codes.length>=1&&codes.every(x=>x===coupon.toUpperCase())))&&n>=Number(a.minWords||1000)&&n<=2000;
