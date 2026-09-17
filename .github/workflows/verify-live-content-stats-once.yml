@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/verify-live-content-stats-once.yml'
+      - 'generator-core-v2.js'
 
 permissions:
   contents: write
