@@ -34,6 +34,8 @@ jobs:
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
           grep -Fq '/sitemap-priority.xml' discovery-entry.js
           grep -Fq 'recentArticleLimit:500' discovery-entry.js
+          grep -Fq 'discoveryLinks:true' discovery-entry.js
+          grep -Fq 'discoveryLinkCount:12' discovery-entry.js
       - name: Select Cloudflare token with Workers access
         id: cf
         env:
@@ -103,6 +105,11 @@ jobs:
           grep -Fq '/saudi-arabia/noon-coupon-code' /tmp/priority.xml
           grep -Fq '/uae/noon-coupon-code' /tmp/priority.xml
           grep -Fq '/articles/' /tmp/priority.xml
+
+          curl -fsS "$ORIGIN/saudi-arabia/noon-coupon-code?deploy=$GITHUB_SHA" -D /tmp/mh -o /tmp/money.html
+          grep -Fqi 'x-crawl-discovery-links: v1' /tmp/mh
+          grep -Fq 'id="crawl-discovery-links"' /tmp/money.html
+          grep -Fq '/articles/' /tmp/money.html
 
           ARTICLE_PATH="$(python -c "import json,urllib.parse; s=json.load(open('/tmp/s.json')); slug=(s.get('last') or {}).get('slug'); print('/articles/'+urllib.parse.quote(slug,safe='') if slug else '')")"
           if [ -z "$ARTICLE_PATH" ]; then
