@@ -29,22 +29,46 @@ jobs:
           grep -Eqi '<sitemapindex|<urlset' /tmp/sitemap.xml
           grep -Fq 'https://noondealsnow.com/' /tmp/sitemap.xml
 
-          SHARD="$(grep -Eo 'https://noondealsnow.com/sitemap-articles-[^<]+' /tmp/sitemap.xml | head -n1 || true)"
-          [ -n "$SHARD" ] || { echo 'NO_ARTICLE_SITEMAP_SHARD_IN_LIVE_INDEX'; exit 1; }
+          python - <<'PY'
+          import re
+          s=open('/tmp/sitemap.xml',encoding='utf-8').read()
+          m=re.search(r'https://noondealsnow\.com/sitemap-articles-[^<\s]+',s)
+          if not m: raise SystemExit('NO_ARTICLE_SITEMAP_SHARD_IN_LIVE_INDEX')
+          open('/tmp/shard.url','w').write(m.group(0))
+          PY
+          SHARD="$(cat /tmp/shard.url)"
           curl -fsS --retry 3 --connect-timeout 10 --max-time 30 "$SHARD?audit=$GITHUB_SHA" -D /tmp/shard.h -o /tmp/shard.xml
-          grep -Fqi '<urlset' /tmp/shard.xml
-          ARTICLE="$(grep -Eo 'https://noondealsnow.com/articles/[^<]+' /tmp/shard.xml | head -n1 || true)"
-          [ -n "$ARTICLE" ] || { echo 'NO_ARTICLE_URL_IN_LIVE_SHARD'; exit 1; }
 
+          python - <<'PY'
+          import re
+          s=open('/tmp/shard.xml',encoding='utf-8').read()
+          if '<urlset' not in s.lower(): raise SystemExit('LIVE_SHARD_NOT_URLSET')
+          urls=re.findall(r'<url>\s*<loc>(https://noondealsnow\.com/articles/[^<]+)</loc>',s,re.I)
+          if not urls: raise SystemExit('NO_ARTICLE_URL_IN_LIVE_SHARD')
+          open('/tmp/article.url','w').write(urls[0])
+          open('/tmp/url.count','w').write(str(len(urls)))
+          PY
+          ARTICLE="$(cat /tmp/article.url)"
           curl -fsS --retry 3 --connect-timeout 10 --max-time 30 "$ARTICLE?audit=$GITHUB_SHA" -D /tmp/article.h -o /tmp/article.html
-          grep -Eqi '<link[^>]+rel=["'"']canonical["'"'][^>]+https://noondealsnow.com/' /tmp/article.html || grep -Eqi '<link[^>]+https://noondealsnow.com/[^>]+rel=["'"']canonical["'"']' /tmp/article.html
-          ! grep -Eqi '<meta[^>]+name=["'"']robots["'"'][^>]+noindex' /tmp/article.html
-          ! grep -Eqi '^x-robots-tag:.*noindex' /tmp/article.h
 
-          URLS="$(grep -Eoc '<url>' /tmp/shard.xml || true)"
+          python - <<'PY'
+          import re
+          html=open('/tmp/article.html',encoding='utf-8').read()
+          headers=open('/tmp/article.h',encoding='utf-8',errors='ignore').read()
+          canon=re.search(r'<link\b[^>]*rel=["\x27]canonical["\x27][^>]*href=["\x27]([^"\x27]+)',html,re.I)
+          if not canon:
+              canon=re.search(r'<link\b[^>]*href=["\x27]([^"\x27]+)["\x27][^>]*rel=["\x27]canonical["\x27]',html,re.I)
+          if not canon or not canon.group(1).startswith('https://noondealsnow.com/'):
+              raise SystemExit('CANONICAL_MISSING_OR_WRONG_DOMAIN')
+          if re.search(r'<meta\b[^>]*name=["\x27]robots["\x27][^>]*content=["\x27][^"\x27]*noindex',html,re.I):
+              raise SystemExit('ARTICLE_META_NOINDEX')
+          if re.search(r'^x-robots-tag:.*noindex',headers,re.I|re.M):
+              raise SystemExit('ARTICLE_HEADER_NOINDEX')
+          PY
+
           echo "ROBOTS_OK=1"
           echo "SITEMAP_INDEX_OK=1"
           echo "ARTICLE_SHARD=$SHARD"
-          echo "SHARD_URL_COUNT=$URLS"
+          echo "SHARD_URL_COUNT=$(cat /tmp/url.count)"
           echo "SAMPLE_ARTICLE=$ARTICLE"
           echo "SAMPLE_ARTICLE_INDEXABLE=1"
