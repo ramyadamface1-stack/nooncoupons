@@ -45,28 +45,14 @@ jobs:
           for i in $(seq 1 24); do
             curl -fsS --retry 2 --connect-timeout 10 --max-time 20 "$ORIGIN/api/generator-health?deploy=$GITHUB_SHA-$i" -o /tmp/g.json || true
             curl -fsS --retry 2 --connect-timeout 10 --max-time 20 "$ORIGIN/api/content-stats?deploy=$GITHUB_SHA-$i" -o /tmp/s.json || true
-            if python - <<'PY'
-import json
-try:
- g=json.load(open('/tmp/g.json')); s=json.load(open('/tmp/s.json')); b=g.get('bulk',{})
- assert int(b.get('dailyTarget') or 0)==15000
- assert int(b.get('batchSize') or 0)==16
- assert int(s.get('dailyTargetArabic') or 0)==15000
-except Exception:
- raise SystemExit(1)
-PY
-            then ready=1; break; fi
+            if python -c "import json; g=json.load(open('/tmp/g.json')); s=json.load(open('/tmp/s.json')); b=g.get('bulk',{}); assert int(b.get('dailyTarget') or 0)==15000; assert int(b.get('batchSize') or 0)==16; assert int(s.get('dailyTargetArabic') or 0)==15000" 2>/dev/null; then
+              ready=1
+              break
+            fi
             sleep 5
           done
           [ "$ready" = 1 ] || { echo 'LIVE_RUNTIME_DID_NOT_MATCH_DEPLOYED_CONFIG'; exit 1; }
-          python - <<'PY' > /tmp/article_path
-import json, urllib.parse
-s=json.load(open('/tmp/s.json'))
-slug=(s.get('last') or {}).get('slug')
-if not slug: raise SystemExit(1)
-print('/articles/'+urllib.parse.quote(slug,safe=''))
-PY
-          ARTICLE_PATH="$(cat /tmp/article_path)"
+          ARTICLE_PATH="$(python -c "import json,urllib.parse; s=json.load(open('/tmp/s.json')); slug=(s.get('last') or {}).get('slug'); assert slug; print('/articles/'+urllib.parse.quote(slug,safe=''))")"
           curl -fsS --retry 3 "$ORIGIN$ARTICLE_PATH?deploy=$GITHUB_SHA" -D /tmp/h -o /tmp/a.html
           grep -Fqi 'x-article-network: v1' /tmp/h
           grep -Fq 'id="article-link-network"' /tmp/a.html
@@ -74,5 +60,3 @@ PY
           missing_alt="$(grep -Eo '<img\b[^>]*>' /tmp/a.html | grep -Eiv 'alt=["'"'][^"'"']+["'"']' | wc -l | tr -d ' ')"
           [ "$missing_alt" = '0' ]
           echo 'PRODUCTION_NETWORK_VERIFIED=1'
-
-# deploy-trigger: 2026-09-17-network-v1
