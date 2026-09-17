@@ -2,7 +2,7 @@ import app from './commerce-entry.js';
 import {APPROVED_COUPON_CODES,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 export {ControlPlane,GeneratorControl} from './commerce-entry.js';
 
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#39;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const enc=s=>encodeURI(String(s||''));
 let latestCache={at:0,value:null};
 async function latestManifest(env){const now=Date.now();if(latestCache.value&&now-latestCache.at<120000)return latestCache.value;try{const o=await env.CONTENT_FINAL?.get('bulk/latest.json');const value=o?await o.json():{articles:[]};latestCache={at:now,value};return value}catch{return latestCache.value||{articles:[]}}}
