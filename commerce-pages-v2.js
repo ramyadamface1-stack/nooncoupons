@@ -19,13 +19,13 @@ const safeJson = (x) => JSON.stringify(x).replace(/</g, '\\u003c');
 const EN_CATEGORY_LABELS={electronics:'Electronics',mobiles:'Mobiles',laptops:'Laptops',tablets:'Tablets',tvs:'TVs',computers:'Computers',gaming:'Gaming',audio:'Audio','home-kitchen':'Home & Kitchen',appliances:'Appliances',beauty:'Beauty','women-fashion':"Women's Fashion",'men-fashion':"Men's Fashion",shoes:'Shoes',bags:'Bags','baby-kids':'Baby & Kids',sports:'Sports',automotive:'Automotive',grocery:'Grocery',travel:'Travel','school-supplies':'School Supplies',gifts:'Gifts',pets:'Pet Supplies'};
 
 const CSS = `
-*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#f8fafc;color:#111827}
-a{color:inherit}.w{width:min(1180px,92%);margin:auto}.hero{padding:44px 0;background:linear-gradient(135deg,#111827,#312e81);color:#fff}
+:root{--ink:#101828;--muted:#667085;--line:#e7e9ee;--gold:#f5c400;--navy:#0f172a;--soft:#f8fafc}*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#f8fafc;color:var(--ink)}
+a{color:inherit}.w{width:min(1180px,92%);margin:auto}.hero{padding:48px 0;background:radial-gradient(circle at 12% 10%,rgba(245,196,0,.17),transparent 28%),linear-gradient(135deg,#0f172a,#1f2937);color:#fff}
 .hero h1{font-size:clamp(30px,5vw,50px);line-height:1.3;margin:14px 0}.hero p,.lead{line-height:1.9;color:#667085}.hero p{color:#e5e7eb;max-width:900px}.crumbs,.chips{display:flex;gap:8px;flex-wrap:wrap}.crumbs a{color:#ddd6fe}
 .section{padding:30px 0}.section h2{font-size:clamp(23px,3vw,32px)}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
-.card,.box{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:18px}.card h3{line-height:1.55;margin:8px 0}.card p{color:#667085;line-height:1.8}.card a{text-decoration:none}.visual-card{min-height:220px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;position:relative}.visual-card:before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 15% 15%,rgba(109,40,217,.12),transparent 45%);pointer-events:none}.category-art{width:100%;height:auto;display:block;margin:-4px 0 14px}.visual-icon{font-size:30px;line-height:1}.visual-theme{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#6d28d9;font-weight:900}.country-hero{padding:58px 0;background:linear-gradient(135deg,#111827,#312e81);color:#fff}.city-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.read{color:#6d28d9;font-weight:900}
-.chips a{display:inline-block;background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:9px 13px;text-decoration:none;font-weight:800}.coupon{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;background:#fffbeb;border:1px solid #fde68a;border-radius:20px;padding:20px;margin:24px 0}
-.code{display:inline-block;background:#111827;color:#fff;border-radius:10px;padding:7px 11px;font-weight:900}.cta{display:inline-block;background:#facc15;text-decoration:none;font-weight:900;padding:13px 16px;border-radius:12px}.check{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.check .box{line-height:1.85}.spider{padding:28px 0;background:#111827;color:#fff}.empty{background:#fff;border:1px dashed #cbd5e1;border-radius:18px;padding:20px;color:#64748b}.table{width:100%;border-collapse:collapse;background:#fff}.table th,.table td{border:1px solid #e5e7eb;padding:12px;text-align:right;vertical-align:top}
+.card,.box{background:#fff;border:1px solid var(--line);border-radius:19px;padding:18px;box-shadow:0 12px 34px rgba(16,24,40,.05)}.card h3{line-height:1.55;margin:8px 0}.card p{color:#667085;line-height:1.8}.card a{text-decoration:none}.visual-card{min-height:220px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;position:relative}.visual-card:before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 15% 15%,rgba(245,196,0,.10),transparent 45%);pointer-events:none}.category-art{width:100%;height:auto;display:block;margin:-4px 0 14px}.visual-icon{font-size:30px;line-height:1}.visual-theme{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#7b6200;font-weight:900}.country-hero{padding:60px 0 46px;background:radial-gradient(circle at 15% 15%,rgba(245,196,0,.18),transparent 31%),linear-gradient(135deg,#0f172a,#1f2937);color:#fff}.city-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.read{color:#4f46e5;font-weight:900}
+.chips a{display:inline-block;background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:9px 13px;text-decoration:none;font-weight:800}.coupon{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;background:linear-gradient(135deg,#fffdf0,#fff);border:1px solid #f1df86;border-radius:22px;padding:21px;margin:24px 0;box-shadow:0 12px 34px rgba(16,24,40,.05)}
+.code{display:inline-block;background:#111827;color:#fff;border-radius:10px;padding:7px 11px;font-weight:900}.cta{display:inline-block;background:var(--gold);color:#111827;border:0;text-decoration:none;font-weight:900;padding:13px 16px;border-radius:12px;cursor:pointer}.check{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.check .box{line-height:1.85}.spider{padding:30px 0;background:#0f172a;color:#fff}.trust-row{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}.trust-row span{padding:8px 11px;border:1px solid #ffffff1f;background:#ffffff0d;border-radius:999px;font-size:12px;color:#e5e7eb}.empty{background:#fff;border:1px dashed #cbd5e1;border-radius:18px;padding:20px;color:#64748b}.table{width:100%;border-collapse:collapse;background:#fff}.table th,.table td{border:1px solid #e5e7eb;padding:12px;text-align:right;vertical-align:top}
 @media(max-width:900px){.grid,.grid4,.city-grid{grid-template-columns:1fr 1fr}}@media(max-width:620px){.grid,.grid4,.city-grid,.check,.coupon{grid-template-columns:1fr}}
 `;
 
@@ -74,6 +74,8 @@ function schema(origin, path, title, desc, rows) {
   return {
     '@context': 'https://schema.org',
     '@graph': [
+      {'@type':'Organization','@id':origin+'/#organization',name:'كوبونات نون',url:origin+'/'},
+      {'@type':'WebSite','@id':origin+'/#website',name:'كوبونات نون',url:origin+'/',inLanguage:'ar',publisher:{'@id':origin+'/#organization'}},
       {
         '@type': 'CollectionPage',
         '@id': origin + path + '#page',
@@ -81,6 +83,8 @@ function schema(origin, path, title, desc, rows) {
         name: title,
         description: desc,
         inLanguage: 'ar',
+        isPartOf:{'@id':origin+'/#website'},
+        publisher:{'@id':origin+'/#organization'},
         mainEntity: {
           '@type': 'ItemList',
           numberOfItems: rows.length,
@@ -132,7 +136,7 @@ function brandGrid(market, current = '', category = '') {
 
 function spider(market, current = '') {
   const keys = ['mobiles','electronics','computers','gaming','home-kitchen','beauty','shoes','bags','sports','automotive'];
-  return `<section class="spider"><div class="w"><h2>تحرك داخل شبكة الموقع</h2><div class="chips"><a href="/">الرئيسية</a><a href="/${market}/noon-coupon-code">كود خصم نون ${market==='saudi'?'السعودية':'الإمارات'}</a><a href="/${market}/categories">كل الأقسام</a>${keys.filter((k) => k !== current).map((k) => `<a href="/${market}/category/${k}">${esc(CATEGORIES[k].label)}</a>`).join('')}<a href="/blog">كل المقالات</a></div></div></section>`;
+  return `<section class="spider"><div class="w"><h2>تحرك داخل شبكة الموقع</h2><div class="chips"><a href="/">الرئيسية</a><a href="${market==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code'}">كود خصم نون ${market==='saudi'?'السعودية':'الإمارات'}</a><a href="/${market}/categories">كل الأقسام</a>${keys.filter((k) => k !== current).map((k) => `<a href="/${market}/category/${k}">${esc(CATEGORIES[k].label)}</a>`).join('')}<a href="/blog">كل المقالات</a></div></div></section>`;
 }
 
 function htmlResponse(body, kind, headers = {}) {
@@ -181,7 +185,7 @@ async function countryPage(market,origin,env){
  const rows=marketRows(await latestArticles(env),market).slice(0,12),path=`/${market}`,code=codeFor('country:'+market);
  const title=`كوبونات وعروض ${mk.name}`,desc=`بوابة ${mk.name} للكوبونات والأقسام والمدن والأدلة العربية والإنجليزية المرتبطة بقرار الشراء.`;
  const cities=(CITIES[market]||[]).map(c=>`<article class="card"><small>${esc(c.en)}</small><h3><a href="/${market}/city/${c.key}">${esc(c.ar)}</a></h3><p>محتوى وكوبونات ${esc(mk.name)} المرتبطة بالبحث من ${esc(c.ar)} بدون ادعاء اختلاف خصم غير موثق حسب المدينة.</p></article>`).join('');
- const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/">الرئيسية</a></div><h1>${title}</h1><p>${desc}</p><aside class="coupon"><div><small>الكوبون هو الإجراء الأساسي</small><h2>انسخ الكود <span class="code">${code}</span></h2><p class="lead">تحقق من أهلية الكود داخل سلتك؛ لا نفترض نسبة خصم ثابتة.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='تم نسخ الكود'">نسخ الكود</button></aside></div></header>`;
+ const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/">الرئيسية</a></div><h1>${title}</h1><p>${desc}</p><aside class="coupon"><div><small>الكوبون هو الإجراء الأساسي</small><h2>انسخ الكود <span class="code">${code}</span></h2><p class="lead">تحقق من أهلية الكود داخل سلتك؛ لا نفترض نسبة خصم ثابتة.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='تم نسخ الكود'">نسخ الكود</button></aside><div class="trust-row"><span>8 أكواد معتمدة فقط</span><span>المحتوى مستقل عن Noon</span><span>التحقق داخل السلة هو المرجع</span><span><a href="/coupon-verification">منهجية التحقق</a></span></div></div></header>`;
  const main=`<section class="section"><h2>تسوق حسب القسم</h2><p class="lead">واجهة بصرية للأقسام بدل قائمة تدوينات تقليدية.</p>${categoryGrid(market)}</section><section class="section"><h2>أهم المدن</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>أحدث الأدلة والكوبونات</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">تظهر المقالات المؤهلة تلقائيًا.</div>'}</section>`;
  return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market),'country',{'x-commerce-market':market});
 }
