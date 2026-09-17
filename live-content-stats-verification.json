@@ -1,27 +1,27 @@
 {
-  "capturedAt": "2026-09-17T15:09:05Z",
+  "capturedAt": "2026-09-17T16:58:37Z",
   "deployment": {
     "ok": false,
     "credentialSlot": "none",
-    "log": "slot 1 failed (exit 1)\\n\n ⛅️ wrangler 4.131.1\n────────────────────\n\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n\n\u001b[31m✘ \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mA request to the Cloudflare API (/accounts/c82274152a942dea53044eae7153cfd7/workers/services/nooncoupons) failed.\u001b[0m\n\n  Authentication error [code: 10000]\n\n\n📎 It looks like you are authenticating Wrangler via a custom [redacted] set in an environment variable.\nPlease ensure it has the correct permissions for this operation.\n\nGetting User settings...\n👋 You are logged in with an Account [redacted] associated with the account Ramychatgptgcoupons@gmail.com's Account.\nℹ️  The [redacted] is read from the CLOUDFLARE_[redacted] environment variable.\n┌─────────────────────────────────────────┬──────────────────────────────────┐\n│ Account Name                            │ Account ID                       │\n├─────────────────────────────────────────┼──────────────────────────────────┤\n│ Ramychatgptgcoupons@gmail.com's Account │ c82274152a942dea53044eae7153cfd7 │\n└─────────────────────────────────────────┴──────────────────────────────────┘\n🔓 To see [redacted] permissions visit https://dash.cloudflare.com/c82274152a942dea53044eae7153cfd7/[redacted]\n🎢 Unable to get membership roles. Make sure you have permissions to read the account. Are you missing the `User->Memberships->Read` permission?\n🪵  Logs were written to \"/home/runner/.config/.wrangler/logs/wrangler-2026-09-17_15-09-02_581.log\""
+    "log": "slot 1 failed (exit 1)\\n\n ⛅️ wrangler 4.131.1\n────────────────────\n\nCloudflare collects anonymous telemetry about your usage of Wrangler. Learn more at https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler/telemetry.md\n\n\u001b[31m✘ \u001b[41;31m[\u001b[41;97mERROR\u001b[41;31m]\u001b[0m \u001b[1mA request to the Cloudflare API (/accounts/c82274152a942dea53044eae7153cfd7/workers/services/nooncoupons) failed.\u001b[0m\n\n  Authentication error [code: 10000]\n\n\n📎 It looks like you are authenticating Wrangler via a custom [redacted] set in an environment variable.\nPlease ensure it has the correct permissions for this operation.\n\nGetting User settings...\n👋 You are logged in with an Account [redacted] associated with the account Ramychatgptgcoupons@gmail.com's Account.\nℹ️  The [redacted] is read from the CLOUDFLARE_[redacted] environment variable.\n┌─────────────────────────────────────────┬──────────────────────────────────┐\n│ Account Name                            │ Account ID                       │\n├─────────────────────────────────────────┼──────────────────────────────────┤\n│ Ramychatgptgcoupons@gmail.com's Account │ c82274152a942dea53044eae7153cfd7 │\n└─────────────────────────────────────────┴──────────────────────────────────┘\n🔓 To see [redacted] permissions visit https://dash.cloudflare.com/c82274152a942dea53044eae7153cfd7/[redacted]\n🎢 Unable to get membership roles. Make sure you have permissions to read the account. Are you missing the `User->Memberships->Read` permission?\n🪵  Logs were written to \"/home/runner/.config/.wrangler/logs/wrangler-2026-09-17_16-57-59_050.log\""
   },
   "endpoint": {
-    "httpA": "000",
-    "httpB": "000",
-    "validR2CounterA": false,
-    "validR2CounterB": false,
-    "r2UploadedA": "",
-    "r2UploadedB": "",
-    "total": "",
-    "arabic": "",
-    "english": "",
-    "source": "",
-    "generatedAtA": "",
-    "generatedAtB": "",
-    "cacheControl": "",
+    "httpA": "200",
+    "httpB": "200",
+    "validR2CounterA": true,
+    "validR2CounterB": true,
+    "r2UploadedA": "30357",
+    "r2UploadedB": "30362",
+    "total": "12588",
+    "arabic": "12568",
+    "english": "20",
+    "source": "live-runtime",
+    "generatedAtA": "2026-09-17T16:58:17.971Z",
+    "generatedAtB": "2026-09-17T16:58:37.914Z",
+    "cacheControl": "no-store",
     "cfCacheStatus": "",
     "age": "",
-    "bodyA": "",
-    "bodyB": ""
+    "bodyA": "{\n  \"ok\": true,\n  \"total\": 12588,\n  \"r2Uploaded\": 30357,\n  \"arabic\": 12568,\n  \"english\": 20,\n  \"englishByCountry\": {\n    \"SA\": 10,\n    \"AE\": 10\n  },\n  \"publishedTodayArabic\": 7278,\n  \"dailyTargetArabic\": 10000,\n  \"last\": {\n    \"slug\": \"هل-كود-نون-يعمل-على-الأجهزة-المنزلية-في-الإمارات-قبل-الإرجاع-الضمان\",\n    \"quality\": 100,\n    \"wordCount\": 1620,\n    \"run\": \"2026-09-17T16:56:51.912Z\",\n    \"error\": null\n  },\n  \"englishControlled\": {\n    \"target\": 20,\n    \"complete\": true,\n    \"remaining\": 0\n  },\n  \"source\": \"live-runtime\",\n  \"generatedAt\": \"2026-09-17T16:58:17.971Z\"\n}",
+    "bodyB": "{\n  \"ok\": true,\n  \"total\": 12612,\n  \"r2Uploaded\": 30362,\n  \"arabic\": 12592,\n  \"english\": 20,\n  \"englishByCountry\": {\n    \"SA\": 10,\n    \"AE\": 10\n  },\n  \"publishedTodayArabic\": 7302,\n  \"dailyTargetArabic\": 10000,\n  \"last\": {\n    \"slug\": \"هل-كود-نون-يعمل-على-الجوالات-في-الإمارات-بدون-شراء-زائد-الضمان-الألعاب\",\n    \"quality\": 100,\n    \"wordCount\": 1605,\n    \"run\": \"2026-09-17T16:58:03.384Z\",\n    \"error\": null\n  },\n  \"englishControlled\": {\n    \"target\": 20,\n    \"complete\": true,\n    \"remaining\": 0\n  },\n  \"source\": \"live-runtime\",\n  \"generatedAt\": \"2026-09-17T16:58:37.914Z\"\n}"
   }
 }
