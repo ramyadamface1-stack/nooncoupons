@@ -1,0 +1,50 @@
+name: Audit Live Indexation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/audit-indexation-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify robots, sitemap shards and an article
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://noondealsnow.com'
+
+          curl -fsS --retry 3 --connect-timeout 10 --max-time 30 "$ORIGIN/robots.txt?audit=$GITHUB_SHA" -D /tmp/robots.h -o /tmp/robots.txt
+          grep -Fqi 'Sitemap: https://noondealsnow.com/sitemap.xml' /tmp/robots.txt
+          ! grep -Eqi '^Disallow:[[:space:]]*/$' /tmp/robots.txt
+
+          curl -fsS --retry 3 --connect-timeout 10 --max-time 30 "$ORIGIN/sitemap.xml?audit=$GITHUB_SHA" -D /tmp/sitemap.h -o /tmp/sitemap.xml
+          grep -Eqi '<sitemapindex|<urlset' /tmp/sitemap.xml
+          grep -Fq 'https://noondealsnow.com/' /tmp/sitemap.xml
+
+          SHARD="$(grep -Eo 'https://noondealsnow.com/sitemap-articles-[^<]+' /tmp/sitemap.xml | head -n1 || true)"
+          [ -n "$SHARD" ] || { echo 'NO_ARTICLE_SITEMAP_SHARD_IN_LIVE_INDEX'; exit 1; }
+          curl -fsS --retry 3 --connect-timeout 10 --max-time 30 "$SHARD?audit=$GITHUB_SHA" -D /tmp/shard.h -o /tmp/shard.xml
+          grep -Fqi '<urlset' /tmp/shard.xml
+          ARTICLE="$(grep -Eo 'https://noondealsnow.com/articles/[^<]+' /tmp/shard.xml | head -n1 || true)"
+          [ -n "$ARTICLE" ] || { echo 'NO_ARTICLE_URL_IN_LIVE_SHARD'; exit 1; }
+
+          curl -fsS --retry 3 --connect-timeout 10 --max-time 30 "$ARTICLE?audit=$GITHUB_SHA" -D /tmp/article.h -o /tmp/article.html
+          grep -Eqi '<link[^>]+rel=["'"']canonical["'"'][^>]+https://noondealsnow.com/' /tmp/article.html || grep -Eqi '<link[^>]+https://noondealsnow.com/[^>]+rel=["'"']canonical["'"']' /tmp/article.html
+          ! grep -Eqi '<meta[^>]+name=["'"']robots["'"'][^>]+noindex' /tmp/article.html
+          ! grep -Eqi '^x-robots-tag:.*noindex' /tmp/article.h
+
+          URLS="$(grep -Eoc '<url>' /tmp/shard.xml || true)"
+          echo "ROBOTS_OK=1"
+          echo "SITEMAP_INDEX_OK=1"
+          echo "ARTICLE_SHARD=$SHARD"
+          echo "SHARD_URL_COUNT=$URLS"
+          echo "SAMPLE_ARTICLE=$ARTICLE"
+          echo "SAMPLE_ARTICLE_INDEXABLE=1"
