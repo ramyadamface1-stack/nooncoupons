@@ -34,8 +34,9 @@ function scenario(t,intent){
 function market(t){return clean(t.market)}
 function cat(t){return clean(t.category)}
 function specificityParts(t,intent){
-  const u=clean(t.useCase),f=clean(t.factor),parts=['compare','seller','value','finalprice','warranty'].includes(intent)?[f,u]:[u,f];
-  return [...new Set(parts.filter(Boolean))].sort((a,b)=>a.length-b.length);
+  const u=clean(t.useCase),f=clean(t.factor),modifier=clean(t.queryModifier),base=['compare','seller','value','finalprice','warranty'].includes(intent)?[f,u]:[u,f];
+  const natural=[...new Set(base.filter(Boolean))].sort((a,b)=>a.length-b.length);
+  return [...new Set([modifier,...natural].filter(Boolean))];
 }
 function addSpecificity(kw,t,intent,s){
   let out=clean(kw),added=0;
@@ -52,6 +53,11 @@ function addSpecificity(kw,t,intent,s){
       const candidate=clean(`${base} ${part}`);
       if(candidate.length<=70)return candidate;
     }
+  }
+  const modifier=clean(t.queryModifier);
+  if(modifier){
+    const compact=clean(`${fitKeywordWithoutScenario(t,intent)} ${modifier}`);
+    if(compact.length<=70)return compact;
   }
   return out;
 }
@@ -77,25 +83,29 @@ const BUILDERS={
   budget:(t)=>`شراء ${cat(t)} من نون ${market(t)} بميزانية محددة`
 };
 
+const NO_SCENARIO_BUILDERS={
+  coupon:t=>`كود خصم نون ${market(t)} على ${cat(t)}`,howto:t=>`استخدام كود نون ${market(t)} مع ${cat(t)}`,compare:t=>`مقارنة سعر ${cat(t)} على نون ${market(t)}`,
+  trouble:t=>`حل مشكلة كود نون مع ${cat(t)} في ${market(t)}`,question:t=>`هل كود نون يعمل على ${cat(t)} في ${market(t)}`,seller:t=>`اختيار بائع ${cat(t)} على نون ${market(t)}`,
+  decision:t=>`دليل شراء ${cat(t)} من نون ${market(t)}`,finalprice:t=>`سعر ${cat(t)} النهائي على نون ${market(t)}`,value:t=>`التوفير في ${cat(t)} على نون ${market(t)}`,
+  cart:t=>`مراجعة سلة ${cat(t)} على نون ${market(t)}`,timing:t=>`توقيت كود نون مع ${cat(t)} في ${market(t)}`,smartbuy:t=>`شراء ${cat(t)} من نون ${market(t)} بذكاء`,
+  eligibility:t=>`شروط كود نون على ${cat(t)} في ${market(t)}`,checklist:t=>`قبل شراء ${cat(t)} من نون ${market(t)}`,multi:t=>`كود نون لعدة منتجات ${cat(t)} في ${market(t)}`,
+  returns:t=>`إرجاع ${cat(t)} وكوبون نون ${market(t)}`,warranty:t=>`ضمان ${cat(t)} وكوبون نون ${market(t)}`,budget:t=>`شراء ${cat(t)} من نون ${market(t)} بميزانية محددة`
+};
+function fitKeywordWithoutScenario(t,intent){
+  const kw=clean((NO_SCENARIO_BUILDERS[intent]||NO_SCENARIO_BUILDERS.decision)(t));
+  return kw.length<=70?kw:kw.slice(0,70).replace(/\s+\S*$/,'');
+}
 function fitKeyword(raw,t,intent,s){
   let kw=clean(raw);
   if(kw.length<=70)return kw;
-  const noScenario={
-    coupon:`كود خصم نون ${market(t)} على ${cat(t)}`,howto:`استخدام كود نون ${market(t)} مع ${cat(t)}`,compare:`مقارنة سعر ${cat(t)} على نون ${market(t)}`,
-    trouble:`حل مشكلة كود نون مع ${cat(t)} في ${market(t)}`,question:`هل كود نون يعمل على ${cat(t)} في ${market(t)}`,seller:`اختيار بائع ${cat(t)} على نون ${market(t)}`,
-    decision:`دليل شراء ${cat(t)} من نون ${market(t)}`,finalprice:`سعر ${cat(t)} النهائي على نون ${market(t)}`,value:`التوفير في ${cat(t)} على نون ${market(t)}`,
-    cart:`مراجعة سلة ${cat(t)} على نون ${market(t)}`,timing:`توقيت كود نون مع ${cat(t)} في ${market(t)}`,smartbuy:`شراء ${cat(t)} من نون ${market(t)} بذكاء`,
-    eligibility:`شروط كود نون على ${cat(t)} في ${market(t)}`,checklist:`قبل شراء ${cat(t)} من نون ${market(t)}`,multi:`كود نون لعدة منتجات ${cat(t)} في ${market(t)}`,
-    returns:`إرجاع ${cat(t)} وكوبون نون ${market(t)}`,warranty:`ضمان ${cat(t)} وكوبون نون ${market(t)}`,budget:`شراء ${cat(t)} من نون ${market(t)} بميزانية محددة`
-  };
-  kw=clean(noScenario[intent]||kw);
+  kw=fitKeywordWithoutScenario(t,intent);
   return kw.length<=70?kw:kw.slice(0,70).replace(/\s+\S*$/,'');
 }
 
 export function applyKeywordStrategy(topic){
   const rawIntent=topic.intent,intent=effectiveIntent(topic),s=scenario(topic,intent),builder=BUILDERS[intent]||BUILDERS.decision;
   const baseKw=fitKeyword(builder(topic,s),topic,intent,s),kw=addSpecificity(baseKw,topic,intent,s),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
-  return {...topic,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||topic.intentLabel||'دليل',kw,slug,title,keywordStrategy:'search-intent-v4-longtail',keywordWordCount:words,searchIntentFamily:intent};
+  return {...topic,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||topic.intentLabel||'دليل',kw,slug,title,keywordStrategy:'search-intent-v5-diversity',keywordWordCount:words,searchIntentFamily:intent};
 }
 
-export const KEYWORD_STRATEGY_INFO={version:'search-intent-v4-longtail',philosophy:'natural-query-first',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch'],maxRecommendedWords:14};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v5-diversity',philosophy:'natural-query-first-with-diversity',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch'],maxRecommendedWords:14};
