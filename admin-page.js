@@ -11,12 +11,12 @@ function shortProvider(v){v=String(v||'-');return v.length>42?v.slice(0,40)+'…
 function fmtCountTime(v){if(!v)return 'لم يتم العد بعد';try{return new Date(v).toLocaleString('ar-EG',{hour12:true})}catch{return v}}
 async function refreshMetrics(freshCount=false){
   const suffix=freshCount?'?fresh=1':'';
-  const [d,h,c]=await Promise.all([api('/api/admin/status'),api('/api/generator-health'),api('/api/content-stats'+suffix)]);
+  const overview=await api('/api/admin/live-overview'+suffix),d=overview.admin||{},h=overview.health||{},c=overview.contentStats||{};
   $('metricArticles').textContent=c.r2Uploaded??c.total??h.articleCount??d.articleCount??'-';
   $('metricArabic').textContent=c.arabic??'-';
   $('metricEnglish').textContent=c.english??'-';
   const rc=c.r2Count||{};
-  $('metricCountFresh').textContent='آخر عد R2: '+fmtCountTime(rc.countedAt||c.generatedAt)+(rc.cached?' · cached':' · fresh')+' · تحديث تلقائي كل 30 ثانية';
+  $('metricCountFresh').textContent='آخر عد R2: '+fmtCountTime(rc.countedAt||c.generatedAt)+(rc.cached?' · cached':' · fresh')+' · تحديث تلقائي كل 60 ثانية';
   $('metricGenerated').textContent=h.workersAiPublishedTotal??h.status?.published??0;
   $('metricFailed').textContent=h.status?.failed??d.generator?.failed??0;
   $('metricLast').textContent=(h.status?.lastRun||d.generator?.lastRun||'-').slice(11,16)||'-';
@@ -43,7 +43,7 @@ async function saveConfig(){await api('/api/admin/generator',{method:'POST',head
 async function edit(slug){const d=await api('/api/admin/article?slug='+slug);$('editSlug').value=d.record.slug;$('editTitle').value=d.record.title;$('editMeta').value=d.record.metaDescription||'';$('editKeyword').value=d.record.primaryKeyword||'';$('editStatus').value=d.record.status;$('editHtml').value=d.html||'';$('editorPanel').hidden=false;$('editorPanel').scrollIntoView({behavior:'smooth'})}
 async function saveArticle(){await api('/api/admin/article',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({slug:$('editSlug').value,title:$('editTitle').value,metaDescription:$('editMeta').value,primaryKeyword:$('editKeyword').value,status:$('editStatus').value,html:$('editHtml').value})});alert('تم الحفظ');await Promise.all([refreshMetrics(true),refreshArticles()])}
 async function logout(){await api('/api/admin/logout',{method:'POST'});location='/admin'}
-$('resumeBtn').onclick=()=>setGenerator(true);$('pauseBtn').onclick=()=>{};$('generateBtn').onclick=generateNow;$('refreshCountBtn').onclick=()=>refreshMetrics(true);$('saveConfigBtn').onclick=saveConfig;$('saveArticleBtn').onclick=saveArticle;$('logoutBtn').onclick=logout;refresh();setInterval(()=>refreshMetrics(false).catch(()=>{}),30000);
+$('resumeBtn').onclick=()=>setGenerator(true);$('pauseBtn').onclick=()=>{};$('generateBtn').onclick=generateNow;$('refreshCountBtn').onclick=()=>refreshMetrics(true);$('saveConfigBtn').onclick=saveConfig;$('saveArticleBtn').onclick=saveArticle;$('logoutBtn').onclick=logout;refresh();setInterval(()=>refreshMetrics(false).catch(()=>{}),60000);
 </script></body></html>`}
 
 export async function renderAdmin(req,env){return (await isAdmin(req,env))?html(dashboard()):html(login())}
