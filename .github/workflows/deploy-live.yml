@@ -26,11 +26,7 @@ jobs:
       - name: Validate worker source
         run: |
           set -euo pipefail
-          node --check discovery-entry.js
-          node --check brand-runtime.js
-          node --check network-entry.js
-          node --check commerce-entry.js
-          node --check admin-page.js
+          for f in discovery-entry.js brand-runtime.js network-entry.js commerce-entry.js public-entry.js premium-entry.js auto-platform.js final-platform.js visual-platform.js platform.js seo-layer.js site.js router.js index.js commerce-pages-v2.js commerce-taxonomy.js svg-engine.js approved-coupons.js admin-page.js; do node --check "$f"; done
           grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "15000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
