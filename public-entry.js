@@ -26,7 +26,7 @@ function injectGoogleVerification(html){
 function injectGoogleAnalytics(html){
   const text=String(html||'');
   if(text.includes(GA4_MEASUREMENT_ID)||/googletagmanager\.com\/gtag\/js/i.test(text))return text;
-  const tag=`<script async src="https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA4_MEASUREMENT_ID}');document.addEventListener('click',function(e){const el=e.target&&e.target.closest?e.target.closest('button,a,[data-copy-code],[data-copy],[data-sticky-copy]'):null;if(!el)return;const code=el.getAttribute('data-copy-code')||el.getAttribute('data-copy')||el.getAttribute('data-sticky-copy')||'';if(code){gtag('event','copy_code',{coupon_code:String(code).toUpperCase(),page_path:location.pathname,placement:el.hasAttribute('data-sticky-copy')?'mobile_sticky':'page'})}if(el.tagName==='A'&&/https?:\\/\\/(?:www\\.)?noon\\.com\\//i.test(el.href||'')){gtag('event','shop_click',{destination:'noon',page_path:location.pathname})}});</script>`;
+  const tag=`<script async src="https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${GA4_MEASUREMENT_ID}');document.addEventListener('click',function(e){const el=e.target&&e.target.closest?e.target.closest('button,a,[data-copy-code],[data-copy],[data-sticky-copy]'):null;if(!el||el.matches?.('.copy-code,.shop-link'))return;const code=el.getAttribute('data-copy-code')||el.getAttribute('data-copy')||el.getAttribute('data-sticky-copy')||'';if(code){gtag('event','copy_code',{coupon_code:String(code).toUpperCase(),page_path:location.pathname,placement:el.hasAttribute('data-sticky-copy')?'mobile_sticky':'page'})}if(el.tagName==='A'&&/https?:\\/\\/(?:www\\.)?noon\\.com\\//i.test(el.href||'')){gtag('event','shop_click',{destination:'noon',page_path:location.pathname})}});</script>`;
   return /<\/head>/i.test(text)?text.replace(/<\/head>/i,tag+'</head>'):text;
 }
 
@@ -95,6 +95,7 @@ async function publicView(req,res,env){
   h.set('x-public-quality-ui','hidden-v1');
   h.set('x-google-site-verification','html-meta-v1');
   h.set('x-ga4-measurement','G-1551Z7DJ2C');
+  h.set('x-ga4-dedupe','network-cta-owned');
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
@@ -103,4 +104,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const PUBLIC_ENTRY_INFO={version:8,internalQualityVisible:false,adminQualityPreserved:true,mobileCouponCta:true,marketAwareNoonLinks:true,articleMetadataMarketRouting:true,approvedCouponOnly:true,googleSiteVerification:true,ga4MeasurementId:GA4_MEASUREMENT_ID,conversionEvents:['copy_code','shop_click']};
+export const PUBLIC_ENTRY_INFO={version:9,internalQualityVisible:false,adminQualityPreserved:true,mobileCouponCta:true,marketAwareNoonLinks:true,articleMetadataMarketRouting:true,approvedCouponOnly:true,googleSiteVerification:true,ga4MeasurementId:GA4_MEASUREMENT_ID,conversionEventDedupe:true,conversionEvents:['copy_code','shop_click']};
