@@ -18,11 +18,13 @@ jobs:
       - name: Source and quality invariants
         run: |
           set -euo pipefail
-          for f in network-entry.js commerce-entry.js commerce-pages-v2.js commerce-taxonomy.js commerce-generator-taxonomy.js landing-content-v3.js public-entry.js premium-entry.js auto-platform.js final-platform.js workers-ai-generator.js quality-criteria.js quality-audit.js quality-index.js coupon-registry.js schema-validator.js indexation-gate.js editorial-trust-layer.js indexnow.js bulk-content-engine.js bulk-generator.js legacy-upgrader-v2.js bulk-selftest.js generator-core-v2.js generator-core.js platform.js admin-runtime.js admin-page.js; do node --check "$f"; done
-          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' network-entry.js commerce-entry.js commerce-generator-taxonomy.js auto-platform.js workers-ai-generator.js bulk-generator.js generator-core-v2.js platform.js admin-runtime.js; then
+          for f in brand-runtime.js network-entry.js commerce-entry.js commerce-pages-v2.js commerce-taxonomy.js commerce-generator-taxonomy.js landing-content-v3.js public-entry.js premium-entry.js auto-platform.js final-platform.js workers-ai-generator.js quality-criteria.js quality-audit.js quality-index.js coupon-registry.js schema-validator.js indexation-gate.js editorial-trust-layer.js indexnow.js bulk-content-engine.js bulk-generator.js legacy-upgrader-v2.js bulk-selftest.js generator-core-v2.js generator-core.js platform.js admin-runtime.js admin-page.js; do node --check "$f"; done
+          if grep -E -n 'generativelanguage\.googleapis\.com|api\.x\.ai|api\.groq\.com|GEMINI_API_KEY|XAI_API_KEY|GROQ_API_KEY' brand-runtime.js network-entry.js commerce-entry.js commerce-generator-taxonomy.js auto-platform.js workers-ai-generator.js bulk-generator.js generator-core-v2.js platform.js admin-runtime.js; then
             echo 'EXTERNAL_AI_REFERENCE_FOUND_IN_ACTIVE_RUNTIME'; exit 1
           fi
-          echo CHECK_WRANGLER_MAIN; grep -Fq '"main": "network-entry.js"' wrangler.jsonc
+          echo CHECK_WRANGLER_MAIN; grep -Fq '"main": "brand-runtime.js"' wrangler.jsonc
+          echo CHECK_RUNTIME_CHAIN; grep -Fq "import app from './network-entry.js'" brand-runtime.js
+          echo CHECK_BRAND_LAYER; grep -Fq "organizationLogoRepair:true" brand-runtime.js; grep -Fq "favicon:true" brand-runtime.js
           echo CHECK_ARTICLE_NETWORK; grep -Fq 'id="article-link-network"' network-entry.js
           grep -Fq 'relatedArticles:6' network-entry.js
           grep -Fq 'x-alt-fallback' network-entry.js
@@ -50,12 +52,12 @@ jobs:
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
           fetch(){ curl -fsS --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 25 "$1" -o "$2"; }
-          checked_fetch(){ echo "CHECK_FETCH $1"; fetch "$ORIGIN$1?v=network-v1" /tmp/page || { echo "FETCH_FAILED $1"; exit 1; }; }
+          checked_fetch(){ echo "CHECK_FETCH $1"; fetch "$ORIGIN$1?v=brand-v1" /tmp/page || { echo "FETCH_FAILED $1"; exit 1; }; }
           ready=0
           for i in $(seq 1 30); do
-            fetch "$ORIGIN/api/generator-health?v=network-v1-$i" /tmp/generator.json 2>/dev/null || true
-            fetch "$ORIGIN/api/commerce-health?v=network-v1-$i" /tmp/commerce.json 2>/dev/null || true
-            fetch "$ORIGIN/api/content-stats?v=network-v1-$i" /tmp/stats.json 2>/dev/null || true
+            fetch "$ORIGIN/api/generator-health?v=brand-v1-$i" /tmp/generator.json 2>/dev/null || true
+            fetch "$ORIGIN/api/commerce-health?v=brand-v1-$i" /tmp/commerce.json 2>/dev/null || true
+            fetch "$ORIGIN/api/content-stats?v=brand-v1-$i" /tmp/stats.json 2>/dev/null || true
             if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); s=json.load(open('/tmp/stats.json')); b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert s.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==15000; assert int(b.get('batchSize') or 0)==16; assert int(s.get('dailyTargetArabic') or 0)==15000" 2>/dev/null; then
               ready=1
               echo "RUNTIME_READY attempt=$i"
@@ -71,13 +73,13 @@ jobs:
             exit 1
           fi
 
-          for path in /saudi/categories /saudi/category/mobiles /saudi/category/shoes /uae/category/bags /saudi/brand/apple /saudi/model/apple/iphone-pro /saudi/compare/iphone-vs-galaxy /blog /sitemap.xml /sitemap-commerce.xml /api/generator-health /api/commerce-health /api/content-stats; do
+          for path in /saudi/categories /saudi/category/mobiles /saudi/category/shoes /uae/category/bags /saudi/brand/apple /saudi/model/apple/iphone-pro /saudi/compare/iphone-vs-galaxy /blog /sitemap.xml /sitemap-commerce.xml /api/generator-health /api/commerce-health /api/content-stats /favicon.svg; do
             checked_fetch "$path"
           done
 
           echo CHECK_SITEMAPS
-          fetch "$ORIGIN/sitemap.xml?v=network-v1" /tmp/sitemap.xml
-          fetch "$ORIGIN/sitemap-commerce.xml?v=network-v1" /tmp/sitemap-commerce.xml
+          fetch "$ORIGIN/sitemap.xml?v=brand-v1" /tmp/sitemap.xml
+          fetch "$ORIGIN/sitemap-commerce.xml?v=brand-v1" /tmp/sitemap-commerce.xml
           if grep -Fq '<sitemapindex' /tmp/sitemap.xml; then
             grep -Fq '/sitemap-commerce.xml' /tmp/sitemap.xml || { echo MISSING_COMMERCE_CHILD_SITEMAP; exit 1; }
             grep -Fq '/sitemap-money.xml' /tmp/sitemap.xml || { echo MISSING_MONEY_CHILD_SITEMAP; exit 1; }
@@ -94,21 +96,38 @@ jobs:
           code="$(curl -sS -o /dev/null -w '%{http_code}' "$ORIGIN/saudi/noon-coupon-code")"
           [ "$code" = "301" ] || { echo "SAUDI_OLD_PATH_NOT_301 code=$code"; exit 1; }
 
+          echo CHECK_BRAND_RUNTIME
+          curl -fsS "$ORIGIN/favicon.svg?v=brand-v1" -D /tmp/favicon_headers -o /tmp/favicon.svg
+          grep -Fqi 'content-type: image/svg+xml' /tmp/favicon_headers
+          grep -Fq '<svg' /tmp/favicon.svg
+
           echo CHECK_ARTICLE_NETWORK_LIVE
-          python - <<'PY' > /tmp/article_path
-          import json, urllib.parse
-          s=json.load(open('/tmp/stats.json'))
-          slug=(s.get('last') or {}).get('slug')
-          if not slug: raise SystemExit('missing live slug')
-          print('/articles/'+urllib.parse.quote(slug,safe=''))
-          PY
-          ARTICLE_PATH="$(cat /tmp/article_path)"
-          curl -fsS --retry 3 "$ORIGIN$ARTICLE_PATH?v=network-v1" -D /tmp/article_headers -o /tmp/article.html
+          ARTICLE_PATH="$(python -c "import json,urllib.parse; s=json.load(open('/tmp/stats.json')); slug=(s.get('last') or {}).get('slug'); print('/articles/'+urllib.parse.quote(slug,safe='') if slug else '')")"
+          if [ -z "$ARTICLE_PATH" ]; then
+            ARTICLE_SITEMAP="$(grep -Eo 'https://noondealsnow.com/sitemap-articles-[^<]+' /tmp/sitemap.xml | head -n1 || true)"
+            [ -n "$ARTICLE_SITEMAP" ] || ARTICLE_SITEMAP="$ORIGIN/sitemap-articles.xml"
+            fetch "$ARTICLE_SITEMAP?v=brand-v1" /tmp/articles.xml
+            ARTICLE_URL="$(grep -Eo 'https://noondealsnow.com/articles/[^<]+' /tmp/articles.xml | head -n1 || true)"
+            [ -n "$ARTICLE_URL" ] || { echo NO_ARTICLE_URL_FOR_LIVE_VERIFY; exit 1; }
+            ARTICLE_PATH="${ARTICLE_URL#$ORIGIN}"
+          fi
+          curl -fsS --retry 3 "$ORIGIN$ARTICLE_PATH?v=brand-v1" -D /tmp/article_headers -o /tmp/article.html
+          grep -Fqi 'x-brand-layer: v1' /tmp/article_headers || { echo MISSING_BRAND_LAYER_HEADER; exit 1; }
           grep -Fqi 'x-article-network: v1' /tmp/article_headers || { echo MISSING_ARTICLE_NETWORK_HEADER; exit 1; }
+          grep -Fq 'href="/favicon.svg"' /tmp/article.html || { echo MISSING_FAVICON_LINK; exit 1; }
           grep -Fq 'id="article-link-network"' /tmp/article.html || { echo MISSING_RELATED_ARTICLE_BLOCK; exit 1; }
           grep -Fq 'اقرأ أيضًا قبل الشراء' /tmp/article.html || { echo MISSING_RELATED_ARTICLE_COPY; exit 1; }
-          missing_alt="$(grep -Eo '<img\b[^>]*>' /tmp/article.html | grep -Eiv 'alt=["'"'][^"'"']+["'"']' | wc -l | tr -d ' ')"
-          [ "$missing_alt" = "0" ] || { echo "ARTICLE_IMAGES_MISSING_ALT $missing_alt"; exit 1; }
+          python - <<'PY'
+          from html.parser import HTMLParser
+          class P(HTMLParser):
+              def __init__(self): super().__init__(); self.missing=[]
+              def handle_starttag(self,tag,attrs):
+                  if tag.lower()=='img':
+                      d=dict(attrs)
+                      if not (d.get('alt') or '').strip(): self.missing.append(d)
+          p=P(); p.feed(open('/tmp/article.html',encoding='utf-8').read())
+          assert not p.missing, f'ARTICLE_IMAGES_MISSING_ALT {len(p.missing)}'
+          PY
 
           echo CHECK_FINAL_HEALTH_ASSERTIONS
           python - <<'PY'
