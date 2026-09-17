@@ -16,35 +16,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Put newest article sitemaps first
-        shell: bash
+      - name: Patch sitemap discovery
+        run: node scripts/patch-sitemap-discovery.mjs
+      - name: Validate source
         run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          p=Path('auto-platform.js')
-          s=p.read_text()
-          pattern=re.compile(r"async function sitemapIndex\(env,origin\)\{\n  const days=.*?\n\}",re.S)
-          new="""async function sitemapIndex(env,origin){
-  const days=await r2json(env,'bulk/days.json',{days:[]});
-  const items=[];
-  for(const d of days.days||[])for(let i=0;i<Number(d.shards||0);i++)items.push({loc:`${origin}/sitemap-articles-${d.day}-${i}.xml`,lastmod:d.updatedAt||`${d.day}T23:59:59.000Z`});
-  for(const n of STATIC_SITEMAPS)items.push({loc:`${origin}/sitemap-${n}.xml`,lastmod:null});
-  return `<?xml version=\"1.0\" encoding=\"UTF-8\"?><sitemapindex xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">${items.map(x=>`<sitemap><loc>${esc(x.loc)}</loc>${x.lastmod?`<lastmod>${esc(x.lastmod)}</lastmod>`:''}</sitemap>`).join('')}</sitemapindex>`;
-}"""
-          out,n=pattern.subn(new,s,count=1)
-          if n!=1:
-              raise SystemExit(f'sitemapIndex replacement count={n}')
-          p.write_text(out)
-          PY
           node --check auto-platform.js
-          grep -Fq "sitemap-articles-" auto-platform.js
-          grep -Fq "lastmod" auto-platform.js
-      - name: Commit optimized sitemap ordering
-        shell: bash
+          grep -Fq 'items.push({loc:' auto-platform.js
+          grep -Fq '<lastmod>' auto-platform.js
+      - name: Commit source patch
         run: |
-          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add auto-platform.js
