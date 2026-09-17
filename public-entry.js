@@ -8,6 +8,7 @@ const NOON_MARKETS={
   'ar-AE':'https://www.noon.com/uae-ar/',
   'ar-SA':'https://www.noon.com/saudi-ar/'
 };
+let articleManifestCache={at:0,value:null};
 
 function cleanPublicQa(html,path){
   let out=String(html||'');
@@ -30,29 +31,17 @@ function injectGoogleAnalytics(html){
   return /<\/head>/i.test(text)?text.replace(/<\/head>/i,tag+'</head>'):text;
 }
 
-function noonMarketUrl(contentLanguage=''){
-  return NOON_MARKETS[String(contentLanguage||'').trim()]||NOON_MARKETS['ar-SA'];
-}
-
 function marketFromRecord(rec,contentLanguage=''){
   if(rec?.country==='AE')return 'AE';
   if(rec?.country==='SA')return 'SA';
   return String(contentLanguage||'').toLowerCase().includes('ae')?'AE':'SA';
 }
-
 function noonUrlForMarket(market){return market==='AE'?NOON_MARKETS['ar-AE']:NOON_MARKETS['ar-SA']}
-
-function routeArticleNoonLinks(html,noonUrl){
-  return String(html||'').replace(/https:\/\/www\.noon\.com\/(?!saudi-ar\/|uae-ar\/)/gi,noonUrl);
-}
+function routeArticleNoonLinks(html,noonUrl){return String(html||'').replace(/https:\/\/www\.noon\.com\/(?!saudi-ar\/|uae-ar\/)/gi,noonUrl)}
 
 function mobileCouponBar(html,noonUrl,fallbackCode='',market='SA'){
   if(html.includes('id="mobile-coupon-bar"'))return html;
-  const patterns=[
-    /data-copy-code="([A-Z0-9_-]{3,20})"/i,
-    /data-copy="(OPS\d{2})"/i,
-    /\b(OPS\d{2})\b/i
-  ];
+  const patterns=[/data-copy-code="([A-Z0-9_-]{3,20})"/i,/data-copy="(OPS\d{2})"/i,/\b(OPS\d{2})\b/i];
   let code='';
   for(const re of patterns){const m=html.match(re);if(m?.[1]&&isApprovedCoupon(m[1])){code=m[1].toUpperCase();break}}
   code=normalizeApprovedCoupon(code||fallbackCode,market==='AE'?'OPS58':'OPS32');
@@ -60,15 +49,22 @@ function mobileCouponBar(html,noonUrl,fallbackCode='',market='SA'){
   return /<\/body>/i.test(html)?html.replace(/<\/body>/i,bar+'</body>'):html+bar;
 }
 
-async function articleRecord(env,path){
+async function latestArticleManifest(env){
+  const now=Date.now();
+  if(articleManifestCache.value&&now-articleManifestCache.at<120000)return articleManifestCache.value;
   try{
-    if(!env?.CONTENT_FINAL)return null;
+    if(!env?.CONTENT_FINAL)return articleManifestCache.value||{articles:[]};
     const obj=await env.CONTENT_FINAL.get('bulk/latest.json');
-    if(!obj)return null;
-    const latest=await obj.json();
-    const slug=decodeURIComponent(path.split('/').pop()||'');
-    return (latest?.articles||[]).find(a=>a?.slug===slug)||null;
-  }catch{return null}
+    const value=obj?await obj.json():{articles:[]};
+    articleManifestCache={at:now,value};
+    return value;
+  }catch{return articleManifestCache.value||{articles:[]}}
+}
+
+async function articleRecord(env,path){
+  const latest=await latestArticleManifest(env);
+  const slug=decodeURIComponent(path.split('/').pop()||'');
+  return (latest?.articles||[]).find(a=>a?.slug===slug)||null;
 }
 
 async function publicView(req,res,env){
@@ -90,6 +86,7 @@ async function publicView(req,res,env){
     h.set('x-mobile-coupon-cta','v2');
     h.set('x-noon-market-route',market);
     h.set('x-coupon-source',rec?'article-metadata':'header-fallback');
+    h.set('x-public-manifest-cache','120s-isolate');
   }
   h.delete('content-length');
   h.set('x-public-quality-ui','hidden-v1');
@@ -104,4 +101,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const PUBLIC_ENTRY_INFO={version:9,internalQualityVisible:false,adminQualityPreserved:true,mobileCouponCta:true,marketAwareNoonLinks:true,articleMetadataMarketRouting:true,approvedCouponOnly:true,googleSiteVerification:true,ga4MeasurementId:GA4_MEASUREMENT_ID,conversionEventDedupe:true,conversionEvents:['copy_code','shop_click']};
+export const PUBLIC_ENTRY_INFO={version:10,internalQualityVisible:false,adminQualityPreserved:true,mobileCouponCta:true,marketAwareNoonLinks:true,articleMetadataMarketRouting:true,approvedCouponOnly:true,googleSiteVerification:true,ga4MeasurementId:GA4_MEASUREMENT_ID,conversionEventDedupe:true,articleManifestCacheSeconds:120,conversionEvents:['copy_code','shop_click']};
