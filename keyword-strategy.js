@@ -96,14 +96,21 @@ const NO_SCENARIO_BUILDERS={
   returns:t=>`إرجاع ${cat(t)} وكوبون نون ${market(t)}`,warranty:t=>`ضمان ${cat(t)} وكوبون نون ${market(t)}`,budget:t=>`شراء ${cat(t)} من نون ${market(t)} بميزانية محددة`
 };
 function fitKeywordWithoutScenario(t,intent){
-  const kw=clean((NO_SCENARIO_BUILDERS[intent]||NO_SCENARIO_BUILDERS.decision)(t));
-  return kw.length<=70?kw:kw.slice(0,70).replace(/\s+\S*$/,'');
+  const primary=clean((NO_SCENARIO_BUILDERS[intent]||NO_SCENARIO_BUILDERS.decision)(t));
+  if(primary.length<=70)return primary;
+  // Never solve length by cutting the market off the tail. Compact the intent wording first,
+  // while preserving the Noon market and the catalog target chosen by the hierarchy layer.
+  const compact=clean(`${INTENT_LABELS[intent]||'دليل'} ${cat(t)} نون ${market(t)}`);
+  if(compact.length<=70)return compact;
+  const marketFirst=clean(`نون ${market(t)} ${cat(t)}`);
+  if(marketFirst.length<=70)return marketFirst;
+  const prefix=clean(`نون ${market(t)} `),room=Math.max(12,70-prefix.length),trimmedCat=cat(t).slice(0,room).replace(/\s+\S*$/,'').trim();
+  return clean(`${prefix}${trimmedCat}`).slice(0,70).trim();
 }
 function fitKeyword(raw,t,intent,s){
   let kw=clean(raw);
   if(kw.length<=70)return kw;
-  kw=fitKeywordWithoutScenario(t,intent);
-  return kw.length<=70?kw:kw.slice(0,70).replace(/\s+\S*$/,'');
+  return fitKeywordWithoutScenario(t,intent);
 }
 
 export function applyKeywordStrategy(topic){
