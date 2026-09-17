@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nooncoupons",
-  "main": "brand-runtime.js",
+  "main": "discovery-entry.js",
   "compatibility_date": "2026-09-13",
   "compatibility_flags": [
     "nodejs_compat"
@@ -76,4 +76,4 @@
     }
   ]
 }
-// e2e-audit-trigger: brand-runtime-v1-2026-09-17
+// e2e-audit-trigger: discovery-entry-v1-2026-09-17
