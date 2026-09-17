@@ -26,6 +26,17 @@ function fallbackRec(html,slug){
   return {slug,title,primaryKeyword:title,coupon:validCoupon(coupon,country),country,status:'published',metaDescription:''};
 }
 
+async function r2ArticleMeta(env,slug){
+  try{
+    const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.head('articles/'+slug+'.html'):null;
+    const md=o?.customMetadata||{};
+    if(!o)return null;
+    const dec=x=>{try{return decodeURIComponent(String(x||''))}catch{return String(x||'')}};
+    const country=md.c==='AE'?'AE':'SA';
+    return {slug,title:dec(md.t)||slug,primaryKeyword:dec(md.kw)||dec(md.t)||slug,coupon:validCoupon(md.cp,country),country,status:'published'};
+  }catch{return null}
+}
+
 function params(rec){
   return new URLSearchParams({v:'4',coupon:validCoupon(rec.coupon,validCountry(rec.country)),country:validCountry(rec.country)}).toString();
 }
@@ -103,14 +114,16 @@ async function assetResponse(req,env,ctx){
   if(m){
     const slug=decodeURIComponent(m[1]),v=Number(m[2]);
     let rec=(s.articles||[]).find(a=>a.slug===slug&&a.status==='published');
-    if(!rec)rec={slug,coupon:validCoupon(u.searchParams.get('coupon')),country:validCountry(u.searchParams.get('country')),title:slug,status:'published'};
-    return new Response(couponSvg({coupon:rec.coupon,country:rec.country,variant:v,brand:'noon'}),{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=31536000,immutable','x-content-type-options':'nosniff'}});
+    if(!rec)rec=await r2ArticleMeta(env,slug);
+    if(!rec){const country=validCountry(u.searchParams.get('country'));rec={slug,coupon:validCoupon(u.searchParams.get('coupon'),country),country,title:slug,primaryKeyword:slug,status:'published'}}
+    return new Response(couponSvg({coupon:rec.coupon,country:rec.country,variant:v,brand:'noon',title:keywordOf(rec)}),{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=31536000,immutable','x-content-type-options':'nosniff'}});
   }
   m=u.pathname.match(/^\/assets\/featured\/([^/]+)\.svg$/);
   if(m){
     const slug=decodeURIComponent(m[1]);
     let rec=(s.articles||[]).find(a=>a.slug===slug&&a.status==='published');
-    if(!rec)rec={slug,coupon:validCoupon(u.searchParams.get('coupon')),country:validCountry(u.searchParams.get('country')),title:slug,status:'published'};
+    if(!rec)rec=await r2ArticleMeta(env,slug);
+    if(!rec){const country=validCountry(u.searchParams.get('country'));rec={slug,coupon:validCoupon(u.searchParams.get('coupon'),country),country,title:slug,primaryKeyword:slug,status:'published'}}
     return Response.redirect(new URL(couponSrc(rec,1),u.origin).toString(),308);
   }
   return null;
