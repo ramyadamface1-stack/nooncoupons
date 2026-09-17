@@ -9,7 +9,50 @@ import {repairEnglishCanaryLegacyMetadata,serveEnglishCanaryRepairHealth} from '
 export {ControlPlane,GeneratorControl} from './public-entry.js';
 
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
-async function countR2ArticleHtml(env){if(!env.CONTENT_FINAL)return null;let cursor=null,count=0,pages=0;do{const page=await env.CONTENT_FINAL.list({prefix:'articles/',limit:1000,...(cursor?{cursor}:{})});count+=(page.objects||[]).filter(o=>String(o.key||'').endsWith('.html')).length;pages++;if(!page.truncated)break;cursor=page.cursor||null}while(cursor&&pages<100);return count}
+const R2_COUNT_SNAPSHOT_KEY='_ops/article-count.json';
+const R2_COUNT_TTL_MS=300000;
+let r2CountCache={count:null,countedAt:null,at:0};
+async function readR2CountSnapshot(env){
+  try{
+    const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(R2_COUNT_SNAPSHOT_KEY):null;
+    if(!o)return null;
+    const x=await o.json(),count=Number(x?.count),countedAt=String(x?.countedAt||'');
+    if(!Number.isFinite(count)||count<0||!countedAt)return null;
+    return {count,countedAt};
+  }catch{return null}
+}
+async function writeR2CountSnapshot(env,count,countedAt){
+  try{
+    if(env.CONTENT_FINAL)await env.CONTENT_FINAL.put(R2_COUNT_SNAPSHOT_KEY,JSON.stringify({count,countedAt,source:'r2-list',version:1}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+  }catch{}
+}
+async function countR2ArticleHtml(env,{fresh=false}={}){
+  if(!env.CONTENT_FINAL)return {count:null,countedAt:null,cached:false,ageSeconds:null};
+  const now=Date.now();
+  if(!fresh&&Number.isFinite(r2CountCache.count)&&now-r2CountCache.at<R2_COUNT_TTL_MS){
+    return {count:r2CountCache.count,countedAt:r2CountCache.countedAt,cached:true,ageSeconds:Math.max(0,Math.floor((now-r2CountCache.at)/1000))};
+  }
+  if(!fresh){
+    const snap=await readR2CountSnapshot(env);
+    const snapAt=Date.parse(snap?.countedAt||'');
+    if(snap&&Number.isFinite(snapAt)&&now-snapAt<R2_COUNT_TTL_MS){
+      r2CountCache={count:snap.count,countedAt:snap.countedAt,at:snapAt};
+      return {count:snap.count,countedAt:snap.countedAt,cached:true,ageSeconds:Math.max(0,Math.floor((now-snapAt)/1000))};
+    }
+  }
+  let cursor=null,count=0,pages=0;
+  do{
+    const page=await env.CONTENT_FINAL.list({prefix:'articles/',limit:1000,...(cursor?{cursor}:{})});
+    count+=(page.objects||[]).filter(o=>String(o.key||'').endsWith('.html')).length;
+    pages++;
+    if(!page.truncated)break;
+    cursor=page.cursor||null;
+  }while(cursor&&pages<100);
+  const countedAt=new Date().toISOString();
+  r2CountCache={count,countedAt,at:Date.parse(countedAt)};
+  await writeR2CountSnapshot(env,count,countedAt);
+  return {count,countedAt,cached:false,ageSeconds:0,pages};
+}
 const dec=s=>{try{return decodeURIComponent(String(s||''))}catch{return String(s||'')}};
 const xmlEsc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&apos;');
 function hardened(res){const h=new Headers(res.headers);h.set('x-content-type-options','nosniff');h.set('referrer-policy','strict-origin-when-cross-origin');h.set('x-frame-options','SAMEORIGIN');h.set('permissions-policy','camera=(), microphone=(), geolocation=()');h.set('strict-transport-security','max-age=31536000');return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h})}
@@ -30,7 +73,9 @@ async function contentStats(req,env,ctx){
   }catch{}
   let english={};
   try{english=await englishCanaryHealth(env)}catch{}
-  const r2Uploaded=await countR2ArticleHtml(env);
+  const freshCount=new URL(req.url).searchParams.get('fresh')==='1';
+  const r2Count=await countR2ArticleHtml(env,{fresh:freshCount});
+  const r2Uploaded=r2Count.count;
   const bulk=generator?.bulk||{};
   const controlled=english?.controlled||{};
   const arabic=Number(bulk.publishedTotal||0);
@@ -41,7 +86,8 @@ async function contentStats(req,env,ctx){
     publishedTodayArabic:Number(bulk.publishedToday||0),dailyTargetArabic:Number(bulk.dailyTarget||0),
     last:{slug:bulk.lastSlug||null,quality:bulk.lastQuality??null,wordCount:bulk.lastWordCount??null,run:bulk.lastRun||null,error:bulk.lastError||null},
     englishControlled:{target:Number(controlled.target||0),complete:Boolean(controlled.complete),remaining:Number(controlled.remaining||0)},
-    source:'live-runtime',generatedAt:new Date().toISOString()
+    source:'live-runtime',generatedAt:new Date().toISOString(),
+    r2Count:{count:r2Uploaded,countedAt:r2Count.countedAt,cached:Boolean(r2Count.cached),ageSeconds:r2Count.ageSeconds??null,pages:r2Count.pages??null,snapshotKey:R2_COUNT_SNAPSHOT_KEY,ttlSeconds:R2_COUNT_TTL_MS/1000}
   };
 }
 
@@ -49,4 +95,4 @@ export default{
   async fetch(req,env,ctx){const u=new URL(req.url),path=u.pathname.replace(/\/+$/,'')||'/',origin=env.SITE_ORIGIN||u.origin;if(req.method==='GET'&&path==='/saudi-arabia')return hardened(permanentRedirect('/saudi'+u.search));if(req.method==='GET'&&/^\/saudi\/noon-coupon-code(?:-today|-2026)?$/.test(path))return hardened(permanentRedirect(path.replace(/^\/saudi\//,'/saudi-arabia/')+u.search));if(req.method==='GET'&&path==='/sitemap-commerce.xml')return hardened(commerceSitemap(origin));if(req.method==='GET'&&path==='/sitemap-en-articles.xml')return hardened(await englishCanarySitemap(env,origin));if(req.method==='GET'&&path==='/api/english-canary-health')return serveEnglishCanaryHealth(env);if(req.method==='GET'&&path==='/api/english-canary-repair-health')return serveEnglishCanaryRepairHealth(env);if(req.method==='GET'&&path.startsWith('/en/articles/')){const er=await serveEnglishCanaryArticle(req,env);if(er)return hardened(er)}if(req.method==='GET'&&path==='/api/content-stats')return new Response(JSON.stringify(await contentStats(req,env,ctx),null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});if(req.method==='GET'&&path==='/api/commerce-health')return new Response(JSON.stringify(await health(env),null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});if(req.method==='GET'){let landing=await commerceLanding(path,origin,env);if(landing){landing=await enhanceLandingPage(path,origin,landing,env);landing=await enhanceSpecialtyLanding(path,origin,landing);return hardened(landing)}}let res=await app.fetch(req,env,ctx);if(req.method==='GET'&&path.startsWith('/articles/'))res=await appendArticleCommerce(req,env,res);res=await appendHomeCommerce(req,res);res=await augmentSitemapResponse(req,env,res);return hardened(res)},
   async scheduled(event,env,ctx){if(app.scheduled)app.scheduled(event,env,ctx);ctx.waitUntil((async()=>{await repairEnglishCanaryLegacyMetadata(env);return runEnglishCanary(env)})())}
 };
-export const COMMERCE_ENTRY_INFO={version:14,entry:'commerce-entry',wraps:'public-entry',routes:COMMERCE_TAXONOMY_INFO.routes,articleBacklinks:true,homeNavigation:true,separateShoesAndBags:true,modelFamilyPages:true,explicitGeneratorTaxonomy:COMMERCE_GENERATOR_INFO.version,landingContent:LANDING_CONTENT_V3.version,landingSpecialty:LANDING_SPECIALTY_V4.version,minLandingWords:LANDING_CONTENT_V3.minWords,sitemapDiscovery:'main-index-or-direct-urlset'};
+export const COMMERCE_ENTRY_INFO={version:15,entry:'commerce-entry',wraps:'public-entry',routes:COMMERCE_TAXONOMY_INFO.routes,articleBacklinks:true,homeNavigation:true,separateShoesAndBags:true,modelFamilyPages:true,explicitGeneratorTaxonomy:COMMERCE_GENERATOR_INFO.version,landingContent:LANDING_CONTENT_V3.version,landingSpecialty:LANDING_SPECIALTY_V4.version,minLandingWords:LANDING_CONTENT_V3.minWords,sitemapDiscovery:'main-index-or-direct-urlset'};
