@@ -60,7 +60,7 @@ export function auditGenerated(a,t,cfg){
   const leak=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|extra|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|علي\s?اكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i.test(plain);add('brand_lock',!leak,12);
   const wrong=t.country==='SA'?/(نون\s*)?(الإمارات|الامارات)|\bUAE\b|Emirates/i:/(نون\s*)?(السعودية|المملكة العربية السعودية)|\bKSA\b|Saudi(?: Arabia)?/i,wrongCountry=wrong.test(plain);add('country_lock',!wrongCountry,12);
   const ar=(plain.match(/[\u0600-\u06FF]/g)||[]).length,latin=(plain.match(/[A-Za-z]/g)||[]).length,arabicRatio=ar/Math.max(1,ar+latin);add('arabic_content',arabicRatio>=0.78,8);
-  const total=checks.reduce((s,x)=>s+x.weight,0),passed=checks.reduce((s,x)=>s+(x.pass?x.weight:0),score=Math.round(passed/total*1000)/10;
+  const total=checks.reduce((s,x)=>s+x.weight,0),passed=checks.reduce((s,x)=>s+(x.pass?x.weight:0),0),score=Math.round(passed/total*1000)/10;
   return {score,wordCount:n,checks,productionReady:score>=Number(cfg.qualityThreshold||95)&&n>=Number(cfg.minWords||1000)&&n<=2000&&!leak&&!wrongCountry&&arabicRatio>=0.78};
 }
 
