@@ -1,13 +1,14 @@
 import app from './platform.js';
 export {ControlPlane} from './platform.js';
 import {couponSvg,noonUrl} from './svg-engine.js';
+import {normalizeApprovedCoupon} from './approved-coupons.js';
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const strip=s=>String(s||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
 const countryAr=c=>c==='SA'?'السعودية':'الإمارات';
 const countryEn=c=>c==='SA'?'Saudi Arabia':'UAE';
 const validCountry=c=>c==='AE'?'AE':'SA';
-const validCoupon=c=>/^NOV\d{3}$/i.test(String(c||''))?String(c).toUpperCase():'NOV170';
+const validCoupon=(c,country='SA')=>normalizeApprovedCoupon(c,country==='AE'?'OPS58':'OPS32');
 const keywordOf=rec=>String(rec?.primaryKeyword||rec?.title||rec?.slug||'كود خصم نون').trim();
 
 async function getState(env,ctx,origin){
@@ -19,20 +20,20 @@ async function getState(env,ctx,origin){
 function fallbackRec(html,slug){
   const h1=(String(html).match(/<h1[^>]*>([\s\S]*?)<\/h1>/i)||[])[1]||slug;
   const title=strip(h1)||slug;
-  const coupon=(String(html).match(/\bNOV\d{3}\b/i)||[])[0]||'NOV170';
   const hay=(slug+' '+title+' '+html.slice(0,1800));
   const country=/الإمارات|الامارات|UAE/i.test(hay)?'AE':'SA';
-  return {slug,title,primaryKeyword:title,coupon:validCoupon(coupon),country,status:'published',metaDescription:''};
+  const coupon=(String(html).match(/\bOPS\d{2}\b/i)||[])[0]||'';
+  return {slug,title,primaryKeyword:title,coupon:validCoupon(coupon,country),country,status:'published',metaDescription:''};
 }
 
 function params(rec){
-  return new URLSearchParams({v:'4',coupon:validCoupon(rec.coupon),country:validCountry(rec.country)}).toString();
+  return new URLSearchParams({v:'4',coupon:validCoupon(rec.coupon,validCountry(rec.country)),country:validCountry(rec.country)}).toString();
 }
 function couponSrc(rec,v){return `/assets/coupon-svg/${encodeURIComponent(rec.slug)}/${v}.svg?${params(rec)}`}
 function featuredSrc(rec){return couponSrc(rec,1)}
 
 function couponVisual(rec,v){
-  const country=countryAr(rec.country),brand=noonUrl(),src=couponSrc(rec,v),code=validCoupon(rec.coupon),keyword=keywordOf(rec);
+  const country=countryAr(rec.country),brand=noonUrl(),src=couponSrc(rec,v),code=validCoupon(rec.coupon,validCountry(rec.country)),keyword=keywordOf(rec);
   return `<figure class="coupon-visual coupon-visual-${v}">
     <a class="coupon-image-link" href="${brand}" target="_blank" rel="noopener external sponsored" aria-label="فتح موقع نون الرسمي وتجربة ${esc(keyword)}">
       <img src="${src}" alt="${esc(keyword)} - كوبون نون ${country} ${code} - تصميم ${v}" title="${esc(keyword)}" width="1200" height="760" loading="lazy" decoding="async">
@@ -46,7 +47,7 @@ function couponVisual(rec,v){
 }
 
 function featuredBlock(rec){
-  const country=countryAr(rec.country),code=validCoupon(rec.coupon),src=featuredSrc(rec),keyword=keywordOf(rec);
+  const country=countryAr(rec.country),code=validCoupon(rec.coupon,validCountry(rec.country)),src=featuredSrc(rec),keyword=keywordOf(rec);
   return `<figure class="article-featured">
     <a href="${noonUrl()}" target="_blank" rel="noopener external sponsored" aria-label="فتح نون الرسمي - ${esc(keyword)}">
       <img src="${src}" alt="${esc(keyword)} - كوبون نون ${country} ${code}" title="${esc(keyword)}" width="1200" height="760" loading="eager" fetchpriority="high" decoding="async">
