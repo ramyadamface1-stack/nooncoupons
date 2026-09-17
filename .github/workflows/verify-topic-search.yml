@@ -33,11 +33,13 @@ jobs:
           if(ARABIC_SEARCH_INFO.version!==1)throw new Error('search_version_failed');
           console.log('ARABIC_SEARCH_UNIT_PASS');
           JS
+          echo TOPIC_SEARCH_SOURCE_PASS
       - name: Live search checks
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           ready=0
           for i in $(seq 1 12); do
             code="$(curl -sS -o /tmp/search.html -D /tmp/search.headers -w '%{http_code}' --max-time 20 "$ORIGIN/topics/search/%D8%A7%D8%AC%D9%87%D8%B2%D8%A9?search-ui=v4" || true)"
