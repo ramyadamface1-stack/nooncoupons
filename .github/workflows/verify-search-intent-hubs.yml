@@ -28,7 +28,7 @@ jobs:
           ok=0
           for i in $(seq 1 12); do
             health="$(curl -fsS --max-time 15 "$ORIGIN/api/generator-health" || true)"
-            if python -c 'import json,sys; d=json.loads(sys.argv[1]); st=d.get("status",{}); raise SystemExit(0 if st.get("bulkKeywordStrategyVersion")=="search-intent-v3-sales" else 1)' "$health" 2>/dev/null; then ok=1; break; fi
+            if python -c 'import json,sys; d=json.loads(sys.argv[1]); st=d.get("status",{}); raise SystemExit(0 if st.get("bulkKeywordStrategyVersion")=="search-intent-v6-noon-hierarchy" else 1)' "$health" 2>/dev/null; then ok=1; break; fi
             sleep 5
           done
           [ "$ok" = 1 ]
