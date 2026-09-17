@@ -1,5 +1,5 @@
 import app from './network-entry.js';
-import {APPROVED_COUPON_CODES} from './approved-coupons.js';
+import {APPROVED_COUPON_CODES,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 export {ControlPlane,GeneratorControl} from './network-entry.js';
 
 const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
@@ -27,13 +27,25 @@ function repairJsonLd(html,origin){
   return {html:out,state};
 }
 
+function marketForBlock(block){return /(?:الإمارات|🇦🇪|country=AE\b|data-market=["']AE["'])/i.test(block)?'AE':/(?:السعودية|🇸🇦|country=SA\b|data-market=["']SA["'])/i.test(block)?'SA':'GEN'}
+function sanitizeLegacyCouponTokens(html){
+  const state={blocks:0,tokens:0};
+  const out=String(html).replace(/<article\b[^>]*>[\s\S]*?<\/article>/gi,block=>{
+    const market=marketForBlock(block);if(market==='GEN')return block;
+    const before=(block.match(/\b(?:OPS\d+|NOV\d+)\b/gi)||[]).filter(x=>!APPROVED.has(x.toUpperCase())).length;
+    if(!before)return block;
+    state.blocks++;state.tokens+=before;
+    return replaceUnapprovedCouponTokens(block,market==='AE'?'OPS58':'OPS32');
+  });
+  return {html:out,state};
+}
 function normalizeCouponUi(html){
   const state={duplicatesRemoved:0,countLabelsFixed:0};
   const seen=new Set();
   let out=String(html).replace(/<article\b[^>]*class=(["'])[^"']*\bcoupon\b[^"']*\1[^>]*>[\s\S]*?<\/article>/gi,block=>{
     const code=(block.match(/data-(?:copy|code)=["']([A-Z0-9_-]{3,20})["']/i)?.[1]||block.match(/\b(OPS\d{2})\b/i)?.[1]||'').toUpperCase();
     if(!APPROVED.has(code))return block;
-    const market=/الإمارات|🇦🇪/.test(block)?'AE':/السعودية|🇸🇦/.test(block)?'SA':'GEN';
+    const market=marketForBlock(block);
     const key=market+':'+code;
     if(seen.has(key)){state.duplicatesRemoved++;return ''}
     seen.add(key);return block;
@@ -96,7 +108,8 @@ export default{
     const origin=env.SITE_ORIGIN||u.origin;
     const source=await res.text();
     const repaired=repairJsonLd(source,origin);
-    const normalized=normalizeCouponUi(repaired.html);
+    const sanitized=sanitizeLegacyCouponTokens(repaired.html);
+    const normalized=normalizeCouponUi(sanitized.html);
     const html=brandHead(normalized.html);
     const h=new Headers(res.headers);h.delete('content-length');
     h.set('x-brand-layer','v1');
@@ -104,9 +117,11 @@ export default{
     h.set('x-organization-logo-fixed',String(repaired.state.fixed));
     h.set('x-coupon-ui-deduped',String(normalized.state.duplicatesRemoved));
     h.set('x-coupon-count-labels-fixed',String(normalized.state.countLabelsFixed));
+    h.set('x-legacy-coupon-blocks-fixed',String(sanitized.state.blocks));
+    h.set('x-legacy-coupon-tokens-fixed',String(sanitized.state.tokens));
     return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
   },
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:5,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:6,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
