@@ -11,7 +11,8 @@ for(let i=0;i<160;i++){
   if(t.keywordStrategy!=='search-intent-v6-noon-hierarchy')problems.push('wrong_strategy');
   if(words<4||words>18)problems.push('keyword_length');
   if(!String(t.kw||'').includes(marketLabel(t)))problems.push('market_missing');
-  if(!String(t.kw||'').includes(t.category))problems.push('category_missing');
+  const hierarchyTarget=String(t.catalogTarget||t.category||'').trim();
+  if(hierarchyTarget&&!String(t.kw||'').includes(hierarchyTarget))problems.push('hierarchy_target_missing');
   if(!t.slug)problems.push('slug_missing');
   if(/اختيار بائع[^\n]{0,80}قبل اختيار البائع/.test(t.kw))problems.push('seller_tautology');
   if(/ضمان[^\n]{0,80}مراجعة الضمان/.test(t.kw))problems.push('warranty_tautology');
