@@ -1,7 +1,7 @@
 const ORIGIN='https://noondealsnow.com';
 const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
 const TRUST=['/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer','/terms'];
-const MAPS=['/sitemap-pages.xml','/sitemap-categories.xml','/sitemap-articles.xml','/sitemap-coupons.xml','/sitemap-coupons-saudi.xml','/sitemap-coupons-uae.xml','/sitemap-stores.xml'];
+const MAPS=['/sitemap-pages.xml','/sitemap-articles.xml','/sitemap-coupons.xml','/sitemap-coupons-saudi.xml','/sitemap-coupons-uae.xml','/sitemap-stores.xml'];
 const xml=s=>new Response(s,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300'}});
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 const urlset=urls=>`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${[...new Set(urls)].map(u=>`<url><loc>${esc(u)}</loc></url>`).join('')}</urlset>`;
