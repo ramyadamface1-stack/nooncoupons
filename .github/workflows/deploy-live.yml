@@ -40,8 +40,9 @@ jobs:
           grep -Fq 'discoveryLinkCount:12' discovery-entry.js
           grep -Fq 'robotsPrioritySitemap:true' discovery-entry.js
           grep -Fq "R2_COUNT_SNAPSHOT_KEY='_ops/article-count.json'" commerce-entry.js
-          grep -Fq "setInterval(()=>refreshMetrics(false).catch(()=>{}),30000)" admin-page.js
+          grep -Fq "setInterval(()=>refreshMetrics(false).catch(()=>{}),60000)" admin-page.js
           grep -Fq "refreshCountBtn" admin-page.js
+          grep -Fq "/api/admin/live-overview" commerce-entry.js
       - name: Validate dedicated Cloudflare token
         id: cf
         env:
