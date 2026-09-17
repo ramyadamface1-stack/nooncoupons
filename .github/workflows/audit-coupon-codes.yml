@@ -24,17 +24,14 @@ jobs:
           grep -RhoE 'NOV[0-9]+' --exclude-dir=.git . | sort -u || true
           echo 'SOURCE_FILES_WITH_OPS'
           grep -RIlE 'OPS[0-9]+' --exclude-dir=.git . | sort || true
+          echo 'SOURCE_FILES_WITH_NOV'
+          grep -RIlE 'NOV[0-9]+' --exclude-dir=.git . | sort || true
+          echo 'SOURCE_NOV_CONTEXT'
+          grep -RInE 'NOV[0-9]+' --exclude-dir=.git . | head -120 || true
           ORIGIN='https://noondealsnow.com'
-          curl -fsS --retry 4 --retry-delay 2 "$ORIGIN/?coupon-audit=1" -o /tmp/home.html
-          curl -fsS --retry 4 --retry-delay 2 "$ORIGIN/blog?coupon-audit=1" -o /tmp/blog.html
+          curl -fsS --retry 4 --retry-delay 2 "$ORIGIN/?coupon-audit=2" -o /tmp/home.html
+          curl -fsS --retry 4 --retry-delay 2 "$ORIGIN/blog?coupon-audit=2" -o /tmp/blog.html
           echo 'LIVE_HOME_CODES'
           grep -oE '(OPS|NOV)[0-9]+' /tmp/home.html | sort -u || true
           echo 'LIVE_BLOG_CODES'
           grep -oE '(OPS|NOV)[0-9]+' /tmp/blog.html | sort -u || true
-          slug="$(grep -oE '/articles/[^\"< ]+' /tmp/blog.html | head -1 | sed 's#^/articles/##' || true)"
-          echo "LIVE_SAMPLE_SLUG=$slug"
-          if [ -n "$slug" ]; then
-            curl -fsS --retry 4 --retry-delay 2 "$ORIGIN/articles/$slug?coupon-audit=1" -o /tmp/article.html
-            echo 'LIVE_ARTICLE_CODES'
-            grep -oE '(OPS|NOV)[0-9]+' /tmp/article.html | sort -u || true
-          fi
