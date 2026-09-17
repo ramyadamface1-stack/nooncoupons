@@ -65,9 +65,10 @@ async function bulkBlogPage(req,env,ctx){
 
 async function sitemapIndex(env,origin){
   const days=await r2json(env,'bulk/days.json',{days:[]});
-  const items=STATIC_SITEMAPS.map(n=>`${origin}/sitemap-${n}.xml`);
-  for(const d of days.days||[])for(let i=0;i<Number(d.shards||0);i++)items.push(`${origin}/sitemap-articles-${d.day}-${i}.xml`);
-  return `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${items.map(x=>`<sitemap><loc>${esc(x)}</loc></sitemap>`).join('')}</sitemapindex>`;
+  const items=[];
+  for(const d of days.days||[])for(let i=0;i<Number(d.shards||0);i++)items.push({loc:`${origin}/sitemap-articles-${d.day}-${i}.xml`,lastmod:d.updatedAt||`${d.day}T23:59:59.000Z`});
+  for(const n of STATIC_SITEMAPS)items.push({loc:`${origin}/sitemap-${n}.xml`,lastmod:null});
+  return `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${items.map(x=>`<sitemap><loc>${esc(x.loc)}</loc>${x.lastmod?`<lastmod>${esc(x.lastmod)}</lastmod>`:''}</sitemap>`).join('')}</sitemapindex>`;
 }
 
 async function articleSitemap(path,env,origin){
