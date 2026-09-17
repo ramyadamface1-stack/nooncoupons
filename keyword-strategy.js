@@ -46,7 +46,7 @@ function addSpecificity(kw,t,intent,s){
   for(const part of specificityParts(t,intent)){
     if(out.includes(part)){added++;continue}
     const candidate=clean(`${out} ${part}`);
-    if(candidate.length<=78){out=candidate;added++}
+    if(candidate.length<=70){out=candidate;added++}
   }
   if(added)return out;
   const sc=clean(s);
@@ -54,13 +54,13 @@ function addSpecificity(kw,t,intent,s){
     const base=clean(out.replace(sc,' '));
     for(const part of specificityParts(t,intent)){
       const candidate=clean(`${base} ${part}`);
-      if(candidate.length<=78)return candidate;
+      if(candidate.length<=70)return candidate;
     }
   }
   const modifier=clean(t.queryModifier);
   if(modifier){
     const compact=clean(`${fitKeywordWithoutScenario(t,intent)} ${modifier}`);
-    if(compact.length<=78)return compact;
+    if(compact.length<=70)return compact;
   }
   return out;
 }
@@ -96,13 +96,13 @@ const NO_SCENARIO_BUILDERS={
 };
 function fitKeywordWithoutScenario(t,intent){
   const kw=clean((NO_SCENARIO_BUILDERS[intent]||NO_SCENARIO_BUILDERS.decision)(t));
-  return kw.length<=78?kw:kw.slice(0,78).replace(/\s+\S*$/,'');
+  return kw.length<=70?kw:kw.slice(0,70).replace(/\s+\S*$/,'');
 }
 function fitKeyword(raw,t,intent,s){
   let kw=clean(raw);
-  if(kw.length<=78)return kw;
+  if(kw.length<=70)return kw;
   kw=fitKeywordWithoutScenario(t,intent);
-  return kw.length<=78?kw:kw.slice(0,78).replace(/\s+\S*$/,'');
+  return kw.length<=70?kw:kw.slice(0,70).replace(/\s+\S*$/,'');
 }
 
 export function applyKeywordStrategy(topic){
@@ -111,4 +111,4 @@ export function applyKeywordStrategy(topic){
   return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,keywordStrategy:'search-intent-v6-noon-hierarchy',keywordWordCount:words,searchIntentFamily:intent};
 }
 
-export const KEYWORD_STRATEGY_INFO={version:'search-intent-v6-noon-hierarchy',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,seasonalKeywords:true,seasonalMonth:freshness(),topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch'],maxRecommendedWords:16};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v6-noon-hierarchy',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,seasonalKeywords:true,seasonalMonth:freshness(),topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation'],maxRecommendedWords:16,maxKeywordCharacters:70};
