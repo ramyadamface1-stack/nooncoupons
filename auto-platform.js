@@ -10,7 +10,7 @@ import {BULK_ENGINE_INFO} from './bulk-generator.js';
 
 const VERSION='generator-5.0-quality-first';
 const PLATFORM_VERSION='platform-1.6-quality-first';
-const STATIC_SITEMAPS=['pages','categories','guides','coupons','coupons-saudi','coupons-uae'];
+const STATIC_SITEMAPS=['pages','guides','coupons','coupons-saudi','coupons-uae'];
 const now=()=>new Date().toISOString();
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
