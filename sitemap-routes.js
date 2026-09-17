@@ -1,5 +1,5 @@
 const ORIGIN='https://noondealsnow.com';
-const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58','OPS32','OPS56'];
+const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
 const TRUST=['/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer','/terms'];
 const MAPS=['/sitemap-pages.xml','/sitemap-categories.xml','/sitemap-articles.xml','/sitemap-coupons.xml','/sitemap-coupons-saudi.xml','/sitemap-coupons-uae.xml','/sitemap-stores.xml'];
 const xml=s=>new Response(s,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300'}});
