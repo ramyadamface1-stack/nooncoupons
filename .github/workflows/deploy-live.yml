@@ -26,11 +26,14 @@ jobs:
       - name: Validate worker source
         run: |
           set -euo pipefail
+          node --check discovery-entry.js
           node --check brand-runtime.js
           node --check network-entry.js
-          grep -Fq '"main": "brand-runtime.js"' wrangler.jsonc
+          grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "15000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
+          grep -Fq '/sitemap-priority.xml' discovery-entry.js
+          grep -Fq 'recentArticleLimit:500' discovery-entry.js
       - name: Select Cloudflare token with Workers access
         id: cf
         env:
@@ -92,13 +95,18 @@ jobs:
           grep -Fqi 'content-type: image/svg+xml' /tmp/fh
           grep -Fq '<svg' /tmp/favicon.svg
 
+          curl -fsS "$ORIGIN/sitemap.xml?deploy=$GITHUB_SHA" -D /tmp/sh -o /tmp/sitemap.xml
+          grep -Fq '/sitemap-priority.xml' /tmp/sitemap.xml
+          grep -Fqi 'x-priority-sitemap-discovery: v1' /tmp/sh
+          curl -fsS "$ORIGIN/sitemap-priority.xml?deploy=$GITHUB_SHA" -D /tmp/ph -o /tmp/priority.xml
+          grep -Fqi 'x-priority-sitemap: v1' /tmp/ph
+          grep -Fq '/saudi-arabia/noon-coupon-code' /tmp/priority.xml
+          grep -Fq '/uae/noon-coupon-code' /tmp/priority.xml
+          grep -Fq '/articles/' /tmp/priority.xml
+
           ARTICLE_PATH="$(python -c "import json,urllib.parse; s=json.load(open('/tmp/s.json')); slug=(s.get('last') or {}).get('slug'); print('/articles/'+urllib.parse.quote(slug,safe='') if slug else '')")"
           if [ -z "$ARTICLE_PATH" ]; then
-            curl -fsS "$ORIGIN/sitemap.xml?deploy=$GITHUB_SHA" -o /tmp/sitemap.xml
-            ARTICLE_SITEMAP="$(grep -Eo 'https://noondealsnow.com/sitemap-articles-[^<]+' /tmp/sitemap.xml | head -n1 || true)"
-            [ -n "$ARTICLE_SITEMAP" ] || ARTICLE_SITEMAP="$ORIGIN/sitemap-articles.xml"
-            curl -fsS "$ARTICLE_SITEMAP?deploy=$GITHUB_SHA" -o /tmp/articles.xml
-            ARTICLE_URL="$(grep -Eo 'https://noondealsnow.com/articles/[^<]+' /tmp/articles.xml | head -n1 || true)"
+            ARTICLE_URL="$(grep -Eo 'https://noondealsnow.com/articles/[^<]+' /tmp/priority.xml | head -n1 || true)"
             [ -n "$ARTICLE_URL" ] || { echo 'NO_ARTICLE_URL_FOR_LIVE_VERIFY'; exit 1; }
             ARTICLE_PATH="${ARTICLE_URL#$ORIGIN}"
           fi
