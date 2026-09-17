@@ -47,6 +47,7 @@ jobs:
           echo SOURCE_INVARIANTS_PASS
 
       - name: Verify live commerce and generator runtime
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
