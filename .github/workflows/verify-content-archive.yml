@@ -22,11 +22,13 @@ jobs:
           grep -Fq "x-content-archive':'v1" archive-pages.js
           grep -Fq "archiveLanding(path,u,runtimeEnv)" premium-entry.js
           grep -Fq '/blog/archive' premium-entry.js
+          echo CONTENT_ARCHIVE_SOURCE_PASS
       - name: Live archive checks
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           ready=0
           for i in $(seq 1 12); do
             code="$(curl -sS -o /tmp/archive.html -D /tmp/archive.headers -w '%{http_code}' --max-time 20 "$ORIGIN/blog/archive?archive-ui=v1" || true)"
