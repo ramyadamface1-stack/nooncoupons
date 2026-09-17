@@ -19,6 +19,7 @@ jobs:
           set -euo pipefail
           node --check keyword-pages.js
           node --check premium-entry.js
+          node --check discovery-entry.js
           node --check brand-runtime.js
           grep -Fq "2026-09-15-v1" keyword-pages.js
           grep -Fq "كود خصم نون 2026" keyword-pages.js
@@ -26,7 +27,8 @@ jobs:
           grep -Fq "كود خصم نون الإمارات 2026" keyword-pages.js
           grep -Fq "noon-discount-50" keyword-pages.js
           grep -Fq "noon-yellow-friday" keyword-pages.js
-          grep -Fq '"main": "brand-runtime.js"' wrangler.jsonc
+          grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
+          grep -Fq "import app from './brand-runtime.js'" discovery-entry.js
           echo 'KEYWORD_MAP_SOURCE=PASS'
       - name: Verify live keyword architecture when current runtime is deployed
         shell: bash
