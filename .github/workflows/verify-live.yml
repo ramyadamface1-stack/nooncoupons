@@ -26,9 +26,9 @@ jobs:
           echo CHECK_BULK_TARGET; grep -Fq '"BULK_DAILY_TARGET": "10000"' wrangler.jsonc
           echo CHECK_BULK_BATCH; grep -Fq '"BULK_BATCH_SIZE": "10"' wrangler.jsonc
           echo CHECK_CATCHUP_TOTAL; grep -Fq '"BULK_CATCHUP_TOTAL": "8000"' wrangler.jsonc
-          echo CHECK_CATCHUP_BATCH; grep -Eq '"BULK_CATCHUP_BATCH_SIZE": "(18|24)"' wrangler.jsonc
+          echo CHECK_CATCHUP_BATCH; grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "48"' wrangler.jsonc
           echo CHECK_CATCHUP_LOGIC; grep -Fq 'publishedTotal<catchupGoal?catchupBatch:steadyBatch' admin-runtime.js
-          echo CHECK_BATCH_CEILING; grep -Fq 'Math.min(24,Number(batchSize||3))' bulk-generator.js
+          echo CHECK_BATCH_CEILING; grep -Fq 'Math.min(48,Number(batchSize||3))' bulk-generator.js
           echo CHECK_QUALITY_THRESHOLD; grep -Fq '"QUALITY_PUBLISH_THRESHOLD": "95"' wrangler.jsonc
           echo CHECK_MIN_WORDS; grep -Fq '"MIN_ARTICLE_WORDS": "1000"' wrangler.jsonc
           echo CHECK_INDEXNOW_ENABLED; grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
