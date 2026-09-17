@@ -1,0 +1,45 @@
+name: Switch Bulk Generator To NOV
+
+on:
+  push:
+    paths:
+      - '.github/workflows/switch-bulk-to-nov.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch bulk coupon source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('bulk-content-engine-base.js')
+          s=p.read_text()
+          old="const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];"
+          new="const CODES=['NOV153','NOV157','NOV161','NOV163','NOV170','NOV174','NOV177','NOV186','NOV188','NOV195'];"
+          if old not in s:
+              raise SystemExit('expected OPS bulk code list not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check bulk-content-engine-base.js
+          grep -q "NOV195" bulk-content-engine-base.js
+          if grep -qE "^const CODES=.*OPS" bulk-content-engine-base.js; then
+            echo 'OPS still present in bulk CODES' >&2
+            exit 1
+          fi
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add bulk-content-engine-base.js
+          git commit -m 'Use approved NOV coupons in bulk generator'
+          git push
