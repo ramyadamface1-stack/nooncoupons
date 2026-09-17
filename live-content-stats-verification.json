@@ -1,0 +1,33 @@
+{
+  "runId": "35237726223",
+  "capturedAt": "2026-09-17T15:03:47Z",
+  "endpoint": {
+    "httpA": "200",
+    "httpB": "200",
+    "validJsonA": true,
+    "validJsonB": true,
+    "r2UploadedA": "null",
+    "r2UploadedB": "null",
+    "total": "11626",
+    "arabic": "11606",
+    "english": "20",
+    "source": "live-runtime",
+    "generatedAtA": "2026-09-17T15:03:42.760Z",
+    "generatedAtB": "2026-09-17T15:03:46.864Z",
+    "cacheControl": "no-store",
+    "cfCacheStatus": "",
+    "age": "",
+    "bodyA": "{\n  \"ok\": true,\n  \"total\": 11626,\n  \"arabic\": 11606,\n  \"english\": 20,\n  \"englishByCountry\": {\n    \"SA\": 10,\n    \"AE\": 10\n  },\n  \"publishedTodayArabic\": 6316,\n  \"dailyTargetArabic\": 10000,\n  \"last\": {\n    \"slug\": \"هل-كود-نون-يعمل-على-مستلزمات-المدرسة-في-السعودية-دراسة\",\n    \"quality\": 100,\n    \"wordCount\": 1598,\n    \"run\": \"2026-09-17T15:03:13.512Z\",\n    \"error\": null\n  },\n  \"englishControlled\": {\n    \"target\": 20,\n    \"complete\": true,\n    \"remaining\": 0\n  },\n  \"source\": \"live-runtime\",\n  \"generatedAt\": \"2026-09-17T15:03:42.760Z\"\n}",
+    "bodyB": "{\n  \"ok\": true,\n  \"total\": 11626,\n  \"arabic\": 11606,\n  \"english\": 20,\n  \"englishByCountry\": {\n    \"SA\": 10,\n    \"AE\": 10\n  },\n  \"publishedTodayArabic\": 6316,\n  \"dailyTargetArabic\": 10000,\n  \"last\": {\n    \"slug\": \"هل-كود-نون-يعمل-على-مستلزمات-المدرسة-في-السعودية-دراسة\",\n    \"quality\": 100,\n    \"wordCount\": 1598,\n    \"run\": \"2026-09-17T15:03:13.512Z\",\n    \"error\": null\n  },\n  \"englishControlled\": {\n    \"target\": 20,\n    \"complete\": true,\n    \"remaining\": 0\n  },\n  \"source\": \"live-runtime\",\n  \"generatedAt\": \"2026-09-17T15:03:46.864Z\"\n}",
+    "headersA": "HTTP/2 200 \r\ndate: Thu, 17 Sep 2026 15:03:42 GMT\r\ncontent-type: application/json; charset=utf-8\r\ncontent-length: 582\r\ncache-control: no-store\r\nreport-to: {\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=N69oeNoVVwx6nB8c7so0k3m7RYHJmvG84IQ7NSWD%2B9Do%2BChDJxI7zHKsvbV9Rou%2BQw%2B9a1bflkv0RbbTAZKIIV1fjWp6sp8NqwePz2SLCil6CuJTd4D6AedNq3nP5%2B9cg%2B5D\"}]}\r\nnel: {\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}\r\nserver: cloudflare\r\ncf-ray: a3c8ffc1cc71bd32-ATL\r\nalt-svc: h3=\":443\"; ma=86400\r\n\r\n"
+  },
+  "cloudflare": {
+    "scriptHttp": "403",
+    "hasContentStats": false,
+    "hasR2List": false,
+    "hasNoStore": false,
+    "deploymentsHttp": "403",
+    "deploymentId": "unknown",
+    "deploymentCreated": "unknown"
+  }
+}
