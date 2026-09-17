@@ -1,0 +1,91 @@
+name: Verify Live Content Stats Once
+
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-live-content-stats-once.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
+      WORKER_NAME: nooncoupons
+      CF_TOKEN_1: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CF_TOKEN_2: ${{ secrets.CLOUDFLARE_TOKEN }}
+      CF_TOKEN_3: ${{ secrets.CF_API_TOKEN }}
+    steps:
+      - name: Verify live R2-backed counter and deployed Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://noondealsnow.com/api/content-stats'
+          fetch_once(){
+            local tag="$1"
+            curl -sS -D "headers-${tag}.txt" -o "body-${tag}.json" \
+              -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
+              "${base}?verify=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${tag}-$(date +%s%N)"
+          }
+          fetch_once a
+          sleep 2
+          fetch_once b
+
+          jq -e '.ok == true' body-a.json >/dev/null
+          jq -e '.source == "live-runtime"' body-a.json >/dev/null
+          jq -e '.r2Uploaded | type == "number" and . >= 0' body-a.json >/dev/null
+          jq -e '.r2Uploaded | type == "number" and . >= 0' body-b.json >/dev/null
+
+          R2_A=$(jq -r '.r2Uploaded' body-a.json)
+          R2_B=$(jq -r '.r2Uploaded' body-b.json)
+          TOTAL_A=$(jq -r '.total' body-a.json)
+          AR_A=$(jq -r '.arabic' body-a.json)
+          EN_A=$(jq -r '.english' body-a.json)
+          SRC_A=$(jq -r '.source' body-a.json)
+          GEN_A=$(jq -r '.generatedAt' body-a.json)
+          GEN_B=$(jq -r '.generatedAt' body-b.json)
+          CC_A=$(awk 'BEGIN{IGNORECASE=1} /^cache-control:/{sub(/^[^:]+:[[:space:]]*/,""); gsub(/\r/,""); print; exit}' headers-a.txt)
+          CF_A=$(awk 'BEGIN{IGNORECASE=1} /^cf-cache-status:/{sub(/^[^:]+:[[:space:]]*/,""); gsub(/\r/,""); print; exit}' headers-a.txt)
+          AGE_A=$(awk 'BEGIN{IGNORECASE=1} /^age:/{sub(/^[^:]+:[[:space:]]*/,""); gsub(/\r/,""); print; exit}' headers-a.txt)
+
+          if [[ "$CC_A" != *no-store* ]]; then
+            echo "Expected cache-control no-store, got: $CC_A"
+            exit 10
+          fi
+          if [ "$GEN_A" = "$GEN_B" ]; then
+            echo "generatedAt did not change across nonce requests"
+            exit 11
+          fi
+          if [ "$R2_A" != "$R2_B" ]; then
+            echo "::notice title=R2_COUNT_CHANGED::first=$R2_A; second=$R2_B"
+          fi
+          echo "::notice title=LIVE_CONTENT_STATS::r2Uploaded=$R2_B; total=$TOTAL_A; arabic=$AR_A; english=$EN_A; source=$SRC_A; generatedAtFirst=$GEN_A; generatedAtSecond=$GEN_B; cacheControl=${CC_A:-none}; cfCacheStatus=${CF_A:-none}; age=${AGE_A:-none}"
+
+          TOKEN="${CF_TOKEN_1:-${CF_TOKEN_2:-${CF_TOKEN_3:-}}}"
+          if [ -z "$TOKEN" ]; then
+            echo "::notice title=CLOUDFLARE_SCRIPT::token=missing; scriptCheck=skipped"
+            exit 0
+          fi
+
+          SCRIPT_HTTP=$(curl -sS -o worker-script.bin -w '%{http_code}' \
+            -H "Authorization: Bearer $TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/scripts/${WORKER_NAME}")
+          HAS_STATS=0; HAS_R2_LIST=0; HAS_NOSTORE=0
+          grep -a -q '/api/content-stats' worker-script.bin && HAS_STATS=1 || true
+          grep -a -q 'CONTENT_FINAL.list' worker-script.bin && HAS_R2_LIST=1 || true
+          grep -a -q "cache-control.*no-store\|no-store" worker-script.bin && HAS_NOSTORE=1 || true
+
+          DEPLOY_HTTP=$(curl -sS -o deployments.json -w '%{http_code}' \
+            -H "Authorization: Bearer $TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/scripts/${WORKER_NAME}/deployments")
+          DEPLOY_ID=$(jq -r '.result.deployments[0].id // .result[0].id // "unknown"' deployments.json 2>/dev/null || echo unknown)
+          DEPLOY_CREATED=$(jq -r '.result.deployments[0].created_on // .result[0].created_on // "unknown"' deployments.json 2>/dev/null || echo unknown)
+          echo "::notice title=CLOUDFLARE_SCRIPT::scriptHttp=$SCRIPT_HTTP; hasContentStats=$HAS_STATS; hasR2List=$HAS_R2_LIST; hasNoStore=$HAS_NOSTORE; deploymentsHttp=$DEPLOY_HTTP; deploymentId=$DEPLOY_ID; deploymentCreated=$DEPLOY_CREATED"
+
+          if [ "$SCRIPT_HTTP" = "200" ] && { [ "$HAS_STATS" -ne 1 ] || [ "$HAS_R2_LIST" -ne 1 ]; }; then
+            echo 'Cloudflare script is readable but missing expected live-counter signatures.'
+            exit 12
+          fi
