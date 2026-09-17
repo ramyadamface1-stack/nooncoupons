@@ -1,12 +1,15 @@
+import {expandNoonTopic,NOON_TOPIC_EXPANSION_INFO} from './noon-topic-expansion.js';
+
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const MONTHS_AR=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
 const freshness=()=>{const d=new Date();return `${MONTHS_AR[d.getUTCMonth()]} ${d.getUTCFullYear()}`};
 const HIGH_VALUE_SCENARIOS=new Set(['وقت العروض','قبل الدفع','للطلب الأول','لحساب حالي','عند رفض الكود']);
+const SEASONAL_INTENTS=new Set(['coupon','compare','finalprice','value','timing','smartbuy','eligibility','checklist','budget']);
 function commercialFreshness(t,intent,s){
-  if(intent!=='coupon')return '';
-  if(!HIGH_VALUE_SCENARIOS.has(t.scenario)&&!HIGH_VALUE_SCENARIOS.has(s))return '';
-  return freshness();
+  if(intent==='coupon'&&(HIGH_VALUE_SCENARIOS.has(t.scenario)||HIGH_VALUE_SCENARIOS.has(s)))return freshness();
+  if(SEASONAL_INTENTS.has(intent)&&t.seasonalTerm)return t.seasonalTerm;
+  return '';
 }
 
 const SCENARIO_MAP={
@@ -43,7 +46,7 @@ function addSpecificity(kw,t,intent,s){
   for(const part of specificityParts(t,intent)){
     if(out.includes(part)){added++;continue}
     const candidate=clean(`${out} ${part}`);
-    if(candidate.length<=70){out=candidate;added++}
+    if(candidate.length<=78){out=candidate;added++}
   }
   if(added)return out;
   const sc=clean(s);
@@ -51,13 +54,13 @@ function addSpecificity(kw,t,intent,s){
     const base=clean(out.replace(sc,' '));
     for(const part of specificityParts(t,intent)){
       const candidate=clean(`${base} ${part}`);
-      if(candidate.length<=70)return candidate;
+      if(candidate.length<=78)return candidate;
     }
   }
   const modifier=clean(t.queryModifier);
   if(modifier){
     const compact=clean(`${fitKeywordWithoutScenario(t,intent)} ${modifier}`);
-    if(compact.length<=70)return compact;
+    if(compact.length<=78)return compact;
   }
   return out;
 }
@@ -65,22 +68,22 @@ function addSpecificity(kw,t,intent,s){
 const BUILDERS={
   coupon:(t,s)=>`كود خصم نون ${market(t)} على ${cat(t)} ${commercialFreshness(t,'coupon',s)} ${s}`,
   howto:(t,s)=>`استخدام كود نون ${market(t)} مع ${cat(t)} ${s}`,
-  compare:(t,s)=>`مقارنة سعر ${cat(t)} على نون ${market(t)} ${s}`,
+  compare:(t,s)=>`مقارنة سعر ${cat(t)} على نون ${market(t)} ${commercialFreshness(t,'compare',s)} ${s}`,
   trouble:(t,s)=>`كود نون لا يعمل على ${cat(t)} في ${market(t)} ${s}`,
   question:(t,s)=>`هل كود نون يعمل على ${cat(t)} في ${market(t)} ${s}`,
   seller:(t,s)=>`اختيار بائع ${cat(t)} على نون ${market(t)} ${s}`,
   decision:(t,s)=>`دليل شراء ${cat(t)} من نون ${market(t)} ${s}`,
-  finalprice:(t,s)=>`سعر ${cat(t)} النهائي على نون ${market(t)} ${s}`,
-  value:(t,s)=>`التوفير عند شراء ${cat(t)} من نون ${market(t)} ${s}`,
+  finalprice:(t,s)=>`سعر ${cat(t)} النهائي على نون ${market(t)} ${commercialFreshness(t,'finalprice',s)} ${s}`,
+  value:(t,s)=>`التوفير عند شراء ${cat(t)} من نون ${market(t)} ${commercialFreshness(t,'value',s)} ${s}`,
   cart:(t,s)=>`مراجعة سلة ${cat(t)} على نون ${market(t)} ${s}`,
-  timing:(t,s)=>`متى تستخدم كود نون مع ${cat(t)} في ${market(t)} ${s}`,
-  smartbuy:(t,s)=>`شراء ${cat(t)} من نون ${market(t)} بذكاء ${s}`,
-  eligibility:(t,s)=>`شروط كود نون على ${cat(t)} في ${market(t)} ${s}`,
-  checklist:(t,s)=>`قبل شراء ${cat(t)} من نون ${market(t)} ${s}`,
+  timing:(t,s)=>`متى تستخدم كود نون مع ${cat(t)} في ${market(t)} ${commercialFreshness(t,'timing',s)} ${s}`,
+  smartbuy:(t,s)=>`شراء ${cat(t)} من نون ${market(t)} بذكاء ${commercialFreshness(t,'smartbuy',s)} ${s}`,
+  eligibility:(t,s)=>`شروط كود نون على ${cat(t)} في ${market(t)} ${commercialFreshness(t,'eligibility',s)} ${s}`,
+  checklist:(t,s)=>`قبل شراء ${cat(t)} من نون ${market(t)} ${commercialFreshness(t,'checklist',s)} ${s}`,
   multi:(t,s)=>`كود نون لشراء عدة منتجات ${cat(t)} في ${market(t)} ${s}`,
   returns:(t,s)=>`إرجاع ${cat(t)} وكوبون نون ${market(t)} ${s}`,
   warranty:(t,s)=>`ضمان ${cat(t)} وكوبون نون ${market(t)} ${s}`,
-  budget:(t)=>`شراء ${cat(t)} من نون ${market(t)} بميزانية محددة`
+  budget:(t)=>`شراء ${cat(t)} من نون ${market(t)} بميزانية محددة ${commercialFreshness(t,'budget','')}`
 };
 
 const NO_SCENARIO_BUILDERS={
@@ -93,19 +96,19 @@ const NO_SCENARIO_BUILDERS={
 };
 function fitKeywordWithoutScenario(t,intent){
   const kw=clean((NO_SCENARIO_BUILDERS[intent]||NO_SCENARIO_BUILDERS.decision)(t));
-  return kw.length<=70?kw:kw.slice(0,70).replace(/\s+\S*$/,'');
+  return kw.length<=78?kw:kw.slice(0,78).replace(/\s+\S*$/,'');
 }
 function fitKeyword(raw,t,intent,s){
   let kw=clean(raw);
-  if(kw.length<=70)return kw;
+  if(kw.length<=78)return kw;
   kw=fitKeywordWithoutScenario(t,intent);
-  return kw.length<=70?kw:kw.slice(0,70).replace(/\s+\S*$/,'');
+  return kw.length<=78?kw:kw.slice(0,78).replace(/\s+\S*$/,'');
 }
 
 export function applyKeywordStrategy(topic){
-  const rawIntent=topic.intent,intent=effectiveIntent(topic),s=scenario(topic,intent),builder=BUILDERS[intent]||BUILDERS.decision;
-  const baseKw=fitKeyword(builder(topic,s),topic,intent,s),kw=addSpecificity(baseKw,topic,intent,s),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
-  return {...topic,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||topic.intentLabel||'دليل',kw,slug,title,keywordStrategy:'search-intent-v5-diversity',keywordWordCount:words,searchIntentFamily:intent};
+  const expanded=expandNoonTopic(topic,topic.topicIndex??topic.diversitySeed??0),rawIntent=expanded.intent,intent=effectiveIntent(expanded),s=scenario(expanded,intent),builder=BUILDERS[intent]||BUILDERS.decision;
+  const baseKw=fitKeyword(builder(expanded,s),expanded,intent,s),kw=addSpecificity(baseKw,expanded,intent,s),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
+  return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,keywordStrategy:'search-intent-v6-noon-hierarchy',keywordWordCount:words,searchIntentFamily:intent};
 }
 
-export const KEYWORD_STRATEGY_INFO={version:'search-intent-v5-diversity',philosophy:'natural-query-first-with-diversity',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch'],maxRecommendedWords:14};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v6-noon-hierarchy',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,seasonalKeywords:true,seasonalMonth:freshness(),topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch'],maxRecommendedWords:16};
