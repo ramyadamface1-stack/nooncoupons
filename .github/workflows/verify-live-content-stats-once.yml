@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/verify-live-content-stats-once.yml'
       - 'generator-core-v2.js'
+      - 'wrangler.jsonc'
 
 permissions:
   contents: write
@@ -55,16 +56,14 @@ jobs:
           base='https://noondealsnow.com/api/content-stats'
           HTTP_A=000; HTTP_B=000; VALID_A=false; VALID_B=false
           : > body-a.txt; : > body-b.txt; : > headers-a.txt; : > headers-b.txt
-          if [ "$DEPLOY_OK" -eq 1 ]; then
-            for attempt in $(seq 1 15); do
-              HTTP_A=$(curl -sS -L -D headers-a.txt -o body-a.txt -w '%{http_code}' -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "${base}?verify=${GITHUB_RUN_ID}-a-${attempt}-$(date +%s%N)" || echo 000)
-              if jq -e '.ok==true and .source=="live-runtime" and (.r2Uploaded|type=="number")' body-a.txt >/dev/null 2>&1; then VALID_A=true; break; fi
-              sleep 4
-            done
-            sleep 2
-            HTTP_B=$(curl -sS -L -D headers-b.txt -o body-b.txt -w '%{http_code}' -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "${base}?verify=${GITHUB_RUN_ID}-b-$(date +%s%N)" || echo 000)
-            jq -e '.ok==true and .source=="live-runtime" and (.r2Uploaded|type=="number")' body-b.txt >/dev/null 2>&1 && VALID_B=true || true
-          fi
+          for attempt in $(seq 1 15); do
+            HTTP_A=$(curl -sS -L -D headers-a.txt -o body-a.txt -w '%{http_code}' -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "${base}?verify=${GITHUB_RUN_ID}-a-${attempt}-$(date +%s%N)" || echo 000)
+            if jq -e '.ok==true and .source=="live-runtime" and (.r2Uploaded|type=="number")' body-a.txt >/dev/null 2>&1; then VALID_A=true; break; fi
+            sleep 4
+          done
+          sleep 2
+          HTTP_B=$(curl -sS -L -D headers-b.txt -o body-b.txt -w '%{http_code}' -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "${base}?verify=${GITHUB_RUN_ID}-b-$(date +%s%N)" || echo 000)
+          jq -e '.ok==true and .source=="live-runtime" and (.r2Uploaded|type=="number")' body-b.txt >/dev/null 2>&1 && VALID_B=true || true
 
           field(){ jq -r "$1 // \"null\"" body-a.txt 2>/dev/null || echo null; }
           R2_A=$(field '.r2Uploaded')
