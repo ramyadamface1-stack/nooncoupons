@@ -85,16 +85,30 @@ async function augmentRootSitemap(res,origin){
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
+async function augmentRobots(res,origin){
+  if(!res.ok)return res;
+  const type=(res.headers.get('content-type')||'').toLowerCase();
+  if(type&&!type.includes('text/plain'))return res;
+  let body=await res.text();
+  const root=`Sitemap: ${origin}/sitemap.xml`;
+  const priority=`Sitemap: ${origin}/sitemap-priority.xml`;
+  if(!body.includes(root))body=(body.trimEnd()+`\n${root}\n`).replace(/^\n+/, '');
+  if(!body.includes(priority))body=(body.trimEnd()+`\n${priority}\n`).replace(/^\n+/, '');
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-priority-sitemap-robots','v1');
+  return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
+}
+
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
     if(req.method==='GET'&&u.pathname==='/sitemap-priority.xml')return prioritySitemap(env,origin);
     let res=await app.fetch(req,env,ctx);
     if(req.method==='GET'&&u.pathname==='/sitemap.xml')res=await augmentRootSitemap(res,origin);
+    if(req.method==='GET'&&u.pathname==='/robots.txt')res=await augmentRobots(res,origin);
     res=await injectDiscoveryLinks(req,env,res);
     return res;
   },
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const DISCOVERY_ENTRY_INFO={version:2,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyCommercialPages:9,discoveryLinks:true,discoveryLinkCount:12,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:3,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyCommercialPages:9,discoveryLinks:true,discoveryLinkCount:12,robotsPrioritySitemap:true,manifestCacheSeconds:120};
