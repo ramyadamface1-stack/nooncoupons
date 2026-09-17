@@ -1,4 +1,4 @@
-name: Verify Live Content Stats Once
+name: Deploy And Verify R2 Counter Once
 
 on:
   push:
@@ -9,94 +9,94 @@ permissions:
   contents: write
 
 jobs:
-  verify:
+  deploy_verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 12
     env:
-      ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
+      CLOUDFLARE_ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
       WORKER_NAME: nooncoupons
       CF_TOKEN_1: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CF_TOKEN_2: ${{ secrets.CLOUDFLARE_TOKEN }}
       CF_TOKEN_3: ${{ secrets.CF_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
-      - name: Capture live endpoint and deployed Worker evidence
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install exact Wrangler dependency
+        run: npm install --ignore-scripts
+      - name: Deploy current main to existing Worker and verify live R2 counter
         shell: bash
         run: |
           set -u
-          base='https://noondealsnow.com/api/content-stats'
-          fetch_once(){
-            local tag="$1"
-            curl -sS -L -D "headers-${tag}.txt" -o "body-${tag}.txt" -w '%{http_code}' \
-              -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' \
-              "${base}?verify=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${tag}-$(date +%s%N)" > "http-${tag}.txt" || echo 000 > "http-${tag}.txt"
-          }
-          fetch_once a
-          sleep 2
-          fetch_once b
+          DEPLOY_OK=0
+          TOKEN_SLOT=none
+          DEPLOY_LOG=''
+          i=0
+          for TOKEN in "${CF_TOKEN_1:-}" "${CF_TOKEN_2:-}" "${CF_TOKEN_3:-}"; do
+            i=$((i+1))
+            [ -n "$TOKEN" ] || continue
+            echo "Trying configured Cloudflare credential slot $i"
+            set +e
+            OUTPUT=$(CLOUDFLARE_API_TOKEN="$TOKEN" CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" npx wrangler deploy --config wrangler.jsonc 2>&1)
+            RC=$?
+            set -e
+            SAFE=$(printf '%s' "$OUTPUT" | sed -E 's/(Bearer|token|api[_ -]?token)[^[:space:]]*/[redacted]/Ig' | tail -n 60)
+            if [ "$RC" -eq 0 ]; then
+              DEPLOY_OK=1
+              TOKEN_SLOT="$i"
+              DEPLOY_LOG="$SAFE"
+              break
+            fi
+            DEPLOY_LOG="slot $i failed (exit $RC)\n$SAFE"
+          done
 
-          HTTP_A=$(cat http-a.txt)
-          HTTP_B=$(cat http-b.txt)
+          base='https://noondealsnow.com/api/content-stats'
+          HTTP_A=000; HTTP_B=000; VALID_A=false; VALID_B=false
+          : > body-a.txt; : > body-b.txt; : > headers-a.txt; : > headers-b.txt
+          if [ "$DEPLOY_OK" -eq 1 ]; then
+            for attempt in $(seq 1 15); do
+              HTTP_A=$(curl -sS -L -D headers-a.txt -o body-a.txt -w '%{http_code}' -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "${base}?verify=${GITHUB_RUN_ID}-a-${attempt}-$(date +%s%N)" || echo 000)
+              if jq -e '.ok==true and .source=="live-runtime" and (.r2Uploaded|type=="number")' body-a.txt >/dev/null 2>&1; then VALID_A=true; break; fi
+              sleep 4
+            done
+            sleep 2
+            HTTP_B=$(curl -sS -L -D headers-b.txt -o body-b.txt -w '%{http_code}' -H 'Cache-Control: no-cache' -H 'Pragma: no-cache' "${base}?verify=${GITHUB_RUN_ID}-b-$(date +%s%N)" || echo 000)
+            jq -e '.ok==true and .source=="live-runtime" and (.r2Uploaded|type=="number")' body-b.txt >/dev/null 2>&1 && VALID_B=true || true
+          fi
+
+          field(){ jq -r "$1 // \"null\"" body-a.txt 2>/dev/null || echo null; }
+          R2_A=$(field '.r2Uploaded')
+          TOTAL_A=$(field '.total')
+          AR_A=$(field '.arabic')
+          EN_A=$(field '.english')
+          SRC_A=$(field '.source')
+          GEN_A=$(field '.generatedAt')
+          R2_B=$(jq -r '.r2Uploaded // "null"' body-b.txt 2>/dev/null || echo null)
+          GEN_B=$(jq -r '.generatedAt // "null"' body-b.txt 2>/dev/null || echo null)
           CC_A=$(awk 'BEGIN{IGNORECASE=1} /^cache-control:/{sub(/^[^:]+:[[:space:]]*/,""); gsub(/\r/,""); v=$0} END{print v}' headers-a.txt)
           CF_A=$(awk 'BEGIN{IGNORECASE=1} /^cf-cache-status:/{sub(/^[^:]+:[[:space:]]*/,""); gsub(/\r/,""); v=$0} END{print v}' headers-a.txt)
           AGE_A=$(awk 'BEGIN{IGNORECASE=1} /^age:/{sub(/^[^:]+:[[:space:]]*/,""); gsub(/\r/,""); v=$0} END{print v}' headers-a.txt)
 
-          VALID_A=false; VALID_B=false
-          jq -e . body-a.txt >/dev/null 2>&1 && VALID_A=true || true
-          jq -e . body-b.txt >/dev/null 2>&1 && VALID_B=true || true
-          if [ "$VALID_A" = true ]; then
-            R2_A=$(jq -r '.r2Uploaded // "null"' body-a.txt)
-            TOTAL_A=$(jq -r '.total // "null"' body-a.txt)
-            AR_A=$(jq -r '.arabic // "null"' body-a.txt)
-            EN_A=$(jq -r '.english // "null"' body-a.txt)
-            SRC_A=$(jq -r '.source // "null"' body-a.txt)
-            GEN_A=$(jq -r '.generatedAt // "null"' body-a.txt)
-          else
-            R2_A=null; TOTAL_A=null; AR_A=null; EN_A=null; SRC_A=null; GEN_A=null
-          fi
-          if [ "$VALID_B" = true ]; then
-            R2_B=$(jq -r '.r2Uploaded // "null"' body-b.txt)
-            GEN_B=$(jq -r '.generatedAt // "null"' body-b.txt)
-          else
-            R2_B=null; GEN_B=null
-          fi
-
-          TOKEN="${CF_TOKEN_1:-${CF_TOKEN_2:-${CF_TOKEN_3:-}}}"
-          SCRIPT_HTTP=skipped; HAS_STATS=0; HAS_R2_LIST=0; HAS_NOSTORE=0; DEPLOY_HTTP=skipped; DEPLOY_ID=unknown; DEPLOY_CREATED=unknown
-          if [ -n "$TOKEN" ]; then
-            SCRIPT_HTTP=$(curl -sS -o worker-script.bin -w '%{http_code}' \
-              -H "Authorization: Bearer $TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/scripts/${WORKER_NAME}" || echo 000)
-            grep -a -q '/api/content-stats' worker-script.bin 2>/dev/null && HAS_STATS=1 || true
-            grep -a -q 'CONTENT_FINAL.list' worker-script.bin 2>/dev/null && HAS_R2_LIST=1 || true
-            grep -a -q 'no-store' worker-script.bin 2>/dev/null && HAS_NOSTORE=1 || true
-            DEPLOY_HTTP=$(curl -sS -o deployments.json -w '%{http_code}' \
-              -H "Authorization: Bearer $TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/scripts/${WORKER_NAME}/deployments" || echo 000)
-            DEPLOY_ID=$(jq -r '.result.deployments[0].id // .result[0].id // "unknown"' deployments.json 2>/dev/null || echo unknown)
-            DEPLOY_CREATED=$(jq -r '.result.deployments[0].created_on // .result[0].created_on // "unknown"' deployments.json 2>/dev/null || echo unknown)
-          fi
-
           jq -n \
-            --arg runId "$GITHUB_RUN_ID" --arg capturedAt "$(date -u +%FT%TZ)" \
-            --arg httpA "$HTTP_A" --arg httpB "$HTTP_B" --arg cacheControl "$CC_A" --arg cfCacheStatus "$CF_A" --arg age "$AGE_A" \
-            --arg validA "$VALID_A" --arg validB "$VALID_B" \
-            --arg r2A "$R2_A" --arg r2B "$R2_B" --arg total "$TOTAL_A" --arg arabic "$AR_A" --arg english "$EN_A" --arg source "$SRC_A" --arg generatedAtA "$GEN_A" --arg generatedAtB "$GEN_B" \
-            --arg scriptHttp "$SCRIPT_HTTP" --arg hasStats "$HAS_STATS" --arg hasR2List "$HAS_R2_LIST" --arg hasNoStore "$HAS_NOSTORE" --arg deployHttp "$DEPLOY_HTTP" --arg deployId "$DEPLOY_ID" --arg deployCreated "$DEPLOY_CREATED" \
-            --rawfile bodyA body-a.txt --rawfile bodyB body-b.txt --rawfile headersA headers-a.txt \
-            '{runId:$runId,capturedAt:$capturedAt,endpoint:{httpA:$httpA,httpB:$httpB,validJsonA:($validA=="true"),validJsonB:($validB=="true"),r2UploadedA:$r2A,r2UploadedB:$r2B,total:$total,arabic:$arabic,english:$english,source:$source,generatedAtA:$generatedAtA,generatedAtB:$generatedAtB,cacheControl:$cacheControl,cfCacheStatus:$cfCacheStatus,age:$age,bodyA:$bodyA,bodyB:$bodyB,headersA:$headersA},cloudflare:{scriptHttp:$scriptHttp,hasContentStats:($hasStats=="1"),hasR2List:($hasR2List=="1"),hasNoStore:($hasNoStore=="1"),deploymentsHttp:$deployHttp,deploymentId:$deployId,deploymentCreated:$deployCreated}}' > live-content-stats-verification.json
+            --arg capturedAt "$(date -u +%FT%TZ)" --arg deployOk "$DEPLOY_OK" --arg tokenSlot "$TOKEN_SLOT" --arg deployLog "$DEPLOY_LOG" \
+            --arg httpA "$HTTP_A" --arg httpB "$HTTP_B" --arg validA "$VALID_A" --arg validB "$VALID_B" \
+            --arg r2A "$R2_A" --arg r2B "$R2_B" --arg total "$TOTAL_A" --arg arabic "$AR_A" --arg english "$EN_A" --arg source "$SRC_A" --arg genA "$GEN_A" --arg genB "$GEN_B" \
+            --arg cc "$CC_A" --arg cf "$CF_A" --arg age "$AGE_A" --rawfile bodyA body-a.txt --rawfile bodyB body-b.txt \
+            '{capturedAt:$capturedAt,deployment:{ok:($deployOk=="1"),credentialSlot:$tokenSlot,log:$deployLog},endpoint:{httpA:$httpA,httpB:$httpB,validR2CounterA:($validA=="true"),validR2CounterB:($validB=="true"),r2UploadedA:$r2A,r2UploadedB:$r2B,total:$total,arabic:$arabic,english:$english,source:$source,generatedAtA:$genA,generatedAtB:$genB,cacheControl:$cc,cfCacheStatus:$cf,age:$age,bodyA:$bodyA,bodyB:$bodyB}}' > live-content-stats-verification.json
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add live-content-stats-verification.json
-          git commit -m 'Record live content stats verification [skip ci]' || true
-          git push
+          git commit -m 'Record deployed R2 counter verification [skip ci]' || true
+          git pull --rebase origin main || true
+          git push || true
 
+          test "$DEPLOY_OK" -eq 1
           test "$HTTP_A" = 200
           test "$HTTP_B" = 200
           test "$VALID_A" = true
           test "$VALID_B" = true
-          jq -e '.ok == true and .source == "live-runtime" and (.r2Uploaded|type=="number")' body-a.txt >/dev/null
-          jq -e '.ok == true and .source == "live-runtime" and (.r2Uploaded|type=="number")' body-b.txt >/dev/null
           [[ "$CC_A" == *no-store* ]]
           test "$GEN_A" != "$GEN_B"
+          test "$R2_A" = "$R2_B"
