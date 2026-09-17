@@ -1,4 +1,4 @@
-import {APPROVED_COUPON_CODES,isApprovedCoupon} from './approved-coupons.js';
+import {APPROVED_COUPON_CODES,isApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 
 const DAY=86400000;
 const OWNER_CATALOG_UPDATED_AT='2026-09-17T00:00:00.000Z';
@@ -39,10 +39,16 @@ export function couponStatus(topic,at=new Date()){
 
 export function injectCouponFreshness(article,status){
   if(!article?.html||!status)return article;
+  const approved=status.code||APPROVED_COUPON_CODES[0];
+  article.html=replaceUnapprovedCouponTokens(article.html,approved);
+  if(article.title)article.title=replaceUnapprovedCouponTokens(article.title,approved);
+  if(article.metaDescription)article.metaDescription=replaceUnapprovedCouponTokens(article.metaDescription,approved);
+  if(article.primaryKeyword)article.primaryKeyword=replaceUnapprovedCouponTokens(article.primaryKeyword,approved);
   const date=String(status.catalogUpdatedAt||'').slice(0,10);
-  const section=`<section class="coupon-freshness" data-coupon-state="${status.state}"><h2>حالة الكوبون وطريقة التحقق</h2><p>الكود <strong>${status.code}</strong> موجود في قائمة الأكواد المعتمدة من مالك الموقع، وآخر تحديث للقائمة كان ${date||'غير محدد'}. هذا لا يعني ضمان قبوله لكل حساب أو سلة؛ شروط نون الحالية وصفحة الدفع هما المرجع النهائي.</p><p>لا ننسب للكود نسبة خصم أو مبلغ توفير ثابت من دون مصدر رسمي. إذا تغيّرت أهلية الحساب أو البائع أو المنتج أو طريقة الدفع، اختبر الكود على نفس السلة وسجّل الإجمالي قبل وبعد التطبيق.</p></section>`;
+  const section=`<section class="coupon-freshness" data-coupon-state="${status.state}"><h2>حالة الكوبون وطريقة التحقق</h2><p>الكود <strong>${approved}</strong> موجود في قائمة الأكواد المعتمدة من مالك الموقع، وآخر تحديث للقائمة كان ${date||'غير محدد'}. هذا لا يعني ضمان قبوله لكل حساب أو سلة؛ شروط نون الحالية وصفحة الدفع هما المرجع النهائي.</p><p>لا ننسب للكود نسبة خصم أو مبلغ توفير ثابت من دون مصدر رسمي. إذا تغيّرت أهلية الحساب أو البائع أو المنتج أو طريقة الدفع، اختبر الكود على نفس السلة وسجّل الإجمالي قبل وبعد التطبيق.</p></section>`;
   article.html=String(article.html).replace(/<section class="sources">/i,section+'<section class="sources">');
   article.couponFreshness=status;
+  article.approvedCouponEnforced=true;
   return article;
 }
 
@@ -53,12 +59,13 @@ export async function writeCouponFreshnessSnapshot(env,at=new Date()){
     for(const country of ['SA','AE'])rows.push(couponStatus({code,country},at));
   }
   const summary={
-    version:'owner-approved-nov-v1',
+    version:'owner-approved-nov-v2-strict-copy',
     generatedAt:at.toISOString(),
     catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,
     reviewAfterDays:REVIEW_AFTER_DAYS,
     blockAfterDays:BLOCK_AFTER_DAYS,
     officialVerification:false,
+    approvedCodeCopyEnforcement:true,
     publishable:rows.filter(x=>x.publishAllowed).length,
     reviewDue:rows.filter(x=>x.state==='review-due').length,
     blocked:rows.filter(x=>!x.publishAllowed).length,
@@ -68,4 +75,4 @@ export async function writeCouponFreshnessSnapshot(env,at=new Date()){
   return summary;
 }
 
-export const COUPON_REGISTRY_INFO={version:'owner-approved-nov-v1',codes:CODES.length,reviewAfterDays:REVIEW_AFTER_DAYS,blockAfterDays:BLOCK_AFTER_DAYS,catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,officialVerification:false};
+export const COUPON_REGISTRY_INFO={version:'owner-approved-nov-v2-strict-copy',codes:CODES.length,reviewAfterDays:REVIEW_AFTER_DAYS,blockAfterDays:BLOCK_AFTER_DAYS,catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,officialVerification:false,approvedCodeCopyEnforcement:true};
