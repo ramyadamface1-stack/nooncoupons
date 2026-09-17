@@ -5,6 +5,7 @@ const OWNER_CATALOG_UPDATED_AT='2026-09-17T00:00:00.000Z';
 const REVIEW_AFTER_DAYS=14;
 const BLOCK_AFTER_DAYS=30;
 const CODES=APPROVED_COUPON_CODES;
+const REGISTRY_VERSION='owner-approved-ops-v3-strict-copy';
 
 export const COUPON_REGISTRY=Object.freeze(Object.fromEntries(CODES.map(code=>[code,Object.freeze({
   code,
@@ -59,7 +60,7 @@ export async function writeCouponFreshnessSnapshot(env,at=new Date()){
     for(const country of ['SA','AE'])rows.push(couponStatus({code,country},at));
   }
   const summary={
-    version:'owner-approved-nov-v2-strict-copy',
+    version:REGISTRY_VERSION,
     generatedAt:at.toISOString(),
     catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,
     reviewAfterDays:REVIEW_AFTER_DAYS,
@@ -75,4 +76,4 @@ export async function writeCouponFreshnessSnapshot(env,at=new Date()){
   return summary;
 }
 
-export const COUPON_REGISTRY_INFO={version:'owner-approved-nov-v2-strict-copy',codes:CODES.length,reviewAfterDays:REVIEW_AFTER_DAYS,blockAfterDays:BLOCK_AFTER_DAYS,catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,officialVerification:false,approvedCodeCopyEnforcement:true};
+export const COUPON_REGISTRY_INFO={version:REGISTRY_VERSION,codes:CODES.length,reviewAfterDays:REVIEW_AFTER_DAYS,blockAfterDays:BLOCK_AFTER_DAYS,catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,officialVerification:false,approvedCodeCopyEnforcement:true};
