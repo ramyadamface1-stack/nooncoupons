@@ -62,6 +62,12 @@ function weightedBrands(categoryKey,brandKeys){
 }
 
 function brandCategoryLabel(brandKey,categoryKey){const brand=BRANDS[brandKey]?.label||brandKey,category=CATEGORIES[categoryKey]?.label||categoryKey;return `${brand} ${category}`.trim()}
+function catalogTargetKeys(topic,categoryKey){
+  const brandKey=topic?.catalogBrandKey&&BRANDS[topic.catalogBrandKey]?.categories?.includes(categoryKey)?topic.catalogBrandKey:null;
+  const allowedModels=brandKey?modelKeysFor(brandKey,categoryKey):[];
+  const modelKey=brandKey&&topic?.catalogModelKey&&allowedModels.includes(topic.catalogModelKey)?topic.catalogModelKey:null;
+  return {brandKey,modelKey};
+}
 
 export function boundedCoverageCorrection(seed,underTarget=[]){
  const n=Math.abs(Number(seed)||0),u=new Set(Array.isArray(underTarget)?underTarget:[]);
@@ -77,7 +83,11 @@ export function applyCommerceTarget(topic={},seed,coverageSignal={}){
   let brandKey=null,modelKey=null,comparisonKey=null,targetLabel=CATEGORIES[categoryKey]?.label||topic.category||'';
   const kw=String(topic.kw||''),title=String(topic.title||topic.kw||'');
   const eligibleBrands=Object.keys(BRANDS).filter(k=>BRANDS[k].categories?.includes(categoryKey)),brandKeys=weightedBrands(categoryKey,eligibleBrands),comparisonKeys=Object.keys(COMPARISONS),correction=boundedCoverageCorrection(n,coverageSignal?.underTarget),comparisonMode=categoryKey==='mobiles'&&(n%6===0||correction==='comparison'),categoryOnlyMode=n%7===0||correction==='category',brandOnlyMode=n%5===0||correction==='brand',modelBoost=correction==='model';
-  if(categoryOnlyMode){
+  const catalogKeys=catalogTargetKeys(topic,categoryKey),catalogSpecific=['brand','model','product-intent'].includes(String(topic.catalogLevel||''))&&catalogKeys.brandKey;
+  if(catalogSpecific){
+    brandKey=catalogKeys.brandKey;modelKey=catalogKeys.modelKey;
+    targetLabel=String(topic.catalogTarget||'').trim()||(modelKey?`${BRANDS[brandKey].label} ${BRANDS[brandKey].models[modelKey].label}`:brandCategoryLabel(brandKey,categoryKey));
+  }else if(categoryOnlyMode){
     targetLabel=CATEGORIES[categoryKey]?.label||topic.category||'';
   }else if(comparisonMode){
     comparisonKey=comparisonKeys[Math.floor(n/9)%comparisonKeys.length];
@@ -120,4 +130,4 @@ export function decorateArticleCommerce(article={},topic={}){
   return {...article,...fields,commerceTarget:t.targetLabel,html};
 }
 
-export const COMMERCE_GENERATOR_INFO={version:6,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'category-aware-independent-from-primary-keyword',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true,priorityBrandWeighting:true,comparisonCadence:'1-in-6-mobile',categoryOnlyCadence:'1-in-7',brandOnlyCadence:'1-in-5',coverageTargets:'category-aware',adaptiveCorrection:'bounded-only',adaptiveCadence:'11/13/17/19'};
+export const COMMERCE_GENERATOR_INFO={version:7,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'catalog-intent-preserving-category-aware',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true,priorityBrandWeighting:true,comparisonCadence:'1-in-6-mobile',categoryOnlyCadence:'1-in-7',brandOnlyCadence:'1-in-5',coverageTargets:'category-aware',adaptiveCorrection:'bounded-only',adaptiveCadence:'11/13/17/19'};
