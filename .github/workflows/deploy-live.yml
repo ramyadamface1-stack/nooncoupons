@@ -30,10 +30,45 @@ jobs:
           grep -Fq '"main": "network-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "15000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
-      - name: Deploy existing worker
+      - name: Select Cloudflare token with Workers access
+        id: cf
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
+          CF_TOKEN_1: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_TOKEN_2: ${{ secrets.CLOUDFLARE_TOKEN }}
+          CF_TOKEN_3: ${{ secrets.CF_API_TOKEN }}
+          ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
+        shell: bash
+        run: |
+          set -euo pipefail
+          selected=''
+          slot=''
+          for name in CF_TOKEN_1 CF_TOKEN_2 CF_TOKEN_3; do
+            token="${!name:-}"
+            [ -n "$token" ] || continue
+            echo "::add-mask::$token"
+            code=$(curl -sS -o /tmp/cf-check.json -w '%{http_code}' \
+              -H "Authorization: Bearer $token" \
+              -H 'Content-Type: application/json' \
+              "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/services/nooncoupons" || true)
+            success=$(jq -r '.success // false' /tmp/cf-check.json 2>/dev/null || echo false)
+            echo "${name}_WORKERS_SERVICE_HTTP=$code"
+            echo "${name}_WORKERS_SERVICE_ACCESS=$success"
+            if [ "$code" = '200' ] && [ "$success" = 'true' ]; then
+              selected="$token"
+              slot="$name"
+              break
+            fi
+          done
+          if [ -z "$selected" ]; then
+            echo 'NO_TOKEN_WITH_WORKERS_SERVICE_ACCESS=1'
+            echo 'Required Cloudflare permission: Account > Workers Scripts > Edit (and account read access as needed by Wrangler).'
+            exit 10
+          fi
+          echo "CLOUDFLARE_API_TOKEN=$selected" >> "$GITHUB_ENV"
+          echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> "$GITHUB_ENV"
+          echo "CLOUDFLARE_TOKEN_SLOT=$slot" >> "$GITHUB_ENV"
+          echo "SELECTED_TOKEN_SLOT=$slot"
+      - name: Deploy existing worker
         run: npx wrangler deploy
       - name: Verify deployed network runtime
         shell: bash
@@ -54,8 +89,10 @@ jobs:
           ARTICLE_PATH="$(python -c "import json,urllib.parse; s=json.load(open('/tmp/s.json')); slug=(s.get('last') or {}).get('slug'); assert slug; print('/articles/'+urllib.parse.quote(slug,safe=''))")"
           curl -fsS --retry 3 "$ORIGIN$ARTICLE_PATH?deploy=$GITHUB_SHA" -D /tmp/h -o /tmp/a.html
           grep -Fqi 'x-article-network: v1' /tmp/h
+          grep -Fqi 'x-external-link-safety: merged-v2' /tmp/h
+          grep -Fqi 'x-related-manifest-cache: 120s-isolate' /tmp/h
           grep -Fq 'id="article-link-network"' /tmp/a.html
           grep -Fq 'اقرأ أيضًا قبل الشراء' /tmp/a.html
           missing_alt="$(grep -Eo '<img\b[^>]*>' /tmp/a.html | grep -Eiv 'alt=["'"'][^"'"']+["'"']' | wc -l | tr -d ' ')"
           [ "$missing_alt" = '0' ]
-          echo 'PRODUCTION_NETWORK_VERIFIED=1'
+          echo "PRODUCTION_NETWORK_VERIFIED=1"
