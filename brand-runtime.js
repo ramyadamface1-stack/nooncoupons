@@ -63,13 +63,24 @@ function brandHead(html){
 }
 
 function favicon(){return new Response(SVG,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public, max-age=604800, immutable','x-content-type-options':'nosniff'}})}
+async function ensureRobotsSitemap(res,origin){
+  if(!res.ok)return res;
+  const type=(res.headers.get('content-type')||'').toLowerCase();
+  if(!type.includes('text/plain'))return res;
+  let body=await res.text();
+  const sitemap=`Sitemap: ${origin}/sitemap.xml`;
+  if(!/^\s*Sitemap:\s*https?:\/\//im.test(body))body=body.replace(/\s*$/,'')+'\n'+sitemap+'\n';
+  else if(!body.includes(origin+'/sitemap.xml'))body=body.replace(/\s*$/,'')+'\n'+sitemap+'\n';
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-robots-sitemap','guaranteed-v1');
+  return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
+}
 function crawlSafe(res,path){
   const crawl=path==='/robots.txt'||path.startsWith('/sitemap')||path==='/feed.xml'||path==='/rss.xml';
   if(!crawl)return res;
   const h=new Headers(res.headers);
   h.set('cache-control','public, max-age=300, s-maxage=900, stale-while-revalidate=86400');
   h.set('x-robots-tag','all');
-  h.set('x-crawl-safe','v1');
+  h.set('x-crawl-safe','v2');
   h.delete('set-cookie');
   return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
 }
@@ -79,6 +90,7 @@ export default{
     const u=new URL(req.url);
     if(req.method==='GET'&&u.pathname==='/favicon.svg')return favicon();
     let res=await app.fetch(req,env,ctx);
+    if(req.method==='GET'&&u.pathname==='/robots.txt')res=await ensureRobotsSitemap(res,env.SITE_ORIGIN||u.origin);
     res=crawlSafe(res,u.pathname);
     if(!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
     const origin=env.SITE_ORIGIN||u.origin;
@@ -97,4 +109,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:4,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,crawlSafe:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:5,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
