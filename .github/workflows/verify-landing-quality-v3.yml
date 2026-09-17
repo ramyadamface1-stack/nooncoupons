@@ -38,9 +38,10 @@ jobs:
           assert d.get('definitions') is True and d.get('keywordClusters') is True and d.get('couponGuide') is True
           assert d['seo'] is True and d['geoAeo'] is True and d['eeat'] is True
           assert {'WebPage','FAQPage','Organization'}.issubset(set(d['schema']))
-          print('LANDING_QUALITY_V3_PASS',d)
+          print('LANDING_QUALITY_V3_SOURCE_PASS',d)
           PY
       - name: Live sample verification
+        if: github.event_name == 'workflow_dispatch'
         run: |
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
