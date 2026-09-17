@@ -40,12 +40,12 @@ jobs:
       - name: Validate dedicated Cloudflare token
         id: cf
         env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN }}
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
           ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
         shell: bash
         run: |
           set -euo pipefail
-          [ -n "${CF_TOKEN:-}" ] || { echo 'MISSING_CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN=1'; exit 10; }
+          [ -n "${CF_TOKEN:-}" ] || { echo 'MISSING_CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1=1'; exit 10; }
           echo "::add-mask::$CF_TOKEN"
           code=$(curl -sS -o /tmp/cf-check.json -w '%{http_code}' \
             -H "Authorization: Bearer $CF_TOKEN" \
