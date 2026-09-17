@@ -74,3 +74,5 @@ PY
           missing_alt="$(grep -Eo '<img\b[^>]*>' /tmp/a.html | grep -Eiv 'alt=["'"'][^"'"']+["'"']' | wc -l | tr -d ' ')"
           [ "$missing_alt" = '0' ]
           echo 'PRODUCTION_NETWORK_VERIFIED=1'
+
+# deploy-trigger: 2026-09-17-network-v1
