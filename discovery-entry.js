@@ -22,12 +22,21 @@ function keyPages(origin){
     '/',
     '/coupons',
     '/blog',
+    '/saudi',
+    '/uae',
+    '/saudi/categories',
+    '/uae/categories',
     '/saudi-arabia/noon-coupon-code',
     '/saudi-arabia/noon-coupon-code-today',
     '/saudi-arabia/noon-coupon-code-2026',
     '/uae/noon-coupon-code',
     '/uae/noon-coupon-code-today',
-    '/uae/noon-coupon-code-2026'
+    '/uae/noon-coupon-code-2026',
+    '/editorial-policy',
+    '/coupon-verification',
+    '/authors/editorial-team',
+    '/about',
+    '/privacy'
   ].map(path=>({loc:origin+path,lastmod:null}));
 }
 
@@ -48,7 +57,7 @@ async function injectDiscoveryLinks(req,env,res){
   const type=(res.headers.get('content-type')||'').toLowerCase();
   if(!type.includes('text/html'))return res;
   const path=new URL(req.url).pathname.replace(/\/+$/,'')||'/';
-  const eligible=path==='/'||path==='/coupons'||/^\/(?:saudi-arabia|uae)\/noon-coupon-code(?:-today|-2026)?$/.test(path);
+  const eligible=['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'].includes(path)||/^\/(?:saudi-arabia|uae)\/noon-coupon-code(?:-today|-2026)?$/.test(path);
   if(!eligible)return res;
   let html=await res.text();
   if(html.includes('id="crawl-discovery-links"'))return res;
@@ -111,4 +120,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const DISCOVERY_ENTRY_INFO={version:3,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyCommercialPages:9,discoveryLinks:true,discoveryLinkCount:12,robotsPrioritySitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:4,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:18,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,manifestCacheSeconds:120};
