@@ -63,12 +63,23 @@ function brandHead(html){
 }
 
 function favicon(){return new Response(SVG,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public, max-age=604800, immutable','x-content-type-options':'nosniff'}})}
+function crawlSafe(res,path){
+  const crawl=path==='/robots.txt'||path.startsWith('/sitemap')||path==='/feed.xml'||path==='/rss.xml';
+  if(!crawl)return res;
+  const h=new Headers(res.headers);
+  h.set('cache-control','public, max-age=300, s-maxage=900, stale-while-revalidate=86400');
+  h.set('x-robots-tag','all');
+  h.set('x-crawl-safe','v1');
+  h.delete('set-cookie');
+  return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
+}
 
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
     if(req.method==='GET'&&u.pathname==='/favicon.svg')return favicon();
     let res=await app.fetch(req,env,ctx);
+    res=crawlSafe(res,u.pathname);
     if(!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
     const origin=env.SITE_ORIGIN||u.origin;
     const source=await res.text();
@@ -86,4 +97,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:3,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:4,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,crawlSafe:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
