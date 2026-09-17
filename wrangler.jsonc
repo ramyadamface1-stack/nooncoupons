@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "nooncoupons",
-  "main": "commerce-entry.js",
+  "main": "network-entry.js",
   "compatibility_date": "2026-09-13",
   "compatibility_flags": [
     "nodejs_compat"
@@ -76,4 +76,4 @@
     }
   ]
 }
-// e2e-audit-trigger: 15k-daily-noon-hierarchy-2026-09-17
+// e2e-audit-trigger: article-network-v1-2026-09-17
