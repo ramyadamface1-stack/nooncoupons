@@ -199,7 +199,7 @@ function adminPage(env){
 }
 
 function sitemap(){
-  const paths=['/','/coupons','/saudi-arabia','/uae','/categories','/blog','/shopping-world','/about','/contact','/privacy',...GUIDES.map(g=>'/guide/'+g[0]),...CODES.map(c=>'/coupon/'+c.toLowerCase())];
+  const paths=['/','/coupons','/saudi-arabia','/uae','/blog','/shopping-world','/about','/contact','/privacy',...GUIDES.map(g=>'/guide/'+g[0]),...CODES.map(c=>'/coupon/'+c.toLowerCase())];
   return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${paths.map(p=>`<url><loc>${SITE.origin}${p}</loc><changefreq>${p.startsWith('/coupon/')||p==='/coupons'?'daily':'weekly'}</changefreq><priority>${p==='/'?'1.0':p.startsWith('/coupon/')?'.8':'.7'}</priority></url>`).join('')}</urlset>`;
 }
 function robots(){return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: ${SITE.origin}/sitemap.xml\n`}
