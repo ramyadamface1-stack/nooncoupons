@@ -9,6 +9,7 @@ import {repairEnglishCanaryLegacyMetadata,serveEnglishCanaryRepairHealth} from '
 export {ControlPlane,GeneratorControl} from './public-entry.js';
 
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
+async function countR2ArticleHtml(env){if(!env.CONTENT_FINAL)return null;let cursor=null,count=0,pages=0;do{const page=await env.CONTENT_FINAL.list({prefix:'articles/',limit:1000,...(cursor?{cursor}:{})});count+=(page.objects||[]).filter(o=>String(o.key||'').endsWith('.html')).length;pages++;if(!page.truncated)break;cursor=page.cursor||null}while(cursor&&pages<100);return count}
 const dec=s=>{try{return decodeURIComponent(String(s||''))}catch{return String(s||'')}};
 const xmlEsc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
 function hardened(res){const h=new Headers(res.headers);h.set('x-content-type-options','nosniff');h.set('referrer-policy','strict-origin-when-cross-origin');h.set('x-frame-options','SAMEORIGIN');h.set('permissions-policy','camera=(), microphone=(), geolocation=()');h.set('strict-transport-security','max-age=31536000');return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h})}
@@ -29,12 +30,13 @@ async function contentStats(req,env,ctx){
   }catch{}
   let english={};
   try{english=await englishCanaryHealth(env)}catch{}
+  const r2Uploaded=await countR2ArticleHtml(env);
   const bulk=generator?.bulk||{};
   const controlled=english?.controlled||{};
   const arabic=Number(bulk.publishedTotal||0);
   const englishTotal=Number(controlled.published||0);
   return {
-    ok:true,total:arabic+englishTotal,arabic,english:englishTotal,
+    ok:true,total:arabic+englishTotal,r2Uploaded,arabic,english:englishTotal,
     englishByCountry:{SA:Number(controlled.sa||0),AE:Number(controlled.ae||0)},
     publishedTodayArabic:Number(bulk.publishedToday||0),dailyTargetArabic:Number(bulk.dailyTarget||0),
     last:{slug:bulk.lastSlug||null,quality:bulk.lastQuality??null,wordCount:bulk.lastWordCount??null,run:bulk.lastRun||null,error:bulk.lastError||null},

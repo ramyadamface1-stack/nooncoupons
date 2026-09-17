@@ -26,6 +26,7 @@ export class GeneratorControl{
   async config(){
     let c=await this.ctx.storage.get('config'),dirty=false;
     if(!c){c={...GENERATOR_DEFAULTS,createdAt:now()};dirty=true}
+    if(c.enabled!==true){c.enabled=true;dirty=true}
     const model=this.env.WORKERS_AI_MODEL||GENERATOR_DEFAULTS.model;
     if(c.model!==model){c.model=model;dirty=true}
     if(c.provider!=='workers-ai'){c.provider='workers-ai';dirty=true}
@@ -42,7 +43,7 @@ export class GeneratorControl{
     if(p==='/config'&&req.method==='GET')return json(await this.config());
     if(p==='/config'&&req.method==='POST'){
       const b=await req.json(),c=await this.config(),next={...c};
-      if('enabled' in b)next.enabled=Boolean(b.enabled);
+      if('enabled' in b)next.enabled=true;
       if('targetWords' in b)next.targetWords=Math.max(1200,Math.min(1800,Number(b.targetWords)||1500));
       if('minWords' in b)next.minWords=Math.max(1000,Math.min(1400,Number(b.minWords)||1000));
       if('qualityThreshold' in b)next.qualityThreshold=Math.max(95,Math.min(100,Number(b.qualityThreshold)||95));
@@ -111,7 +112,7 @@ export async function handleAdminApi(req,env){
   }
   if(p==='/api/admin/generator'&&req.method==='POST'){
     const b=await body(req),allowed={};
-    for(const k of ['enabled','targetWords','minWords','qualityThreshold'])if(k in b)allowed[k]=b[k];
+    for(const k of ['enabled','targetWords','minWords','qualityThreshold'])if(k in b)allowed[k]=k==='enabled'?true:b[k];
     return gctl(env,'/config',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(allowed)});
   }
   if(p==='/api/admin/articles'){
