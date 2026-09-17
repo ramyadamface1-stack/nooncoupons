@@ -37,44 +37,31 @@ jobs:
           grep -Fq 'discoveryLinks:true' discovery-entry.js
           grep -Fq 'discoveryLinkCount:12' discovery-entry.js
           grep -Fq 'robotsPrioritySitemap:true' discovery-entry.js
-      - name: Select Cloudflare token with Workers access
+      - name: Validate dedicated Cloudflare token
         id: cf
         env:
-          CF_TOKEN_1: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_TOKEN_2: ${{ secrets.CLOUDFLARE_TOKEN }}
-          CF_TOKEN_3: ${{ secrets.CF_API_TOKEN }}
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN }}
           ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
         shell: bash
         run: |
           set -euo pipefail
-          selected=''
-          slot=''
-          for name in CF_TOKEN_1 CF_TOKEN_2 CF_TOKEN_3; do
-            token="${!name:-}"
-            [ -n "$token" ] || continue
-            echo "::add-mask::$token"
-            code=$(curl -sS -o /tmp/cf-check.json -w '%{http_code}' \
-              -H "Authorization: Bearer $token" \
-              -H 'Content-Type: application/json' \
-              "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/services/nooncoupons" || true)
-            success=$(jq -r '.success // false' /tmp/cf-check.json 2>/dev/null || echo false)
-            echo "${name}_WORKERS_SERVICE_HTTP=$code"
-            echo "${name}_WORKERS_SERVICE_ACCESS=$success"
-            if [ "$code" = '200' ] && [ "$success" = 'true' ]; then
-              selected="$token"
-              slot="$name"
-              break
-            fi
-          done
-          if [ -z "$selected" ]; then
-            echo 'NO_TOKEN_WITH_WORKERS_SERVICE_ACCESS=1'
-            echo 'Required Cloudflare permission: Account > Workers Scripts > Edit (and account read access as needed by Wrangler).'
+          [ -n "${CF_TOKEN:-}" ] || { echo 'MISSING_CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN=1'; exit 10; }
+          echo "::add-mask::$CF_TOKEN"
+          code=$(curl -sS -o /tmp/cf-check.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            -H 'Content-Type: application/json' \
+            "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/services/nooncoupons" || true)
+          success=$(jq -r '.success // false' /tmp/cf-check.json 2>/dev/null || echo false)
+          echo "DEDICATED_TOKEN_WORKERS_SERVICE_HTTP=$code"
+          echo "DEDICATED_TOKEN_WORKERS_SERVICE_ACCESS=$success"
+          if [ "$code" != '200' ] || [ "$success" != 'true' ]; then
+            jq -c '{success,errors}' /tmp/cf-check.json 2>/dev/null || cat /tmp/cf-check.json || true
+            echo 'DEDICATED_TOKEN_LACKS_WORKERS_SERVICE_ACCESS=1'
             exit 10
           fi
-          echo "CLOUDFLARE_API_TOKEN=$selected" >> "$GITHUB_ENV"
+          echo "CLOUDFLARE_API_TOKEN=$CF_TOKEN" >> "$GITHUB_ENV"
           echo "CLOUDFLARE_ACCOUNT_ID=$ACCOUNT_ID" >> "$GITHUB_ENV"
-          echo "CLOUDFLARE_TOKEN_SLOT=$slot" >> "$GITHUB_ENV"
-          echo "SELECTED_TOKEN_SLOT=$slot"
+          echo "DEDICATED_TOKEN_VALID=1"
       - name: Deploy existing worker
         run: npx wrangler deploy
       - name: Verify deployed runtime and SEO layer
