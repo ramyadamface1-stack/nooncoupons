@@ -18,7 +18,7 @@ function decor(i,t){
   return `<g opacity=".17" stroke="${t.ink}" stroke-width="12">${Array.from({length:8},(_,n)=>`<path d="M${-70+n*190} 760L${260+n*190} 0"/>`).join('')}</g>`;
 }
 
-export function couponSvg({coupon='NOON10',country='SA',variant=1,brand='noon'}){
+export function couponSvg({coupon='OPS32',country='SA',variant=1,brand='noon',title=''}){
   const i=Math.max(1,Math.min(5,Number(variant)||1));
   const t=THEMES[i-1];
   const countryName=countryLabel(country);
@@ -26,6 +26,7 @@ export function couponSvg({coupon='NOON10',country='SA',variant=1,brand='noon'})
   const code=esc(coupon);
   const brandText=esc(brand);
   const label=esc(countryName);
+  const topic=esc(String(title||'').replace(/\s+/g,' ').trim().slice(0,72));
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
 <title id="title">${brandText} promo code ${code} — ${label}</title><desc id="desc">Promo code card for ${brandText} ${label}, code ${code}. Check the saving and eligibility at checkout.</desc>
 <rect width="1200" height="760" rx="36" fill="${t.bg}"/>
@@ -37,6 +38,7 @@ ${decor(i,t)}
   <text x="600" y="250" text-anchor="middle" font-size="112" font-weight="900" fill="${t.ink}">PROMO</text>
   <g transform="translate(790 168) rotate(-4)"><rect width="150" height="72" rx="16" fill="${t.accent}"/><text x="75" y="51" text-anchor="middle" font-size="34" font-weight="900" fill="#111">CODE</text></g>
   <text x="600" y="310" text-anchor="middle" font-size="30" font-weight="700" fill="${t.ink}">${brandText.charAt(0).toUpperCase()+brandText.slice(1)} coupon guide</text>
+  <text x="600" y="342" text-anchor="middle" font-size="22" font-weight="700" fill="${t.muted}">${topic}</text>
   <g transform="translate(245 342)"><rect width="710" height="220" rx="26" fill="${t.bg}" stroke="${t.ink}" stroke-width="5" stroke-dasharray="16 12"/><rect x="38" y="36" width="634" height="102" rx="18" fill="${t.accent}"/><text x="355" y="108" text-anchor="middle" font-size="72" font-weight="900" letter-spacing="3" fill="#111">${code}</text><text x="355" y="180" text-anchor="middle" font-size="22" font-weight="800" fill="${t.ink}">CHECK SAVINGS &amp; ELIGIBILITY AT CHECKOUT</text></g>
   <g transform="translate(353 602)"><rect width="230" height="72" rx="20" fill="${t.ink}"/><text x="126" y="47" text-anchor="middle" font-size="26" font-weight="800" fill="${t.panel}">Copy code</text><rect x="31" y="23" width="22" height="25" rx="3" fill="none" stroke="${t.panel}" stroke-width="3"/><rect x="40" y="15" width="22" height="25" rx="3" fill="none" stroke="${t.panel}" stroke-width="3"/></g>
   <g transform="translate(616 602)"><rect width="230" height="72" rx="20" fill="${t.accent}"/><text x="126" y="47" text-anchor="middle" font-size="26" font-weight="900" fill="#111">Try at Noon</text><path d="M38 44V24h20M38 24l24 24M50 24h18v18" fill="none" stroke="#111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g>
