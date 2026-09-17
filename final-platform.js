@@ -1,4 +1,5 @@
 import app from './visual-platform.js';
+import {APPROVED_COUPON_CODES} from './approved-coupons.js';
 export {ControlPlane} from './platform.js';
 
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
@@ -31,7 +32,42 @@ function robots(origin){
 }
 
 function llms(origin){
-  return `# كوبونات نون\n\nArabic shopping and coupon guidance for Noon Saudi Arabia and UAE.\n\nCanonical site: ${origin}/\nSitemap: ${origin}/sitemap.xml\nRSS: ${origin}/feed.xml\nEditorial policy: ${origin}/editorial-policy\nCoupon verification policy: ${origin}/coupon-verification\nEditorial team: ${origin}/authors/editorial-team\nDisclaimer: ${origin}/disclaimer\n\nArticles are published only after automated quality, uniqueness, indexation, schema and coupon-freshness gates. The site is independent and is not Noon.com.\n`;
+  const codes=APPROVED_COUPON_CODES.join(', ');
+  return `# Noon Deals Now / كوبونات نون
+
+> Independent Arabic coupon and shopping guidance for Noon Saudi Arabia and UAE.
+
+## Canonical resources
+- Home: ${origin}/
+- Coupons: ${origin}/coupons
+- Saudi Arabia: ${origin}/saudi-arabia/noon-coupon-code
+- UAE: ${origin}/uae/noon-coupon-code
+- Blog: ${origin}/blog
+- Priority sitemap: ${origin}/sitemap-priority.xml
+- Sitemap index: ${origin}/sitemap.xml
+- RSS: ${origin}/feed.xml
+
+## Trust and editorial
+- About: ${origin}/about
+- Editorial policy: ${origin}/editorial-policy
+- Coupon verification methodology: ${origin}/coupon-verification
+- Editorial team: ${origin}/authors/editorial-team
+- Disclaimer: ${origin}/disclaimer
+- Privacy: ${origin}/privacy
+- Terms: ${origin}/terms
+
+## Current scope
+- Live markets: Saudi Arabia (SA), United Arab Emirates (AE)
+- Approved coupon codes only: ${codes}
+- Egypt is not live yet.
+
+## Content policy
+We distinguish between a coupon code being available to test and a discount claim being verified.
+We do not state a percentage discount, cap, eligibility, or guaranteed validity unless the condition is supported by reliable evidence.
+The Noon cart/checkout result is the final practical reference for eligibility and savings.
+Articles pass quality, uniqueness, schema, indexation-value, and coupon-safety gates before publication.
+The site is independent and is not Noon.com.
+`;
 }
 
 async function rss(origin,env){
