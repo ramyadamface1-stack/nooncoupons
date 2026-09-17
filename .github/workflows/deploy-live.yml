@@ -36,6 +36,7 @@ jobs:
           grep -Fq 'recentArticleLimit:500' discovery-entry.js
           grep -Fq 'discoveryLinks:true' discovery-entry.js
           grep -Fq 'discoveryLinkCount:12' discovery-entry.js
+          grep -Fq 'robotsPrioritySitemap:true' discovery-entry.js
       - name: Select Cloudflare token with Workers access
         id: cf
         env:
@@ -105,6 +106,11 @@ jobs:
           grep -Fq '/saudi-arabia/noon-coupon-code' /tmp/priority.xml
           grep -Fq '/uae/noon-coupon-code' /tmp/priority.xml
           grep -Fq '/articles/' /tmp/priority.xml
+
+          curl -fsS "$ORIGIN/robots.txt?deploy=$GITHUB_SHA" -D /tmp/rh -o /tmp/robots.txt
+          grep -Fqi 'x-priority-sitemap-robots: v1' /tmp/rh
+          grep -Fq 'Sitemap: https://noondealsnow.com/sitemap.xml' /tmp/robots.txt
+          grep -Fq 'Sitemap: https://noondealsnow.com/sitemap-priority.xml' /tmp/robots.txt
 
           curl -fsS "$ORIGIN/saudi-arabia/noon-coupon-code?deploy=$GITHUB_SHA" -D /tmp/mh -o /tmp/money.html
           grep -Fqi 'x-crawl-discovery-links: v1' /tmp/mh
