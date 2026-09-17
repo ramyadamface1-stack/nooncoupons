@@ -1,8 +1,10 @@
 import app from './network-entry.js';
+import {APPROVED_COUPON_CODES} from './approved-coupons.js';
 export {ControlPlane,GeneratorControl} from './network-entry.js';
 
 const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
 const SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#111827"/><path d="M15 18h34v8H15zm0 12h25v8H15zm0 12h18v8H15z" fill="#facc15"/></svg>`;
+const APPROVED=new Set(APPROVED_COUPON_CODES.map(x=>String(x).toUpperCase()));
 
 function walk(node,origin,state){
   if(!node||typeof node!=='object')return;
@@ -22,6 +24,31 @@ function repairJsonLd(html,origin){
   const out=String(html).replace(/<script\b([^>]*?)type=["']application\/ld\+json["']([^>]*)>([\s\S]*?)<\/script>/gi,(whole,a,b,raw)=>{
     try{const data=JSON.parse(raw.trim());walk(data,origin,state);return `<script${a}type="application/ld+json"${b}>${safeJson(data)}</script>`}catch{return whole}
   });
+  return {html:out,state};
+}
+
+function normalizeCouponUi(html){
+  const state={duplicatesRemoved:0,countLabelsFixed:0};
+  const seen=new Set();
+  let out=String(html).replace(/<article\b[^>]*class=(["'])[^"']*\bcoupon\b[^"']*\1[^>]*>[\s\S]*?<\/article>/gi,block=>{
+    const code=(block.match(/data-(?:copy|code)=["']([A-Z0-9_-]{3,20})["']/i)?.[1]||block.match(/\b(OPS\d{2})\b/i)?.[1]||'').toUpperCase();
+    if(!APPROVED.has(code))return block;
+    const market=/الإمارات|🇦🇪/.test(block)?'AE':/السعودية|🇸🇦/.test(block)?'SA':'GEN';
+    const key=market+':'+code;
+    if(seen.has(key)){state.duplicatesRemoved++;return ''}
+    seen.add(key);return block;
+  });
+  const replacements=[
+    [/العشرة للسعودية والعشرة للإمارات/g,'الثمانية للسعودية والثمانية للإمارات'],
+    [/الأكواد العشرة/g,'الأكواد الثمانية'],
+    [/العشرة أكواد/g,'الثمانية أكواد'],
+    [/10 أكواد حالية/g,'8 أكواد حالية'],
+    [/10 أكواد/g,'8 أكواد'],
+    [/20 بطاقة كوبون/g,'16 بطاقة كوبون'],
+    [/20 بطاقة/g,'16 بطاقة']
+  ];
+  for(const [re,to] of replacements){out=out.replace(re,m=>{state.countLabelsFixed++;return to})}
+  out=out.replace(/<b>10<\/b><span class="small">أكواد<\/span>/g,()=>{state.countLabelsFixed++;return '<b>8</b><span class="small">أكواد</span>'});
   return {html:out,state};
 }
 
@@ -46,14 +73,17 @@ export default{
     const origin=env.SITE_ORIGIN||u.origin;
     const source=await res.text();
     const repaired=repairJsonLd(source,origin);
-    const html=brandHead(repaired.html);
+    const normalized=normalizeCouponUi(repaired.html);
+    const html=brandHead(normalized.html);
     const h=new Headers(res.headers);h.delete('content-length');
     h.set('x-brand-layer','v1');
     h.set('x-organization-schema-count',String(repaired.state.organizations));
     h.set('x-organization-logo-fixed',String(repaired.state.fixed));
+    h.set('x-coupon-ui-deduped',String(normalized.state.duplicatesRemoved));
+    h.set('x-coupon-count-labels-fixed',String(normalized.state.countLabelsFixed));
     return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
   },
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:2,favicon:true,organizationLogoRepair:true,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:3,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
