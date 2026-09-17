@@ -46,7 +46,7 @@ export default {
     const path=new URL(request.url).pathname.replace(/\/+$/,'')||'/';
     if(path==='/sitemap.xml') return xml(index());
     if(path==='/sitemap-money.xml') return xml(urlset(MONEY.map(x=>x[0])));
-    if(path==='/sitemap-pages.xml') return xml(urlset(['/', '/coupons','/saudi-arabia','/uae','/categories','/blog','/shopping-world','/about','/contact','/privacy','/faq','/noon-coupon-code-saudi-uae',...TRUST]));
+    if(path==='/sitemap-pages.xml') return xml(urlset(['/', '/coupons','/saudi-arabia','/uae','/blog','/shopping-world','/about','/contact','/privacy','/faq','/noon-coupon-code-saudi-uae',...TRUST]));
     if(path==='/sitemap-categories.xml') return xml(urlset(CATEGORIES.map(x=>`/category/${x}`)));
     if(path==='/sitemap-guides.xml') return xml(urlset(GUIDES.map(x=>`/guide/${x}`)));
     if(path==='/sitemap-coupons.xml') return xml(urlset(CODES.map(x=>`/coupon/${x.toLowerCase()}`)));
