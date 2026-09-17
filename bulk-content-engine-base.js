@@ -1,4 +1,4 @@
-const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
+const CODES=['NOV153','NOV157','NOV161','NOV163','NOV170','NOV174','NOV177','NOV186','NOV188','NOV195'];
 const MARKETS={SA:{name:'السعودية',currency:'الريال السعودي',currencyCode:'SAR',path:'/saudi'},AE:{name:'الإمارات',currency:'الدرهم الإماراتي',currencyCode:'AED',path:'/uae'}};
 const nowDate=()=>new Date().toISOString().slice(0,10);
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
