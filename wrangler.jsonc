@@ -23,9 +23,9 @@
     "WORKERS_AI_FALLBACK_MODEL": "@cf/google/gemma-4-26b-a4b-it",
     "WORKERS_AI_DAILY_CAP": "60",
     "WORKERS_AI_DAILY_CALL_CAP": "80",
-    "BULK_DAILY_TARGET": "10000",
-    "BULK_BATCH_SIZE": "10",
-    "BULK_CATCHUP_TOTAL": "16000",
+    "BULK_DAILY_TARGET": "15000",
+    "BULK_BATCH_SIZE": "16",
+    "BULK_CATCHUP_TOTAL": "30000",
     "BULK_CATCHUP_BATCH_SIZE": "24",
     "LEGACY_UPGRADE_BATCH_SIZE": "4",
     "QUALITY_PUBLISH_THRESHOLD": "95",
@@ -76,4 +76,4 @@
     }
   ]
 }
-// e2e-audit-trigger: batch20-complete-2026-09-16
+// e2e-audit-trigger: 15k-daily-noon-hierarchy-2026-09-17
