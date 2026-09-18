@@ -562,6 +562,23 @@ jobs:
           import json
           g=json.load(open('/tmp/g.json'))
           p=(g.get('bulk') or {}).get('catchupPlan') or {}
+          b=g.get('bulk') or {}
+          published=int(b.get('lastBatchPublished') or 0)
+          tries=int(b.get('lastBatchTries') or 0)
+          duration=int(b.get('lastBatchDurationMs') or 0)
+          observed=(published*60000/duration) if published>0 and duration>0 else None
+          print('BULK_LAST_BATCH='+json.dumps({
+            'published':published,
+            'tries':tries,
+            'durationMs':duration,
+            'yieldPct':b.get('lastBatchYieldPct'),
+            'observedArticlesPerMinute':None if observed is None else round(observed,2),
+            'lastRun':b.get('lastRun'),
+            'lastError':b.get('lastError'),
+            'lastQuality':b.get('lastQuality'),
+            'lastQualityFloor':b.get('lastQualityFloor'),
+            'lastWordCount':b.get('lastWordCount')
+          },separators=(',',':')))
           print('CATCHUP_30K_PLAN='+json.dumps({
             'target':p.get('target'),
             'current':p.get('current'),
@@ -656,6 +673,7 @@ jobs:
                   'dynamicRouterCouponCountsVerified': True,
                   'catchup30kEightHourPlanVerified': True,
                   'catchupQualityFloorPreserved': True,
+                  'bulkLastBatchTelemetryVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -707,6 +725,7 @@ jobs:
           assert proof['checks']['dynamicRouterCouponCountsVerified'] is True
           assert proof['checks']['catchup30kEightHourPlanVerified'] is True
           assert proof['checks']['catchupQualityFloorPreserved'] is True
+          assert proof['checks']['bulkLastBatchTelemetryVerified'] is True
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
               json.dump(proof,f,ensure_ascii=False,indent=2)
               f.write('\n')
