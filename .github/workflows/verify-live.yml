@@ -51,7 +51,7 @@ jobs:
           grep -Fq 'MAX_DAILY_TARGET=40000' bulk-generator.js
           grep -Fq 'qualityThresholdFloor:95' bulk-generator.js
           echo CHECK_QUALITY_THRESHOLD; grep -Fq '"QUALITY_PUBLISH_THRESHOLD": "95"' wrangler.jsonc
-          echo CHECK_MIN_WORDS; grep -Fq '"MIN_ARTICLE_WORDS": "1000"' wrangler.jsonc
+          echo CHECK_MIN_WORDS; grep -Fq '"MIN_ARTICLE_WORDS": "1500"' wrangler.jsonc
           echo CHECK_INDEXNOW_ENABLED; grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
           echo CHECK_CRON; grep -Fq '"* * * * *"' wrangler.jsonc
           echo CHECK_TAXONOMY; grep -Fq "mode:'explicit-generator-taxonomy'" commerce-generator-taxonomy.js
@@ -187,14 +187,14 @@ jobs:
               assert 32<=int(p.get('effectiveBatchSize') or 0)<=64, 'adaptive effective batch'
               assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0), 'adaptive batch health'
               assert int(p.get('targetBatchDurationMs') or 0)==52000, 'adaptive target ms'
-          assert float(p.get('qualityThresholdFloor') or 0)>=95 and int(p.get('minArticleWords') or 0)>=1000, 'catchup quality floor'
+          assert float(p.get('qualityThresholdFloor') or 0)>=95 and int(p.get('minArticleWords') or 0)>=1500, 'catchup quality floor'
           if int(p.get('remaining') or 0)>0: assert p.get('capacityMeetsEightHourGoal') is True, '8h catchup capacity'
           assert int(s.get('dailyTargetArabic') or 0)==32000, 'instant stats target'
           assert int(s.get('total') or 0)==int(s.get('arabic') or 0)+int(s.get('english') or 0), 'content stats total'
           q=b.get('lastQuality')
           if q is not None: assert float(q)>=95, f'last quality {q}'
           w=b.get('lastWordCount')
-          if w is not None: assert 1000<=int(w)<=2000, f'last words {w}'
+          if w is not None: assert 1500<=int(w)<=2000, f'last words {w}'
           providers=g.get('providers',{})
           if 'external' in providers: assert providers.get('external') is False, 'external provider active'
           print('FINAL_LIVE_PASS',{'routes':c.get('routes'),'bulk':{'target':b.get('dailyTarget'),'batch':b.get('batchSize'),'quality':q,'words':w,'publishedToday':b.get('publishedToday'),'publishedTotal':b.get('publishedTotal')},'contentStats':s})
