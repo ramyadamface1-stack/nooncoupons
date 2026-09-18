@@ -1,4 +1,6 @@
 import app from './brand-runtime.js';
+import {runEnglishCanary} from './english-canary.js';
+import {repairEnglishCanaryLegacyMetadata} from './english-canary-repair.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -122,7 +124,7 @@ export default{
     res=await injectDiscoveryLinks(req,env,res);
     return res;
   },
-  async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
+  async scheduled(event,env,ctx){const base=app.scheduled?app.scheduled(event,env,ctx):null;if(base)ctx.waitUntil(Promise.resolve(base));ctx.waitUntil((async()=>{await repairEnglishCanaryLegacyMetadata(env);return runEnglishCanary(env)})())}
 };
 
-export const DISCOVERY_ENTRY_INFO={version:4,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:18,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:5,englishSchedulerOwner:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:18,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,manifestCacheSeconds:120};
