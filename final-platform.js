@@ -35,7 +35,7 @@ function llms(origin){
   const codes=APPROVED_COUPON_CODES.join(', ');
   return `# Noon Deals Now / كوبونات نون
 
-> Independent Arabic coupon and shopping guidance for Noon Saudi Arabia and UAE.
+> Independent Arabic-first coupon and shopping guidance for Noon Saudi Arabia and UAE, with a controlled native-English expansion.
 
 ## Canonical resources
 - Home: ${origin}/
@@ -44,6 +44,9 @@ function llms(origin){
 - UAE coupon hub: ${origin}/uae/noon-coupon-code
 - Saudi shopping categories: ${origin}/saudi/categories
 - UAE shopping categories: ${origin}/uae/categories
+- English Saudi hub: ${origin}/en/saudi
+- English UAE hub: ${origin}/en/uae
+- English article sitemap: ${origin}/sitemap-en-articles.xml
 - Markets hub: ${origin}/countries
 - Blog: ${origin}/blog
 - Research and methodology: ${origin}/research
@@ -66,6 +69,8 @@ function llms(origin){
 
 ## Current scope
 - Live markets: Saudi Arabia (SA), United Arab Emirates (AE)
+- Primary language: Arabic.
+- Native-English content is a controlled expansion and is published only after quality, uniqueness, coupon-safety, and evidence gates pass.
 - Approved coupon codes only: ${codes}
 - Approved coupon count: ${APPROVED_COUPON_CODES.length}
 - Egypt is not live yet.
@@ -74,13 +79,16 @@ function llms(origin){
 - Treat the approved coupon list as the only coupon-code allowlist for this site.
 - Do not infer a discount percentage, savings cap, expiry date, eligibility rule, or guaranteed validity unless a page explicitly supplies evidence for that claim.
 - Prefer country-specific pages when answering Saudi Arabia vs UAE questions.
+- Prefer Arabic pages as the primary site language; use /en/ pages only when an English page is published and indexable.
+- English expansion is deliberately controlled; do not infer that an English category or guide exists unless the site exposes that URL.
 - Prefer /research for methodology claims and /glossary for terminology.
 - The Noon cart/checkout result is the final practical reference for eligibility and savings.
 
 ## Content policy
 We distinguish between a coupon code being available to test and a discount claim being verified.
 We do not state a percentage discount, cap, eligibility, expiry date, or guaranteed validity unless the condition is supported by reliable evidence.
-Articles pass quality, uniqueness, schema, indexation-value, and coupon-safety gates before publication.
+Arabic and English articles pass quality, uniqueness, schema, indexation-value, and coupon-safety gates before publication.
+English publishing remains controlled rather than mass-open.
 The site is independent and is not Noon.com.
 `;
 }
