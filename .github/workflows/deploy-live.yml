@@ -33,6 +33,10 @@ jobs:
           grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
           node scripts/coupon-code-gate.mjs
           grep -Fq "const CODES=APPROVED_COUPON_CODES" router.js
+          grep -Fq "const CODES=APPROVED_COUPON_CODES" site.js
+          grep -Fq "const CODES=APPROVED_COUPON_CODES" seo-layer.js
+          grep -Fq "data-schema=\"country-coupon\"" seo-layer.js
+          if grep -Fq 'عرض 16 بطاقة' site.js; then echo 'STALE_COUPON_CARD_COUNT=1'; exit 1; fi
           grep -Fq "const CODES = APPROVED_COUPON_CODES" commerce-pages-v2.js
           grep -Fq "categoryAlternates" commerce-pages-v2.js
           grep -Fq "hreflang=\"ar-SA\"" commerce-pages-v2.js
@@ -213,6 +217,13 @@ jobs:
           grep -Fq 'id="crawl-discovery-links"' /tmp/money.html
           grep -Fq '/articles/' /tmp/money.html
 
+          echo "VERIFY_ROUTE=country-coupon-schema"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/saudi-arabia/coupon/nov170?deploy=$GITHUB_SHA" -D /tmp/coupon-detail.h -o /tmp/coupon-detail.html
+          grep -Fq 'data-schema="country-coupon"' /tmp/coupon-detail.html
+          grep -Fq '"@type":"FAQPage"' /tmp/coupon-detail.html
+          grep -Fq '"@type":"BreadcrumbList"' /tmp/coupon-detail.html
+          grep -Fq 'aria-label="نسخ كود نون NOV170"' /tmp/coupon-detail.html
+
           ARTICLE_PATH="$(python -c "import json,urllib.parse; s=json.load(open('/tmp/s.json')); slug=(s.get('last') or {}).get('slug'); print('/articles/'+urllib.parse.quote(slug,safe='') if slug else '')")"
           if [ -z "$ARTICLE_PATH" ]; then
             ARTICLE_URL="$(grep -Eo 'https://noondealsnow.com/articles/[^<]+' /tmp/priority.xml | head -n1 || true)"
@@ -358,6 +369,8 @@ jobs:
             "/uae/noon-coupon-code"
             "/saudi/category/mobiles"
             "/uae/category/electronics"
+            "/saudi-arabia/coupon/nov170"
+            "/uae/coupon/nov188"
             "$OLD_ARABIC_PATH"
             "$ARTICLE_PATH"
             "$ENGLISH_PATH"
