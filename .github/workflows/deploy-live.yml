@@ -83,36 +83,54 @@ jobs:
           AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
 
           migration_done=false
+          transient_failures=0
           for i in $(seq 1 320); do
-            curl -fsS --connect-timeout 10 --max-time 120 --retry 5 --retry-all-errors --retry-delay 3 \
+            if ! curl -fsS --connect-timeout 10 --max-time 120 --retry 2 --retry-all-errors --retry-delay 2 \
               -X POST -H "$AUTH" -H 'Content-Type: application/json' \
               --data '{"limit":500}' \
-              "$ORIGIN/api/internal/coupon-migration-step?run=$GITHUB_SHA-$i" -o /tmp/migration-step.json
+              "$ORIGIN/api/internal/coupon-migration-step?run=$GITHUB_SHA-$i" -o /tmp/migration-step.json; then
+              transient_failures=$((transient_failures+1))
+              echo "R2_COUPON_MIGRATION_TRANSIENT_FAILURE step=$i count=$transient_failures"
+              sleep 8
+              continue
+            fi
+            transient_failures=0
             ok="$(jq -r '.ok // false' /tmp/migration-step.json)"
             done="$(jq -r '.done // false' /tmp/migration-step.json)"
             scanned="$(jq -r '.scanned // 0' /tmp/migration-step.json)"
             updated="$(jq -r '.updated // 0' /tmp/migration-step.json)"
             replaced="$(jq -r '.replaced // 0' /tmp/migration-step.json)"
-            echo "R2_COUPON_MIGRATION_PROGRESS step=$i scanned=$scanned updated=$updated replaced=$replaced done=$done"
+            failed_keys="$(jq -r '(.failedKeys // []) | length' /tmp/migration-step.json)"
+            echo "R2_COUPON_MIGRATION_PROGRESS step=$i scanned=$scanned updated=$updated replaced=$replaced failedKeys=$failed_keys done=$done"
             [ "$ok" = true ] || { cat /tmp/migration-step.json; exit 1; }
             if [ "$done" = true ]; then migration_done=true; break; fi
+            sleep 1
           done
           [ "$migration_done" = true ] || { echo 'R2_COUPON_MIGRATION_NOT_COMPLETE'; exit 1; }
 
           audit_done=false
+          transient_failures=0
           for i in $(seq 1 320); do
-            curl -fsS --connect-timeout 10 --max-time 120 --retry 5 --retry-all-errors --retry-delay 3 \
+            if ! curl -fsS --connect-timeout 10 --max-time 120 --retry 2 --retry-all-errors --retry-delay 2 \
               -X POST -H "$AUTH" -H 'Content-Type: application/json' \
               --data '{"limit":500}' \
-              "$ORIGIN/api/internal/coupon-r2-audit-step?run=$GITHUB_SHA-$i" -o /tmp/r2-audit-step.json
+              "$ORIGIN/api/internal/coupon-r2-audit-step?run=$GITHUB_SHA-$i" -o /tmp/r2-audit-step.json; then
+              transient_failures=$((transient_failures+1))
+              echo "R2_COUPON_AUDIT_TRANSIENT_FAILURE step=$i count=$transient_failures"
+              sleep 8
+              continue
+            fi
+            transient_failures=0
             ok="$(jq -r '.ok // false' /tmp/r2-audit-step.json)"
             done="$(jq -r '.done // false' /tmp/r2-audit-step.json)"
             scanned="$(jq -r '.scanned // 0' /tmp/r2-audit-step.json)"
             invalid_files="$(jq -r '.invalidFiles // 0' /tmp/r2-audit-step.json)"
             invalid_tokens="$(jq -r '.invalidTokens // 0' /tmp/r2-audit-step.json)"
-            echo "R2_COUPON_AUDIT_PROGRESS step=$i scanned=$scanned invalidFiles=$invalid_files invalidTokens=$invalid_tokens done=$done"
+            failed_keys="$(jq -r '(.failedKeys // []) | length' /tmp/r2-audit-step.json)"
+            echo "R2_COUPON_AUDIT_PROGRESS step=$i scanned=$scanned invalidFiles=$invalid_files invalidTokens=$invalid_tokens failedKeys=$failed_keys done=$done"
             [ "$ok" = true ] || { cat /tmp/r2-audit-step.json; exit 1; }
             if [ "$done" = true ]; then audit_done=true; break; fi
+            sleep 1
           done
           [ "$audit_done" = true ] || { echo 'R2_COUPON_AUDIT_NOT_COMPLETE'; exit 1; }
 
