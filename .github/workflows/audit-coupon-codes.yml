@@ -18,16 +18,38 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          APPROVED='NOV170 NOV188 NOV174 NOV157 NOV177 NOV186 NOV163 NOV153 NOV195 NOV161'
           echo 'SOURCE_OPS_CODES'
           grep -RhoE 'OPS[0-9]+' --exclude-dir=.git . | sort -u || true
           echo 'SOURCE_NOV_CODES'
           grep -RhoE 'NOV[0-9]+' --exclude-dir=.git . | sort -u || true
           echo 'SOURCE_FILES_WITH_OPS'
           grep -RIlE 'OPS[0-9]+' --exclude-dir=.git . | sort || true
+          unexpected="$(grep -RIlE 'OPS[0-9]+' --exclude-dir=.git . | grep -Ev '^./(approved-coupons\.js|coupon-r2-migration\.js|\.github/workflows/audit-coupon-codes\.yml)
+          ORIGIN='https://noondealsnow.com'
+          curl -fsS --retry 4 --retry-delay 2 "$ORIGIN/?coupon-audit=2" -o /tmp/home.html
+          curl -fsS --retry 4 --retry-delay 2 "$ORIGIN/blog?coupon-audit=2" -o /tmp/blog.html
+          echo 'LIVE_HOME_CODES'
+          grep -oE '(OPS|NOV)[0-9]+' /tmp/home.html | sort -u || true
+          echo 'LIVE_BLOG_CODES'
+          grep -oE '(OPS|NOV)[0-9]+' /tmp/blog.html | sort -u || true
+          ! grep -Eq 'OPS[0-9]+' /tmp/home.html
+          ! grep -Eq 'OPS[0-9]+' /tmp/blog.html
+          for file in /tmp/home.html /tmp/blog.html; do
+            for code in $(grep -oE 'NOV[0-9]+' "$file" | sort -u); do
+              grep -qw "$code" <<<"$APPROVED" || { echo "UNAPPROVED_LIVE_CODE=$code"; exit 1; }
+            done
+          done
+          for code in $APPROVED; do
+            grep -Fq "$code" /tmp/home.html || { echo "APPROVED_CODE_MISSING_FROM_HOME=$code"; exit 1; }
+          done
+          echo OWNER_COUPON_AUDIT=PASS
+ || true)"
+          if [ -n "$unexpected" ]; then echo "UNEXPECTED_LEGACY_COUPON_SOURCE"; echo "$unexpected"; exit 1; fi
+          actual="$(grep -oE "'NOV[0-9]+'" approved-coupons.js | tr -d "'" | tr '\n' ' ' | sed 's/ $//')"
+          test "$actual" = "$APPROVED"
           echo 'SOURCE_FILES_WITH_NOV'
           grep -RIlE 'NOV[0-9]+' --exclude-dir=.git . | sort || true
-          echo 'SOURCE_NOV_CONTEXT'
-          grep -RInE 'NOV[0-9]+' --exclude-dir=.git . | head -120 || true
           ORIGIN='https://noondealsnow.com'
           curl -fsS --retry 4 --retry-delay 2 "$ORIGIN/?coupon-audit=2" -o /tmp/home.html
           curl -fsS --retry 4 --retry-delay 2 "$ORIGIN/blog?coupon-audit=2" -o /tmp/blog.html
