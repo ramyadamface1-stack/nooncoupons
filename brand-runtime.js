@@ -103,8 +103,18 @@ async function ensureRobotsSitemap(res,origin){
   const sitemap=`Sitemap: ${origin}/sitemap.xml`;
   if(!/^\s*Sitemap:\s*https?:\/\//im.test(body))body=body.replace(/\s*$/,'')+'\n'+sitemap+'\n';
   else if(!body.includes(origin+'/sitemap.xml'))body=body.replace(/\s*$/,'')+'\n'+sitemap+'\n';
-  const h=new Headers(res.headers);h.delete('content-length');h.set('x-robots-sitemap','guaranteed-v1');
+  const privateRules=['Disallow: /admin/','Disallow: /api/'];
+  if(!/User-agent:\s*\*/i.test(body))body='User-agent: *\n'+body;
+  for(const rule of privateRules)if(!body.includes(rule))body=body.replace(/\s*$/,'')+'\n'+rule+'\n';
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-robots-sitemap','guaranteed-v1');h.set('x-robots-private-routes','blocked-v1');
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
+}
+function privateNoindex(res,path){
+  const isAdmin=path==='/admin'||path.startsWith('/admin/'),isApi=path.startsWith('/api/');
+  if(!isAdmin&&!isApi)return res;
+  const h=new Headers(res.headers);h.set('x-robots-tag','noindex, nofollow, noarchive');h.set('x-private-indexing','blocked-v1');
+  if(isAdmin)h.set('cache-control','private, no-store');
+  return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
 }
 function crawlSafe(res,path){
   const crawl=path==='/robots.txt'||path.startsWith('/sitemap')||path==='/feed.xml'||path==='/rss.xml';
@@ -124,6 +134,7 @@ export default{
     let res=await app.fetch(req,env,ctx);
     if(req.method==='GET'&&u.pathname==='/robots.txt')res=await ensureRobotsSitemap(res,env.SITE_ORIGIN||u.origin);
     res=crawlSafe(res,u.pathname);
+    res=privateNoindex(res,u.pathname);
     if(!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
     const origin=env.SITE_ORIGIN||u.origin;
     const source=await res.text();
@@ -145,4 +156,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:9,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:10,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
