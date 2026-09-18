@@ -56,7 +56,14 @@ jobs:
           grep -Fq "urlPathAware:true" indexnow.js
           grep -Fq "indexNowOnPublish:true" english-canary.js
           grep -Fq "richArticleSchema:true" english-canary.js
+          grep -Fq "visibleEditorialByline:true" english-canary.js
+          grep -Fq 'data-english-author="editorial-team"' english-canary.js
           grep -Fq "const indexNow=await submitIndexNow(env,[record])" english-canary.js
+          grep -Fq "ProfilePage" site.js
+          grep -Fq 'editorial-team-profile' site.js
+          grep -Fq 'Noon Deals Now Editorial Team' site.js
+          grep -Fq "rssEnglish(origin,env)" final-platform.js
+          grep -Fq "/feed-en.xml" final-platform.js
           grep -Fq "owner-approved-nov-v1-strict-copy" coupon-registry.js
           grep -Fq '/sitemap-priority.xml' discovery-entry.js
           grep -Fq 'recentArticleLimit:500' discovery-entry.js
@@ -231,6 +238,33 @@ jobs:
           grep -Fq 'controlled native-English expansion' /tmp/llms.txt
           grep -Fq 'English Saudi hub: https://noondealsnow.com/en/saudi' /tmp/llms.txt
           grep -Fq 'English article sitemap: https://noondealsnow.com/sitemap-en-articles.xml' /tmp/llms.txt
+          grep -Fq 'English RSS: https://noondealsnow.com/feed-en.xml' /tmp/llms.txt
+
+          echo "VERIFY_ROUTE=editorial-team"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/authors/editorial-team?deploy=$GITHUB_SHA" -D /tmp/team.h -o /tmp/team.html
+          grep -Fq 'data-schema="editorial-team-profile"' /tmp/team.html
+          grep -Fq '"@type":"ProfilePage"' /tmp/team.html
+          grep -Fq '"name":"Noon Deals Now Editorial Team"' /tmp/team.html
+          grep -Fq 'معايير المراجعة' /tmp/team.html
+          grep -Fq '/editorial-policy' /tmp/team.html
+          grep -Fq '/coupon-verification' /tmp/team.html
+          grep -Fq '/research' /tmp/team.html
+
+          echo "VERIFY_ROUTE=research"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/research?deploy=$GITHUB_SHA" -o /tmp/research.html
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/research.json?deploy=$GITHUB_SHA" -o /tmp/research.json
+          grep -Fq '"@type":"Dataset"' /tmp/research.html
+          grep -Fq '"@type":"FAQPage"' /tmp/research.html
+          python - <<'PY'
+          import json,re
+          allowed={'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'}
+          x=json.load(open('/tmp/research.json'))
+          assert x.get('approvedCouponCount')==10
+          assert set(x.get('approvedCouponCodes') or [])==allowed
+          text=open('/tmp/research.html',encoding='utf-8').read()
+          found={t.upper() for t in re.findall(r'\b(?:OPS\d+|NOV\d+)\b',text,re.I)}
+          assert found<=allowed, sorted(found-allowed)
+          PY
 
           echo "VERIFY_ROUTE=saudi-money"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/saudi-arabia/noon-coupon-code?deploy=$GITHUB_SHA" -D /tmp/mh -o /tmp/money.html
@@ -378,7 +412,17 @@ jobs:
           grep -Fq '"@type":"WebPage"' /tmp/english.html
           grep -Fq '"@type":"Article"' /tmp/english.html
           grep -Fq 'Noon Deals Now Editorial Team' /tmp/english.html
+          grep -Fq 'data-english-author="editorial-team"' /tmp/english.html
+          grep -Fq 'Reviewed by' /tmp/english.html
+          grep -Fq '/editorial-policy' /tmp/english.html
+          grep -Fq '/coupon-verification' /tmp/english.html
           grep -Fq "$ENGLISH_PATH" /tmp/priority.xml
+          echo "VERIFY_ROUTE=english-rss"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/feed-en.xml?deploy=$GITHUB_SHA" -D /tmp/en-feed.h -o /tmp/en-feed.xml
+          grep -Fqi 'content-type: application/xml' /tmp/en-feed.h
+          grep -Fq '<language>en</language>' /tmp/en-feed.xml
+          grep -Fq 'href="https://noondealsnow.com/feed-en.xml"' /tmp/en-feed.xml
+          grep -Fq "https://noondealsnow.com$ENGLISH_PATH" /tmp/en-feed.xml
           python - <<'PY'
           import json
           x=json.load(open('/tmp/english-health.json'))
@@ -392,7 +436,7 @@ jobs:
           python - <<'PY'
           import re
           allowed={'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'}
-          files=['/tmp/home.html','/tmp/coupons.html','/tmp/saudi.html','/tmp/uae.html','/tmp/money.html','/tmp/uae-money.html','/tmp/saudi-category.html','/tmp/uae-category.html','/tmp/en-saudi.html','/tmp/old-arabic.html','/tmp/a.html','/tmp/english.html']
+          files=['/tmp/home.html','/tmp/coupons.html','/tmp/saudi.html','/tmp/uae.html','/tmp/money.html','/tmp/uae-money.html','/tmp/saudi-category.html','/tmp/uae-category.html','/tmp/en-saudi.html','/tmp/team.html','/tmp/research.html','/tmp/old-arabic.html','/tmp/a.html','/tmp/english.html']
           seen=set()
           for path in files:
               text=open(path,encoding='utf-8').read()
@@ -416,6 +460,8 @@ jobs:
             "/uae/category/electronics"
             "/en/saudi"
             "/en/uae"
+            "/authors/editorial-team"
+            "/research"
             "/saudi-arabia/coupon/nov170"
             "/uae/coupon/nov188"
             "$OLD_ARABIC_PATH"
@@ -541,6 +587,10 @@ jobs:
                   'llmsControlledEnglishDiscoveryVerified': True,
                   'dynamicApprovedCouponCountVerified': True,
                   'englishPriorityDiscoveryVerified': True,
+                  'englishArticleVisibleBylineVerified': True,
+                  'editorialTeamProfileVerified': True,
+                  'englishRssVerified': True,
+                  'researchDatasetVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -583,6 +633,10 @@ jobs:
           assert proof['checks']['llmsControlledEnglishDiscoveryVerified'] is True
           assert proof['checks']['dynamicApprovedCouponCountVerified'] is True
           assert proof['checks']['englishPriorityDiscoveryVerified'] is True
+          assert proof['checks']['englishArticleVisibleBylineVerified'] is True
+          assert proof['checks']['editorialTeamProfileVerified'] is True
+          assert proof['checks']['englishRssVerified'] is True
+          assert proof['checks']['researchDatasetVerified'] is True
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
               json.dump(proof,f,ensure_ascii=False,indent=2)
               f.write('\n')
