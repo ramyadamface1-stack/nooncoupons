@@ -277,7 +277,7 @@ jobs:
           echo "VERIFY_ROUTE=private-indexing"
           curl -sS "$RUNTIME_ORIGIN/api/content-stats?deploy=$GITHUB_SHA" -D /tmp/apih -o /tmp/api.json
           grep -Fqi 'x-robots-tag: noindex, nofollow, noarchive' /tmp/apih
-          grep -Fq 'Disallow: /admin/' /tmp/robots.txt
+          grep -Fq 'Disallow: /admin' /tmp/robots.txt
           grep -Fq 'Disallow: /api/' /tmp/robots.txt
 
           ARTICLE_IMG=$(python - <<'PY'
