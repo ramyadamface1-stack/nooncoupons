@@ -20,7 +20,7 @@ function decor(i,t){
   return `<g opacity=".17" stroke="${t.ink}" stroke-width="12">${Array.from({length:8},(_,n)=>`<path d="M${-70+n*190} 760L${260+n*190} 0"/>`).join('')}</g>`;
 }
 
-export function couponSvg({coupon='OPS32',country='SA',variant=1,brand='noon',title=''}) {
+export function couponSvg({coupon='NOV170',country='SA',variant=1,brand='noon',title=''}) {
   const i=Math.max(1,Math.min(5,Number(variant)||1));
   const t=THEMES[i-1];
   const countryName=countryLabel(country);
@@ -88,7 +88,7 @@ function wrapTitle(title,max=48){
   if(line)lines.push(line);return lines.slice(0,3);
 }
 
-export function featuredSvg({title='دليل كوبونات نون',coupon='OPS32',country='SA',brand='noon'}){
+export function featuredSvg({title='دليل كوبونات نون',coupon='NOV170',country='SA',brand='noon'}){
   const label=esc(countryLabel(country));const cc=countryAccent(country);const code=esc(coupon);const brandText=esc(brand);const lines=wrapTitle(title,43).map(esc);
   const text=lines.map((l,i)=>`<text x="80" y="${330+i*74}" font-size="56" font-weight="900" fill="#111827">${l}</text>`).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="ft fd">
