@@ -54,7 +54,7 @@ function cleanPattern(v,re,max=120){const s=String(v??'').trim();return re.test(
 function normalizeRouteOverrides(raw){
   const out={},source=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};
   for(const [path,value] of Object.entries(source).slice(0,100)){
-    if(!/^\/[A-Za-z0-9_\-/%\u0600-\u06FF.]*$/.test(path)||!value||typeof value!=='object'||Array.isArray(value))continue;
+    if(!/^\/[A-Za-z0-9_\-/%:\u0600-\u06FF.*]*$/.test(path)||!value||typeof value!=='object'||Array.isArray(value))continue;
     const row={};
     if(value.title)row.title=cleanSeoText(value.title,180);
     if(value.description)row.description=cleanSeoText(value.description,320);
@@ -78,19 +78,49 @@ function normalizeRedirects(raw){
   for(const [from,to] of Object.entries({...out}))if(out[to]===from)delete out[from],delete out[to];
   return out;
 }
+function normalizeSameAs(raw){
+  const rows=Array.isArray(raw)?raw:String(raw||'').split(/\r?\n|,/);
+  return [...new Set(rows.map(x=>String(x||'').trim()).filter(x=>/^https:\/\/[^\s<>]{3,300}$/i.test(x)))].slice(0,12);
+}
+function normalizeGlobalJsonLd(raw){
+  if(!raw)return null;
+  let value=raw;
+  if(typeof raw==='string'){try{value=JSON.parse(raw)}catch{return null}}
+  if(!value||typeof value!=='object')return null;
+  try{const s=JSON.stringify(value);return s.length<=30000?value:null}catch{return null}
+}
+function sanitizeCustomHead(raw){
+  const source=String(raw||'').slice(0,12000),tags=source.match(/<(?:meta|link)\b[^>]*>/gi)||[];
+  return tags.filter(tag=>!/\bon\w+\s*=|javascript:|data:|http-equiv\s*=\s*["']?refresh/i.test(tag)).slice(0,40).join('');
+}
+function sanitizeRobotsExtra(raw){
+  const lines=String(raw||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean),out=[];
+  for(const line of lines.slice(0,120)){
+    if(line.startsWith('#')){out.push(line.slice(0,200));continue}
+    const m=line.match(/^(User-agent|Allow|Disallow|Crawl-delay|Host|Sitemap)\s*:\s*(.+)$/i);if(!m)continue;
+    const key=m[1],value=m[2].trim().slice(0,300);
+    if(/^Disallow$/i.test(key)&&value==='/')continue;
+    if(/^Sitemap$/i.test(key)&&!/^https:\/\/noondealsnow\.com\//i.test(value))continue;
+    if(/^Host$/i.test(key)&&value!=='noondealsnow.com')continue;
+    out.push(key+': '+value);
+  }
+  return out.join('\n');
+}
 export function defaultSeoSettings(){
   return {
-    version:3,siteName:'Noon Deals Now',defaultOgImage:'/favicon.svg',
+    version:4,siteName:'Noon Deals Now',defaultOgImage:'/favicon.svg',
     googleVerification:'',bingVerification:'',yandexVerification:'',pinterestVerification:'',
     twitterSite:'',facebookAppId:'',
     analyticsEnabled:false,respectDoNotTrack:true,
     ga4MeasurementId:'',gtmContainerId:'',metaPixelId:'',clarityProjectId:'',hotjarSiteId:'',tiktokPixelId:'',
+    organizationName:'Noon Deals Now',organizationAlternateName:'كوبونات نون',organizationLogo:'/favicon.svg',organizationSameAs:[],
+    globalJsonLd:null,customHeadHtml:'',robotsExtraRules:'',
     routeOverrides:{},redirects:{},updatedAt:null
   };
 }
 export async function getSeoSettings(env){
   const existing=await r2json(env,R2_SEO_SETTINGS_KEY,null);
-  return {...defaultSeoSettings(),...(existing||{}),routeOverrides:normalizeRouteOverrides(existing?.routeOverrides||{}),redirects:normalizeRedirects(existing?.redirects||{})};
+  return {...defaultSeoSettings(),...(existing||{}),organizationSameAs:normalizeSameAs(existing?.organizationSameAs||[]),globalJsonLd:normalizeGlobalJsonLd(existing?.globalJsonLd),customHeadHtml:sanitizeCustomHead(existing?.customHeadHtml),robotsExtraRules:sanitizeRobotsExtra(existing?.robotsExtraRules),routeOverrides:normalizeRouteOverrides(existing?.routeOverrides||{}),redirects:normalizeRedirects(existing?.redirects||{})};
 }
 async function saveSeoSettings(env,input={}){
   const current=await getSeoSettings(env);
@@ -112,8 +142,15 @@ async function saveSeoSettings(env,input={}){
     hotjarSiteId:cleanPattern(input.hotjarSiteId??current.hotjarSiteId,/^\d{3,20}$/,20),
     tiktokPixelId:cleanPattern(input.tiktokPixelId??current.tiktokPixelId,/^[A-Za-z0-9]{4,60}$/,60),
     routeOverrides:normalizeRouteOverrides(input.routeOverrides??current.routeOverrides),
+    organizationName:cleanSeoText(input.organizationName??current.organizationName,120)||'Noon Deals Now',
+    organizationAlternateName:cleanSeoText(input.organizationAlternateName??current.organizationAlternateName,120)||'كوبونات نون',
+    organizationLogo:(()=>{const v=String(input.organizationLogo??current.organizationLogo??'').trim();return v.startsWith('/')&&!v.startsWith('//')?v.slice(0,300):'/favicon.svg'})(),
+    organizationSameAs:normalizeSameAs(input.organizationSameAs??current.organizationSameAs),
+    globalJsonLd:normalizeGlobalJsonLd(input.globalJsonLd??current.globalJsonLd),
+    customHeadHtml:sanitizeCustomHead(input.customHeadHtml??current.customHeadHtml),
+    robotsExtraRules:sanitizeRobotsExtra(input.robotsExtraRules??current.robotsExtraRules),
     redirects:normalizeRedirects(input.redirects??current.redirects),
-    updatedAt:now(),version:3
+    updatedAt:now(),version:4
   };
   return r2putJson(env,R2_SEO_SETTINGS_KEY,next);
 }
