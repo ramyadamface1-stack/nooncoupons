@@ -111,9 +111,13 @@ async function bootstrapGeneratorStatus(env){
   return {attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkDay:day,bulkPublishedTotal:total,bulkPublishedToday:Math.max(0,Number(todayRow?.count||0)),bulkCursorV2:Math.max(500000,topicMax+1),bulkRunningAt:null,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false,legacyUpgradePausedForConsolidation:true,backend:'r2-v1',updatedAt:now()};
 }
 export async function getGeneratorConfig(env){
-  const existing=await r2json(env,R2_GENERATOR_CONFIG_KEY,null);
-  if(existing?.backend==='r2-v1')return {...defaultGeneratorConfig(env),...existing,enabled:true,externalProviders:false};
-  return r2putJson(env,R2_GENERATOR_CONFIG_KEY,defaultGeneratorConfig(env));
+  const existing=await r2json(env,R2_GENERATOR_CONFIG_KEY,null),defaults=defaultGeneratorConfig(env);
+  if(existing?.backend==='r2-v1'){
+    const next={...defaults,...existing,enabled:true,externalProviders:false,minWords:Math.max(1500,Number(existing.minWords||0)),targetWords:Math.max(1700,Number(existing.targetWords||0)),qualityThreshold:Math.max(95,Number(existing.qualityThreshold||0))};
+    if(Number(existing.minWords||0)<1500||Number(existing.targetWords||0)<1700||Number(existing.qualityThreshold||0)<95)return r2putJson(env,R2_GENERATOR_CONFIG_KEY,{...next,updatedAt:now()});
+    return next;
+  }
+  return r2putJson(env,R2_GENERATOR_CONFIG_KEY,defaults);
 }
 export async function getGeneratorStatus(env){
   const existing=await r2json(env,R2_GENERATOR_STATUS_KEY,null);
