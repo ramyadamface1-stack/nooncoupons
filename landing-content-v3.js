@@ -40,7 +40,7 @@ const INTENTS=[
 ];
 
 
-const OWNER_CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
+const OWNER_CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
 const KEYWORD_MODIFIERS=['كود خصم','كوبون خصم','عروض','أفضل سعر','دليل شراء','مقارنة','خصم نون','عروض نون'];
 function visualBlock(ctx,seed){
   const labels=[ctx.label,ctx.mk.name,'كوبونات وعروض'];
