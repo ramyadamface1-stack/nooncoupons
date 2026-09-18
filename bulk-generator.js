@@ -56,7 +56,7 @@ async function writeCatalogs(env,day,countBefore,records){
 }
 
 export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batchSize=3}={}){
-  const startedMs=Date.now(),candidateBudgetMs=Math.max(15000,Math.min(45000,Number(env.BULK_CANDIDATE_BUDGET_MS||38000)));
+  const startedMs=Date.now(),candidateBudgetMs=Math.max(15000,Math.min(45000,Number(env.BULK_CANDIDATE_BUDGET_MS||42000)));
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing',patch:{bulkLastError:'r2_binding_missing',bulkLastRun:now()}};
   const pauseUntil=Date.parse(status.bulkAutoPauseUntil||'');if(Number.isFinite(pauseUntil)&&pauseUntil>Date.now())return {ok:true,skipped:'bulk_auto_brake',records:[],patch:{bulkLastRun:now(),bulkLastError:null,bulkAutoPauseUntil:status.bulkAutoPauseUntil,bulkNoPassStreak:Number(status.bulkNoPassStreak||0)}};
   const day=now().slice(0,10),countBefore=String(status.bulkDay||'')===day?Math.max(0,Number(status.bulkPublishedToday||0)):0,target=Math.max(0,Math.min(MAX_DAILY_TARGET,Number(dailyTarget??2000))),batch=Math.max(1,Math.min(MAX_BATCH_SIZE,Number(batchSize||3)));
@@ -100,6 +100,6 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   return {ok:true,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,commerceTaxonomy:COMMERCE_GENERATOR_INFO.version,qualityLayer:'global-quality-v1',bootstrap,indexNow,records,tries,candidateBudgetMs,candidateBudgetHit,rejectedQuality,rejectedPreAuditSemantic,qualityRejectReasons,globalRejectReasons,preflightGlobalRejectReasons,rejectedDuplicate,rejectedGlobal,rejectedPreflightGlobal,rejectedPreflightRecent,rejectedPreflightCluster,rejectedCoupon,rejectedLinks,rejectedSchema,rejectedIndexation,freshnessSnapshot,patch};
 }
 
-export const BULK_RUNTIME_LIMITS={maxDailyTarget:MAX_DAILY_TARGET,maxBatchSize:MAX_BATCH_SIZE,qualityThresholdFloor:95,minArticleWords:1500,batchTelemetry:true,articleWriteConcurrency:16,catchupSafetyMargin:true,preflightGlobalGate:true,twoStagePreflight:true,reusesCandidatePool:true,parallelPostPublication:true,parallelCatalogShards:true,batchStageTelemetry:true,candidateTimeBudget:true,defaultCandidateBudgetMs:38000,semanticPreAudit:true,cooperativeYieldEveryTries:8,r2ReadRetry:3,r2CatalogFailClosed:true,r2WriteRetry:3,r2HeadRetry:3,fullGlobalGatePreserved:true};
+export const BULK_RUNTIME_LIMITS={maxDailyTarget:MAX_DAILY_TARGET,maxBatchSize:MAX_BATCH_SIZE,qualityThresholdFloor:95,minArticleWords:1500,batchTelemetry:true,articleWriteConcurrency:16,catchupSafetyMargin:true,preflightGlobalGate:true,twoStagePreflight:true,reusesCandidatePool:true,parallelPostPublication:true,parallelCatalogShards:true,batchStageTelemetry:true,candidateTimeBudget:true,defaultCandidateBudgetMs:42000,semanticPreAudit:true,cooperativeYieldEveryTries:8,r2ReadRetry:3,r2CatalogFailClosed:true,r2WriteRetry:3,r2HeadRetry:3,fullGlobalGatePreserved:true};
 export const buildBulkTopic=(cursor=0)=>applyCommerceTarget(applyKeywordStrategy(buildRawBulkTopic(cursor)),cursor);
 export {buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO,SCHEMA_GATE_INFO,INDEXATION_GATE_INFO,EDITORIAL_TRUST_INFO,INDEXNOW_INFO,KEYWORD_STRATEGY_INFO,COMMERCE_GENERATOR_INFO};
