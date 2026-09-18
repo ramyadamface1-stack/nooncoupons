@@ -2,7 +2,7 @@ import app from './router.js';
 import {TRUST_PAGES} from './trust-content.js';
 
 const ORIGIN='https://noondealsnow.com';
-const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
+const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
 const ROUTES={
   '/editorial-policy':'editorial',
   '/coupon-verification':'verification',
