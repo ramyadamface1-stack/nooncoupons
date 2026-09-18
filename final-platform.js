@@ -29,7 +29,13 @@ function harden(res){
 }
 
 function robots(origin){
-  return `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\nSitemap: ${origin}/sitemap.xml\n`;
+  const rules=['User-agent: *','Allow: /','Disallow: /admin','Disallow: /api/','',
+    'User-agent: GPTBot','Allow: /','Disallow: /admin','Disallow: /api/','',
+    'User-agent: OAI-SearchBot','Allow: /','Disallow: /admin','Disallow: /api/','',
+    'User-agent: Google-Extended','Allow: /','Disallow: /admin','Disallow: /api/','',
+    'User-agent: CCBot','Allow: /','Disallow: /admin','Disallow: /api/','',
+    `Sitemap: ${origin}/sitemap.xml`];
+  return rules.join('\n')+'\n';
 }
 
 function llms(origin){
@@ -49,6 +55,7 @@ function llms(origin){
 - English UAE hub: ${origin}/en/uae
 - English article sitemap: ${origin}/sitemap-en-articles.xml
 - Markets hub: ${origin}/countries
+- Golden keyword/search-intent hub: ${origin}/golden-keywords
 - Blog: ${origin}/blog
 - Research and methodology: ${origin}/research
 - Machine-readable research facts: ${origin}/research.json
