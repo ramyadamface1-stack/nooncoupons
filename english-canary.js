@@ -132,7 +132,18 @@ export async function serveEnglishCanaryArticle(req,env){
   const slug=decodeURIComponent(m[1]),state=await readState(env),rec=(state.records||[]).find(r=>r.slug===slug&&r.languageSource==='native-intent-v6-canary');if(!rec)return null;
   const o=await env.CONTENT_FINAL.get('articles/'+slug+'.html');if(!o)return null;
   const safeCoupon=normalizeApprovedCoupon(rec.coupon,rec.country==='AE'?'NOV188':'NOV170'),raw=replaceUnapprovedCouponTokens(await o.text(),safeCoupon),origin=env.SITE_ORIGIN||u.origin,canonical=origin+'/en/articles/'+enc(slug),countryLabel=rec.country==='SA'?'Saudi Arabia':'UAE',countryPath=rec.country==='SA'?'/en/saudi':'/en/uae',categoryPath=rec.categoryKey?`${countryPath}/category/${rec.categoryKey}`:countryPath;
-  const graph={'@context':'https://schema.org','@type':'Article',headline:rec.title,description:rec.metaDescription,inLanguage:'en',datePublished:rec.createdAt,dateModified:rec.updatedAt||rec.createdAt,mainEntityOfPage:canonical,author:{'@type':'Organization',name:'NoonCoupons'},publisher:{'@type':'Organization',name:'NoonCoupons'},about:[{'@type':'Thing',name:'Noon'},{'@type':'Place',name:countryLabel},{'@type':'Thing',name:rec.primaryKeyword},{'@type':'Thing',name:'Noon coupon code '+safeCoupon,identifier:safeCoupon}]};
+  const graph={'@context':'https://schema.org','@graph':[
+    {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',url:origin+'/'},
+    {'@type':'Organization','@id':origin+'/authors/editorial-team#team',name:'Noon Deals Now Editorial Team',url:origin+'/authors/editorial-team',parentOrganization:{'@id':origin+'/#organization'}},
+    {'@type':'WebSite','@id':origin+'/#website',url:origin+'/',name:'Noon Deals Now',inLanguage:['ar','en'],publisher:{'@id':origin+'/#organization'}},
+    {'@type':'BreadcrumbList','@id':canonical+'#breadcrumb',itemListElement:[
+      {'@type':'ListItem',position:1,name:'Home',item:origin+'/'},
+      {'@type':'ListItem',position:2,name:'Noon '+countryLabel,item:origin+countryPath},
+      {'@type':'ListItem',position:3,name:rec.title,item:canonical}
+    ]},
+    {'@type':'WebPage','@id':canonical+'#webpage',url:canonical,name:rec.title,description:rec.metaDescription,inLanguage:'en',isPartOf:{'@id':origin+'/#website'},breadcrumb:{'@id':canonical+'#breadcrumb'}},
+    {'@type':'Article','@id':canonical+'#article',headline:rec.title,description:rec.metaDescription,inLanguage:'en',datePublished:rec.createdAt,dateModified:rec.updatedAt||rec.createdAt,mainEntityOfPage:{'@id':canonical+'#webpage'},author:{'@id':origin+'/authors/editorial-team#team'},publisher:{'@id':origin+'/#organization'},about:[{'@type':'Thing',name:'Noon'},{'@type':'Place',name:countryLabel},{'@type':'Thing',name:rec.primaryKeyword},{'@type':'Thing',name:'Noon coupon code '+safeCoupon,identifier:safeCoupon}]}
+  ]};
   const safeMeta=replaceUnapprovedCouponTokens(rec.metaDescription,safeCoupon);const head=`<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(rec.title)}</title><meta name="description" content="${esc(safeMeta)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(canonical)}"><link rel="alternate" hreflang="en" href="${esc(canonical)}"><link rel="alternate" hreflang="x-default" href="${esc(canonical)}"><meta property="og:type" content="article"><meta property="og:title" content="${esc(rec.title)}"><meta property="og:description" content="${esc(rec.metaDescription)}"><meta property="og:url" content="${esc(canonical)}"><meta property="og:site_name" content="NoonCoupons"><script type="application/ld+json" data-schema="article">${safeJson(graph)}</script>${pageCss()}`;
   const phaseLabel=rec.canary?'canary':'controlled expansion';
   const updatedLabel=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'Africa/Cairo'}).format(new Date(rec.updatedAt||rec.createdAt));
@@ -147,4 +158,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:5,evidenceSafeSummary:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:6,evidenceSafeSummary:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
