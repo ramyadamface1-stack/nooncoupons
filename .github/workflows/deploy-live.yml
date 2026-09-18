@@ -103,6 +103,20 @@ jobs:
           grep -Fq 'preAuditSemanticGate' quality-audit.js
           grep -Fq 'articleWriteConcurrency:16' bulk-generator.js
           grep -Fq 'clusterWriteConcurrency:16' quality-index.js
+          grep -Fq 'GOLDEN_KEYWORD_ROUTES' keyword-pages.js
+          grep -Fq 'goldenKeywordsHub' keyword-pages.js
+          grep -Fq '/golden-keywords' router.js
+          grep -Fq 'R2_SEO_SETTINGS_KEY' admin-runtime.js
+          grep -Fq '/api/admin/seo-settings' admin-runtime.js
+          grep -Fq 'seoSettingsR2:true' brand-runtime.js
+          grep -Fq 'seoSettingsCacheSeconds:300' brand-runtime.js
+          grep -Fq 'id="seoSettingsPanel"' admin-page.js
+          grep -Fq 'الكلمات</th>' admin-page.js
+          grep -Fq 'تاريخ الإنشاء</th>' admin-page.js
+          grep -Fq 'GPTBot' final-platform.js
+          grep -Fq 'OAI-SearchBot' final-platform.js
+          grep -Fq 'Google-Extended' final-platform.js
+          grep -Fq 'CCBot' final-platform.js
           grep -Fq 'r2ReadRetry:3' bulk-generator.js
           grep -Fq 'r2CatalogFailClosed:true' bulk-generator.js
           grep -Fq 'r2WriteRetry:3' bulk-generator.js
@@ -280,6 +294,10 @@ jobs:
           grep -Fqi 'x-priority-sitemap-robots: v1' /tmp/rh
           grep -Fq 'Sitemap: https://noondealsnow.com/sitemap.xml' /tmp/robots.txt
           grep -Fq 'Sitemap: https://noondealsnow.com/sitemap-priority.xml' /tmp/robots.txt
+          grep -Fq 'User-agent: GPTBot' /tmp/robots.txt
+          grep -Fq 'User-agent: OAI-SearchBot' /tmp/robots.txt
+          grep -Fq 'User-agent: Google-Extended' /tmp/robots.txt
+          grep -Fq 'User-agent: CCBot' /tmp/robots.txt
 
           echo "VERIFY_ROUTE=llms"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/llms.txt?deploy=$GITHUB_SHA" -o /tmp/llms.txt
@@ -287,6 +305,7 @@ jobs:
           grep -Fq 'English Saudi hub: https://noondealsnow.com/en/saudi' /tmp/llms.txt
           grep -Fq 'English article sitemap: https://noondealsnow.com/sitemap-en-articles.xml' /tmp/llms.txt
           grep -Fq 'English RSS: https://noondealsnow.com/feed-en.xml' /tmp/llms.txt
+          grep -Fq 'Golden keyword/search-intent hub: https://noondealsnow.com/golden-keywords' /tmp/llms.txt
 
           echo "VERIFY_ROUTE=editorial-team"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/authors/editorial-team?deploy=$GITHUB_SHA" -D /tmp/team.h -o /tmp/team.html
@@ -297,6 +316,20 @@ jobs:
           grep -Fq '/editorial-policy' /tmp/team.html
           grep -Fq '/coupon-verification' /tmp/team.html
           grep -Fq '/research' /tmp/team.html
+
+          echo "VERIFY_ROUTE=golden-keywords"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/golden-keywords?deploy=$GITHUB_SHA" -D /tmp/golden.h -o /tmp/golden.html
+          grep -Fqi 'x-golden-keywords: hub-v1' /tmp/golden.h
+          grep -Fqi 'x-seo-settings: r2-v1' /tmp/golden.h
+          grep -Fq '"@type":"CollectionPage"' /tmp/golden.html
+          grep -Fq '"@type":"ItemList"' /tmp/golden.html
+          grep -Fq '/coupon/noon-discount-50' /tmp/golden.html
+          grep -Fq '/guide/noon-yellow-friday' /tmp/golden.html
+
+          echo "VERIFY_ROUTE=admin-seo-settings"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/admin/seo-settings?deploy=$GITHUB_SHA" -D /tmp/adminseo.h -o /tmp/adminseo.html
+          grep -Fqi 'x-robots-tag: noindex, nofollow, noarchive' /tmp/adminseo.h
+          grep -Fq 'NoonCoupons Admin' /tmp/adminseo.html
 
           echo "VERIFY_ROUTE=research"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/research?deploy=$GITHUB_SHA" -o /tmp/research.html
@@ -513,6 +546,7 @@ jobs:
             "/"
             "/coupons"
             "/blog"
+            "/golden-keywords"
             "/saudi"
             "/uae"
             "/saudi-arabia/noon-coupon-code"
@@ -740,6 +774,10 @@ jobs:
                   'r2StatusReadRetryVerified': True,
                   'articleWriteConcurrency16Verified': True,
                   'clusterWriteConcurrency16Verified': True,
+                  'goldenKeywordHubVerified': True,
+                  'seoSettingsR2Verified': True,
+                  'adminArticleWordDateColumnsVerified': True,
+                  'aiCrawlerRobotsVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -842,6 +880,10 @@ jobs:
           assert proof['checks']['r2StatusReadRetryVerified'] is True
           assert proof['checks']['articleWriteConcurrency16Verified'] is True
           assert proof['checks']['clusterWriteConcurrency16Verified'] is True
+          assert proof['checks']['goldenKeywordHubVerified'] is True
+          assert proof['checks']['seoSettingsR2Verified'] is True
+          assert proof['checks']['adminArticleWordDateColumnsVerified'] is True
+          assert proof['checks']['aiCrawlerRobotsVerified'] is True
           if remaining>0 and cadence_rate>0:
               assert float(catchup.get('qualityThresholdFloor') or 0)>=95
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
