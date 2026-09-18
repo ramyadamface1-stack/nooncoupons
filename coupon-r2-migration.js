@@ -1,4 +1,4 @@
-import {APPROVED_COUPON_CODES,isApprovedCoupon} from './approved-coupons.js';
+import {APPROVED_COUPON_CODES,isApprovedCoupon,normalizeApprovedCoupon} from './approved-coupons.js';
 
 const STATE_KEY='maintenance/coupon-code-migration-v1.json';
 const TOKEN_RE=/\b(?:OPS\d+|NOV\d+)\b/gi;
@@ -16,7 +16,7 @@ function repairText(text,fallback){
     const code=String(token).toUpperCase();
     if(isApprovedCoupon(code))return code;
     changed=true;replaced++;
-    return fallback;
+    return normalizeApprovedCoupon(code,fallback);
   });
   return {output,changed,replaced};
 }
