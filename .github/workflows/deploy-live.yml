@@ -101,8 +101,11 @@ jobs:
           grep -Fq 'semanticPreAudit:true' bulk-generator.js
           grep -Fq 'cooperativeYieldEveryTries:8' bulk-generator.js
           grep -Fq 'preAuditSemanticGate' quality-audit.js
+          grep -Fq 'r2ReadRetry:3' bulk-generator.js
+          grep -Fq 'r2CatalogFailClosed:true' bulk-generator.js
           grep -Fq 'r2WriteRetry:3' bulk-generator.js
           grep -Fq 'r2HeadRetry:3' bulk-generator.js
+          grep -Fq 'r2_status_read_failed' admin-runtime.js
           grep -Fq 'failClosedOnClusterRead:true' quality-index.js
           grep -Fq 'r2_status_put_failed' admin-runtime.js
           grep -Fq 'chooseAdaptiveBulkBatch' admin-runtime.js
@@ -731,6 +734,8 @@ jobs:
                   'candidateRuntimeBudgetVerified': True,
                   'semanticPreAuditVerified': True,
                   'cooperativeYieldVerified': True,
+                  'r2CatalogReadFailClosedVerified': True,
+                  'r2StatusReadRetryVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -829,6 +834,8 @@ jobs:
           assert proof['checks']['candidateRuntimeBudgetVerified'] is True
           assert proof['checks']['semanticPreAuditVerified'] is True
           assert proof['checks']['cooperativeYieldVerified'] is True
+          assert proof['checks']['r2CatalogReadFailClosedVerified'] is True
+          assert proof['checks']['r2StatusReadRetryVerified'] is True
           if remaining>0 and cadence_rate>0:
               assert float(catchup.get('qualityThresholdFloor') or 0)>=95
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
