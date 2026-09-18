@@ -21,7 +21,7 @@ for(const path of paths){
   if(res.headers.get('x-landing-specialty')!=='v4')throw new Error(`missing specialty header ${path}`);
   if(!focus)throw new Error(`missing semantic focus ${path}`);
   const html=await res.text();
-  for(const needle of ['landing-depth-v3','landing-specialty-v4','FAQPage','WebPage','Organization','منهجية التحرير والتحقق','ملخص الكيانات والنية','landing-visuals','landing-definitions','landing-keywords','landing-coupon-guide','<svg','كيف تختلف هذه الصفحة عن الصفحات الأخرى؟','الشفافية والمصادر قبل اتخاذ القرار'])if(!html.includes(needle))throw new Error(`missing ${needle} ${path}`);
+  for(const needle of ['landing-depth-v3','landing-specialty-v4','FAQPage','WebPage','Organization','منهجية التحرير والتحقق','ملخص سريع قبل الشراء','landing-visuals','landing-definitions','landing-keywords','landing-coupon-guide','advanced-guide','long-guide-section','<svg','كيف تختلف هذه الصفحة عن الصفحات الأخرى؟','الشفافية والمصادر قبل اتخاذ القرار'])if(!html.includes(needle))throw new Error(`missing ${needle} ${path}`);
   if(html.includes('specialty-focus'))specialized++;
   const h=crypto.createHash('sha256').update(html).digest('hex');
   hashes.add(h);seeds.add(seed);focusHeaders.add(focus);min=Math.min(min,wc);max=Math.max(max,wc);minChars=Math.min(minChars,cc);minImages=Math.min(minImages,imgs);
