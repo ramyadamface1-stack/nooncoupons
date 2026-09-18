@@ -15,7 +15,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -84,9 +84,9 @@ jobs:
 
           migration_done=false
           for i in $(seq 1 320); do
-            curl -fsS --connect-timeout 10 --max-time 120 \
+            curl -fsS --connect-timeout 10 --max-time 120 --retry 5 --retry-all-errors --retry-delay 3 \
               -X POST -H "$AUTH" -H 'Content-Type: application/json' \
-              --data '{"limit":300}' \
+              --data '{"limit":450}' \
               "$ORIGIN/api/internal/coupon-migration-step?run=$GITHUB_SHA-$i" -o /tmp/migration-step.json
             ok="$(jq -r '.ok // false' /tmp/migration-step.json)"
             done="$(jq -r '.done // false' /tmp/migration-step.json)"
@@ -101,9 +101,9 @@ jobs:
 
           audit_done=false
           for i in $(seq 1 320); do
-            curl -fsS --connect-timeout 10 --max-time 120 \
+            curl -fsS --connect-timeout 10 --max-time 120 --retry 5 --retry-all-errors --retry-delay 3 \
               -X POST -H "$AUTH" -H 'Content-Type: application/json' \
-              --data '{"limit":300}' \
+              --data '{"limit":450}' \
               "$ORIGIN/api/internal/coupon-r2-audit-step?run=$GITHUB_SHA-$i" -o /tmp/r2-audit-step.json
             ok="$(jq -r '.ok // false' /tmp/r2-audit-step.json)"
             done="$(jq -r '.done // false' /tmp/r2-audit-step.json)"
