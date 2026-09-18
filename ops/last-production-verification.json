@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "68308dd0a9cd5302eb7c8cffa18fe710092d3d9a",
-  "verifiedAt": "2026-09-18T16:28:07.578144+00:00",
+  "sourceSha": "4a00fac20e1e54c1830c20a755f82eb9b9267d2a",
+  "verifiedAt": "2026-09-18T16:31:16.592169+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -33,16 +33,18 @@
     "dynamicRouterCouponCountsVerified": true,
     "catchup30kEightHourPlanVerified": true,
     "catchupQualityFloorPreserved": true,
-    "bulkLastBatchTelemetryVerified": true
+    "bulkLastBatchTelemetryVerified": true,
+    "catchup64SafetyMarginConfigured": true,
+    "cronAdjustedThroughputTelemetryVerified": true
   },
   "content": {
     "r2HtmlObjects": 55432,
-    "trackedPublished": 18624,
-    "arabic": 18594,
+    "trackedPublished": 18720,
+    "arabic": 18690,
     "english": 30,
-    "lastSlug": "فحص-الضمان-samsung-التابلت-نون-الإمارات-مقارنة-البدائل-التصميم",
+    "lastSlug": "مراجعة-سلة-الأزياء-الرجالية-نون-السعودية-تثبيت-السلة-سياسة-الإرجاع",
     "lastQuality": 100,
-    "lastWordCount": 1717
+    "lastWordCount": 1727
   },
   "englishControlled": {
     "target": 200,
@@ -63,6 +65,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T16:26:41.711Z"
+    "completedAt": "2026-09-18T16:30:30.910Z"
   }
 }
