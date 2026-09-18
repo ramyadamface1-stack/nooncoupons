@@ -6,7 +6,7 @@ import {SEED_BATCH_B} from './seed-batch-b.js';
 import {SEED_BATCH_C} from './seed-batch-c.js';
 
 const ALL_SEED_ARTICLES=[...SEED_ARTICLES,...SEED_BATCH_A,...SEED_BATCH_B,...SEED_BATCH_C];
-const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
+const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
 const LIVE_MARKETS=['SA','AE'];
 const now=()=>new Date().toISOString();
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
