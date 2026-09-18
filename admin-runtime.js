@@ -1,5 +1,5 @@
 import {GENERATOR_DEFAULTS,readState} from './generator-core-v2.js';
-import {runProgrammaticBatch} from './bulk-generator.js';
+import {runProgrammaticBatch,BULK_RUNTIME_LIMITS} from './bulk-generator.js';
 import {runLegacyUpgradeBatchV2} from './legacy-upgrader-v2.js';
 
 const ADMIN_EMAIL='ramyshahin02@gmail.com';
@@ -18,6 +18,25 @@ const R2_GENERATOR_CONFIG_KEY='_ops/generator-config.json';
 const R2_GENERATOR_STATUS_KEY='_ops/generator-status.json';
 const R2_GENERATOR_LOCK_KEY='_ops/generator-lock.json';
 const BULK_RUN_LOCK_MS=5*60*1000;
+
+export function chooseAdaptiveBulkBatch(env,status={}){
+  const catchupGoal=Math.max(0,Number(env.BULK_CATCHUP_TOTAL||30000));
+  const publishedTotal=Math.max(0,Number(status.bulkPublishedTotal||0));
+  const steadyBatch=Math.max(1,Number(env.BULK_BATCH_SIZE||16));
+  const maxCatchup=Math.max(steadyBatch,Math.min(BULK_RUNTIME_LIMITS.maxBatchSize,Number(env.BULK_CATCHUP_BATCH_SIZE||64)));
+  const minCatchup=Math.max(steadyBatch,Math.min(maxCatchup,Number(env.BULK_CATCHUP_MIN_BATCH_SIZE||32)));
+  const targetMs=Math.max(30000,Math.min(58000,Number(env.BULK_CATCHUP_TARGET_BATCH_MS||52000)));
+  const lastPublished=Math.max(0,Number(status.bulkLastBatchPublished||0));
+  const lastDurationMs=Math.max(0,Number(status.bulkLastBatchDurationMs||0));
+  let adaptive=maxCatchup,reason='cold_start_max';
+  if(publishedTotal>=catchupGoal)return {batchSize:steadyBatch,mode:'steady',reason:'catchup_complete',targetMs,minCatchup,maxCatchup,lastPublished,lastDurationMs};
+  if(lastPublished>0&&lastDurationMs>0){
+    const projected=Math.floor(lastPublished*targetMs/lastDurationMs);
+    adaptive=Math.max(minCatchup,Math.min(maxCatchup,projected||minCatchup));
+    reason=adaptive<maxCatchup?'duration_target':'max_within_target';
+  }
+  return {batchSize:adaptive,mode:'catchup-adaptive',reason,targetMs,minCatchup,maxCatchup,lastPublished,lastDurationMs};
+}
 
 async function r2putJson(env,key,value){
   if(!env.CONTENT_FINAL)throw new Error('r2_binding_missing');
@@ -70,10 +89,10 @@ export async function bulkTick(env){
   if(Number.isFinite(runningAt)&&Date.now()-runningAt<BULK_RUN_LOCK_MS)return {ok:true,skipped:'bulk_already_running',backend:'r2-v1',bulkPublishedToday:Number(status.bulkPublishedToday||0)};
   const cfg=await getGeneratorConfig(env),locked={...status,bulkRunningAt:now(),backend:'r2-v1'};await r2putJson(env,R2_GENERATOR_STATUS_KEY,locked);
   try{
-    const catchupGoal=Math.max(0,Number(env.BULK_CATCHUP_TOTAL||30000)),publishedTotal=Math.max(0,Number(locked.bulkPublishedTotal||0)),steadyBatch=Math.max(1,Number(env.BULK_BATCH_SIZE||16)),catchupBatch=Math.max(steadyBatch,Number(env.BULK_CATCHUP_BATCH_SIZE||64)),effectiveBatch=publishedTotal<catchupGoal?catchupBatch:steadyBatch;
+    const adaptive=chooseAdaptiveBulkBatch(env,locked),effectiveBatch=adaptive.batchSize;
     const bulk=await runProgrammaticBatch(env,cfg,locked,{dailyTarget:Number(env.BULK_DAILY_TARGET||32000),batchSize:effectiveBatch});
     const next={...locked,...(bulk.patch||{}),bulkRunningAt:null,backend:'r2-v1',updatedAt:now()};await r2putJson(env,R2_GENERATOR_STATUS_KEY,next);
-    return {ok:true,backend:'r2-v1',bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0)}};
+    return {ok:true,backend:'r2-v1',adaptiveBatch:adaptive,bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0)}};
   }catch(e){
     const next={...locked,bulkRunningAt:null,bulkLastRun:now(),bulkLastError:String(e?.message||e),backend:'r2-v1',updatedAt:now()};await r2putJson(env,R2_GENERATOR_STATUS_KEY,next);return {ok:false,backend:'r2-v1',error:next.bulkLastError};
   }
@@ -124,11 +143,11 @@ export class GeneratorControl{
         const legacy=terminalLegacy?{ok:true,skipped:'legacy_upgrade_paused_for_consolidation',records:[],scanned:0,rejected:0,invalid:0,pass:Number(locked.legacyUpgradePassV2||4),passFinished:true,failures:[],patch:{legacyUpgradeLastRun:now(),legacyUpgradeLastError:null,legacyUpgradeNeedsConsolidation:true,legacyUpgradePausedForConsolidation:true}}:await runLegacyUpgradeBatchV2(this.env,cfg,locked,{batchSize:Number(this.env.LEGACY_UPGRADE_BATCH_SIZE||4)});
         const afterLegacy={...locked,...(legacy.patch||{})};
         await this.ctx.storage.put('status',afterLegacy);
-        const catchupGoal=Math.max(0,Number(this.env.BULK_CATCHUP_TOTAL||30000)),publishedTotal=Math.max(0,Number(afterLegacy.bulkPublishedTotal||0)),steadyBatch=Math.max(1,Number(this.env.BULK_BATCH_SIZE||16)),catchupBatch=Math.max(steadyBatch,Number(this.env.BULK_CATCHUP_BATCH_SIZE||64)),effectiveBatch=publishedTotal<catchupGoal?catchupBatch:steadyBatch;
+        const adaptive=chooseAdaptiveBulkBatch(this.env,afterLegacy),effectiveBatch=adaptive.batchSize;
         const bulk=await runProgrammaticBatch(this.env,cfg,afterLegacy,{dailyTarget:Number(this.env.BULK_DAILY_TARGET||32000),batchSize:effectiveBatch});
         const next={...afterLegacy,...(bulk.patch||{}),bulkRunningAt:null};
         await this.ctx.storage.put('status',next);
-        return json({ok:true,legacyUpgrade:{ok:legacy.ok,skipped:legacy.skipped||null,records:legacy.records||[],scanned:legacy.scanned||0,rejected:legacy.rejected||0,invalid:legacy.invalid||0,pass:legacy.pass||next.legacyUpgradePassV2||1,passFinished:Boolean(legacy.passFinished),failures:legacy.failures||[]},bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{legacyUpgradeTotal:Number(next.legacyUpgradeTotal||0),legacyUpgradeRemaining:next.legacyUpgradeRemaining==null?null:Number(next.legacyUpgradeRemaining),legacyUpgradeComplete:Boolean(next.legacyUpgradeComplete),legacyUpgradeNeedsConsolidation:Boolean(next.legacyUpgradeNeedsConsolidation),legacyUpgradePausedForConsolidation:Boolean(next.legacyUpgradePausedForConsolidation),legacyUpgradeRecoveryActive:Boolean(next.legacyUpgradeRecoveryActive),legacyUpgradePassV2:Number(next.legacyUpgradePassV2||1),legacyUpgradeCursorV2:Number(next.legacyUpgradeCursorV2||0),bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||this.env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0)}});
+        return json({ok:true,adaptiveBatch:adaptive,legacyUpgrade:{ok:legacy.ok,skipped:legacy.skipped||null,records:legacy.records||[],scanned:legacy.scanned||0,rejected:legacy.rejected||0,invalid:legacy.invalid||0,pass:legacy.pass||next.legacyUpgradePassV2||1,passFinished:Boolean(legacy.passFinished),failures:legacy.failures||[]},bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{legacyUpgradeTotal:Number(next.legacyUpgradeTotal||0),legacyUpgradeRemaining:next.legacyUpgradeRemaining==null?null:Number(next.legacyUpgradeRemaining),legacyUpgradeComplete:Boolean(next.legacyUpgradeComplete),legacyUpgradeNeedsConsolidation:Boolean(next.legacyUpgradeNeedsConsolidation),legacyUpgradePausedForConsolidation:Boolean(next.legacyUpgradePausedForConsolidation),legacyUpgradeRecoveryActive:Boolean(next.legacyUpgradeRecoveryActive),legacyUpgradePassV2:Number(next.legacyUpgradePassV2||1),legacyUpgradeCursorV2:Number(next.legacyUpgradeCursorV2||0),bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||this.env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0)}});
       }catch(e){
         const next={...locked,bulkRunningAt:null,bulkLastRun:now(),bulkLastError:String(e?.message||e),legacyUpgradeLastError:String(e?.message||e)};
         await this.ctx.storage.put('status',next);return json({ok:false,error:next.bulkLastError},500);
