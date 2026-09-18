@@ -1,11 +1,11 @@
 import {APPROVED_COUPON_CODES,isApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 
 const DAY=86400000;
-const OWNER_CATALOG_UPDATED_AT='2026-09-17T00:00:00.000Z';
+const OWNER_CATALOG_UPDATED_AT='2026-09-18T00:00:00.000Z';
 const REVIEW_AFTER_DAYS=14;
 const BLOCK_AFTER_DAYS=30;
 const CODES=APPROVED_COUPON_CODES;
-const REGISTRY_VERSION='owner-approved-ops-v3-strict-copy';
+const REGISTRY_VERSION='owner-approved-nov-v1-strict-copy';
 
 export const COUPON_REGISTRY=Object.freeze(Object.fromEntries(CODES.map(code=>[code,Object.freeze({
   code,
