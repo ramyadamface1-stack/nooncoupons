@@ -235,6 +235,7 @@ export async function englishCanaryRepairHealth(env){
   const marker=await readMarker(env,MARKER_KEY),cleanupMarker=await readMarker(env,CLEANUP_MARKER_KEY),qualityMarker=await readMarker(env,QUALITY_MARKER_KEY),htmlMarker=await readMarker(env,HTML_MARKER_KEY);
 
   const identityProblems=rows.filter(r=>r?.languageSource!=='native-intent-v6-canary'||(TARGET_SET.has(r.slug)?r.canary!==true:(r.canary!==false||r.phase!=='controlled'))).map(r=>r.slug);
+  const unapprovedCouponRecords=rows.filter(r=>!isApprovedCoupon(r?.coupon)).map(r=>({slug:r.slug,coupon:r.coupon}));
   const unexpectedR2=[];
   for(const slug of [...UNINTENDED_CONTROLLED_SLUGS,...BAD_QUALITY_SLUGS]){try{if(await env.CONTENT_FINAL.head('articles/'+slug+'.html'))unexpectedR2.push(slug)}catch{}}
 
@@ -249,10 +250,10 @@ export async function englishCanaryRepairHealth(env){
   const baselineReconciled=cleanupMarker?.complete===true&&cleanupMarker?.version==='two-canaries-v1';
   const htmlRepairComplete=htmlMarker?.complete===true&&htmlMarker?.version==='html-copy-v1';
   const target=Math.max(2,Number(state?.controlledTarget||2));
-  const currentQualityClean=rows.length>=2&&qualityState.every(x=>x.clean)&&qualityR2.every(x=>x.present&&x.metadataMatches&&x.variantClean&&x.guideClean)&&identityProblems.length===0&&unexpectedR2.length===0&&htmlRepairComplete;
+  const currentQualityClean=rows.length>=2&&qualityState.every(x=>x.clean)&&qualityR2.every(x=>x.present&&x.metadataMatches&&x.variantClean&&x.guideClean)&&identityProblems.length===0&&unapprovedCouponRecords.length===0&&unexpectedR2.length===0&&htmlRepairComplete;
   const expansionComplete=rows.length>=target;
   const ok=baselineClean&&baselineReconciled&&currentQualityClean;
-  return {ok,version:'english-copy-v2',targetCount:TARGET_SLUGS.length,controlledTarget:target,totalStateRecords:rows.length,expansionComplete,remaining:Math.max(0,target-rows.length),unexpectedEnglishRecords:identityProblems,unexpectedR2Objects:unexpectedR2,stateClean:qualityState.every(x=>x.clean),r2HtmlClean:qualityR2.every(x=>x.present&&x.variantClean&&x.guideClean),r2MetadataClean:qualityR2.every(x=>x.present&&x.metadataMatches),reconciledToTwo:baselineReconciled,baselineReconciled,htmlRepairComplete,controlledQualityClean:currentQualityClean,state:stateChecks,articles:articleChecks,qualityState,qualityR2,marker,cleanupMarker,qualityMarker,htmlMarker};
+  return {ok,version:'english-copy-v2',targetCount:TARGET_SLUGS.length,controlledTarget:target,totalStateRecords:rows.length,expansionComplete,remaining:Math.max(0,target-rows.length),unexpectedEnglishRecords:identityProblems,unapprovedCouponRecords,unexpectedR2Objects:unexpectedR2,stateClean:qualityState.every(x=>x.clean),r2HtmlClean:qualityR2.every(x=>x.present&&x.variantClean&&x.guideClean),r2MetadataClean:qualityR2.every(x=>x.present&&x.metadataMatches),reconciledToTwo:baselineReconciled,baselineReconciled,htmlRepairComplete,controlledQualityClean:currentQualityClean,state:stateChecks,articles:articleChecks,qualityState,qualityR2,marker,cleanupMarker,qualityMarker,htmlMarker};
 }
 
 export async function serveEnglishCanaryRepairHealth(env){const h=await englishCanaryRepairHealth(env);return json(h,h.ok?200:503)}
