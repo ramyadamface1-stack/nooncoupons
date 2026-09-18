@@ -131,28 +131,28 @@ function setImgAttr(attrs,name,value){
 }
 function optimizeImages(html){
   let firstSrc=null,count=0;
-  let out=String(html).replace(/<img\\b([^>]*)>/gi,(whole,attrs)=>{
-    const m=String(attrs).match(/\\bsrc=(["'])(.*?)\\1/i);if(!m||!m[2])return whole;
+  let out=String(html).replace(/<img\b([^>]*)>/gi,(whole,attrs)=>{
+    const m=String(attrs).match(/\bsrc=(["'])(.*?)\1/i);if(!m||!m[2])return whole;
     const src=m[2],isFirst=count===0;count++;if(isFirst)firstSrc=src;
     let next=setImgAttr(attrs,'decoding','async');
     next=setImgAttr(next,'loading',isFirst?'eager':'lazy');
     next=setImgAttr(next,'fetchpriority',isFirst?'high':'low');
     return '<img'+next+'>';
   });
-  if(firstSrc&&!/<link\\b[^>]*rel=["'][^"']*preload[^"']*["'][^>]*as=["']image["']/i.test(out)){
+  if(firstSrc&&!/<link\b[^>]*rel=["'][^"']*preload[^"']*["'][^>]*as=["']image["']/i.test(out)){
     const tag='<link rel="preload" as="image" href="'+attr(firstSrc)+'" fetchpriority="high">';
-    out=out.replace(/<\\/head>/i,tag+'</head>');
+    out=out.replace(/<\/head>/i,tag+'</head>');
   }
   return {html:out,count,firstSrc};
 }
-const SW_JS=`const CACHE='noondeals-static-v1';
-self.addEventListener('install',event=>event.waitUntil(self.skipWaiting()));
-self.addEventListener('activate',event=>event.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith('noondeals-static-')&&key!==CACHE)await caches.delete(key);await self.clients.claim()})()));
-self.addEventListener('fetch',event=>{const req=event.request;if(req.method!=='GET')return;const u=new URL(req.url);if(u.origin!==location.origin)return;if(!(u.pathname.startsWith('/assets/coupon-svg/')||u.pathname.startsWith('/assets/featured/')||u.pathname==='/favicon.svg'))return;event.respondWith((async()=>{const cache=await caches.open(CACHE),hit=await cache.match(req);if(hit)return hit;const res=await fetch(req);if(res.ok)event.waitUntil(cache.put(req,res.clone()));return res})())});`;
+const SW_JS="const CACHE='noondeals-static-v1';\n"+
+  "self.addEventListener('install',event=>event.waitUntil(self.skipWaiting()));\n"+
+  "self.addEventListener('activate',event=>event.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith('noondeals-static-')&&key!==CACHE)await caches.delete(key);await self.clients.claim()})()));\n"+
+  "self.addEventListener('fetch',event=>{const req=event.request;if(req.method!=='GET')return;const u=new URL(req.url);if(u.origin!==location.origin)return;if(!(u.pathname.startsWith('/assets/coupon-svg/')||u.pathname.startsWith('/assets/featured/')||u.pathname==='/favicon.svg'))return;event.respondWith((async()=>{const cache=await caches.open(CACHE),hit=await cache.match(req);if(hit)return hit;const res=await fetch(req);if(res.ok)event.waitUntil(cache.put(req,res.clone()));return res})())});";
 function serviceWorkerRegistration(html){
   if(String(html).includes("serviceWorker.register('/sw.js'"))return html;
-  const s=`<script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{}),{once:true})}</script>`;
-  return /<\\/body>/i.test(html)?String(html).replace(/<\\/body>/i,s+'</body>'):String(html)+s;
+  const s="<script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{}),{once:true})}</script>";
+  return /<\/body>/i.test(html)?String(html).replace(/<\/body>/i,s+'</body>'):String(html)+s;
 }
 function brandHead(html){
   let out=String(html);
