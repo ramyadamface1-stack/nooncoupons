@@ -199,22 +199,22 @@ jobs:
           curl -fsS "$RUNTIME_ORIGIN/uae/category/electronics?deploy=$GITHUB_SHA" -o /tmp/uae-category.html
 
           OLD_ARABIC_PATH="$(python - <<'PY'
-import urllib.parse
-print('/articles/'+urllib.parse.quote('دليل-استخدام-كوبونات-نون-السعودية',safe=''))
-PY
-)"
+          import urllib.parse
+          print('/articles/'+urllib.parse.quote('دليل-استخدام-كوبونات-نون-السعودية',safe=''))
+          PY
+          )"
           curl -fsS "$RUNTIME_ORIGIN$OLD_ARABIC_PATH?deploy=$GITHUB_SHA" -o /tmp/old-arabic.html
 
           curl -fsS "$RUNTIME_ORIGIN/api/english-canary-health?deploy=$GITHUB_SHA" -o /tmp/english-health.json
           ENGLISH_PATH="$(python - <<'PY'
-import json, urllib.parse
-x=json.load(open('/tmp/english-health.json'))
-c=x.get('controlled') or {}
-rows=c.get('records') or x.get('records') or []
-slug=(rows[-1] or {}).get('slug') if rows else ''
-print('/en/articles/'+urllib.parse.quote(slug,safe='') if slug else '')
-PY
-)"
+          import json, urllib.parse
+          x=json.load(open('/tmp/english-health.json'))
+          c=x.get('controlled') or {}
+          rows=c.get('records') or x.get('records') or []
+          slug=(rows[-1] or {}).get('slug') if rows else ''
+          print('/en/articles/'+urllib.parse.quote(slug,safe='') if slug else '')
+          PY
+          )"
           [ -n "$ENGLISH_PATH" ] || { echo 'NO_ENGLISH_ARTICLE_FOR_LIVE_VERIFY'; exit 1; }
           curl -fsS "$RUNTIME_ORIGIN$ENGLISH_PATH?deploy=$GITHUB_SHA" -D /tmp/english.h -o /tmp/english.html
           grep -Fqi 'content-language: en' /tmp/english.h
@@ -260,13 +260,13 @@ PY
             [ "$code" = 200 ] || { echo "CANONICAL_ROUTE_FAILED path=$p http=$code"; exit 1; }
             if [ "$p" != "/favicon.svg" ]; then
               python - "$out" <<'PY'
-import re,sys
-allowed={'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'}
-text=open(sys.argv[1],encoding='utf-8').read()
-tokens={x.upper() for x in re.findall(r'\b(?:OPS\d+|NOV\d+)\b',text,re.I)}
-bad=tokens-allowed
-assert not bad, f'unapproved production coupon codes: {sorted(bad)}'
-PY
+          import re,sys
+          allowed={'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'}
+          text=open(sys.argv[1],encoding='utf-8').read()
+          tokens={x.upper() for x in re.findall(r'\b(?:OPS\d+|NOV\d+)\b',text,re.I)}
+          bad=tokens-allowed
+          assert not bad, f'unapproved production coupon codes: {sorted(bad)}'
+          PY
             else
               grep -Fq '<svg' "$out"
             fi
@@ -290,20 +290,20 @@ PY
           },ensure_ascii=False,separators=(',',':')))
           PY
           python - <<'PY'
-import json
-x=json.load(open('/tmp/english-health.json'))
-c=x.get('controlled') or {}
-print('ENGLISH_CONTROLLED_LIVE='+json.dumps({
-  'target':c.get('target'),
-  'published':c.get('published'),
-  'remaining':c.get('remaining'),
-  'publishedToday':c.get('publishedToday'),
-  'dailyTarget':c.get('dailyTarget'),
-  'minIntervalMinutes':c.get('minIntervalMinutes'),
-  'nextEligibleAt':c.get('nextEligibleAt')
-},separators=(',',':')))
-assert int(c.get('target') or 0)==200
-assert int(c.get('dailyTarget') or 0)==24
-assert int(c.get('minIntervalMinutes') or 0)==60
-PY
+          import json
+          x=json.load(open('/tmp/english-health.json'))
+          c=x.get('controlled') or {}
+          print('ENGLISH_CONTROLLED_LIVE='+json.dumps({
+            'target':c.get('target'),
+            'published':c.get('published'),
+            'remaining':c.get('remaining'),
+            'publishedToday':c.get('publishedToday'),
+            'dailyTarget':c.get('dailyTarget'),
+            'minIntervalMinutes':c.get('minIntervalMinutes'),
+            'nextEligibleAt':c.get('nextEligibleAt')
+          },separators=(',',':')))
+          assert int(c.get('target') or 0)==200
+          assert int(c.get('dailyTarget') or 0)==24
+          assert int(c.get('minIntervalMinutes') or 0)==60
+          PY
           echo "PRODUCTION_RUNTIME_VERIFIED=1"
