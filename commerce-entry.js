@@ -6,6 +6,7 @@ import {enhanceLandingPage,LANDING_CONTENT_V3} from './landing-content-v3.js';
 import {enhanceSpecialtyLanding,LANDING_SPECIALTY_V4} from './landing-specialty-v4.js';
 import {serveEnglishCanaryArticle,serveEnglishCanaryHealth,englishCanaryHealth,englishCanarySitemap} from './english-canary.js';
 import {serveEnglishCanaryRepairHealth} from './english-canary-repair.js';
+import {readCouponR2MigrationState} from './coupon-r2-migration.js';
 export {ControlPlane,GeneratorControl} from './public-entry.js';
 
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
@@ -73,20 +74,24 @@ async function contentStats(req,env,ctx){
   }catch{}
   let english={};
   try{english=await englishCanaryHealth(env)}catch{}
+  let couponMigration={ok:false,done:false,scanned:0,updated:0,replaced:0};
+  try{couponMigration=await readCouponR2MigrationState(env)}catch{}
   const freshCount=new URL(req.url).searchParams.get('fresh')==='1';
   const r2Count=await countR2ArticleHtml(env,{fresh:freshCount});
   const r2Uploaded=r2Count.count;
   const bulk=generator?.bulk||{};
   const controlled=english?.controlled||{};
   const arabic=Number(bulk.publishedTotal||0);
-  const englishTotal=Number(controlled.published||0);
+  const englishTotal=Number(controlled.published||0),trackedPublished=arabic+englishTotal,untrackedEstimate=Number.isFinite(Number(r2Uploaded))?Math.max(0,Number(r2Uploaded)-trackedPublished):null;
   return {
-    ok:true,total:arabic+englishTotal,r2Uploaded,arabic,english:englishTotal,
+    ok:true,total:trackedPublished,r2Uploaded,arabic,english:englishTotal,
     englishByCountry:{SA:Number(controlled.sa||0),AE:Number(controlled.ae||0)},
     publishedTodayArabic:Number(bulk.publishedToday||0),dailyTargetArabic:Number(bulk.dailyTarget||0),
     last:{slug:bulk.lastSlug||null,quality:bulk.lastQuality??null,wordCount:bulk.lastWordCount??null,run:bulk.lastRun||null,error:bulk.lastError||null},
     englishControlled:{target:Number(controlled.target||0),complete:Boolean(controlled.complete),remaining:Number(controlled.remaining||0),publishedToday:Number(controlled.publishedToday||0),dailyTarget:Number(controlled.dailyTarget||0),minIntervalMinutes:Number(controlled.minIntervalMinutes||0),nextEligibleAt:controlled.nextEligibleAt||null},
     source:'live-runtime',generatedAt:new Date().toISOString(),health:generator,
+    couponMigration:{ok:Boolean(couponMigration?.ok),done:Boolean(couponMigration?.done),scanned:Number(couponMigration?.scanned||0),updated:Number(couponMigration?.updated||0),replaced:Number(couponMigration?.replaced||0),lastBatchAt:couponMigration?.lastBatchAt||null,completedAt:couponMigration?.completedAt||null},
+    storageAudit:{trackedPublished,r2HtmlObjects:r2Uploaded,untrackedEstimate,autoDelete:false,note:'Estimate only; no automatic deletion. Audit references before cleanup.'},
     r2Count:{count:r2Uploaded,countedAt:r2Count.countedAt,cached:Boolean(r2Count.cached),ageSeconds:r2Count.ageSeconds??null,pages:r2Count.pages??null,snapshotKey:R2_COUNT_SNAPSHOT_KEY,ttlSeconds:R2_COUNT_TTL_MS/1000}
   };
 }
