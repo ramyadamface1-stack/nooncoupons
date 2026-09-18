@@ -44,7 +44,7 @@ export function workersAiBudget(env,state,status={}){
 
 function basePrompt(t,cfg,existing){
   const market=t.country==='SA'?'saudi-arabia':'uae';
-  const target=Math.max(Number(cfg.minWords||1000)+200,Math.min(Number(cfg.targetWords||1500),1600));
+  const target=Math.max(Number(cfg.minWords||1500)+200,Math.min(Number(cfg.targetWords||1500),1600));
   return `اكتب نص HTML عربي كامل لمقال أصلي عالي الجودة لموقع كوبونات نون. أعد HTML فقط بدون JSON وبدون Markdown fences وبدون <html> أو <body> أو <script> أو <h1>.
 
 الدولة الوحيدة: ${t.countryName} (${t.country})
@@ -186,7 +186,7 @@ function strictAudit(article,t,cfg,base){
     {name:'h2_structure',pass:(article?.html?.match(/<h2\b/gi)||[]).length>=6&&(article?.html?.match(/<h2\b/gi)||[]).length<=10}
   ];
   const hardPass=hard.every(x=>x.pass);
-  return {...base,wordCount,score:hardPass?base.score:Math.min(Number(base.score||0),94.9),checks:[...(base.checks||[]),...hard],productionReady:Boolean(base.productionReady)&&hardPass&&wordCount>=Number(cfg.minWords||1000)&&wordCount<=2000,hardGate:{pass:hardPass,arabicRatio:Math.round(arabicRatio*1000)/1000,codes}};
+  return {...base,wordCount,score:hardPass?base.score:Math.min(Number(base.score||0),94.9),checks:[...(base.checks||[]),...hard],productionReady:Boolean(base.productionReady)&&hardPass&&wordCount>=Number(cfg.minWords||1500)&&wordCount<=2000,hardGate:{pass:hardPass,arabicRatio:Math.round(arabicRatio*1000)/1000,codes}};
 }
 
 function repairPrompt(t,cfg,article,audit){
