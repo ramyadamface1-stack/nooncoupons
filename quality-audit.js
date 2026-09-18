@@ -56,7 +56,7 @@ export function auditSeoArticle(article,topic,opts={}){
   addCheck(checks,'seo','keyword_not_stuffed',exactKw>=1&&exactKw<=5,2);
   addCheck(checks,'seo','heading_hierarchy',h2>=9&&h3>=4,2);
 
-  const minWords=Math.max(1000,Number(opts.minWords||1000));
+  const minWords=Math.max(1500,Number(opts.minWords||1500));
   addCheck(checks,'content','word_count',wordCount>=Math.max(minWords,1150)&&wordCount<=1900,5,{critical:wordCount<minWords||wordCount>2000,note:String(wordCount)});
   addCheck(checks,'content','paragraph_count',pstats.count>=18,2);
   addCheck(checks,'content','paragraph_readability',pstats.avg>=18&&pstats.avg<=90&&pstats.max<=145,2);
