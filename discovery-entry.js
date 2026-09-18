@@ -1,6 +1,7 @@
 import app from './brand-runtime.js';
 import {runEnglishCanary} from './english-canary.js';
 import {repairEnglishCanaryLegacyMetadata} from './english-canary-repair.js';
+import {runCouponR2MigrationBatch,readCouponR2MigrationState} from './coupon-r2-migration.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
@@ -118,13 +119,17 @@ export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
     if(req.method==='GET'&&u.pathname==='/sitemap-priority.xml')return prioritySitemap(env,origin);
+    if(req.method==='GET'&&u.pathname==='/api/coupon-migration-health'){
+      const state=await readCouponR2MigrationState(env);
+      return new Response(JSON.stringify(state,null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+    }
     let res=await app.fetch(req,env,ctx);
     if(req.method==='GET'&&u.pathname==='/sitemap.xml')res=await augmentRootSitemap(res,origin);
     if(req.method==='GET'&&u.pathname==='/robots.txt')res=await augmentRobots(res,origin);
     res=await injectDiscoveryLinks(req,env,res);
     return res;
   },
-  async scheduled(event,env,ctx){const base=app.scheduled?app.scheduled(event,env,ctx):null;if(base)ctx.waitUntil(Promise.resolve(base));ctx.waitUntil((async()=>{await repairEnglishCanaryLegacyMetadata(env);return runEnglishCanary(env)})())}
+  async scheduled(event,env,ctx){const base=app.scheduled?app.scheduled(event,env,ctx):null;if(base)ctx.waitUntil(Promise.resolve(base));ctx.waitUntil((async()=>{await repairEnglishCanaryLegacyMetadata(env);return runEnglishCanary(env)})());ctx.waitUntil(runCouponR2MigrationBatch(env,{limit:100}))}
 };
 
-export const DISCOVERY_ENTRY_INFO={version:5,englishSchedulerOwner:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:18,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:6,couponR2Migration:true,englishSchedulerOwner:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:18,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,manifestCacheSeconds:120};
