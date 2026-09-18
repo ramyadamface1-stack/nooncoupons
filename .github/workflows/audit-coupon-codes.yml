@@ -35,6 +35,9 @@ jobs:
           NODE
 
           node scripts/coupon-code-gate.mjs
+          grep -Fq "globalCouponSanitizer:true" network-entry.js
+          grep -Fq "x-coupon-sanitized','all-html" network-entry.js
+          grep -Fq "replaceUnapprovedCouponTokens(original,fallback)" network-entry.js
 
           unexpected="$(grep -RIlE 'OPS[0-9]+' --exclude-dir=.git . | grep -Ev '^./approved-coupons\.js$' || true)"
           if [ -n "$unexpected" ]; then
