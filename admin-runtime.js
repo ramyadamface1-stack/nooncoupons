@@ -260,6 +260,12 @@ export async function handleAdminApi(req,env){
     return json({articleCount:(st.articles||[]).length+bulkTotal,publishedCount:(st.articles||[]).filter(x=>x.status==='published').length+bulkTotal,workersAIReady:Boolean(env.AI),externalProviders:false,bulk:{publishedToday:Number(gs.bulkPublishedToday||0),publishedTotal:bulkTotal,dailyTarget:Number(gs.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),lastRun:gs.bulkLastRun||null,lastError:gs.bulkLastError||null},legacyUpgrade:{upgradedTotal:Number(gs.legacyUpgradeTotal||0),remaining:gs.legacyUpgradeRemaining==null?null:Number(gs.legacyUpgradeRemaining),complete:Boolean(gs.legacyUpgradeComplete),needsConsolidation:Boolean(gs.legacyUpgradeNeedsConsolidation),pausedForConsolidation:Boolean(gs.legacyUpgradePausedForConsolidation),recoveryActive:Boolean(gs.legacyUpgradeRecoveryActive),pass:Number(gs.legacyUpgradePassV2||1),cursor:Number(gs.legacyUpgradeCursorV2||0),lastRun:gs.legacyUpgradeLastRun||null,lastError:gs.legacyUpgradeLastError||null,lastQuality:gs.legacyUpgradeLastQuality??null,lastQualityFloor:gs.legacyUpgradeLastQualityFloor??null,lastWordCount:gs.legacyUpgradeLastWordCount??null,failureSamples:gs.legacyUpgradeFailureSamples||[]},config:cfg,generator:gs});
   }
   if(p==='/api/admin/seo-drops'&&req.method==='GET')return json(gscSeoDropsSnapshot());
+  if(p==='/api/admin/conversion-events'&&req.method==='GET'){
+    try{
+      const er=await ctl(env,'/events-summary',{method:'GET'});
+      return json(er.ok?await er.json():{ok:false,error:'events_unavailable'},er.ok?200:503);
+    }catch(e){return json({ok:false,error:'events_unavailable',message:String(e?.message||e).slice(0,160)},503)}
+  }
     if(p==='/api/admin/seo-settings'&&req.method==='GET')return json(await getSeoSettings(env));
   if(p==='/api/admin/seo-settings'&&req.method==='PUT'){
     const b=await body(req);
