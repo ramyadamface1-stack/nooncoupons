@@ -201,7 +201,7 @@ export default{
       const r=await app.fetch(req,env,ctx);if(!r.ok)return r;
       try{const s=await r.json();s.settings={...(s.settings||{}),aiPrimary:'workers-ai',aiFallback:null,targetWords:1500,minWords:1000,qualityThreshold:95};return json(s,r.status)}catch{return r}
     }
-    if(u.pathname==='/admin'||u.pathname==='/admin/')return renderAdmin(req,env);
+    if(u.pathname==='/admin'||u.pathname==='/admin/'||u.pathname==='/admin/seo-settings')return renderAdmin(req,env);
     if(u.pathname==='/api/admin/login'&&req.method==='POST')return secureLogin(req,env);
     if(u.pathname==='/api/admin/generate-now'&&req.method==='POST'){
       if(!(await isAdmin(req,env)))return json({error:'unauthorized'},401);
