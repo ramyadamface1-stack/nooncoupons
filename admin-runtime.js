@@ -17,6 +17,7 @@ async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.
 const R2_GENERATOR_CONFIG_KEY='_ops/generator-config.json';
 const R2_GENERATOR_STATUS_KEY='_ops/generator-status.json';
 const R2_GENERATOR_LOCK_KEY='_ops/generator-lock.json';
+const BULK_RUN_LOCK_MS=5*60*1000;
 
 async function r2putJson(env,key,value){
   if(!env.CONTENT_FINAL)throw new Error('r2_binding_missing');
@@ -60,7 +61,7 @@ export async function generatorUnlock(env,runId){
 }
 export async function bulkTick(env){
   const status=await getGeneratorStatus(env),runningAt=Date.parse(status.bulkRunningAt||'');
-  if(Number.isFinite(runningAt)&&Date.now()-runningAt<55000)return {ok:true,skipped:'bulk_already_running',backend:'r2-v1',bulkPublishedToday:Number(status.bulkPublishedToday||0)};
+  if(Number.isFinite(runningAt)&&Date.now()-runningAt<BULK_RUN_LOCK_MS)return {ok:true,skipped:'bulk_already_running',backend:'r2-v1',bulkPublishedToday:Number(status.bulkPublishedToday||0)};
   const cfg=await getGeneratorConfig(env),locked={...status,bulkRunningAt:now(),backend:'r2-v1'};await r2putJson(env,R2_GENERATOR_STATUS_KEY,locked);
   try{
     const catchupGoal=Math.max(0,Number(env.BULK_CATCHUP_TOTAL||30000)),publishedTotal=Math.max(0,Number(locked.bulkPublishedTotal||0)),steadyBatch=Math.max(1,Number(env.BULK_BATCH_SIZE||16)),catchupBatch=Math.max(steadyBatch,Number(env.BULK_CATCHUP_BATCH_SIZE||48)),effectiveBatch=publishedTotal<catchupGoal?catchupBatch:steadyBatch;
@@ -109,7 +110,7 @@ export class GeneratorControl{
     }
     if(p==='/bulk-tick'&&req.method==='POST'){
       const status=await this.status(),runningAt=Date.parse(status.bulkRunningAt||'');
-      if(Number.isFinite(runningAt)&&Date.now()-runningAt<55000)return json({ok:true,skipped:'bulk_already_running',bulkPublishedToday:Number(status.bulkPublishedToday||0),legacyUpgradeTotal:Number(status.legacyUpgradeTotal||0)});
+      if(Number.isFinite(runningAt)&&Date.now()-runningAt<BULK_RUN_LOCK_MS)return json({ok:true,skipped:'bulk_already_running',bulkPublishedToday:Number(status.bulkPublishedToday||0),legacyUpgradeTotal:Number(status.legacyUpgradeTotal||0)});
       const cfg=await this.config(),locked={...status,bulkRunningAt:now()};
       await this.ctx.storage.put('status',locked);
       try{
