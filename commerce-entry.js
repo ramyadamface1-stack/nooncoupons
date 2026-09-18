@@ -4,8 +4,8 @@ import {commercePaths} from './commerce-taxonomy.js';
 import {COMMERCE_GENERATOR_INFO,commerceCoverageTarget} from './commerce-generator-taxonomy.js';
 import {enhanceLandingPage,LANDING_CONTENT_V3} from './landing-content-v3.js';
 import {enhanceSpecialtyLanding,LANDING_SPECIALTY_V4} from './landing-specialty-v4.js';
-import {runEnglishCanary,serveEnglishCanaryArticle,serveEnglishCanaryHealth,englishCanaryHealth,englishCanarySitemap} from './english-canary.js';
-import {repairEnglishCanaryLegacyMetadata,serveEnglishCanaryRepairHealth} from './english-canary-repair.js';
+import {serveEnglishCanaryArticle,serveEnglishCanaryHealth,englishCanaryHealth,englishCanarySitemap} from './english-canary.js';
+import {serveEnglishCanaryRepairHealth} from './english-canary-repair.js';
 export {ControlPlane,GeneratorControl} from './public-entry.js';
 
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
@@ -99,6 +99,6 @@ export default{
   const admin=await adminRes.json(),stats=await contentStats(req,env,ctx);
   return new Response(JSON.stringify({ok:true,admin,health:stats.health||{},contentStats:stats},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 }if(req.method==='GET'&&path==='/api/content-stats')return new Response(JSON.stringify(await contentStats(req,env,ctx),null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});if(req.method==='GET'&&path==='/api/commerce-health')return new Response(JSON.stringify(await health(env),null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});if(req.method==='GET'){let landing=await commerceLanding(path,origin,env);if(landing){landing=await enhanceLandingPage(path,origin,landing,env);landing=await enhanceSpecialtyLanding(path,origin,landing);return hardened(landing)}}let res=await app.fetch(req,env,ctx);if(req.method==='GET'&&path.startsWith('/articles/'))res=await appendArticleCommerce(req,env,res);res=await appendHomeCommerce(req,res);res=await augmentSitemapResponse(req,env,res);return hardened(res)},
-  async scheduled(event,env,ctx){if(app.scheduled)app.scheduled(event,env,ctx);ctx.waitUntil((async()=>{await repairEnglishCanaryLegacyMetadata(env);return runEnglishCanary(env)})())}
+  async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
-export const COMMERCE_ENTRY_INFO={version:15,entry:'commerce-entry',wraps:'public-entry',routes:COMMERCE_TAXONOMY_INFO.routes,articleBacklinks:true,homeNavigation:true,separateShoesAndBags:true,modelFamilyPages:true,explicitGeneratorTaxonomy:COMMERCE_GENERATOR_INFO.version,landingContent:LANDING_CONTENT_V3.version,landingSpecialty:LANDING_SPECIALTY_V4.version,minLandingWords:LANDING_CONTENT_V3.minWords,sitemapDiscovery:'main-index-or-direct-urlset'};
+export const COMMERCE_ENTRY_INFO={version:16,englishSchedulerOwner:false,entry:'commerce-entry',wraps:'public-entry',routes:COMMERCE_TAXONOMY_INFO.routes,articleBacklinks:true,homeNavigation:true,separateShoesAndBags:true,modelFamilyPages:true,explicitGeneratorTaxonomy:COMMERCE_GENERATOR_INFO.version,landingContent:LANDING_CONTENT_V3.version,landingSpecialty:LANDING_SPECIALTY_V4.version,minLandingWords:LANDING_CONTENT_V3.minWords,sitemapDiscovery:'main-index-or-direct-urlset'};
