@@ -219,6 +219,34 @@ jobs:
           grep -Fq 'id="article-link-network"' /tmp/a.html
           grep -Fq 'اقرأ أيضًا قبل الشراء' /tmp/a.html
           grep -Fq 'href="/favicon.svg"' /tmp/a.html
+          echo "VERIFY_ROUTE=coupon-integrity"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/?deploy=$GITHUB_SHA" -o /tmp/home.html
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/coupons?deploy=$GITHUB_SHA" -o /tmp/coupons.html
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/saudi/category/mobiles?deploy=$GITHUB_SHA" -D /tmp/cath -o /tmp/category.html
+          grep -Fq 'hreflang="ar-SA"' /tmp/category.html
+          grep -Fq 'hreflang="ar-AE"' /tmp/category.html
+          python - <<'PY'
+          import re,sys
+          allowed={'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'}
+          files=['/tmp/home.html','/tmp/coupons.html','/tmp/money.html','/tmp/a.html','/tmp/category.html']
+          bad=[]
+          for path in files:
+              text=open(path,encoding='utf-8').read()
+              found={x.upper() for x in re.findall(r'\b(?:OPS\d+|NOV\d+)\b',text,re.I)}
+              invalid=sorted(x for x in found if x not in allowed)
+              if invalid: bad.append((path,invalid))
+          if bad:
+              print('LIVE_COUPON_ALLOWLIST=FAIL',bad)
+              sys.exit(1)
+          print('LIVE_COUPON_ALLOWLIST=PASS')
+          PY
+
+          echo "VERIFY_ROUTE=private-indexing"
+          curl -sS "$RUNTIME_ORIGIN/api/content-stats?deploy=$GITHUB_SHA" -D /tmp/apih -o /tmp/api.json
+          grep -Fqi 'x-robots-tag: noindex, nofollow, noarchive' /tmp/apih
+          grep -Fq 'Disallow: /admin/' /tmp/robots.txt
+          grep -Fq 'Disallow: /api/' /tmp/robots.txt
+
           ARTICLE_IMG=$(python - <<'PY'
           from html.parser import HTMLParser
           class P(HTMLParser):
