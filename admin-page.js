@@ -8,9 +8,14 @@ function dashboard(){return `<!doctype html><html lang="ar" dir="rtl"><head><met
 <section class="panel" id="seoSettingsPanel"><h2>SEO Settings</h2><p class="sub">إعدادات محفوظة على R2 وتطبق من طبقة الـruntime. Canonical والـOG image يقبلان مسارات داخلية فقط لحماية الدومين.</p>
 <div class="row"><div><label>Site name</label><input id="seoSiteName"></div><div><label>Default OG image</label><input id="seoDefaultOg" placeholder="/favicon.svg"></div><div><label>Twitter site</label><input id="seoTwitterSite" placeholder="@account"></div><div><label>Facebook App ID</label><input id="seoFacebookAppId"></div></div>
 <div class="row"><div><label>Google verification</label><input id="seoGoogleVerification"></div><div><label>Bing verification</label><input id="seoBingVerification"></div><div><label>Yandex verification</label><input id="seoYandexVerification"></div><div><label>Pinterest verification</label><input id="seoPinterestVerification"></div></div>
+<h3>Analytics & Pixels — اختياري</h3><p class="sub">مقفولة افتراضيًا. لا يتم تحميل أي tracker إلا بعد تفعيل Analytics. عند تفعيل Respect DNT لن تُحمّل trackers للمتصفح الذي يرسل Do Not Track.</p>
+<div class="row"><div><label><input id="seoAnalyticsEnabled" type="checkbox" style="width:auto"> تفعيل Analytics</label></div><div><label><input id="seoRespectDnt" type="checkbox" style="width:auto" checked> Respect Do Not Track</label></div></div>
+<div class="row"><div><label>GA4 Measurement ID</label><input id="seoGa4" placeholder="G-XXXXXXXXXX"></div><div><label>GTM Container ID</label><input id="seoGtm" placeholder="GTM-XXXXXXX"></div><div><label>Meta Pixel ID</label><input id="seoMetaPixel" inputmode="numeric"></div></div>
+<div class="row"><div><label>Microsoft Clarity Project ID</label><input id="seoClarity"></div><div><label>Hotjar Site ID</label><input id="seoHotjar" inputmode="numeric"></div><div><label>TikTok Pixel ID</label><input id="seoTiktok"></div></div>
 <label>Per-route overrides JSON</label><textarea id="seoRouteOverrides" style="min-height:220px" placeholder='{"\/coupons":{"title":"...","description":"...","canonical":"\/coupons","robots":"index,follow","ogImage":"\/favicon.svg"}}'></textarea>
-<div class="row"><button id="saveSeoSettingsBtn">حفظ SEO Settings</button><button id="reloadSeoSettingsBtn">إعادة تحميل</button></div><pre id="seoSettingsStatus">Loading...</pre></section>
+<div class="row"><button id="saveSeoSettingsBtn">حفظ SEO Settings</button><button id="reloadSeoSettingsBtn">إعادة تحميل</button><button id="exportSeoSettingsBtn">تصدير JSON</button><button id="importSeoSettingsBtn">استيراد JSON</button><input id="importSeoSettingsFile" type="file" accept="application/json,.json" hidden></div><pre id="seoSettingsStatus">Loading...</pre></section>
 <section class="panel" id="seoDropsPanel"><h2>SEO Drops Report — Google Search Console</h2><p class="sub">البيانات من Search Console المتصل بالمشروع. التقرير لا يخمّن زيارات أو انخفاضات عند غياب rows.</p><div class="seoGrid"><div class="seoCheck"><b>الفترة الحالية</b><span id="gscRange">-</span></div><div class="seoCheck"><b>المقارنة</b><span id="gscCompare">-</span></div><div class="seoCheck"><b>Impressions</b><span id="gscImpressions">-</span></div><div class="seoCheck"><b>Clicks</b><span id="gscClicks">-</span></div></div><div class="row"><button id="refreshGscBtn">تحديث التقرير من Snapshot</button></div><div id="gscMessage" class="sub" style="margin:12px 0"></div><div class="scroll"><table><thead><tr><th>الصفحة/الكلمة</th><th>السبب</th><th>قبل</th><th>الآن</th><th>التغيير</th><th>الإجراء</th></tr></thead><tbody id="gscDropRows"></tbody></table></div><pre id="gscRaw">Loading...</pre></section>
+<section class="panel" id="conversionEventsPanel"><h2>Conversion & Social Events</h2><p class="sub">عدادات مجمعة داخل Cloudflare فقط. لا يتم تخزين IP أو User ID في هذه الأحداث. Share = ضغط نية مشاركة، وليس تأكيد أن المشاركة اكتملت.</p><div class="seoGrid"><div class="seoCheck"><b>Copy Code</b><span id="eventCopy">-</span></div><div class="seoCheck"><b>فتح Noon</b><span id="eventNoon">-</span></div><div class="seoCheck"><b>WhatsApp Share</b><span id="eventWhatsApp">-</span></div><div class="seoCheck"><b>X / Facebook / Native</b><span id="eventOtherShares">-</span></div></div><div class="row"><button id="refreshEventsBtn">تحديث Conversion Events</button></div><div class="scroll"><table><thead><tr><th>المسار</th><th>الإجمالي</th><th>Copy</th><th>Noon</th><th>WhatsApp</th><th>X</th><th>Facebook</th><th>آخر حدث</th></tr></thead><tbody id="eventRows"></tbody></table></div><pre id="eventsRaw">Loading...</pre></section>
 <section class="panel"><h2>إعدادات الجودة</h2><div class="row"><div style="flex:2"><label>Workers AI model (Cloudflare-only)</label><input id="cfgModel" readonly></div><div style="flex:1"><label>Target words</label><input id="cfgTarget" type="number" min="1500" max="1900"></div><div style="flex:1"><label>Minimum words</label><input id="cfgMin" type="number" min="1500" max="1800"></div><div style="flex:1"><label>Quality threshold</label><input id="cfgQuality" type="number" min="95" max="100"></div></div><button id="saveConfigBtn">حفظ إعدادات الجودة</button></section><section class="panel"><h2>المقالات</h2><div class="scroll"><table><thead><tr><th>العنوان</th><th>الدولة</th><th>الكوبون</th><th>الكلمات</th><th>زيارات فريدة</th><th>الجودة</th><th>تاريخ الإنشاء</th><th>آخر تحديث</th><th>Provider</th><th>Status</th><th>تعديل</th></tr></thead><tbody id="articleRows"></tbody></table></div></section><section class="panel" id="editorPanel" hidden><h2>تعديل المقال</h2><input id="editSlug" readonly><label>العنوان</label><input id="editTitle"><label>Meta description</label><input id="editMeta"><label>Primary keyword</label><input id="editKeyword"><label>Status</label><select id="editStatus"><option value="published">published</option><option value="draft">draft</option><option value="scheduled">scheduled</option></select><label>HTML</label><textarea id="editHtml"></textarea><button id="saveArticleBtn">حفظ المقال</button></section></main><script>
 const $=id=>document.getElementById(id);
 async function api(path,options={}){const r=await fetch(path,options);if(r.status===401){location='/admin';throw new Error('unauthorized')}const t=await r.text();try{return JSON.parse(t)}catch{return {raw:t}}}
@@ -77,15 +82,43 @@ async function loadSeoSettings(){
   $('seoBingVerification').value=s.bingVerification||'';
   $('seoYandexVerification').value=s.yandexVerification||'';
   $('seoPinterestVerification').value=s.pinterestVerification||'';
+  $('seoAnalyticsEnabled').checked=Boolean(s.analyticsEnabled);
+  $('seoRespectDnt').checked=s.respectDoNotTrack!==false;
+  $('seoGa4').value=s.ga4MeasurementId||'';
+  $('seoGtm').value=s.gtmContainerId||'';
+  $('seoMetaPixel').value=s.metaPixelId||'';
+  $('seoClarity').value=s.clarityProjectId||'';
+  $('seoHotjar').value=s.hotjarSiteId||'';
+  $('seoTiktok').value=s.tiktokPixelId||'';
   $('seoRouteOverrides').value=JSON.stringify(s.routeOverrides||{},null,2);
-  $('seoSettingsStatus').textContent='Loaded '+(s.updatedAt||'defaults');
+  $('seoSettingsStatus').textContent='Loaded '+(s.updatedAt||'defaults')+' · Analytics '+(s.analyticsEnabled?'ON':'OFF');
 }
 async function saveSeoSettings(){
   let routeOverrides={};
   try{routeOverrides=JSON.parse($('seoRouteOverrides').value||'{}')}catch{$('seoSettingsStatus').textContent='JSON غير صالح';return}
-  const payload={siteName:$('seoSiteName').value,defaultOgImage:$('seoDefaultOg').value,twitterSite:$('seoTwitterSite').value,facebookAppId:$('seoFacebookAppId').value,googleVerification:$('seoGoogleVerification').value,bingVerification:$('seoBingVerification').value,yandexVerification:$('seoYandexVerification').value,pinterestVerification:$('seoPinterestVerification').value,routeOverrides};
+  const payload={siteName:$('seoSiteName').value,defaultOgImage:$('seoDefaultOg').value,twitterSite:$('seoTwitterSite').value,facebookAppId:$('seoFacebookAppId').value,googleVerification:$('seoGoogleVerification').value,bingVerification:$('seoBingVerification').value,yandexVerification:$('seoYandexVerification').value,pinterestVerification:$('seoPinterestVerification').value,analyticsEnabled:$('seoAnalyticsEnabled').checked,respectDoNotTrack:$('seoRespectDnt').checked,ga4MeasurementId:$('seoGa4').value,gtmContainerId:$('seoGtm').value,metaPixelId:$('seoMetaPixel').value,clarityProjectId:$('seoClarity').value,hotjarSiteId:$('seoHotjar').value,tiktokPixelId:$('seoTiktok').value,routeOverrides};
   const r=await api('/api/admin/seo-settings',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
   $('seoSettingsStatus').textContent=JSON.stringify(r.settings||r,null,2);
+}
+async function exportSeoSettings(){
+  const s=await api('/api/admin/seo-settings'),blob=new Blob([JSON.stringify(s,null,2)],{type:'application/json'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='noondealsnow-seo-settings.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function applyImportedSeoSettings(s){
+  $('seoSiteName').value=s.siteName||'Noon Deals Now';$('seoDefaultOg').value=s.defaultOgImage||'/favicon.svg';$('seoTwitterSite').value=s.twitterSite||'';$('seoFacebookAppId').value=s.facebookAppId||'';
+  $('seoGoogleVerification').value=s.googleVerification||'';$('seoBingVerification').value=s.bingVerification||'';$('seoYandexVerification').value=s.yandexVerification||'';$('seoPinterestVerification').value=s.pinterestVerification||'';
+  $('seoAnalyticsEnabled').checked=Boolean(s.analyticsEnabled);$('seoRespectDnt').checked=s.respectDoNotTrack!==false;$('seoGa4').value=s.ga4MeasurementId||'';$('seoGtm').value=s.gtmContainerId||'';$('seoMetaPixel').value=s.metaPixelId||'';$('seoClarity').value=s.clarityProjectId||'';$('seoHotjar').value=s.hotjarSiteId||'';$('seoTiktok').value=s.tiktokPixelId||'';
+  $('seoRouteOverrides').value=JSON.stringify(s.routeOverrides||{},null,2);$('seoSettingsStatus').textContent='تم تحميل JSON للمعاينة — اضغط حفظ لتطبيقه.';
+}
+async function importSeoSettingsFile(file){
+  if(!file)return;try{const s=JSON.parse(await file.text());applyImportedSeoSettings(s)}catch(e){$('seoSettingsStatus').textContent='ملف JSON غير صالح'}
+}
+async function refreshConversionEvents(){
+  const s=await api('/api/admin/conversion-events'),t=s.totals||{};
+  $('eventCopy').textContent=t.copy_code||0;$('eventNoon').textContent=t.open_noon||0;$('eventWhatsApp').textContent=t.share_whatsapp||0;
+  $('eventOtherShares').textContent=(t.share_x||0)+(t.share_facebook||0)+(t.web_share||0);
+  $('eventRows').innerHTML=(s.topPaths||[]).map(x=>{const e=x.events||{};return '<tr><td>'+escHtml(x.path)+'</td><td>'+escHtml(x.total||0)+'</td><td>'+escHtml(e.copy_code||0)+'</td><td>'+escHtml(e.open_noon||0)+'</td><td>'+escHtml(e.share_whatsapp||0)+'</td><td>'+escHtml(e.share_x||0)+'</td><td>'+escHtml(e.share_facebook||0)+'</td><td>'+escHtml(fmtArticleDate(x.lastAt))+'</td></tr>'}).join('')||'<tr><td colspan="8">لا توجد أحداث مسجلة حتى الآن.</td></tr>';
+  $('eventsRaw').textContent=JSON.stringify(s,null,2);
 }
 async function refreshArticles(){
   const rows=await api('/api/admin/articles');
@@ -95,14 +128,14 @@ async function refreshArticles(){
   }).join('');
   document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(b.dataset.edit));
 }
-async function refresh(){await Promise.all([refreshMetrics(false),refreshArticles(),refreshSeo(),loadSeoSettings(),refreshGscDrops()])}
+async function refresh(){await Promise.all([refreshMetrics(false),refreshArticles(),refreshSeo(),loadSeoSettings(),refreshGscDrops(),refreshConversionEvents()])}
 async function setGenerator(enabled){await api('/api/admin/generator',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({enabled})});await refreshMetrics(false)}
 async function generateNow(){$('generatorStatus').textContent='Generating...';const r=await api('/api/admin/generate-now',{method:'POST'});$('generatorStatus').textContent=JSON.stringify(r,null,2);await Promise.all([refreshMetrics(true),refreshArticles()])}
 async function saveConfig(){await api('/api/admin/generator',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({targetWords:+$('cfgTarget').value,minWords:+$('cfgMin').value,qualityThreshold:+$('cfgQuality').value})});await refreshMetrics(false)}
 async function edit(slug){const d=await api('/api/admin/article?slug='+slug);$('editSlug').value=d.record.slug;$('editTitle').value=d.record.title;$('editMeta').value=d.record.metaDescription||'';$('editKeyword').value=d.record.primaryKeyword||'';$('editStatus').value=d.record.status;$('editHtml').value=d.html||'';$('editorPanel').hidden=false;$('editorPanel').scrollIntoView({behavior:'smooth'})}
 async function saveArticle(){await api('/api/admin/article',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({slug:$('editSlug').value,title:$('editTitle').value,metaDescription:$('editMeta').value,primaryKeyword:$('editKeyword').value,status:$('editStatus').value,html:$('editHtml').value})});alert('تم الحفظ');await Promise.all([refreshMetrics(true),refreshArticles()])}
 async function logout(){await api('/api/admin/logout',{method:'POST'});location='/admin'}
-$('refreshSeoBtn').onclick=refreshSeo;$('refreshGscBtn').onclick=refreshGscDrops;$('saveSeoSettingsBtn').onclick=saveSeoSettings;$('reloadSeoSettingsBtn').onclick=loadSeoSettings;$('resumeBtn').onclick=()=>setGenerator(true);$('pauseBtn').onclick=()=>{};$('generateBtn').onclick=generateNow;$('refreshCountBtn').onclick=()=>refreshMetrics(true);$('saveConfigBtn').onclick=saveConfig;$('saveArticleBtn').onclick=saveArticle;$('logoutBtn').onclick=logout;refresh();setInterval(()=>refreshMetrics(false).catch(()=>{}),60000);
+$('refreshSeoBtn').onclick=refreshSeo;$('refreshGscBtn').onclick=refreshGscDrops;$('refreshEventsBtn').onclick=refreshConversionEvents;$('saveSeoSettingsBtn').onclick=saveSeoSettings;$('reloadSeoSettingsBtn').onclick=loadSeoSettings;$('exportSeoSettingsBtn').onclick=exportSeoSettings;$('importSeoSettingsBtn').onclick=()=>$('importSeoSettingsFile').click();$('importSeoSettingsFile').onchange=e=>importSeoSettingsFile(e.target.files?.[0]);$('resumeBtn').onclick=()=>setGenerator(true);$('pauseBtn').onclick=()=>{};$('generateBtn').onclick=generateNow;$('refreshCountBtn').onclick=()=>refreshMetrics(true);$('saveConfigBtn').onclick=saveConfig;$('saveArticleBtn').onclick=saveArticle;$('logoutBtn').onclick=logout;refresh();setInterval(()=>refreshMetrics(false).catch(()=>{}),60000);
 </script></body></html>`}
 
 export async function renderAdmin(req,env){return (await isAdmin(req,env))?html(dashboard()):html(login())}
