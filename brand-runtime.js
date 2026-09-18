@@ -13,8 +13,7 @@ async function cachedSeoSettings(env){
   try{seoSettingsCache={at:Date.now(),value:await getSeoSettings(env)}}catch{seoSettingsCache={at:Date.now(),value:null}}
   return seoSettingsCache.value;
 }
-function escRe(s){return String(s).replace(/[.*+?^$()|[\]\\]/g,'\\const APPROVED=new Set(APPROVED_COUPON_CODES.map(x=>String(x).toUpperCase()));
-')}
+function escRe(s){const specials='\\.^$*+?()[]{}|';return String(s).split('').map(ch=>specials.includes(ch)?'\\\\'+ch:ch).join('')}
 function upsertMetaName(html,name,value){
   if(!value)return html;
   const tag='<meta name="'+attr(name)+'" content="'+attr(value)+'">',re=new RegExp('<meta\\b[^>]*name=["\\\']'+escRe(name)+'["\\\'][^>]*>','i');
