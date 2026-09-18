@@ -64,7 +64,7 @@ export async function bulkTick(env){
   if(Number.isFinite(runningAt)&&Date.now()-runningAt<BULK_RUN_LOCK_MS)return {ok:true,skipped:'bulk_already_running',backend:'r2-v1',bulkPublishedToday:Number(status.bulkPublishedToday||0)};
   const cfg=await getGeneratorConfig(env),locked={...status,bulkRunningAt:now(),backend:'r2-v1'};await r2putJson(env,R2_GENERATOR_STATUS_KEY,locked);
   try{
-    const catchupGoal=Math.max(0,Number(env.BULK_CATCHUP_TOTAL||30000)),publishedTotal=Math.max(0,Number(locked.bulkPublishedTotal||0)),steadyBatch=Math.max(1,Number(env.BULK_BATCH_SIZE||16)),catchupBatch=Math.max(steadyBatch,Number(env.BULK_CATCHUP_BATCH_SIZE||48)),effectiveBatch=publishedTotal<catchupGoal?catchupBatch:steadyBatch;
+    const catchupGoal=Math.max(0,Number(env.BULK_CATCHUP_TOTAL||30000)),publishedTotal=Math.max(0,Number(locked.bulkPublishedTotal||0)),steadyBatch=Math.max(1,Number(env.BULK_BATCH_SIZE||16)),catchupBatch=Math.max(steadyBatch,Number(env.BULK_CATCHUP_BATCH_SIZE||64)),effectiveBatch=publishedTotal<catchupGoal?catchupBatch:steadyBatch;
     const bulk=await runProgrammaticBatch(env,cfg,locked,{dailyTarget:Number(env.BULK_DAILY_TARGET||32000),batchSize:effectiveBatch});
     const next={...locked,...(bulk.patch||{}),bulkRunningAt:null,backend:'r2-v1',updatedAt:now()};await r2putJson(env,R2_GENERATOR_STATUS_KEY,next);
     return {ok:true,backend:'r2-v1',bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0)}};
@@ -118,7 +118,7 @@ export class GeneratorControl{
         const legacy=terminalLegacy?{ok:true,skipped:'legacy_upgrade_paused_for_consolidation',records:[],scanned:0,rejected:0,invalid:0,pass:Number(locked.legacyUpgradePassV2||4),passFinished:true,failures:[],patch:{legacyUpgradeLastRun:now(),legacyUpgradeLastError:null,legacyUpgradeNeedsConsolidation:true,legacyUpgradePausedForConsolidation:true}}:await runLegacyUpgradeBatchV2(this.env,cfg,locked,{batchSize:Number(this.env.LEGACY_UPGRADE_BATCH_SIZE||4)});
         const afterLegacy={...locked,...(legacy.patch||{})};
         await this.ctx.storage.put('status',afterLegacy);
-        const catchupGoal=Math.max(0,Number(this.env.BULK_CATCHUP_TOTAL||30000)),publishedTotal=Math.max(0,Number(afterLegacy.bulkPublishedTotal||0)),steadyBatch=Math.max(1,Number(this.env.BULK_BATCH_SIZE||16)),catchupBatch=Math.max(steadyBatch,Number(this.env.BULK_CATCHUP_BATCH_SIZE||48)),effectiveBatch=publishedTotal<catchupGoal?catchupBatch:steadyBatch;
+        const catchupGoal=Math.max(0,Number(this.env.BULK_CATCHUP_TOTAL||30000)),publishedTotal=Math.max(0,Number(afterLegacy.bulkPublishedTotal||0)),steadyBatch=Math.max(1,Number(this.env.BULK_BATCH_SIZE||16)),catchupBatch=Math.max(steadyBatch,Number(this.env.BULK_CATCHUP_BATCH_SIZE||64)),effectiveBatch=publishedTotal<catchupGoal?catchupBatch:steadyBatch;
         const bulk=await runProgrammaticBatch(this.env,cfg,afterLegacy,{dailyTarget:Number(this.env.BULK_DAILY_TARGET||32000),batchSize:effectiveBatch});
         const next={...afterLegacy,...(bulk.patch||{}),bulkRunningAt:null};
         await this.ctx.storage.put('status',next);
