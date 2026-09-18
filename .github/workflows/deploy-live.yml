@@ -31,6 +31,18 @@ jobs:
           grep -Fq '"BULK_DAILY_TARGET": "15000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
           grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
+          node - <<'NODE'
+          const fs=require('fs');
+          const allowed=new Set(['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161']);
+          const files=['approved-coupons.js','router.js','site.js','index.js','commerce-pages-v2.js','network-entry.js','public-entry.js','auto-platform.js','visual-platform.js','platform.js','english-canary.js','bulk-content-engine-base.js','landing-content-v3.js','topic-hubs.js','seo-layer.js','svg-engine.js'];
+          const bad=[];
+          for(const file of files){
+            const text=fs.readFileSync(file,'utf8');
+            for(const token of text.match(/\b(?:OPS\d+|NOV\d+)\b/g)||[]) if(!allowed.has(token)) bad.push(file+':'+token);
+          }
+          if(bad.length){console.error('UNAPPROVED_COUPON_TOKENS='+[...new Set(bad)].join(','));process.exit(1)}
+          console.log('OWNER_COUPON_WHITELIST_SOURCE_GATE=PASS');
+          NODE
           grep -Fq "owner-approved-nov-v1-strict-copy" coupon-registry.js
           grep -Fq '/sitemap-priority.xml' discovery-entry.js
           grep -Fq 'recentArticleLimit:500' discovery-entry.js
