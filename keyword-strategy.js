@@ -66,6 +66,26 @@ function addSpecificity(kw,t,intent,s){
   return out;
 }
 
+function distinctKeyword(kw,t,intent,s){
+  const label=INTENT_LABELS[intent]||'دليل',category=cat(t),mk=market(t);
+  let base=clean(`${label} ${category} نون ${mk}`);
+  if(base.length>52){
+    const room=Math.max(14,52-clean(`${label} نون ${mk}`).length);
+    const shortCategory=category.slice(0,room).replace(/\s+\S*$/,'').trim()||category.slice(0,room).trim();
+    base=clean(`${label} ${shortCategory} نون ${mk}`);
+  }
+  const parts=[clean(t.queryModifier),clean(t.factor),clean(t.useCase),clean(s)].filter(Boolean);
+  let out=base,added=0;
+  for(const part of [...new Set(parts)]){
+    if(out.includes(part)){added++;continue}
+    const candidate=clean(`${out} ${part}`);
+    if(candidate.length<=70){out=candidate;added++}
+    if(added>=2)break;
+  }
+  if(added>=2&&out.length>=28&&out.length<=70)return out;
+  return kw;
+}
+
 const BUILDERS={
   coupon:(t,s)=>`كود خصم نون ${market(t)} على ${cat(t)} ${commercialFreshness(t,'coupon',s)} ${s}`,
   howto:(t,s)=>`استخدام كود نون ${market(t)} مع ${cat(t)} ${s}`,
@@ -115,10 +135,10 @@ function fitKeyword(raw,t,intent,s){
 
 export function applyKeywordStrategy(topic){
   const expanded=expandNoonTopic(topic,topic.topicIndex??topic.diversitySeed??0),rawIntent=expanded.intent,intent=effectiveIntent(expanded),s=scenario(expanded,intent),builder=BUILDERS[intent]||BUILDERS.decision;
-  const baseKw=fitKeyword(builder(expanded,s),expanded,intent,s),kw=addSpecificity(baseKw,expanded,intent,s),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
+  const baseKw=fitKeyword(builder(expanded,s),expanded,intent,s),specificKw=addSpecificity(baseKw,expanded,intent,s),kw=distinctKeyword(specificKw,expanded,intent,s),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
   const couponSeed=Math.abs(Number(topic.topicIndex??topic.diversitySeed??0));
   const code=APPROVED_COUPON_CODES[couponSeed%APPROVED_COUPON_CODES.length];
   return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,code,keywordStrategy:'search-intent-v6-noon-hierarchy',keywordWordCount:words,searchIntentFamily:intent};
 }
 
-export const KEYWORD_STRATEGY_INFO={version:'search-intent-v6-noon-hierarchy',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,seasonalKeywords:true,seasonalMonth:freshness(),topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,approvedCouponCount:APPROVED_COUPON_CODES.length,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation','unapproved-coupon-code'],maxRecommendedWords:16,maxKeywordCharacters:70};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v6-noon-hierarchy',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,distinctSpecificity:true,seasonalKeywords:true,seasonalMonth:freshness(),topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,approvedCouponCount:APPROVED_COUPON_CODES.length,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation','unapproved-coupon-code'],maxRecommendedWords:16,maxKeywordCharacters:70};
