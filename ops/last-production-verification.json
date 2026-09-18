@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "cb444eb67855598df1800c7e87cfc5998e88e373",
-  "verifiedAt": "2026-09-18T19:06:31.188093+00:00",
+  "sourceSha": "81a0085d70672dd09cea289f68e137bf784f998b",
+  "verifiedAt": "2026-09-18T19:28:59.371863+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -65,6 +65,14 @@
     "allFiveSvgVariantsVerified": true,
     "responsiveArticleVisualCssVerified": true,
     "bulkArticleRendererVisualV9Verified": true,
+    "englishRobotsSitemapVerified": true,
+    "englishHubHreflangVerified": true,
+    "englishHubNavigationVerified": true,
+    "englishHubContentFreshnessVerified": true,
+    "englishUrlPathItemListVerified": true,
+    "blogEditorialEntityLinkVerified": true,
+    "indexNowEnglishHubPayloadVerified": true,
+    "researchJsonDiscoveryVerified": true,
     "gscSeoDropsSnapshotVerified": true,
     "gscNoDataTruthfulnessVerified": true,
     "gscAdminEndpointPrivateVerified": true,
@@ -75,65 +83,65 @@
     "persistedGeneratorConfigFloor1500Verified": true
   },
   "content": {
-    "r2HtmlObjects": 55411,
-    "trackedPublished": 22758,
-    "arabic": 22726,
-    "english": 32,
-    "lastSlug": "التوفير-logitech-المكتب-المنزلي-نون-الإمارات-مقارنة-الضمان-شركة-صغيرة",
+    "r2HtmlObjects": 55420,
+    "trackedPublished": 23316,
+    "arabic": 23283,
+    "english": 33,
+    "lastSlug": "التوفير-acer-aspire-الشحن-والتوصيل-نون-السعودية-مراجعة-الكمية-الضمان",
     "lastQuality": 100,
-    "lastWordCount": 1747
+    "lastWordCount": 1761
   },
   "catchup30k": {
     "target": 30000,
-    "current": 22726,
-    "remaining": 7274,
-    "requiredPerMinute": 15.15,
+    "current": 23283,
+    "remaining": 6717,
+    "requiredPerMinute": 13.99,
     "effectiveBatchSize": 32,
     "adaptiveBatchSize": 32,
     "adaptiveMode": "catchup-adaptive",
     "adaptiveReason": "duration_target",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 20,
-    "lastBatchTries": 161,
-    "lastBatchDurationMs": 51543,
-    "lastBatchYieldPct": 12.42,
+    "lastBatchPublished": 28,
+    "lastBatchTries": 187,
+    "lastBatchDurationMs": 53358,
+    "lastBatchYieldPct": 14.97,
     "lastBatchStageMs": {
-      "candidateLoop": 42474,
-      "articleWrites": 2884,
-      "clusterFlush": 3752,
-      "freshness": 2522,
-      "catalogs": 5082,
-      "indexNow": 254,
-      "postParallel": 5082
+      "candidateLoop": 42353,
+      "articleWrites": 4635,
+      "clusterFlush": 4046,
+      "freshness": 2728,
+      "catalogs": 5954,
+      "indexNow": 215,
+      "postParallel": 5954
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": true,
-    "executionRatePerMinute": 23.28,
+    "executionRatePerMinute": 31.49,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 20,
+    "observedRatePerMinute": 28,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 6.06,
+    "estimatedHoursAtObservedRate": 4.0,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 3427,
-    "preflightRejectedTotal": 8216,
-    "preflightRecentRejectedTotal": 16,
-    "preflightClusterRejectedTotal": 6729,
+    "semanticPreAuditRejectedTotal": 4319,
+    "preflightRejectedTotal": 10073,
+    "preflightRecentRejectedTotal": 20,
+    "preflightClusterRejectedTotal": 8582,
     "lastPreflightRejectReasons": {
-      "global_duplicate_slug": 33,
-      "global_duplicate_keyword": 33,
-      "global_keyword_cannibalization": 75
+      "global_keyword_cannibalization": 93,
+      "global_duplicate_slug": 36,
+      "global_duplicate_keyword": 36
     }
   },
   "englishControlled": {
     "target": 200,
-    "published": 32,
-    "remaining": 168,
-    "publishedToday": 12,
+    "published": 33,
+    "remaining": 167,
+    "publishedToday": 13,
     "dailyTarget": 24,
     "minIntervalMinutes": 60,
-    "nextEligibleAt": "2026-09-18T19:18:44.441Z"
+    "nextEligibleAt": "2026-09-18T20:19:44.461Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -145,6 +153,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T19:04:58.595Z"
+    "completedAt": "2026-09-18T19:28:04.068Z"
   }
 }
