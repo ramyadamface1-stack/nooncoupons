@@ -158,25 +158,30 @@ jobs:
           done
           [ "$ready" = 1 ] || { echo 'LIVE_RUNTIME_DID_NOT_MATCH_DEPLOYED_CONFIG'; exit 1; }
 
-          curl -fsS "$RUNTIME_ORIGIN/favicon.svg?deploy=$GITHUB_SHA" -D /tmp/fh -o /tmp/favicon.svg
+          echo "VERIFY_ROUTE=favicon"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/favicon.svg?deploy=$GITHUB_SHA" -D /tmp/fh -o /tmp/favicon.svg
           grep -Fqi 'content-type: image/svg+xml' /tmp/fh
           grep -Fq '<svg' /tmp/favicon.svg
 
-          curl -fsS "$RUNTIME_ORIGIN/sitemap.xml?deploy=$GITHUB_SHA" -D /tmp/sh -o /tmp/sitemap.xml
+          echo "VERIFY_ROUTE=sitemap"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/sitemap.xml?deploy=$GITHUB_SHA" -D /tmp/sh -o /tmp/sitemap.xml
           grep -Fq '/sitemap-priority.xml' /tmp/sitemap.xml
           grep -Fqi 'x-priority-sitemap-discovery: v1' /tmp/sh
-          curl -fsS "$RUNTIME_ORIGIN/sitemap-priority.xml?deploy=$GITHUB_SHA" -D /tmp/ph -o /tmp/priority.xml
+          echo "VERIFY_ROUTE=sitemap-priority"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/sitemap-priority.xml?deploy=$GITHUB_SHA" -D /tmp/ph -o /tmp/priority.xml
           grep -Fqi 'x-priority-sitemap: v1' /tmp/ph
           grep -Fq '/saudi-arabia/noon-coupon-code' /tmp/priority.xml
           grep -Fq '/uae/noon-coupon-code' /tmp/priority.xml
           grep -Fq '/articles/' /tmp/priority.xml
 
-          curl -fsS "$RUNTIME_ORIGIN/robots.txt?deploy=$GITHUB_SHA" -D /tmp/rh -o /tmp/robots.txt
+          echo "VERIFY_ROUTE=robots"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/robots.txt?deploy=$GITHUB_SHA" -D /tmp/rh -o /tmp/robots.txt
           grep -Fqi 'x-priority-sitemap-robots: v1' /tmp/rh
           grep -Fq 'Sitemap: https://noondealsnow.com/sitemap.xml' /tmp/robots.txt
           grep -Fq 'Sitemap: https://noondealsnow.com/sitemap-priority.xml' /tmp/robots.txt
 
-          curl -fsS "$RUNTIME_ORIGIN/saudi-arabia/noon-coupon-code?deploy=$GITHUB_SHA" -D /tmp/mh -o /tmp/money.html
+          echo "VERIFY_ROUTE=saudi-money"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/saudi-arabia/noon-coupon-code?deploy=$GITHUB_SHA" -D /tmp/mh -o /tmp/money.html
           grep -Fqi 'x-crawl-discovery-links: v1' /tmp/mh
           grep -Fq 'id="crawl-discovery-links"' /tmp/money.html
           grep -Fq '/articles/' /tmp/money.html
@@ -188,7 +193,8 @@ jobs:
             ARTICLE_PATH="${ARTICLE_URL#https://noondealsnow.com}"
           fi
 
-          curl -fsS --retry 2 "$RUNTIME_ORIGIN$ARTICLE_PATH?deploy=$GITHUB_SHA" -D /tmp/h -o /tmp/a.html
+          echo "VERIFY_ROUTE=latest-article path=$ARTICLE_PATH"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN$ARTICLE_PATH?deploy=$GITHUB_SHA" -D /tmp/h -o /tmp/a.html
           grep -Fqi 'x-brand-layer: v1' /tmp/h
           grep -Fqi 'x-article-network: v1' /tmp/h
           grep -Fqi 'x-external-link-safety: merged-v2' /tmp/h
@@ -208,22 +214,31 @@ jobs:
           assert not p.missing, f'missing alt on {len(p.missing)} images'
           PY
 
-          curl -fsS "$RUNTIME_ORIGIN/?deploy=$GITHUB_SHA" -o /tmp/home.html
-          curl -fsS "$RUNTIME_ORIGIN/coupons?deploy=$GITHUB_SHA" -o /tmp/coupons.html
-          curl -fsS "$RUNTIME_ORIGIN/saudi?deploy=$GITHUB_SHA" -o /tmp/saudi.html
-          curl -fsS "$RUNTIME_ORIGIN/uae?deploy=$GITHUB_SHA" -o /tmp/uae.html
-          curl -fsS "$RUNTIME_ORIGIN/uae/noon-coupon-code?deploy=$GITHUB_SHA" -o /tmp/uae-money.html
-          curl -fsS "$RUNTIME_ORIGIN/saudi/category/mobiles?deploy=$GITHUB_SHA" -o /tmp/saudi-category.html
-          curl -fsS "$RUNTIME_ORIGIN/uae/category/electronics?deploy=$GITHUB_SHA" -o /tmp/uae-category.html
+          echo "VERIFY_ROUTE=home"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/?deploy=$GITHUB_SHA" -o /tmp/home.html
+          echo "VERIFY_ROUTE=coupons"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/coupons?deploy=$GITHUB_SHA" -o /tmp/coupons.html
+          echo "VERIFY_ROUTE=saudi"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/saudi?deploy=$GITHUB_SHA" -o /tmp/saudi.html
+          echo "VERIFY_ROUTE=uae"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/uae?deploy=$GITHUB_SHA" -o /tmp/uae.html
+          echo "VERIFY_ROUTE=uae-money"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/uae/noon-coupon-code?deploy=$GITHUB_SHA" -o /tmp/uae-money.html
+          echo "VERIFY_ROUTE=saudi-category-mobiles"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/saudi/category/mobiles?deploy=$GITHUB_SHA" -o /tmp/saudi-category.html
+          echo "VERIFY_ROUTE=uae-category-electronics"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/uae/category/electronics?deploy=$GITHUB_SHA" -o /tmp/uae-category.html
 
           OLD_ARABIC_PATH="$(python - <<'PY'
           import urllib.parse
           print('/articles/'+urllib.parse.quote('دليل-استخدام-كوبونات-نون-السعودية',safe=''))
           PY
           )"
-          curl -fsS "$RUNTIME_ORIGIN$OLD_ARABIC_PATH?deploy=$GITHUB_SHA" -o /tmp/old-arabic.html
+          echo "VERIFY_ROUTE=old-arabic path=$OLD_ARABIC_PATH"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN$OLD_ARABIC_PATH?deploy=$GITHUB_SHA" -o /tmp/old-arabic.html
 
-          curl -fsS "$RUNTIME_ORIGIN/api/english-canary-health?deploy=$GITHUB_SHA" -o /tmp/english-health.json
+          echo "VERIFY_ROUTE=english-health"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/api/english-canary-health?deploy=$GITHUB_SHA" -o /tmp/english-health.json
           ENGLISH_PATH="$(python - <<'PY'
           import json, urllib.parse
           x=json.load(open('/tmp/english-health.json'))
@@ -234,7 +249,8 @@ jobs:
           PY
           )"
           [ -n "$ENGLISH_PATH" ] || { echo 'NO_ENGLISH_ARTICLE_FOR_LIVE_VERIFY'; exit 1; }
-          curl -fsS "$RUNTIME_ORIGIN$ENGLISH_PATH?deploy=$GITHUB_SHA" -D /tmp/english.h -o /tmp/english.html
+          echo "VERIFY_ROUTE=english-article path=$ENGLISH_PATH"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN$ENGLISH_PATH?deploy=$GITHUB_SHA" -D /tmp/english.h -o /tmp/english.html
           grep -Fqi 'content-language: en' /tmp/english.h
 
           grep -Fq '<svg' /tmp/a.html || grep -Fq '<svg' /tmp/favicon.svg
