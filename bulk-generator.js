@@ -13,7 +13,7 @@ const now=()=>new Date().toISOString();
 const enc=s=>encodeURIComponent(String(s||'')).slice(0,1800);
 const HIGH_VALUE_SCENARIOS=['وقت العروض','قبل الدفع','للطلب الأول','لحساب حالي','عند رفض الكود'];
 const HIGH_VALUE_SCENARIO_BY_CURSOR=(n,fallback)=>HIGH_VALUE_SCENARIOS[Math.abs(Number(n)||0)%HIGH_VALUE_SCENARIOS.length]||fallback;
-const ENGLISH_INTENT_CADENCE=20,ENGLISH_COMMERCIAL_INTENTS=new Set(['coupon','finalprice','value','cart','timing','smartbuy','eligibility']),MAX_LATEST=300,SHARD_SIZE=100,V2_CURSOR_START=500000,AUTO_BRAKE_AFTER=5,AUTO_BRAKE_MS=10*60*1000,MAX_DAILY_TARGET=40000,MAX_BATCH_SIZE=48;
+const ENGLISH_INTENT_CADENCE=20,ENGLISH_COMMERCIAL_INTENTS=new Set(['coupon','finalprice','value','cart','timing','smartbuy','eligibility']),MAX_LATEST=300,SHARD_SIZE=100,V2_CURSOR_START=500000,AUTO_BRAKE_AFTER=5,AUTO_BRAKE_MS=10*60*1000,MAX_DAILY_TARGET=40000,MAX_BATCH_SIZE=64;
 async function readJson(env,key,fallback){try{const o=await env.CONTENT_FINAL.get(key);return o?await o.json():fallback}catch{return fallback}}
 async function runLimited(items,limit,fn){
   const rows=Array.from(items||[]),width=Math.max(1,Math.min(16,Number(limit)||1));
@@ -63,6 +63,6 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   return {ok:true,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,commerceTaxonomy:COMMERCE_GENERATOR_INFO.version,qualityLayer:'global-quality-v1',bootstrap,indexNow,records,tries,rejectedQuality,qualityRejectReasons,globalRejectReasons,rejectedDuplicate,rejectedGlobal,rejectedCoupon,rejectedLinks,rejectedSchema,rejectedIndexation,freshnessSnapshot,patch};
 }
 
-export const BULK_RUNTIME_LIMITS={maxDailyTarget:MAX_DAILY_TARGET,maxBatchSize:MAX_BATCH_SIZE,qualityThresholdFloor:95,minArticleWords:1000,batchTelemetry:true,articleWriteConcurrency:12};
+export const BULK_RUNTIME_LIMITS={maxDailyTarget:MAX_DAILY_TARGET,maxBatchSize:MAX_BATCH_SIZE,qualityThresholdFloor:95,minArticleWords:1000,batchTelemetry:true,articleWriteConcurrency:12,catchupSafetyMargin:true};
 export const buildBulkTopic=(cursor=0)=>applyCommerceTarget(applyKeywordStrategy(buildRawBulkTopic(cursor)),cursor);
 export {buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO,SCHEMA_GATE_INFO,INDEXATION_GATE_INFO,EDITORIAL_TRUST_INFO,INDEXNOW_INFO,KEYWORD_STRATEGY_INFO,COMMERCE_GENERATOR_INFO};
