@@ -40,6 +40,12 @@ jobs:
           grep -Fq "const CODES = APPROVED_COUPON_CODES" commerce-pages-v2.js
           grep -Fq "categoryAlternates" commerce-pages-v2.js
           grep -Fq "hreflang=\"ar-SA\"" commerce-pages-v2.js
+          grep -Fq 'data-schema="english-collection"' commerce-pages-v2.js
+          grep -Fq 'data-english-eeat="v1"' commerce-pages-v2.js
+          grep -Fq '${CODES.length} أكواد معتمدة فقط' commerce-pages-v2.js
+          if grep -Fq '8 أكواد معتمدة فقط' commerce-pages-v2.js; then echo 'STALE_APPROVED_COUPON_COUNT=1'; exit 1; fi
+          grep -Fq 'controlled native-English expansion' final-platform.js
+          grep -Fq '/sitemap-en-articles.xml' final-platform.js
           grep -Fq "privateNoindex" brand-runtime.js
           grep -Fq "Disallow: /admin" brand-runtime.js
           grep -Fq "Disallow: /api/" brand-runtime.js
@@ -215,6 +221,12 @@ jobs:
           grep -Fq 'Sitemap: https://noondealsnow.com/sitemap.xml' /tmp/robots.txt
           grep -Fq 'Sitemap: https://noondealsnow.com/sitemap-priority.xml' /tmp/robots.txt
 
+          echo "VERIFY_ROUTE=llms"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/llms.txt?deploy=$GITHUB_SHA" -o /tmp/llms.txt
+          grep -Fq 'controlled native-English expansion' /tmp/llms.txt
+          grep -Fq 'English Saudi hub: https://noondealsnow.com/en/saudi' /tmp/llms.txt
+          grep -Fq 'English article sitemap: https://noondealsnow.com/sitemap-en-articles.xml' /tmp/llms.txt
+
           echo "VERIFY_ROUTE=saudi-money"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/saudi-arabia/noon-coupon-code?deploy=$GITHUB_SHA" -D /tmp/mh -o /tmp/money.html
           grep -Fqi 'x-crawl-discovery-links: v1' /tmp/mh
@@ -314,6 +326,17 @@ jobs:
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/coupons?deploy=$GITHUB_SHA" -o /tmp/coupons.html
           echo "VERIFY_ROUTE=saudi"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/saudi?deploy=$GITHUB_SHA" -o /tmp/saudi.html
+          grep -Fq '10 أكواد معتمدة فقط' /tmp/saudi.html
+          echo "VERIFY_ROUTE=english-saudi"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/en/saudi?deploy=$GITHUB_SHA" -D /tmp/en-saudi.h -o /tmp/en-saudi.html
+          grep -Fqi 'x-content-language: en' /tmp/en-saudi.h
+          grep -Fq 'data-schema="english-collection"' /tmp/en-saudi.html
+          grep -Fq '"@type":"CollectionPage"' /tmp/en-saudi.html
+          grep -Fq '"@type":"BreadcrumbList"' /tmp/en-saudi.html
+          grep -Fq 'data-english-eeat="v1"' /tmp/en-saudi.html
+          grep -Fq 'English content policy' /tmp/en-saudi.html
+          grep -Fq '/editorial-policy' /tmp/en-saudi.html
+          grep -Fq '/coupon-verification' /tmp/en-saudi.html
           echo "VERIFY_ROUTE=uae"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/uae?deploy=$GITHUB_SHA" -o /tmp/uae.html
           echo "VERIFY_ROUTE=uae-money"
@@ -355,7 +378,7 @@ jobs:
           python - <<'PY'
           import re
           allowed={'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'}
-          files=['/tmp/home.html','/tmp/coupons.html','/tmp/saudi.html','/tmp/uae.html','/tmp/money.html','/tmp/uae-money.html','/tmp/saudi-category.html','/tmp/uae-category.html','/tmp/old-arabic.html','/tmp/a.html','/tmp/english.html']
+          files=['/tmp/home.html','/tmp/coupons.html','/tmp/saudi.html','/tmp/uae.html','/tmp/money.html','/tmp/uae-money.html','/tmp/saudi-category.html','/tmp/uae-category.html','/tmp/en-saudi.html','/tmp/old-arabic.html','/tmp/a.html','/tmp/english.html']
           seen=set()
           for path in files:
               text=open(path,encoding='utf-8').read()
@@ -377,6 +400,8 @@ jobs:
             "/uae/noon-coupon-code"
             "/saudi/category/mobiles"
             "/uae/category/electronics"
+            "/en/saudi"
+            "/en/uae"
             "/saudi-arabia/coupon/nov170"
             "/uae/coupon/nov188"
             "$OLD_ARABIC_PATH"
@@ -497,6 +522,10 @@ jobs:
                   'privateRoutesNoindex': True,
                   'indexNowKeyVerified': True,
                   'englishIndexNowUrlPathAware': bool((english.get('indexNow') or {}).get('urlPathAware')),
+                  'englishCollectionSchemaVerified': True,
+                  'englishVisibleEEATVerified': True,
+                  'llmsControlledEnglishDiscoveryVerified': True,
+                  'dynamicApprovedCouponCountVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -534,6 +563,10 @@ jobs:
           assert proof['checks']['r2InvalidFiles'] == 0
           assert proof['checks']['r2InvalidTokens'] == 0
           assert proof['checks']['englishIndexNowUrlPathAware'] is True
+          assert proof['checks']['englishCollectionSchemaVerified'] is True
+          assert proof['checks']['englishVisibleEEATVerified'] is True
+          assert proof['checks']['llmsControlledEnglishDiscoveryVerified'] is True
+          assert proof['checks']['dynamicApprovedCouponCountVerified'] is True
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
               json.dump(proof,f,ensure_ascii=False,indent=2)
               f.write('\n')
