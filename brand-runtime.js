@@ -39,6 +39,26 @@ function sanitizeLegacyCouponTokens(html){
   });
   return {html:out,state};
 }
+function sanitizeVisibleCouponTokens(html){
+  let tokens=0;
+  const selectedAttrs=/\b(content|alt|title|value|data-copy|data-code|data-copy-code|data-coupon-view|data-shop-click)=(["'])([\s\S]*?)\2/gi;
+  const parts=String(html).split(/(<[^>]+>)/g);
+  const out=parts.map(part=>{
+    if(part.startsWith('<')){
+      return part.replace(selectedAttrs,(m,name,q,value)=>{
+        const before=(String(value).match(/\b(?:OPS\d+|NOV\d+)\b/gi)||[]).filter(x=>!APPROVED.has(x.toUpperCase())).length;
+        if(!before)return m;
+        tokens+=before;
+        return `${name}=${q}${replaceUnapprovedCouponTokens(value,'NOV170')}${q}`;
+      });
+    }
+    const before=(part.match(/\b(?:OPS\d+|NOV\d+)\b/gi)||[]).filter(x=>!APPROVED.has(x.toUpperCase())).length;
+    if(!before)return part;
+    tokens+=before;
+    return replaceUnapprovedCouponTokens(part,'NOV170');
+  }).join('');
+  return {html:out,tokens};
+}
 function normalizeCouponUi(html){
   const state={duplicatesRemoved:0,countLabelsFixed:0};
   const seen=new Set();
@@ -110,7 +130,8 @@ export default{
     const repaired=repairJsonLd(source,origin);
     const sanitized=sanitizeLegacyCouponTokens(repaired.html);
     const normalized=normalizeCouponUi(sanitized.html);
-    const html=brandHead(normalized.html);
+    const visibleSanitized=sanitizeVisibleCouponTokens(normalized.html);
+    const html=brandHead(visibleSanitized.html);
     const h=new Headers(res.headers);h.delete('content-length');
     h.set('x-brand-layer','v1');
     h.set('x-organization-schema-count',String(repaired.state.organizations));
@@ -118,10 +139,10 @@ export default{
     h.set('x-coupon-ui-deduped',String(normalized.state.duplicatesRemoved));
     h.set('x-coupon-count-labels-fixed',String(normalized.state.countLabelsFixed));
     h.set('x-legacy-coupon-blocks-fixed',String(sanitized.state.blocks));
-    h.set('x-legacy-coupon-tokens-fixed',String(sanitized.state.tokens));
+    h.set('x-legacy-coupon-tokens-fixed',String(sanitized.state.tokens));h.set('x-visible-coupon-tokens-fixed',String(visibleSanitized.tokens));h.set('x-coupon-whitelist-version','nov-owner-v1');
     return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
   },
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:8,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:9,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
