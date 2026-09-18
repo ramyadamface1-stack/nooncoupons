@@ -95,6 +95,26 @@ function schemaFor(origin,path,p){
   ]};
 }
 
+export const GOLDEN_KEYWORD_ROUTES=Object.freeze([
+  ...Object.keys(TARGETS).filter(path=>path!=='/'),
+  ...Object.keys(LANDINGS)
+]);
+
+export function goldenKeywordsHub(origin){
+  const rows=GOLDEN_KEYWORD_ROUTES.map((path,index)=>{
+    const p=TARGETS[path]||LANDINGS[path]||{};
+    const label=p.h1||p.title||path;
+    const desc=p.description||'صفحة بحث مخصصة لنية شراء أو بحث واضحة داخل نون.';
+    return `<article class="kw"><span>#${index+1}</span><h2><a href="${esc(path)}">${esc(label)}</a></h2><p>${esc(desc)}</p></article>`;
+  }).join('');
+  const graph={'@context':'https://schema.org','@graph':[
+    {'@type':'CollectionPage','@id':origin+'/golden-keywords#page',url:origin+'/golden-keywords',name:'الكلمات والصفحات الذهبية لنون',description:'بوابة مركزية لصفحات نوايا البحث والكلمات الذهبية الخاصة بنون السعودية والإمارات.',inLanguage:'ar',mainEntity:{'@id':origin+'/golden-keywords#list'}},
+    {'@type':'ItemList','@id':origin+'/golden-keywords#list',numberOfItems:GOLDEN_KEYWORD_ROUTES.length,itemListElement:GOLDEN_KEYWORD_ROUTES.map((path,i)=>({'@type':'ListItem',position:i+1,url:origin+path,name:(TARGETS[path]||LANDINGS[path]||{}).h1||(TARGETS[path]||LANDINGS[path]||{}).title||path}))},
+    {'@type':'BreadcrumbList',itemListElement:[{'@type':'ListItem',position:1,name:'الرئيسية',item:origin+'/'},{'@type':'ListItem',position:2,name:'الكلمات الذهبية',item:origin+'/golden-keywords'}]}
+  ]};
+  return `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الكلمات الذهبية لنون | صفحات البحث ذات النية الشرائية</title><meta name="description" content="صفحة تجمع أدلة وكلمات نون ذات نية البحث والشراء للسعودية والإمارات مع روابط مباشرة للصفحات المتخصصة."><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin+'/golden-keywords')}"><script type="application/ld+json">${safeJson(graph)}</script><style>body{margin:0;background:#f7f8fc;color:#111827;font-family:Tahoma,Arial,sans-serif}.wrap{width:min(1100px,92%);margin:auto}.hero{padding:54px 0;background:#111827;color:#fff}.hero p{color:#cbd5e1;line-height:1.9}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;padding:30px 0}.kw{background:#fff;border:1px solid #e5e7eb;border-radius:18px;padding:18px}.kw span{font-size:12px;color:#6d28d9;font-weight:900}.kw a{color:#111827;text-decoration:none}.kw p{color:#64748b;line-height:1.8}.links{display:flex;gap:10px;flex-wrap:wrap;padding-bottom:34px}.links a{padding:10px 13px;border:1px solid #dbe3ec;border-radius:10px;text-decoration:none;color:#334155;background:#fff}</style></head><body><header class="hero"><div class="wrap"><p>Search Intent Hub</p><h1>الكلمات والصفحات الذهبية لنون</h1><p>كل رابط هنا يستهدف نية بحث مختلفة بدل إنشاء صفحات متشابهة تتنافس مع بعضها. لا نعرض نسبة خصم أو أهلية غير موثقة لمجرد زيادة النقرات.</p></div></header><main class="wrap"><section class="grid">${rows}</section><div class="links"><a href="/coupons">كل الأكواد</a><a href="/saudi">نون السعودية</a><a href="/uae">نون الإمارات</a><a href="/research">المنهجية والبيانات</a></div></main></body></html>`;
+}
+
 export function keywordLanding(path,origin){
   const p=LANDINGS[path];
   if(!p)return null;
@@ -107,9 +127,9 @@ export function keywordLanding(path,origin){
 
 export function augmentKeywordSitemap(path,xml,origin){
   if(path!=='/sitemap-pages.xml'||!xml||!xml.includes('</urlset>'))return xml;
-  const paths=Object.keys(LANDINGS);
+  const paths=['/golden-keywords',...Object.keys(LANDINGS)];
   const add=paths.filter(p=>!xml.includes(origin+p)).map(p=>`<url><loc>${origin}${p}</loc><lastmod>${UPDATED}</lastmod></url>`).join('');
   return xml.replace('</urlset>',add+'</urlset>');
 }
 
-export const KEYWORD_MAP_VERSION='2026-09-15-v1';
+export const KEYWORD_MAP_VERSION='2026-09-18-v2-golden-hub';
