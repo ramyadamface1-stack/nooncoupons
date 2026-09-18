@@ -1,5 +1,6 @@
 import app from './visual-platform.js';
 import {APPROVED_COUPON_CODES} from './approved-coupons.js';
+import {englishCanaryRecords} from './english-canary.js';
 export {ControlPlane} from './platform.js';
 
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
@@ -54,7 +55,8 @@ function llms(origin){
 - Coupon and shopping glossary: ${origin}/glossary
 - Priority sitemap: ${origin}/sitemap-priority.xml
 - Sitemap index: ${origin}/sitemap.xml
-- RSS: ${origin}/feed.xml
+- Arabic RSS: ${origin}/feed.xml
+- English RSS: ${origin}/feed-en.xml
 
 ## Trust and editorial
 - About: ${origin}/about
@@ -95,11 +97,21 @@ The site is independent and is not Noon.com.
 
 async function rss(origin,env){
   const latest=await latestBulk(env);
-  const items=(latest.articles||[]).filter(a=>a?.slug&&a?.indexable!==false).slice(0,50).map(a=>{
+  const rows=(latest.articles||[]).filter(a=>a?.slug&&a?.indexable!==false).sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,50);
+  const items=rows.map(a=>{
     const link=origin+'/articles/'+encodeURI(a.slug),date=new Date(a.updatedAt||a.createdAt||Date.now()).toUTCString();
     return `<item><title>${esc(a.title||a.primaryKeyword||a.slug)}</title><link>${esc(link)}</link><guid isPermaLink="true">${esc(link)}</guid><pubDate>${esc(date)}</pubDate><description>${esc(a.metaDescription||'')}</description></item>`;
   }).join('');
-  return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0"><channel><title>كوبونات نون — أحدث الأدلة</title><link>${esc(origin+'/blog')}</link><description>أحدث أدلة نون السعودية والإمارات التي اجتازت بوابة الجودة.</description><language>ar</language><lastBuildDate>${new Date().toUTCString()}</lastBuildDate>${items}</channel></rss>`;
+  return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>كوبونات نون — أحدث الأدلة</title><link>${esc(origin+'/blog')}</link><atom:link href="${esc(origin+'/feed.xml')}" rel="self" type="application/rss+xml"/><description>أحدث أدلة نون السعودية والإمارات التي اجتازت بوابة الجودة.</description><language>ar</language><lastBuildDate>${new Date().toUTCString()}</lastBuildDate>${items}</channel></rss>`;
+}
+async function rssEnglish(origin,env){
+  let rows=[];try{rows=await englishCanaryRecords(env)}catch{}
+  rows=(rows||[]).filter(a=>a?.slug&&a.indexable!==false&&a.languageSource==='native-intent-v6-canary').sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,50);
+  const items=rows.map(a=>{
+    const path=a.urlPath||('/en/articles/'+encodeURI(a.slug)),link=origin+path,date=new Date(a.updatedAt||a.createdAt||Date.now()).toUTCString();
+    return `<item><title>${esc(a.title||a.primaryKeyword||a.slug)}</title><link>${esc(link)}</link><guid isPermaLink="true">${esc(link)}</guid><pubDate>${esc(date)}</pubDate><description>${esc(a.metaDescription||'')}</description><category>${esc(a.country==='AE'?'UAE':'Saudi Arabia')}</category></item>`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Noon Deals Now — English guides</title><link>${esc(origin+'/en/saudi')}</link><atom:link href="${esc(origin+'/feed-en.xml')}" rel="self" type="application/rss+xml"/><description>Quality-gated native-English Noon shopping and coupon guides from the controlled expansion.</description><language>en</language><lastBuildDate>${new Date().toUTCString()}</lastBuildDate>${items}</channel></rss>`;
 }
 
 export default{
@@ -108,10 +120,11 @@ export default{
     if(req.method==='GET'&&u.pathname==='/robots.txt')return txt(robots(origin));
     if(req.method==='GET'&&u.pathname==='/llms.txt')return txt(llms(origin));
     if(req.method==='GET'&&(u.pathname==='/feed.xml'||u.pathname==='/rss.xml'))return xml(await rss(origin,env));
+    if(req.method==='GET'&&(u.pathname==='/feed-en.xml'||u.pathname==='/rss-en.xml'))return xml(await rssEnglish(origin,env));
     if(req.method==='GET'&&env.INDEXNOW_KEY&&u.pathname===`/${env.INDEXNOW_KEY}.txt`)return txt(env.INDEXNOW_KEY,'public,max-age=86400,s-maxage=86400');
     if(u.pathname==='/api/seo-health'){
       const host=new URL(origin).hostname;
-      return json({ok:true,version:'seo-discovery-v1',origin,host,customDomain:!host.endsWith('.workers.dev'),robots:true,sitemap:origin+'/sitemap.xml',rss:origin+'/feed.xml',llms:origin+'/llms.txt',indexNowEnabled:String(env.INDEXNOW_ENABLED||'false')==='true',indexNowKeyHosted:Boolean(env.INDEXNOW_KEY),note:host.endsWith('.workers.dev')?'Custom domain cutover is still the main SEO authority blocker.':null,time:new Date().toISOString()});
+      return json({ok:true,version:'seo-discovery-v1',origin,host,customDomain:!host.endsWith('.workers.dev'),robots:true,sitemap:origin+'/sitemap.xml',rss:origin+'/feed.xml',englishRss:origin+'/feed-en.xml',llms:origin+'/llms.txt',indexNowEnabled:String(env.INDEXNOW_ENABLED||'false')==='true',indexNowKeyHosted:Boolean(env.INDEXNOW_KEY),note:host.endsWith('.workers.dev')?'Custom domain cutover is still the main SEO authority blocker.':null,time:new Date().toISOString()});
     }
     if(u.pathname==='/api/visual-health'){
       const s=await stateViaApp(u.origin,env,ctx);
