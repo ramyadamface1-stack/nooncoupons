@@ -45,11 +45,16 @@ function discoveryHtml(path,articles){
   const market=marketForPath(path);
   let rows=(articles||[]).filter(a=>a?.slug&&a.indexable!==false);
   if(market)rows=rows.filter(a=>a.country===market);
-  rows=rows.sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,12);
+  rows=rows.sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,8);
   if(!rows.length)return '';
   const country=market==='AE'?'الإمارات':market==='SA'?'السعودية':'السعودية والإمارات';
-  const links=rows.map(a=>`<li><a href="/articles/${enc(a.slug)}">${esc(a.title||a.primaryKeyword||a.slug)}</a></li>`).join('');
-  return `<section id="crawl-discovery-links" dir="rtl" aria-label="أحدث أدلة نون"><div style="width:min(1050px,92%);margin:34px auto;padding:22px;border:1px solid #e5e7eb;border-radius:18px;background:#fff"><strong>أحدث أدلة نون ${country}</strong><p style="color:#64748b;line-height:1.8">روابط مباشرة إلى أحدث الأدلة التي اجتازت بوابة الجودة لمساعدة محركات البحث والزوار على اكتشاف المحتوى الجديد.</p><ul style="columns:2;gap:28px;line-height:1.9">${links}</ul><p><a href="/blog">كل الأدلة</a> · <a href="/coupons">كل الكوبونات</a></p></div></section>`;
+  const cards=rows.map(a=>{
+    const m=a.country==='AE'?'الإمارات':'السعودية';
+    const title=esc(a.title||a.primaryKeyword||a.slug);
+    const desc=esc((a.metaDescription||'دليل عملي قبل الشراء واستخدام الكوبون.').slice(0,115));
+    return `<article class="dl-card"><small>${m}</small><h3><a href="/articles/${enc(a.slug)}">${title}</a></h3><p>${desc}</p><a class="dl-read" href="/articles/${enc(a.slug)}">اقرأ المقال ←</a></article>`;
+  }).join('');
+  return `<section id="crawl-discovery-links" class="latest-editorial" dir="rtl" aria-label="أحدث مقالات نون"><style>.latest-editorial{padding:42px 0;background:#fff}.dl-wrap{width:min(1180px,92%);margin:auto}.dl-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:20px}.dl-head h2{margin:0;font:900 29px Tahoma,Arial,sans-serif;color:#101828}.dl-head p{margin:7px 0 0;color:#667085;line-height:1.8}.dl-head>a{font-weight:900;color:#111827;text-decoration:none}.dl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.dl-card{border:1px solid #e7e9ee;border-radius:16px;padding:17px;background:#fff}.dl-card small{color:#7a6400;font-weight:900}.dl-card h3{font:900 17px/1.65 Tahoma,Arial,sans-serif;margin:8px 0}.dl-card h3 a,.dl-read{text-decoration:none;color:#111827}.dl-card p{color:#667085;font:13px/1.8 Tahoma,Arial,sans-serif}.dl-read{font-weight:900}@media(max-width:900px){.dl-grid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.dl-grid{grid-template-columns:1fr}.dl-head{display:block}}</style><div class="dl-wrap"><div class="dl-head"><div><small style="color:#7a6400;font-weight:900">من المدونة</small><h2>أحدث مقالات نون ${country}</h2><p>أدلة جديدة عن الكوبونات والأقسام وقرارات الشراء قبل الدفع.</p></div><a href="/blog">كل المقالات ←</a></div><div class="dl-grid">${cards}</div></div></section>`;
 }
 
 async function injectDiscoveryLinks(req,env,res){
