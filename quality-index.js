@@ -128,7 +128,10 @@ export function addToCluster(cluster,rec,topic){
 
 export async function flushClusters(env,cache,dirtyKeys){
   if(!env?.CONTENT_FINAL)return;
-  for(const key of dirtyKeys){const c=cache.get(key);if(!c)continue;await env.CONTENT_FINAL.put(key,JSON.stringify(c),{httpMetadata:{contentType:'application/json; charset=utf-8'}})}
+  const rows=[...dirtyKeys].map(key=>[key,cache.get(key)]).filter(([,value])=>Boolean(value));
+  for(let i=0;i<rows.length;i+=12){
+    await Promise.all(rows.slice(i,i+12).map(([key,value])=>env.CONTENT_FINAL.put(key,JSON.stringify(value),{httpMetadata:{contentType:'application/json; charset=utf-8'}})));
+  }
 }
 
-export const GLOBAL_INDEX_INFO={version:VERSION,intentKeyVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:5,cannibalizationSimilarityMax:0.82,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS};
+export const GLOBAL_INDEX_INFO={version:VERSION,intentKeyVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:5,cannibalizationSimilarityMax:0.82,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:12};
