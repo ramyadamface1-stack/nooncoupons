@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "fe5e7c32c8a76d139a20801cd2632cae4016addd",
-  "verifiedAt": "2026-09-18T18:21:08.062489+00:00",
+  "sourceSha": "cb444eb67855598df1800c7e87cfc5998e88e373",
+  "verifiedAt": "2026-09-18T19:06:31.188093+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -60,6 +60,11 @@
     "imageLazyLoadingVerified": true,
     "lcpImagePreloadVerified": true,
     "staticAssetServiceWorkerVerified": true,
+    "responsiveSvgV9Verified": true,
+    "rtlSvgClippingFixedVerified": true,
+    "allFiveSvgVariantsVerified": true,
+    "responsiveArticleVisualCssVerified": true,
+    "bulkArticleRendererVisualV9Verified": true,
     "gscSeoDropsSnapshotVerified": true,
     "gscNoDataTruthfulnessVerified": true,
     "gscAdminEndpointPrivateVerified": true,
@@ -70,55 +75,55 @@
     "persistedGeneratorConfigFloor1500Verified": true
   },
   "content": {
-    "r2HtmlObjects": 55435,
-    "trackedPublished": 21621,
-    "arabic": 21589,
+    "r2HtmlObjects": 55411,
+    "trackedPublished": 22758,
+    "arabic": 22726,
     "english": 32,
-    "lastSlug": "كود-خصم-dyson-vacuum-نون-الإمارات-مراجعة-العنوان-الأبعاد",
+    "lastSlug": "التوفير-logitech-المكتب-المنزلي-نون-الإمارات-مقارنة-الضمان-شركة-صغيرة",
     "lastQuality": 100,
-    "lastWordCount": 1728
+    "lastWordCount": 1747
   },
   "catchup30k": {
     "target": 30000,
-    "current": 21589,
-    "remaining": 8411,
-    "requiredPerMinute": 17.52,
+    "current": 22726,
+    "remaining": 7274,
+    "requiredPerMinute": 15.15,
     "effectiveBatchSize": 32,
     "adaptiveBatchSize": 32,
     "adaptiveMode": "catchup-adaptive",
     "adaptiveReason": "duration_target",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 18,
-    "lastBatchTries": 135,
-    "lastBatchDurationMs": 46729,
-    "lastBatchYieldPct": 13.33,
+    "lastBatchPublished": 20,
+    "lastBatchTries": 161,
+    "lastBatchDurationMs": 51543,
+    "lastBatchYieldPct": 12.42,
     "lastBatchStageMs": {
-      "candidateLoop": 38366,
-      "articleWrites": 2882,
-      "clusterFlush": 2560,
-      "freshness": 2561,
-      "catalogs": 5150,
-      "indexNow": 269,
-      "postParallel": 5150
+      "candidateLoop": 42474,
+      "articleWrites": 2884,
+      "clusterFlush": 3752,
+      "freshness": 2522,
+      "catalogs": 5082,
+      "indexNow": 254,
+      "postParallel": 5082
     },
-    "candidateBudgetMs": 38000,
+    "candidateBudgetMs": 42000,
     "candidateBudgetHit": true,
-    "executionRatePerMinute": 23.11,
+    "executionRatePerMinute": 23.28,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 18,
+    "observedRatePerMinute": 20,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 7.79,
+    "estimatedHoursAtObservedRate": 6.06,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 1710,
-    "preflightRejectedTotal": 4982,
-    "preflightRecentRejectedTotal": 7,
-    "preflightClusterRejectedTotal": 3504,
+    "semanticPreAuditRejectedTotal": 3427,
+    "preflightRejectedTotal": 8216,
+    "preflightRecentRejectedTotal": 16,
+    "preflightClusterRejectedTotal": 6729,
     "lastPreflightRejectReasons": {
-      "global_keyword_cannibalization": 63,
-      "global_duplicate_slug": 34,
-      "global_duplicate_keyword": 34
+      "global_duplicate_slug": 33,
+      "global_duplicate_keyword": 33,
+      "global_keyword_cannibalization": 75
     }
   },
   "englishControlled": {
@@ -140,6 +145,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T18:20:17.307Z"
+    "completedAt": "2026-09-18T19:04:58.595Z"
   }
 }
