@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "86d371254eec111c779fd1ac1a52144786d8a435",
-  "verifiedAt": "2026-09-18T13:44:21.541857+00:00",
+  "sourceSha": "0c2e1f2e92371fbf622647baecb7ecb057188a7e",
+  "verifiedAt": "2026-09-18T13:49:52.673380+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -35,13 +35,13 @@
     "catchupQualityFloorPreserved": true
   },
   "content": {
-    "r2HtmlObjects": 50975,
-    "trackedPublished": 14829,
-    "arabic": 14802,
+    "r2HtmlObjects": 51296,
+    "trackedPublished": 14925,
+    "arabic": 14898,
     "english": 27,
-    "lastSlug": "هل-كود-نون-يعمل-على-الديكور-في-السعودية-قبل-اختيار-البائع-فحص-الشحن",
+    "lastSlug": "قبل-شراء-الإلكترونيات-من-نون-الإمارات-سبتمبر-2026-خيار-احتياطي",
     "lastQuality": 100,
-    "lastWordCount": 1735
+    "lastWordCount": 1719
   },
   "englishControlled": {
     "target": 200,
@@ -62,6 +62,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T13:42:59.735Z"
+    "completedAt": "2026-09-18T13:48:37.592Z"
   }
 }
