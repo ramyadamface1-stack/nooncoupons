@@ -134,6 +134,20 @@ jobs:
           grep -Fq 'clarityProjectId' admin-runtime.js
           grep -Fq 'hotjarSiteId' admin-runtime.js
           grep -Fq 'tiktokPixelId' admin-runtime.js
+          grep -Fq 'normalizeGlobalJsonLd' admin-runtime.js
+          grep -Fq 'sanitizeCustomHead' admin-runtime.js
+          grep -Fq 'sanitizeRobotsExtra' admin-runtime.js
+          grep -Fq 'normalizeRedirects' admin-runtime.js
+          grep -Fq 'organizationSameAs' admin-runtime.js
+          grep -Fq 'globalJsonLd:null' admin-runtime.js
+          grep -Fq "version:4,siteName:'Noon Deals Now'" admin-runtime.js
+          grep -Fq 'seoGlobalJsonLd' admin-page.js
+          grep -Fq 'seoJsonLdPreview' admin-page.js
+          grep -Fq 'seoCustomHead' admin-page.js
+          grep -Fq 'seoRobotsExtra' admin-page.js
+          grep -Fq 'seoRedirects' admin-page.js
+          grep -Fq 'previewRobots' admin-page.js
+          grep -Fq 'adminNav' admin-page.js
           grep -Fq 'الكلمات</th>' admin-page.js
           grep -Fq 'تاريخ الإنشاء</th>' admin-page.js
           grep -Fq 'GPTBot' final-platform.js
@@ -148,6 +162,16 @@ jobs:
           grep -Fq "id=\"conversion-events-v1\"" brand-runtime.js
           grep -Fq "u.pathname==='/api/track-event'" brand-runtime.js
           grep -Fq 'privacySafeConversionEvents:true' brand-runtime.js
+          grep -Fq 'routePatternSeo:true' brand-runtime.js
+          grep -Fq 'globalJsonLdSettings:true' brand-runtime.js
+          grep -Fq 'safeCustomHeadSettings:true' brand-runtime.js
+          grep -Fq 'protectedRobotsExtras:true' brand-runtime.js
+          grep -Fq 'organizationSchemaSettings:true' brand-runtime.js
+          grep -Fq 'configuredSeoRedirects:true' brand-runtime.js
+          grep -Fq 'notFoundNoindex:true' brand-runtime.js
+          grep -Fq 'contentVisibilitySections:true' brand-runtime.js
+          grep -Fq 'seoSafeLazySections:true' brand-runtime.js
+          grep -Fq 'render-performance-v1' brand-runtime.js
           grep -Fq 'eventPiiStored:false' brand-runtime.js
           grep -Fq 'lcpImagePreload:true' brand-runtime.js
           grep -Fq 'serviceWorkerStaticCache:true' brand-runtime.js
@@ -380,6 +404,7 @@ jobs:
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/robots.txt?deploy=$GITHUB_SHA" -D /tmp/rh -o /tmp/robots.txt
           grep -Fqi 'x-priority-sitemap-robots: v1' /tmp/rh
           grep -Fqi 'x-english-sitemap-robots: v1' /tmp/rh
+          grep -Fqi 'x-robots-extra-rules:' /tmp/rh
           grep -Fq 'Sitemap: https://noondealsnow.com/sitemap.xml' /tmp/robots.txt
           grep -Fq 'Sitemap: https://noondealsnow.com/sitemap-priority.xml' /tmp/robots.txt
           grep -Fq 'Sitemap: https://noondealsnow.com/sitemap-en-articles.xml' /tmp/robots.txt
@@ -519,6 +544,8 @@ jobs:
           grep -Fq 'اقرأ أيضًا قبل الشراء' /tmp/a.html
           grep -Fq 'href="/favicon.svg"' /tmp/a.html
           grep -Fqi 'x-image-performance: lazy-v1' /tmp/h
+          grep -Fqi 'x-section-rendering: content-visibility-v1' /tmp/h
+          grep -Fq 'id="render-performance-v1"' /tmp/a.html
           grep -Fqi 'x-service-worker-cache: static-assets-v1' /tmp/h
           python - <<'PY'
           import re
@@ -551,8 +578,14 @@ jobs:
           grep -Eq 'https://www\.noon\.com/(saudi-ar|uae-ar)/' /tmp/a.html
           grep -Fq 'id="conversion-events-v1"' /tmp/a.html
           grep -Fqi 'x-conversion-events: aggregate-v1' /tmp/h
-          grep -Fqi 'x-analytics-settings: disabled-v2' /tmp/h
-          if grep -Fq 'id="seo-analytics-v2"' /tmp/a.html; then echo 'ANALYTICS_MUST_BE_DISABLED_BY_DEFAULT'; exit 1; fi
+          grep -Fqi 'x-analytics-settings:' /tmp/h
+          if grep -Fqi 'x-analytics-settings: disabled-v2' /tmp/h; then
+            if grep -Fq 'id="seo-analytics-v2"' /tmp/a.html; then echo 'ANALYTICS_DISABLED_BUT_SCRIPT_PRESENT'; exit 1; fi
+          elif grep -Fqi 'x-analytics-settings: enabled-v2' /tmp/h; then
+            grep -Fq 'id="seo-analytics-v2"' /tmp/a.html
+          else
+            echo 'UNKNOWN_ANALYTICS_STATE'; exit 1
+          fi
           python - <<'PY'
           import re
           t=open('/tmp/a.html',encoding='utf-8').read()
@@ -563,6 +596,12 @@ jobs:
           if len(imgs)>1:
               assert any('loading="lazy"' in x.lower() for x in imgs[1:])
           PY
+          echo "VERIFY_ROUTE=404-noindex"
+          code=$(curl -sS -A 'Mozilla/5.0 nooncoupons-live-audit' -o /tmp/notfound.body -D /tmp/notfound.h -w '%{http_code}' "$RUNTIME_ORIGIN/this-page-must-not-exist-drive-audit-$GITHUB_SHA" || true)
+          [ "$code" = "404" ]
+          grep -Fqi 'x-robots-tag: noindex, follow' /tmp/notfound.h
+          grep -Fqi 'x-404-indexing: blocked-v1' /tmp/notfound.h
+
           echo "VERIFY_ROUTE=legacy-redirects"
           code=$(curl -sS -o /dev/null -D /tmp/lrh -w '%{http_code}' "$RUNTIME_ORIGIN/saudi/noon-coupon-code?deploy=$GITHUB_SHA")
           [ "$code" = "301" ]
@@ -1038,6 +1077,15 @@ jobs:
                   'articleCouponSummaryAeoVerified': True,
                   'articleOfficialNoonSourcesVerified': True,
                   'articleShareIntentTrackingVerified': True,
+                  'seoRoutePatternSettingsVerified': True,
+                  'seoOrganizationSettingsVerified': True,
+                  'seoGlobalJsonLdSettingsVerified': True,
+                  'seoSafeCustomHeadSettingsVerified': True,
+                  'seoProtectedRobotsEditorVerified': True,
+                  'seoRedirectManagerVerified': True,
+                  'notFoundNoindexVerified': True,
+                  'seoSafeLazySectionsVerified': True,
+                  'adminSeoNavigationVerified': True,
                   'gscSeoDropsSnapshotVerified': True,
                   'gscNoDataTruthfulnessVerified': True,
                   'gscAdminEndpointPrivateVerified': True,
@@ -1177,6 +1225,15 @@ jobs:
           assert proof['checks']['articleCouponSummaryAeoVerified'] is True
           assert proof['checks']['articleOfficialNoonSourcesVerified'] is True
           assert proof['checks']['articleShareIntentTrackingVerified'] is True
+          assert proof['checks']['seoRoutePatternSettingsVerified'] is True
+          assert proof['checks']['seoOrganizationSettingsVerified'] is True
+          assert proof['checks']['seoGlobalJsonLdSettingsVerified'] is True
+          assert proof['checks']['seoSafeCustomHeadSettingsVerified'] is True
+          assert proof['checks']['seoProtectedRobotsEditorVerified'] is True
+          assert proof['checks']['seoRedirectManagerVerified'] is True
+          assert proof['checks']['notFoundNoindexVerified'] is True
+          assert proof['checks']['seoSafeLazySectionsVerified'] is True
+          assert proof['checks']['adminSeoNavigationVerified'] is True
           assert proof['checks']['gscSeoDropsSnapshotVerified'] is True
           assert proof['checks']['gscNoDataTruthfulnessVerified'] is True
           assert proof['checks']['gscAdminEndpointPrivateVerified'] is True
