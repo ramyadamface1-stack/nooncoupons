@@ -70,6 +70,8 @@ jobs:
           grep -Fq 'semanticPreAudit:true' bulk-generator.js
           grep -Fq 'cooperativeYieldEveryTries:8' bulk-generator.js
           grep -Fq 'preAuditSemanticGate' quality-audit.js
+          grep -Fq 'articleWriteConcurrency:16' bulk-generator.js
+          grep -Fq 'clusterWriteConcurrency:16' quality-index.js
           grep -Fq 'r2ReadRetry:3' bulk-generator.js
           grep -Fq 'r2CatalogFailClosed:true' bulk-generator.js
           grep -Fq 'r2WriteRetry:3' bulk-generator.js
