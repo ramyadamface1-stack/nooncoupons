@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "edaf6ab0100e313ddc72a0e6805263cddbe9a2e1",
-  "verifiedAt": "2026-09-18T16:37:30.527114+00:00",
+  "sourceSha": "d4ef568d3364e515dd1fbf1ccb92de5763909360",
+  "verifiedAt": "2026-09-18T16:40:51.438529+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -35,16 +35,18 @@
     "catchupQualityFloorPreserved": true,
     "bulkLastBatchTelemetryVerified": true,
     "catchup64SafetyMarginConfigured": true,
-    "cronAdjustedThroughputTelemetryVerified": true
+    "cronAdjustedThroughputTelemetryVerified": true,
+    "preflightDedupeVerified": true,
+    "fullGlobalGateAfterPreflightVerified": true
   },
   "content": {
-    "r2HtmlObjects": 55434,
-    "trackedPublished": 18896,
-    "arabic": 18866,
+    "r2HtmlObjects": 55428,
+    "trackedPublished": 18960,
+    "arabic": 18930,
     "english": 30,
-    "lastSlug": "شراء-ذكي-acer-predator-نون-السعودية-فحص-المواصفات-الضمان",
+    "lastSlug": "فحص-الضمان-المكتب-المنزلي-نون-الإمارات-اختبار-الأهلية-العمل-المكتبي",
     "lastQuality": 100,
-    "lastWordCount": 1719
+    "lastWordCount": 1735
   },
   "englishControlled": {
     "target": 200,
@@ -65,6 +67,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T16:36:47.516Z"
+    "completedAt": "2026-09-18T16:39:16.132Z"
   }
 }
