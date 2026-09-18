@@ -32,12 +32,15 @@ jobs:
           grep -Fq 'relatedArticles:6' network-entry.js
           grep -Fq 'x-alt-fallback' network-entry.js
           grep -Fq 'x-external-link-safety' network-entry.js
-          echo CHECK_BULK_TARGET; grep -Fq '"BULK_DAILY_TARGET": "15000"' wrangler.jsonc
+          echo CHECK_BULK_TARGET; grep -Fq '"BULK_DAILY_TARGET": "32000"' wrangler.jsonc
           echo CHECK_BULK_BATCH; grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
           echo CHECK_CATCHUP_TOTAL; grep -Fq '"BULK_CATCHUP_TOTAL": "30000"' wrangler.jsonc
-          echo CHECK_CATCHUP_BATCH; grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "24"' wrangler.jsonc
+          echo CHECK_CATCHUP_BATCH; grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "48"' wrangler.jsonc
+          echo CHECK_CATCHUP_WINDOW; grep -Fq '"BULK_CATCHUP_WINDOW_HOURS": "8"' wrangler.jsonc
           echo CHECK_CATCHUP_LOGIC; grep -Fq 'publishedTotal<catchupGoal?catchupBatch:steadyBatch' admin-runtime.js
-          echo CHECK_BATCH_CEILING; grep -Fq 'Math.min(48,Number(batchSize||3))' bulk-generator.js
+          echo CHECK_BATCH_CEILING; grep -Fq 'MAX_BATCH_SIZE=48' bulk-generator.js
+          grep -Fq 'MAX_DAILY_TARGET=40000' bulk-generator.js
+          grep -Fq 'qualityThresholdFloor:95' bulk-generator.js
           echo CHECK_QUALITY_THRESHOLD; grep -Fq '"QUALITY_PUBLISH_THRESHOLD": "95"' wrangler.jsonc
           echo CHECK_MIN_WORDS; grep -Fq '"MIN_ARTICLE_WORDS": "1000"' wrangler.jsonc
           echo CHECK_INDEXNOW_ENABLED; grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
@@ -62,7 +65,7 @@ jobs:
             fetch "$ORIGIN/api/generator-health?v=brand-v1-$i" /tmp/generator.json 2>/dev/null || true
             fetch "$ORIGIN/api/commerce-health?v=brand-v1-$i" /tmp/commerce.json 2>/dev/null || true
             fetch "$ORIGIN/api/content-stats?v=brand-v1-$i" /tmp/stats.json 2>/dev/null || true
-            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); s=json.load(open('/tmp/stats.json')); b=g.get('bulk',{}); gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert s.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==15000; assert int(b.get('batchSize') or 0)==16; assert int(s.get('dailyTargetArabic') or 0)==15000" 2>/dev/null; then
+            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); s=json.load(open('/tmp/stats.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert s.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==32000; assert int(b.get('batchSize') or 0)==16; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==48; assert int(p.get('windowHours') or 0)==8; assert int(s.get('dailyTargetArabic') or 0)==32000" 2>/dev/null; then
               ready=1
               echo "RUNTIME_READY attempt=$i"
               break
@@ -145,8 +148,12 @@ jobs:
           assert gt.get('mode')=='explicit-generator-taxonomy' and gt.get('internalLinks') is True, 'generator taxonomy'
           assert gt.get('metadata')==['categoryKey','brandKey','modelKey','comparisonKey','landingPath'], 'metadata contract'
           assert int(lc.get('minWords') or 0)>=5000 and lc.get('seo') is True and lc.get('geoAeo') is True and lc.get('eeat') is True, 'landing quality contract'
-          assert int(b.get('dailyTarget') or 0)==15000 and int(b.get('batchSize') or 0)==16, 'bulk target/batch'
-          assert int(s.get('dailyTargetArabic') or 0)==15000, 'instant stats target'
+          assert int(b.get('dailyTarget') or 0)==32000 and int(b.get('batchSize') or 0)==16, 'bulk target/batch'
+          p=b.get('catchupPlan') or {}
+          assert int(p.get('target') or 0)==30000 and int(p.get('catchupBatchSize') or 0)==48 and int(p.get('windowHours') or 0)==8, '30k catchup plan'
+          assert float(p.get('qualityThresholdFloor') or 0)>=95 and int(p.get('minArticleWords') or 0)>=1000, 'catchup quality floor'
+          if int(p.get('remaining') or 0)>0: assert p.get('capacityMeetsEightHourGoal') is True, '8h catchup capacity'
+          assert int(s.get('dailyTargetArabic') or 0)==32000, 'instant stats target'
           assert int(s.get('total') or 0)==int(s.get('arabic') or 0)+int(s.get('english') or 0), 'content stats total'
           q=b.get('lastQuality')
           if q is not None: assert float(q)>=95, f'last quality {q}'
