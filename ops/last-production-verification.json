@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "c946a4f34a0f8723a1c35be2e9facec70ce2292d",
-  "verifiedAt": "2026-09-18T16:55:05.304198+00:00",
+  "sourceSha": "59fb4754bc95474bc9a2753cd28f094de81e30dc",
+  "verifiedAt": "2026-09-18T17:02:24.724319+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -41,42 +41,53 @@
     "observedCatchupPerformanceRecorded": true,
     "twoStagePreflightVerified": true,
     "parallelPostPublicationVerified": true,
-    "batchStageTelemetryVerified": true
+    "batchStageTelemetryVerified": true,
+    "r2TransientRetryVerified": true,
+    "qualityClusterFailClosedVerified": true,
+    "arabicDiversityV4Verified": true
   },
   "content": {
-    "r2HtmlObjects": 55418,
-    "trackedPublished": 19344,
-    "arabic": 19314,
+    "r2HtmlObjects": 55424,
+    "trackedPublished": 19519,
+    "arabic": 19489,
     "english": 30,
-    "lastSlug": "مراجعة-سلة-philips-الديكور-نون-السعودية-مراجعة-الحساب-الخامة",
+    "lastSlug": "اختيار-بائع-التلفزيونات-نون-الإمارات-فحص-الملاءمة-معدل-التحديث",
     "lastQuality": 100,
-    "lastWordCount": 1718
+    "lastWordCount": 1699
   },
   "catchup30k": {
     "target": 30000,
-    "current": 19314,
-    "remaining": 10686,
-    "requiredPerMinute": 22.26,
+    "current": 19489,
+    "remaining": 10511,
+    "requiredPerMinute": 21.9,
     "effectiveBatchSize": 64,
     "lastBatchPublished": 64,
-    "lastBatchTries": 687,
-    "lastBatchDurationMs": 115209,
-    "lastBatchYieldPct": 9.32,
-    "lastBatchStageMs": null,
-    "executionRatePerMinute": 33.33,
+    "lastBatchTries": 208,
+    "lastBatchDurationMs": 77506,
+    "lastBatchYieldPct": 30.77,
+    "lastBatchStageMs": {
+      "candidateLoop": 57968,
+      "articleWrites": 9750,
+      "clusterFlush": 9388,
+      "freshness": 2166,
+      "catalogs": 7109,
+      "indexNow": 459,
+      "postParallel": 9388
+    },
+    "executionRatePerMinute": 49.54,
     "cronCadenceMinutes": 2,
     "observedRatePerMinute": 32,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 5.57,
+    "estimatedHoursAtObservedRate": 5.47,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1000,
-    "preflightRejectedTotal": 1471,
-    "preflightRecentRejectedTotal": 0,
-    "preflightClusterRejectedTotal": 0,
+    "preflightRejectedTotal": 2293,
+    "preflightRecentRejectedTotal": 6,
+    "preflightClusterRejectedTotal": 816,
     "lastPreflightRejectReasons": {
-      "global_duplicate_slug": 117,
-      "global_duplicate_keyword": 117,
-      "global_keyword_cannibalization": 279
+      "global_keyword_cannibalization": 45,
+      "global_duplicate_slug": 22,
+      "global_duplicate_keyword": 22
     }
   },
   "englishControlled": {
@@ -98,6 +109,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T16:54:15.362Z"
+    "completedAt": "2026-09-18T17:01:35.852Z"
   }
 }
