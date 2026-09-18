@@ -30,6 +30,8 @@ jobs:
           grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "15000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
+          grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
+          grep -Fq "owner-approved-nov-v1-strict-copy" coupon-registry.js
           grep -Fq '/sitemap-priority.xml' discovery-entry.js
           grep -Fq 'recentArticleLimit:500' discovery-entry.js
           grep -Fq 'discoveryLinks:true' discovery-entry.js
