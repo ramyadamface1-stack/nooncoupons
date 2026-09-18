@@ -642,10 +642,16 @@ jobs:
                   return {} if fallback is None else fallback
 
           s=load('/tmp/s.json')
+          g=load('/tmp/g.json')
           migration=load('/tmp/migration-final.json')
           audit=load('/tmp/r2-audit-final.json')
           english=load('/tmp/english-health.json')
           controlled=english.get('controlled') or {}
+          bulk=g.get('bulk') or {}
+          catchup=bulk.get('catchupPlan') or {}
+          cadence_rate=float(catchup.get('lastBatchCadenceRate') or 0)
+          remaining=int(catchup.get('remaining') or 0)
+          eta_hours=(remaining/cadence_rate/60) if cadence_rate>0 else None
           proof={
               'version': 1,
               'sourceSha': os.environ.get('GITHUB_SHA'),
@@ -686,6 +692,7 @@ jobs:
                   'cronAdjustedThroughputTelemetryVerified': True,
                   'preflightDedupeVerified': True,
                   'fullGlobalGateAfterPreflightVerified': True,
+                  'observedCatchupPerformanceRecorded': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -695,6 +702,26 @@ jobs:
                   'lastSlug': (s.get('last') or {}).get('slug'),
                   'lastQuality': (s.get('last') or {}).get('quality'),
                   'lastWordCount': (s.get('last') or {}).get('wordCount'),
+              },
+              'catchup30k': {
+                  'target': catchup.get('target'),
+                  'current': catchup.get('current'),
+                  'remaining': remaining,
+                  'requiredPerMinute': catchup.get('requiredPerMinute'),
+                  'effectiveBatchSize': catchup.get('effectiveBatchSize'),
+                  'lastBatchPublished': bulk.get('lastBatchPublished'),
+                  'lastBatchTries': bulk.get('lastBatchTries'),
+                  'lastBatchDurationMs': bulk.get('lastBatchDurationMs'),
+                  'lastBatchYieldPct': bulk.get('lastBatchYieldPct'),
+                  'executionRatePerMinute': catchup.get('lastBatchExecutionRate'),
+                  'cronCadenceMinutes': catchup.get('lastBatchCronCadenceMinutes'),
+                  'observedRatePerMinute': catchup.get('lastBatchCadenceRate'),
+                  'observedMeetsRequiredRate': catchup.get('observedCapacityMeetsCurrentRequiredRate'),
+                  'estimatedHoursAtObservedRate': None if eta_hours is None else round(eta_hours,2),
+                  'qualityThresholdFloor': catchup.get('qualityThresholdFloor'),
+                  'minArticleWords': catchup.get('minArticleWords'),
+                  'preflightRejectedTotal': bulk.get('rejectedPreflightGlobal'),
+                  'lastPreflightRejectReasons': bulk.get('lastPreflightGlobalRejectReasons') or {},
               },
               'englishControlled': {
                   'target': controlled.get('target'),
@@ -742,6 +769,9 @@ jobs:
           assert proof['checks']['cronAdjustedThroughputTelemetryVerified'] is True
           assert proof['checks']['preflightDedupeVerified'] is True
           assert proof['checks']['fullGlobalGateAfterPreflightVerified'] is True
+          assert proof['checks']['observedCatchupPerformanceRecorded'] is True
+          if remaining>0 and cadence_rate>0:
+              assert float(catchup.get('qualityThresholdFloor') or 0)>=95
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
               json.dump(proof,f,ensure_ascii=False,indent=2)
               f.write('\n')
