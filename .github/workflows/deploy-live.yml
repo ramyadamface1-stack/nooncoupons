@@ -631,7 +631,7 @@ jobs:
             idx=$((idx+1))
             out="/tmp/canonical-$idx.body"
             hdr="/tmp/canonical-$idx.h"
-            code=$(curl -sS -A 'Mozilla/5.0 nooncoupons-live-audit' --connect-timeout 10 --max-time 30 -D "$hdr" -o "$out" -w '%{http_code}' "$CANONICAL_ORIGIN$p?coupon-live=$GITHUB_SHA" || true)
+            code=$(curl -sS --retry 3 --retry-all-errors --retry-delay 2 -A 'Mozilla/5.0 nooncoupons-live-audit' --connect-timeout 10 --max-time 30 -D "$hdr" -o "$out" -w '%{http_code}' "$CANONICAL_ORIGIN$p?coupon-live=$GITHUB_SHA" || true)
             echo "CANONICAL_ROUTE path=$p http=$code"
             [ "$code" = 200 ] || { echo "CANONICAL_ROUTE_FAILED path=$p http=$code"; exit 1; }
             if [ "$p" != "/favicon.svg" ]; then
