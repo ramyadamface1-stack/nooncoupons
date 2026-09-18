@@ -32,21 +32,28 @@ export async function runCouponR2MigrationBatch(env,{limit=100}={}){
 
   const page=await env.CONTENT_FINAL.list({prefix:'articles/',cursor:state.cursor||undefined,limit:Math.max(1,Math.min(Number(limit)||100,500))});
   let scanned=0,updated=0,replaced=0;
-  for(const obj of page.objects||[]){
-    if(!String(obj.key||'').endsWith('.html'))continue;
-    scanned++;
+  const objects=(page.objects||[]).filter(obj=>String(obj.key||'').endsWith('.html'));
+  scanned=objects.length;
+
+  async function repairObject(obj){
     const current=await env.CONTENT_FINAL.get(obj.key);
-    if(!current)continue;
+    if(!current)return {updated:0,replaced:0};
     const html=await current.text();
     const fallback=codeForKey(obj.key);
     const fixed=repairText(html,fallback);
-    if(!fixed.changed)continue;
+    if(!fixed.changed)return {updated:0,replaced:0};
     const metadata=current.customMetadata||{};
     await env.CONTENT_FINAL.put(obj.key,fixed.output,{
       httpMetadata:current.httpMetadata||{contentType:'text/html; charset=utf-8'},
       customMetadata:{...metadata,couponCleanup:'nov-v1'}
     });
-    updated++;replaced+=fixed.replaced;
+    return {updated:1,replaced:fixed.replaced};
+  }
+
+  const concurrency=25;
+  for(let i=0;i<objects.length;i+=concurrency){
+    const results=await Promise.all(objects.slice(i,i+concurrency).map(repairObject));
+    for(const row of results){updated+=row.updated;replaced+=row.replaced;}
   }
 
   const next={
