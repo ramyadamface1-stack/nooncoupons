@@ -13,7 +13,7 @@ const PROFILE_DIVERSITY_SLOTS=16;
 const PROFILE_MAX_PER_BATCH=3;
 const INTENT_MAX_PER_BATCH=5;
 const START_CURSOR=760000;
-const MAX_SCAN=5000;
+const MAX_SCAN=1500;
 const PROFILE_TO_CATEGORY={
   mobile:'mobiles',computing:'computers',audio:'audio',screen:'tvs',beauty:'beauty',
   appliance:'appliances',kitchen:'home-kitchen',home:'home-kitchen',grocery:'grocery',
@@ -87,8 +87,8 @@ export async function runEnglishCanary(env){
   const dailyTarget=dailyTargetFromEnv(env),todayCount=publishedToday(state.records),minInterval=minIntervalMinutesFromEnv(env),nextAt=nextEligibleAt(state,env),nowMs=Date.now();
   if(todayCount>=dailyTarget)return {ok:true,skipped:'english_daily_target_complete',published:state.records.length,publishedToday:todayCount,dailyTarget,controlledTarget:target};
   if(nextAt&&Date.parse(nextAt)>nowMs)return {ok:true,skipped:'english_interval_wait',published:state.records.length,publishedToday:todayCount,dailyTarget,minIntervalMinutes:minInterval,nextEligibleAt:nextAt,controlledTarget:target};
-  const slot=state.records.length,found=await findCandidate(env,state,slot);
-  if(!found){state.cursor=Math.max(Number(state.cursor||START_CURSOR)+MAX_SCAN,START_CURSOR);state.lastError='no_production_ready_candidate';state=await writeState(env,state);return {ok:false,error:'no_production_ready_candidate',published:state.records.length,target:canaryTarget,controlledTarget:target}}
+  const slot=state.records.length;let found=null;try{found=await findCandidate(env,state,slot)}catch(e){state.lastError='candidate_scan_error:'+String(e?.message||e).slice(0,220);state.lastAttemptAt=now();state=await writeState(env,state);return {ok:false,error:state.lastError,published:state.records.length,target:canaryTarget,controlledTarget:target}}
+  if(!found){state.cursor=Math.max(Number(state.cursor||START_CURSOR)+MAX_SCAN,START_CURSOR);state.lastError='no_production_ready_candidate';state.lastAttemptAt=now();state=await writeState(env,state);return {ok:false,error:'no_production_ready_candidate',published:state.records.length,target:canaryTarget,controlledTarget:target}}
   const {cursor,candidate,article,audit,categoryKey}=found,createdAt=now(),floor=qualityFloor(audit),urlPath='/en/articles/'+article.slug,isCanary=slot<canaryTarget;
   const record={
     slug:article.slug,title:article.title,metaDescription:sanitizeMeta(article.metaDescription),country:candidate.country,coupon:candidate.code,
@@ -102,7 +102,7 @@ export async function runEnglishCanary(env){
     httpMetadata:{contentType:'text/html; charset=utf-8'},
     customMetadata:{lang:'en',ls:'native-intent-v6-canary',t:encodeURIComponent(record.title).slice(0,900),m:encodeURIComponent(record.metaDescription).slice(0,900),c:record.country,cp:record.coupon,q:String(record.quality),qf:String(record.qualityFloor),qc:String(record.qualityChecks),p:record.provider,kw:encodeURIComponent(record.primaryKeyword).slice(0,900),bp:String(record.blueprint),at:createdAt,status:'published',canary:isCanary?'1':'0',phase:record.phase}
   });
-  state.records.push(record);state.cursor=cursor+1;state.lastError=null;state.lastPublishedAt=createdAt;state=await writeState(env,state);
+  state.records.push(record);state.cursor=cursor+1;state.lastError=null;state.lastAttemptAt=createdAt;state.lastPublishedAt=createdAt;state=await writeState(env,state);
   return {ok:true,target:canaryTarget,controlledTarget:target,published:state.records.length,publishedToday:publishedToday(state.records),dailyTarget:dailyTargetFromEnv(env),minIntervalMinutes:minIntervalMinutesFromEnv(env),nextEligibleAt:nextEligibleAt(state,env),canaryComplete:state.status==='complete',controlledComplete:state.controlledStatus==='complete',record:publicRecord(record),audit:{score:audit.score,wordCount:audit.wordCount,minJaccardDistance:audit.minJaccardDistance,groups:audit.groups}};
 }
 
