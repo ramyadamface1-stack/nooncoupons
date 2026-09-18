@@ -186,6 +186,9 @@ jobs:
           grep -Fq "x-blog-schema':'collection-v1'" auto-platform.js
           grep -Fq "RESEARCH_UPDATED_AT='2026-09-18'" router.js
           grep -Fq "RESEARCH_DATA_VERSION='2026-09-18.v1'" router.js
+          grep -Fq "researchJson:ORIGIN+'/research.json'" router.js
+          grep -Fq "'x-research-json':'v1'" router.js
+          grep -Fq 'href="/research.json" type="application/json"' router.js
           grep -Fq '${CODES.length} أكواد' router.js
           if grep -Fq '10 أكواد' router.js; then echo 'HARDCODED_COUPON_COUNT_ROUTER=1'; exit 1; fi
           if grep -Fq 'الأكواد العشرة' router.js; then echo 'HARDCODED_COUPON_WORD_COUNT_ROUTER=1'; exit 1; fi
@@ -404,8 +407,11 @@ jobs:
           grep -Fq 'NoonCoupons Admin' /tmp/adminseo.html
 
           echo "VERIFY_ROUTE=research"
-          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/research?deploy=$GITHUB_SHA" -o /tmp/research.html
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/research?deploy=$GITHUB_SHA" -D /tmp/research.h -o /tmp/research.html
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/research.json?deploy=$GITHUB_SHA" -o /tmp/research.json
+          grep -Fqi 'x-research-json: v1' /tmp/research.h
+          grep -Fqi 'link: <https://noondealsnow.com/research.json>; rel="alternate"; type="application/json"' /tmp/research.h
+          grep -Fq 'href="/research.json" type="application/json"' /tmp/research.html
           grep -Fq '"@type":"Dataset"' /tmp/research.html
           grep -Fq '"@type":"FAQPage"' /tmp/research.html
           python - <<'PY'
@@ -416,6 +422,10 @@ jobs:
           assert set(x.get('approvedCouponCodes') or [])==allowed
           assert x.get('updatedAt')=='2026-09-18'
           assert x.get('version')=='2026-09-18.v1'
+          resources=x.get('keyResources') or {}
+          assert resources.get('researchJson')=='https://noondealsnow.com/research.json'
+          assert resources.get('englishSitemap')=='https://noondealsnow.com/sitemap-en-articles.xml'
+          assert resources.get('englishRss')=='https://noondealsnow.com/feed-en.xml'
           text=open('/tmp/research.html',encoding='utf-8').read()
           found={t.upper() for t in re.findall(r'\b(?:OPS\d+|NOV\d+)\b',text,re.I)}
           assert found<=allowed, sorted(found-allowed)
@@ -960,6 +970,7 @@ jobs:
                   'englishUrlPathItemListVerified': True,
                   'blogEditorialEntityLinkVerified': True,
                   'indexNowEnglishHubPayloadVerified': True,
+                  'researchJsonDiscoveryVerified': True,
                   'gscSeoDropsSnapshotVerified': True,
                   'gscNoDataTruthfulnessVerified': True,
                   'gscAdminEndpointPrivateVerified': True,
@@ -1089,6 +1100,7 @@ jobs:
           assert proof['checks']['englishUrlPathItemListVerified'] is True
           assert proof['checks']['blogEditorialEntityLinkVerified'] is True
           assert proof['checks']['indexNowEnglishHubPayloadVerified'] is True
+          assert proof['checks']['researchJsonDiscoveryVerified'] is True
           assert proof['checks']['gscSeoDropsSnapshotVerified'] is True
           assert proof['checks']['gscNoDataTruthfulnessVerified'] is True
           assert proof['checks']['gscAdminEndpointPrivateVerified'] is True
