@@ -1,3 +1,4 @@
+import {isApprovedCoupon,normalizeApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 const STATE_KEY='english-canary/state.json';
 const MARKER_KEY='english-canary/repair-guide-guide-v1.json';
 const CLEANUP_MARKER_KEY='english-canary/reconcile-two-canaries-v1.json';
