@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "06af9e1b50fe456b4e853a122e4fc2dd4ebd6724",
-  "verifiedAt": "2026-09-18T17:33:56.554548+00:00",
+  "sourceSha": "5b37a3857d90ea4a501303ed108b814a71b3b845",
+  "verifiedAt": "2026-09-18T17:54:30.406574+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -52,58 +52,62 @@
     "r2CatalogReadFailClosedVerified": true,
     "r2StatusReadRetryVerified": true,
     "articleWriteConcurrency16Verified": true,
-    "clusterWriteConcurrency16Verified": true
+    "clusterWriteConcurrency16Verified": true,
+    "goldenKeywordHubVerified": true,
+    "seoSettingsR2Verified": true,
+    "adminArticleWordDateColumnsVerified": true,
+    "aiCrawlerRobotsVerified": true
   },
   "content": {
-    "r2HtmlObjects": 55426,
-    "trackedPublished": 20268,
-    "arabic": 20237,
+    "r2HtmlObjects": 55435,
+    "trackedPublished": 20897,
+    "arabic": 20866,
     "english": 31,
-    "lastSlug": "حل-مشكلة-كود-نون-مع-xiaomi-xiaomi-للطلب-الأول-في-الإمارات-سعة-التخزين",
+    "lastSlug": "مراجعة-الإرجاع-sony-bravia-نون-السعودية-اختبار-سلة-صغيرة-المنافذ",
     "lastQuality": 100,
-    "lastWordCount": 1798
+    "lastWordCount": 1720
   },
   "catchup30k": {
     "target": 30000,
-    "current": 20237,
-    "remaining": 9763,
-    "requiredPerMinute": 20.34,
+    "current": 20866,
+    "remaining": 9134,
+    "requiredPerMinute": 19.03,
     "effectiveBatchSize": 32,
     "adaptiveBatchSize": 32,
     "adaptiveMode": "catchup-adaptive",
     "adaptiveReason": "duration_target",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 30,
-    "lastBatchTries": 138,
-    "lastBatchDurationMs": 48583,
-    "lastBatchYieldPct": 21.74,
+    "lastBatchPublished": 27,
+    "lastBatchTries": 132,
+    "lastBatchDurationMs": 47716,
+    "lastBatchYieldPct": 20.45,
     "lastBatchStageMs": {
-      "candidateLoop": 38178,
-      "articleWrites": 4221,
-      "clusterFlush": 4457,
-      "freshness": 2464,
-      "catalogs": 5776,
-      "indexNow": 475,
-      "postParallel": 5776
+      "candidateLoop": 38151,
+      "articleWrites": 3766,
+      "clusterFlush": 3955,
+      "freshness": 2375,
+      "catalogs": 5399,
+      "indexNow": 225,
+      "postParallel": 5399
     },
     "candidateBudgetMs": 38000,
     "candidateBudgetHit": true,
-    "executionRatePerMinute": 37.05,
+    "executionRatePerMinute": 33.95,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 30,
+    "observedRatePerMinute": 27,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 5.42,
+    "estimatedHoursAtObservedRate": 5.64,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1000,
-    "semanticPreAuditRejectedTotal": 207,
-    "preflightRejectedTotal": 3045,
+    "semanticPreAuditRejectedTotal": 817,
+    "preflightRejectedTotal": 3750,
     "preflightRecentRejectedTotal": 6,
-    "preflightClusterRejectedTotal": 1568,
+    "preflightClusterRejectedTotal": 2273,
     "lastPreflightRejectReasons": {
-      "global_keyword_cannibalization": 44,
       "global_duplicate_slug": 15,
-      "global_duplicate_keyword": 15
+      "global_duplicate_keyword": 15,
+      "global_keyword_cannibalization": 52
     }
   },
   "englishControlled": {
@@ -125,6 +129,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T17:33:08.878Z"
+    "completedAt": "2026-09-18T17:53:08.989Z"
   }
 }
