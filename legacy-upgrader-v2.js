@@ -68,7 +68,7 @@ export function buildLegacyUpgradeCandidate(rec,{variant=0,pass=1,recent=[],cfg=
   const code=String(rec.coupon||'').toUpperCase();if(!rec.slug||!['SA','AE'].includes(rec.country)||!ALLOWED_CODES.has(code)||!cleanKeyword(rec))return {ok:false,invalid:true,reason:'invalid_legacy_record'};
   const topic=buildLegacyTopic({...rec,coupon:code},variant,pass),cursor=h32(rec.slug)+variant*997+pass*7919,article=differentiate(buildUsefulArticle(topic,cursor),topic,rec,variant,pass);
   article.slug=rec.slug;article.primaryKeyword=cleanKeyword(rec);article.country=topic.country;article.coupon=code;
-  const audit=auditSeoArticle(article,topic,{...cfg,minWords:Math.max(1000,Number(cfg.minWords||1000)),threshold:Math.max(95,Number(cfg.qualityThreshold||95)),recent:recent.filter(x=>x.slug!==rec.slug)});
+  const audit=auditSeoArticle(article,topic,{...cfg,minWords:Math.max(1500,Number(cfg.minWords||1500)),threshold:Math.max(95,Number(cfg.qualityThreshold||95)),recent:recent.filter(x=>x.slug!==rec.slug)});
   return {ok:audit.productionReady,topic,article,audit};
 }
 
