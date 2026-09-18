@@ -36,7 +36,10 @@ jobs:
           node --check commerce-entry.js
           node --check bulk-generator.js
           node --check generator-core-v2.js
-          grep -Fq '"main": "commerce-entry.js"' wrangler.jsonc
+          grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
+          grep -Fq "import app from './brand-runtime.js'" discovery-entry.js
+          grep -Fq "import app from './network-entry.js'" brand-runtime.js
+          grep -Fq "import app from './commerce-entry.js'" network-entry.js
           grep -Fq "architecture:'market-city-category-brand-model-comparison-article'" commerce-taxonomy.js
           grep -Fq 'CITIES' commerce-taxonomy.js
           grep -Fq 'CATEGORY_VISUALS' commerce-taxonomy.js
