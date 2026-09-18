@@ -15,7 +15,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -75,6 +75,53 @@ jobs:
           echo "DEDICATED_TOKEN_VALID=1"
       - name: Deploy existing worker
         run: npx wrangler deploy
+      - name: Complete and audit R2 coupon migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
+          AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+
+          migration_done=false
+          for i in $(seq 1 320); do
+            curl -fsS --connect-timeout 10 --max-time 120 \
+              -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+              --data '{"limit":300}' \
+              "$ORIGIN/api/internal/coupon-migration-step?run=$GITHUB_SHA-$i" -o /tmp/migration-step.json
+            ok="$(jq -r '.ok // false' /tmp/migration-step.json)"
+            done="$(jq -r '.done // false' /tmp/migration-step.json)"
+            scanned="$(jq -r '.scanned // 0' /tmp/migration-step.json)"
+            updated="$(jq -r '.updated // 0' /tmp/migration-step.json)"
+            replaced="$(jq -r '.replaced // 0' /tmp/migration-step.json)"
+            echo "R2_COUPON_MIGRATION_PROGRESS step=$i scanned=$scanned updated=$updated replaced=$replaced done=$done"
+            [ "$ok" = true ] || { cat /tmp/migration-step.json; exit 1; }
+            if [ "$done" = true ]; then migration_done=true; break; fi
+          done
+          [ "$migration_done" = true ] || { echo 'R2_COUPON_MIGRATION_NOT_COMPLETE'; exit 1; }
+
+          audit_done=false
+          for i in $(seq 1 320); do
+            curl -fsS --connect-timeout 10 --max-time 120 \
+              -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+              --data '{"limit":300}' \
+              "$ORIGIN/api/internal/coupon-r2-audit-step?run=$GITHUB_SHA-$i" -o /tmp/r2-audit-step.json
+            ok="$(jq -r '.ok // false' /tmp/r2-audit-step.json)"
+            done="$(jq -r '.done // false' /tmp/r2-audit-step.json)"
+            scanned="$(jq -r '.scanned // 0' /tmp/r2-audit-step.json)"
+            invalid_files="$(jq -r '.invalidFiles // 0' /tmp/r2-audit-step.json)"
+            invalid_tokens="$(jq -r '.invalidTokens // 0' /tmp/r2-audit-step.json)"
+            echo "R2_COUPON_AUDIT_PROGRESS step=$i scanned=$scanned invalidFiles=$invalid_files invalidTokens=$invalid_tokens done=$done"
+            [ "$ok" = true ] || { cat /tmp/r2-audit-step.json; exit 1; }
+            if [ "$done" = true ]; then audit_done=true; break; fi
+          done
+          [ "$audit_done" = true ] || { echo 'R2_COUPON_AUDIT_NOT_COMPLETE'; exit 1; }
+
+          curl -fsS "$ORIGIN/api/coupon-migration-health?verify=$GITHUB_SHA" -o /tmp/migration-final.json
+          curl -fsS "$ORIGIN/api/coupon-r2-audit-health?verify=$GITHUB_SHA" -o /tmp/r2-audit-final.json
+          jq -e '.ok==true and .done==true' /tmp/migration-final.json >/dev/null
+          jq -e '.ok==true and .done==true and (.invalidFiles|tonumber)==0 and (.invalidTokens|tonumber)==0' /tmp/r2-audit-final.json >/dev/null
+          echo "R2_COUPON_MIGRATION_FINAL=$(jq -c '{scanned,updated,replaced,done,completedAt}' /tmp/migration-final.json)"
+          echo "R2_COUPON_AUDIT_FINAL=$(jq -c '{scanned,invalidFiles,invalidTokens,done,completedAt}' /tmp/r2-audit-final.json)"
       - name: Verify deployed runtime and SEO layer
         shell: bash
         run: |
@@ -145,11 +192,38 @@ jobs:
 
           curl -fsS "$RUNTIME_ORIGIN/?deploy=$GITHUB_SHA" -o /tmp/home.html
           curl -fsS "$RUNTIME_ORIGIN/coupons?deploy=$GITHUB_SHA" -o /tmp/coupons.html
+          curl -fsS "$RUNTIME_ORIGIN/saudi?deploy=$GITHUB_SHA" -o /tmp/saudi.html
+          curl -fsS "$RUNTIME_ORIGIN/uae?deploy=$GITHUB_SHA" -o /tmp/uae.html
           curl -fsS "$RUNTIME_ORIGIN/uae/noon-coupon-code?deploy=$GITHUB_SHA" -o /tmp/uae-money.html
+          curl -fsS "$RUNTIME_ORIGIN/saudi/category/mobiles?deploy=$GITHUB_SHA" -o /tmp/saudi-category.html
+          curl -fsS "$RUNTIME_ORIGIN/uae/category/electronics?deploy=$GITHUB_SHA" -o /tmp/uae-category.html
+
+          OLD_ARABIC_PATH="$(python - <<'PY'
+import urllib.parse
+print('/articles/'+urllib.parse.quote('دليل-استخدام-كوبونات-نون-السعودية',safe=''))
+PY
+)"
+          curl -fsS "$RUNTIME_ORIGIN$OLD_ARABIC_PATH?deploy=$GITHUB_SHA" -o /tmp/old-arabic.html
+
+          curl -fsS "$RUNTIME_ORIGIN/api/english-canary-health?deploy=$GITHUB_SHA" -o /tmp/english-health.json
+          ENGLISH_PATH="$(python - <<'PY'
+import json, urllib.parse
+x=json.load(open('/tmp/english-health.json'))
+c=x.get('controlled') or {}
+rows=c.get('records') or x.get('records') or []
+slug=(rows[-1] or {}).get('slug') if rows else ''
+print('/en/articles/'+urllib.parse.quote(slug,safe='') if slug else '')
+PY
+)"
+          [ -n "$ENGLISH_PATH" ] || { echo 'NO_ENGLISH_ARTICLE_FOR_LIVE_VERIFY'; exit 1; }
+          curl -fsS "$RUNTIME_ORIGIN$ENGLISH_PATH?deploy=$GITHUB_SHA" -D /tmp/english.h -o /tmp/english.html
+          grep -Fqi 'content-language: en' /tmp/english.h
+
+          grep -Fq '<svg' /tmp/a.html || grep -Fq '<svg' /tmp/favicon.svg
           python - <<'PY'
           import re
           allowed={'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'}
-          files=['/tmp/home.html','/tmp/coupons.html','/tmp/money.html','/tmp/uae-money.html','/tmp/a.html']
+          files=['/tmp/home.html','/tmp/coupons.html','/tmp/saudi.html','/tmp/uae.html','/tmp/money.html','/tmp/uae-money.html','/tmp/saudi-category.html','/tmp/uae-category.html','/tmp/old-arabic.html','/tmp/a.html','/tmp/english.html']
           seen=set()
           for path in files:
               text=open(path,encoding='utf-8').read()
@@ -161,14 +235,44 @@ jobs:
           print('LIVE_COUPON_WHITELIST=PASS')
           PY
 
-          # One light canonical-domain probe only; no tight retry loop that can trigger 429/1027.
-          canonical_code=$(curl -sS -A 'Mozilla/5.0 nooncoupons-deploy-check' --connect-timeout 10 --max-time 20 -o /tmp/canonical.html -w '%{http_code}' "$CANONICAL_ORIGIN/?deploy=$GITHUB_SHA" || true)
-          echo "CANONICAL_HTTP=$canonical_code"
-          case "$canonical_code" in
-            200|301|302|304) ;;
-            429) echo 'CANONICAL_RATE_LIMITED_BUT_WORKERS_DEV_RUNTIME_VERIFIED=1' ;;
-            *) echo "CANONICAL_PROBE_FAILED=$canonical_code"; exit 1 ;;
-          esac
+          # Verify the real production custom domain, not workers.dev only.
+          declare -a canonical_paths=(
+            "/"
+            "/coupons"
+            "/saudi"
+            "/uae"
+            "/saudi-arabia/noon-coupon-code"
+            "/uae/noon-coupon-code"
+            "/saudi/category/mobiles"
+            "/uae/category/electronics"
+            "$OLD_ARABIC_PATH"
+            "$ARTICLE_PATH"
+            "$ENGLISH_PATH"
+            "/favicon.svg"
+          )
+          idx=0
+          for p in "${canonical_paths[@]}"; do
+            idx=$((idx+1))
+            out="/tmp/canonical-$idx.body"
+            hdr="/tmp/canonical-$idx.h"
+            code=$(curl -sS -A 'Mozilla/5.0 nooncoupons-live-audit' --connect-timeout 10 --max-time 30 -D "$hdr" -o "$out" -w '%{http_code}' "$CANONICAL_ORIGIN$p?coupon-live=$GITHUB_SHA" || true)
+            echo "CANONICAL_ROUTE path=$p http=$code"
+            [ "$code" = 200 ] || { echo "CANONICAL_ROUTE_FAILED path=$p http=$code"; exit 1; }
+            if [ "$p" != "/favicon.svg" ]; then
+              python - "$out" <<'PY'
+import re,sys
+allowed={'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'}
+text=open(sys.argv[1],encoding='utf-8').read()
+tokens={x.upper() for x in re.findall(r'\b(?:OPS\d+|NOV\d+)\b',text,re.I)}
+bad=tokens-allowed
+assert not bad, f'unapproved production coupon codes: {sorted(bad)}'
+PY
+            else
+              grep -Fq '<svg' "$out"
+            fi
+            sleep 1
+          done
+          echo 'CANONICAL_PRODUCTION_ROUTES_VERIFIED=1'
 
           python - <<'PY'
           import json
@@ -185,4 +289,21 @@ jobs:
               'lastWordCount':(s.get('last') or {}).get('wordCount')
           },ensure_ascii=False,separators=(',',':')))
           PY
+          python - <<'PY'
+import json
+x=json.load(open('/tmp/english-health.json'))
+c=x.get('controlled') or {}
+print('ENGLISH_CONTROLLED_LIVE='+json.dumps({
+  'target':c.get('target'),
+  'published':c.get('published'),
+  'remaining':c.get('remaining'),
+  'publishedToday':c.get('publishedToday'),
+  'dailyTarget':c.get('dailyTarget'),
+  'minIntervalMinutes':c.get('minIntervalMinutes'),
+  'nextEligibleAt':c.get('nextEligibleAt')
+},separators=(',',':')))
+assert int(c.get('target') or 0)==200
+assert int(c.get('dailyTarget') or 0)==24
+assert int(c.get('minIntervalMinutes') or 0)==60
+PY
           echo "PRODUCTION_RUNTIME_VERIFIED=1"
