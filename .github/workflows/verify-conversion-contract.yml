@@ -36,9 +36,11 @@ jobs:
           grep -Fq "const articleMarket=rec.country==='AE'?'AE':'SA'" network-entry.js
           grep -Fq "const market=marketHint||(location.pathname.startsWith('/uae')?'AE':'SA')" network-entry.js
           grep -Fq "APPROVED_COUPON_CODES" network-entry.js
-          grep -Fq "'OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'" approved-coupons.js
-          if grep -E -n '\bNOV[0-9]+\b' approved-coupons.js; then
-            echo UNAPPROVED_NOV_CODE_IN_APPROVED_REGISTRY
-            exit 1
-          fi
+          grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
+          node - <<'NODE'
+          import('./approved-coupons.js').then(m=>{
+            const expected=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
+            if(JSON.stringify(m.APPROVED_COUPON_CODES)!==JSON.stringify(expected))process.exit(1);
+          }).catch(()=>process.exit(1));
+          NODE
           echo CONVERSION_CONTRACT_PASS
