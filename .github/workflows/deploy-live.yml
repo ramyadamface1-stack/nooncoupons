@@ -78,6 +78,13 @@ jobs:
           grep -Fq "refreshCountBtn" admin-page.js
           grep -Fq "/api/admin/live-overview" commerce-entry.js
           grep -Fq "normalizeArticleHeadingDensity" auto-platform.js
+          grep -Fq 'data-schema="blog-collection"' auto-platform.js
+          grep -Fq "x-blog-schema':'collection-v1'" auto-platform.js
+          grep -Fq "RESEARCH_UPDATED_AT='2026-09-18'" router.js
+          grep -Fq "RESEARCH_DATA_VERSION='2026-09-18.v1'" router.js
+          grep -Fq '${CODES.length} أكواد' router.js
+          if grep -Fq '10 أكواد' router.js; then echo 'HARDCODED_COUPON_COUNT_ROUTER=1'; exit 1; fi
+          if grep -Fq 'الأكواد العشرة' router.js; then echo 'HARDCODED_COUPON_WORD_COUNT_ROUTER=1'; exit 1; fi
           grep -Fq "h2_structure" workers-ai-generator.js
           grep -Fq "h2Count>=6&&h2Count<=10" generator-core-v2.js
           grep -Fq "R2_GENERATOR_STATUS_KEY='_ops/generator-status.json'" admin-runtime.js
@@ -261,10 +268,22 @@ jobs:
           x=json.load(open('/tmp/research.json'))
           assert x.get('approvedCouponCount')==10
           assert set(x.get('approvedCouponCodes') or [])==allowed
+          assert x.get('updatedAt')=='2026-09-18'
+          assert x.get('version')=='2026-09-18.v1'
           text=open('/tmp/research.html',encoding='utf-8').read()
           found={t.upper() for t in re.findall(r'\b(?:OPS\d+|NOV\d+)\b',text,re.I)}
           assert found<=allowed, sorted(found-allowed)
           PY
+
+          echo "VERIFY_ROUTE=blog"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/blog?deploy=$GITHUB_SHA" -D /tmp/blog.h -o /tmp/blog.html
+          grep -Fqi 'x-blog-schema: collection-v1' /tmp/blog.h
+          grep -Fqi 'x-blog-page-size: 12' /tmp/blog.h
+          grep -Fq 'data-schema="blog-collection"' /tmp/blog.html
+          grep -Fq '"@type":"CollectionPage"' /tmp/blog.html
+          grep -Fq '"@type":"ItemList"' /tmp/blog.html
+          grep -Fq 'type="application/rss+xml"' /tmp/blog.html
+          grep -Fq 'href="https://noondealsnow.com/feed.xml"' /tmp/blog.html
 
           echo "VERIFY_ROUTE=saudi-money"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/saudi-arabia/noon-coupon-code?deploy=$GITHUB_SHA" -D /tmp/mh -o /tmp/money.html
@@ -436,7 +455,7 @@ jobs:
           python - <<'PY'
           import re
           allowed={'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'}
-          files=['/tmp/home.html','/tmp/coupons.html','/tmp/saudi.html','/tmp/uae.html','/tmp/money.html','/tmp/uae-money.html','/tmp/saudi-category.html','/tmp/uae-category.html','/tmp/en-saudi.html','/tmp/team.html','/tmp/research.html','/tmp/old-arabic.html','/tmp/a.html','/tmp/english.html']
+          files=['/tmp/home.html','/tmp/coupons.html','/tmp/blog.html','/tmp/saudi.html','/tmp/uae.html','/tmp/money.html','/tmp/uae-money.html','/tmp/saudi-category.html','/tmp/uae-category.html','/tmp/en-saudi.html','/tmp/team.html','/tmp/research.html','/tmp/old-arabic.html','/tmp/a.html','/tmp/english.html']
           seen=set()
           for path in files:
               text=open(path,encoding='utf-8').read()
@@ -452,6 +471,7 @@ jobs:
           declare -a canonical_paths=(
             "/"
             "/coupons"
+            "/blog"
             "/saudi"
             "/uae"
             "/saudi-arabia/noon-coupon-code"
@@ -591,6 +611,9 @@ jobs:
                   'editorialTeamProfileVerified': True,
                   'englishRssVerified': True,
                   'researchDatasetVerified': True,
+                  'researchStableFreshnessVerified': True,
+                  'blogCollectionSchemaVerified': True,
+                  'dynamicRouterCouponCountsVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -637,6 +660,9 @@ jobs:
           assert proof['checks']['editorialTeamProfileVerified'] is True
           assert proof['checks']['englishRssVerified'] is True
           assert proof['checks']['researchDatasetVerified'] is True
+          assert proof['checks']['researchStableFreshnessVerified'] is True
+          assert proof['checks']['blogCollectionSchemaVerified'] is True
+          assert proof['checks']['dynamicRouterCouponCountsVerified'] is True
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
               json.dump(proof,f,ensure_ascii=False,indent=2)
               f.write('\n')
