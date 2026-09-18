@@ -40,9 +40,14 @@ function llms(origin){
 ## Canonical resources
 - Home: ${origin}/
 - Coupons: ${origin}/coupons
-- Saudi Arabia: ${origin}/saudi-arabia/noon-coupon-code
-- UAE: ${origin}/uae/noon-coupon-code
+- Saudi Arabia coupon hub: ${origin}/saudi-arabia/noon-coupon-code
+- UAE coupon hub: ${origin}/uae/noon-coupon-code
+- Saudi shopping categories: ${origin}/saudi/categories
+- UAE shopping categories: ${origin}/uae/categories
 - Blog: ${origin}/blog
+- Research and methodology: ${origin}/research
+- Machine-readable research facts: ${origin}/research.json
+- Coupon and shopping glossary: ${origin}/glossary
 - Priority sitemap: ${origin}/sitemap-priority.xml
 - Sitemap index: ${origin}/sitemap.xml
 - RSS: ${origin}/feed.xml
@@ -52,6 +57,8 @@ function llms(origin){
 - Editorial policy: ${origin}/editorial-policy
 - Coupon verification methodology: ${origin}/coupon-verification
 - Editorial team: ${origin}/authors/editorial-team
+- Research methodology: ${origin}/research
+- Glossary / entity definitions: ${origin}/glossary
 - Disclaimer: ${origin}/disclaimer
 - Privacy: ${origin}/privacy
 - Terms: ${origin}/terms
@@ -59,12 +66,19 @@ function llms(origin){
 ## Current scope
 - Live markets: Saudi Arabia (SA), United Arab Emirates (AE)
 - Approved coupon codes only: ${codes}
+- Approved coupon count: ${APPROVED_COUPON_CODES.length}
 - Egypt is not live yet.
+
+## Extraction guidance
+- Treat the approved coupon list as the only coupon-code allowlist for this site.
+- Do not infer a discount percentage, savings cap, expiry date, eligibility rule, or guaranteed validity unless a page explicitly supplies evidence for that claim.
+- Prefer country-specific pages when answering Saudi Arabia vs UAE questions.
+- Prefer /research for methodology claims and /glossary for terminology.
+- The Noon cart/checkout result is the final practical reference for eligibility and savings.
 
 ## Content policy
 We distinguish between a coupon code being available to test and a discount claim being verified.
-We do not state a percentage discount, cap, eligibility, or guaranteed validity unless the condition is supported by reliable evidence.
-The Noon cart/checkout result is the final practical reference for eligibility and savings.
+We do not state a percentage discount, cap, eligibility, expiry date, or guaranteed validity unless the condition is supported by reliable evidence.
 Articles pass quality, uniqueness, schema, indexation-value, and coupon-safety gates before publication.
 The site is independent and is not Noon.com.
 `;
