@@ -19,7 +19,10 @@ export function keywordSimilarity(a,b){
 }
 
 export function intentKey(topic){
-  return norm([topic?.country,topic?.category,topic?.intent,topic?.useCase,topic?.factor,topic?.scenario].join('|'));
+  return norm([
+    topic?.country,topic?.category,topic?.intent,topic?.useCase,topic?.factor,topic?.scenario,
+    topic?.queryModifier,topic?.catalogLevel,topic?.catalogTarget,topic?.brandKey,topic?.modelKey,topic?.comparisonKey
+  ].join('|'));
 }
 
 export function clusterKey(topic){
@@ -128,4 +131,4 @@ export async function flushClusters(env,cache,dirtyKeys){
   for(const key of dirtyKeys){const c=cache.get(key);if(!c)continue;await env.CONTENT_FINAL.put(key,JSON.stringify(c),{httpMetadata:{contentType:'application/json; charset=utf-8'}})}
 }
 
-export const GLOBAL_INDEX_INFO={version:VERSION,maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:5,cannibalizationSimilarityMax:0.82,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS};
+export const GLOBAL_INDEX_INFO={version:VERSION,intentKeyVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:5,cannibalizationSimilarityMax:0.82,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS};
