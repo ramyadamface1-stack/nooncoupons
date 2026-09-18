@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "e0f3aaf814940cceb02c626895b44af14629ecf8",
-  "verifiedAt": "2026-09-18T17:09:32.772901+00:00",
+  "sourceSha": "587358164c92187ba46604a0f999a32cbc2df3db",
+  "verifiedAt": "2026-09-18T17:21:02.146676+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -45,65 +45,68 @@
     "r2TransientRetryVerified": true,
     "qualityClusterFailClosedVerified": true,
     "arabicDiversityV4Verified": true,
-    "adaptiveCronBatchVerified": true
+    "adaptiveCronBatchVerified": true,
+    "candidateRuntimeBudgetVerified": true
   },
   "content": {
-    "r2HtmlObjects": 55417,
-    "trackedPublished": 19647,
-    "arabic": 19617,
-    "english": 30,
-    "lastSlug": "حل-رفض-الكود-lego-نون-الإمارات-مقارنة-تكلفة-الطلب-منزل-صغير",
+    "r2HtmlObjects": 55413,
+    "trackedPublished": 19874,
+    "arabic": 19843,
+    "english": 31,
+    "lastSlug": "خطوات-قبل-الدفع-أزياء-النساء-نون-الإمارات-مراجعة-شروط-الكود-القصة",
     "lastQuality": 100,
-    "lastWordCount": 1754
+    "lastWordCount": 1737
   },
   "catchup30k": {
     "target": 30000,
-    "current": 19617,
-    "remaining": 10383,
-    "requiredPerMinute": 21.63,
-    "effectiveBatchSize": 39,
-    "adaptiveBatchSize": 39,
+    "current": 19843,
+    "remaining": 10157,
+    "requiredPerMinute": 21.16,
+    "effectiveBatchSize": 35,
+    "adaptiveBatchSize": 35,
     "adaptiveMode": "catchup-adaptive",
     "adaptiveReason": "duration_target",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 64,
-    "lastBatchTries": 233,
-    "lastBatchDurationMs": 84288,
-    "lastBatchYieldPct": 27.47,
+    "lastBatchPublished": 27,
+    "lastBatchTries": 73,
+    "lastBatchDurationMs": 39383,
+    "lastBatchYieldPct": 36.99,
     "lastBatchStageMs": {
-      "candidateLoop": 63403,
-      "articleWrites": 9983,
-      "clusterFlush": 10513,
-      "freshness": 2174,
-      "catalogs": 7060,
-      "indexNow": 676,
-      "postParallel": 10513
+      "candidateLoop": 28483,
+      "articleWrites": 4148,
+      "clusterFlush": 3953,
+      "freshness": 2318,
+      "catalogs": 6189,
+      "indexNow": 263,
+      "postParallel": 6189
     },
-    "executionRatePerMinute": 45.56,
-    "cronCadenceMinutes": 2,
-    "observedRatePerMinute": 32,
+    "candidateBudgetMs": 28000,
+    "candidateBudgetHit": true,
+    "executionRatePerMinute": 41.13,
+    "cronCadenceMinutes": 1,
+    "observedRatePerMinute": 27,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 5.41,
+    "estimatedHoursAtObservedRate": 6.27,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1000,
-    "preflightRejectedTotal": 2410,
+    "preflightRejectedTotal": 2622,
     "preflightRecentRejectedTotal": 6,
-    "preflightClusterRejectedTotal": 933,
+    "preflightClusterRejectedTotal": 1145,
     "lastPreflightRejectReasons": {
-      "global_keyword_cannibalization": 60,
-      "global_duplicate_slug": 34,
-      "global_duplicate_keyword": 34
+      "global_duplicate_slug": 8,
+      "global_duplicate_keyword": 8,
+      "global_keyword_cannibalization": 16
     }
   },
   "englishControlled": {
     "target": 200,
-    "published": 30,
-    "remaining": 170,
-    "publishedToday": 10,
+    "published": 31,
+    "remaining": 169,
+    "publishedToday": 11,
     "dailyTarget": 24,
     "minIntervalMinutes": 60,
-    "nextEligibleAt": "2026-09-18T17:16:44.552Z"
+    "nextEligibleAt": "2026-09-18T18:17:44.808Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -115,6 +118,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T17:08:48.033Z"
+    "completedAt": "2026-09-18T17:20:15.093Z"
   }
 }
