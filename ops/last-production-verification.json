@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "90e5a188c6f5ad5ba4ace8e70830e1970c0a91cf",
-  "verifiedAt": "2026-09-18T19:52:17.438237+00:00",
+  "sourceSha": "73b898cf85aaec83d115a67252844f793d7d3515",
+  "verifiedAt": "2026-09-18T20:01:50.383666+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -82,6 +82,15 @@
     "articleCouponSummaryAeoVerified": true,
     "articleOfficialNoonSourcesVerified": true,
     "articleShareIntentTrackingVerified": true,
+    "seoRoutePatternSettingsVerified": true,
+    "seoOrganizationSettingsVerified": true,
+    "seoGlobalJsonLdSettingsVerified": true,
+    "seoSafeCustomHeadSettingsVerified": true,
+    "seoProtectedRobotsEditorVerified": true,
+    "seoRedirectManagerVerified": true,
+    "notFoundNoindexVerified": true,
+    "seoSafeLazySectionsVerified": true,
+    "adminSeoNavigationVerified": true,
     "gscSeoDropsSnapshotVerified": true,
     "gscNoDataTruthfulnessVerified": true,
     "gscAdminEndpointPrivateVerified": true,
@@ -92,55 +101,55 @@
     "persistedGeneratorConfigFloor1500Verified": true
   },
   "content": {
-    "r2HtmlObjects": 55435,
-    "trackedPublished": 23888,
-    "arabic": 23855,
+    "r2HtmlObjects": 55429,
+    "trackedPublished": 24105,
+    "arabic": 24072,
     "english": 33,
-    "lastSlug": "خطوات-قبل-الدفع-acer-predator-نون-السعودية-فحص-المواصفات-الضمان",
+    "lastSlug": "كود-خصم-nivea-العناية-بالبشرة-نون-الإمارات-خطة-الشراء-هدية",
     "lastQuality": 100,
-    "lastWordCount": 1712
+    "lastWordCount": 1766
   },
   "catchup30k": {
     "target": 30000,
-    "current": 23855,
-    "remaining": 6145,
-    "requiredPerMinute": 12.8,
+    "current": 24072,
+    "remaining": 5928,
+    "requiredPerMinute": 12.35,
     "effectiveBatchSize": 32,
     "adaptiveBatchSize": 32,
     "adaptiveMode": "catchup-adaptive",
     "adaptiveReason": "duration_target",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 21,
-    "lastBatchTries": 192,
-    "lastBatchDurationMs": 50848,
-    "lastBatchYieldPct": 10.94,
+    "lastBatchPublished": 27,
+    "lastBatchTries": 184,
+    "lastBatchDurationMs": 51683,
+    "lastBatchYieldPct": 14.67,
     "lastBatchStageMs": {
-      "candidateLoop": 42062,
-      "articleWrites": 2965,
-      "clusterFlush": 3449,
-      "freshness": 2730,
-      "catalogs": 5363,
-      "indexNow": 486,
-      "postParallel": 5363
+      "candidateLoop": 42064,
+      "articleWrites": 3618,
+      "clusterFlush": 3975,
+      "freshness": 2636,
+      "catalogs": 5594,
+      "indexNow": 484,
+      "postParallel": 5594
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": true,
-    "executionRatePerMinute": 24.78,
+    "executionRatePerMinute": 31.34,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 21,
+    "observedRatePerMinute": 27,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 4.88,
+    "estimatedHoursAtObservedRate": 3.66,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 5235,
-    "preflightRejectedTotal": 12130,
-    "preflightRecentRejectedTotal": 30,
-    "preflightClusterRejectedTotal": 10629,
+    "semanticPreAuditRejectedTotal": 5605,
+    "preflightRejectedTotal": 12957,
+    "preflightRecentRejectedTotal": 39,
+    "preflightClusterRejectedTotal": 11447,
     "lastPreflightRejectReasons": {
-      "global_duplicate_slug": 40,
-      "global_duplicate_keyword": 40,
-      "global_keyword_cannibalization": 99
+      "global_duplicate_slug": 38,
+      "global_duplicate_keyword": 38,
+      "global_keyword_cannibalization": 88
     }
   },
   "englishControlled": {
@@ -162,6 +171,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T19:51:23.933Z"
+    "completedAt": "2026-09-18T20:00:29.967Z"
   }
 }
