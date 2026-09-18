@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "0c2e1f2e92371fbf622647baecb7ecb057188a7e",
-  "verifiedAt": "2026-09-18T13:49:52.673380+00:00",
+  "sourceSha": "29cac66151dd969ecdf3e3adb5165e6bd22ffe4f",
+  "verifiedAt": "2026-09-18T13:53:10.433763+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -35,13 +35,13 @@
     "catchupQualityFloorPreserved": true
   },
   "content": {
-    "r2HtmlObjects": 51296,
-    "trackedPublished": 14925,
-    "arabic": 14898,
+    "r2HtmlObjects": 51634,
+    "trackedPublished": 14973,
+    "arabic": 14946,
     "english": 27,
-    "lastSlug": "قبل-شراء-الإلكترونيات-من-نون-الإمارات-سبتمبر-2026-خيار-احتياطي",
+    "lastSlug": "شراء-dyson-vacuum-من-نون-الإمارات-بميزانية-محددة-البديل-الأنسب",
     "lastQuality": 100,
-    "lastWordCount": 1719
+    "lastWordCount": 1752
   },
   "englishControlled": {
     "target": 200,
@@ -62,6 +62,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T13:48:37.592Z"
+    "completedAt": "2026-09-18T13:52:25.109Z"
   }
 }
