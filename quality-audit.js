@@ -18,6 +18,13 @@ function fnv32(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i
 export function contentSignature(text){const t=tokens(strip(text));if(t.length<4)return fnv32(t.join(' ')).toString(16).padStart(8,'0');const v=new Int32Array(32);for(let i=0;i<=t.length-4;i++){const h=fnv32(t.slice(i,i+4).join(' '));for(let b=0;b<32;b++)v[b]+=((h>>>b)&1)?1:-1}let out=0;for(let b=0;b<32;b++)if(v[b]>=0)out=(out|(1<<b))>>>0;return out.toString(16).padStart(8,'0')}
 export function signatureDistance(a,b){if(!a||!b)return 32;let x=(parseInt(a,16)^parseInt(b,16))>>>0,c=0;while(x){x&=x-1;c++}return c}
 
+export function preAuditSemanticGate(article,semanticRecent=[]){
+  const html=String(article?.html||''),plain=strip(html),signature=contentSignature(plain);
+  const distances=(Array.isArray(semanticRecent)?semanticRecent:[]).map(r=>signatureDistance(signature,r?.signature)).filter(Number.isFinite);
+  const minSignatureDistance=distances.length?Math.min(...distances):32;
+  return {pass:minSignatureDistance>=4,plain,signature,minSignatureDistance};
+}
+
 function addCheck(list,group,name,pass,weight=1,{critical=false,note=''}={}){list.push({group,name,pass:Boolean(pass),weight,critical,note})}
 function groupScores(checks){const names=[...new Set(checks.map(x=>x.group))],out={};for(const g of names){const c=checks.filter(x=>x.group===g),w=c.reduce((s,x)=>s+x.weight,0),p=c.reduce((s,x)=>s+(x.pass?x.weight:0),0);out[g]=clamp(pct(p,w))}return out}
 
@@ -26,13 +33,14 @@ const GENERIC_AI=/(?:بالتأكيد|مما لا شك فيه|في عالمنا 
 const UNSUPPORTED_PROMO=/(?:خصم|توفير)\s*(?:حتى\s*)?\d{1,3}\s*[%٪]|\d{1,4}\s*(?:ريال|درهم)\s*(?:خصم|توفير)|(?:مضمون|مؤكد)\s*(?:الخصم|الكود|القسيمة)/i;
 
 export function auditSeoArticle(article,topic,opts={}){
-  const html=String(article?.html||''),plain=strip(html),wordCount=words(plain).length,keyword=String(article?.primaryKeyword||topic?.kw||''),title=String(article?.title||''),meta=String(article?.metaDescription||''),slug=String(article?.slug||'');
+  const semanticPreflight=opts.semanticPreflight&&typeof opts.semanticPreflight==='object'?opts.semanticPreflight:null;
+  const html=String(article?.html||''),plain=semanticPreflight?.plain||strip(html),wordCount=words(plain).length,keyword=String(article?.primaryKeyword||topic?.kw||''),title=String(article?.title||''),meta=String(article?.metaDescription||''),slug=String(article?.slug||'');
   const country=topic?.country==='AE'?'AE':'SA',market=country==='SA'?'السعودية':'الإمارات',currency=country==='SA'?'الريال السعودي':'الدرهم الإماراتي',currencyCode=country==='SA'?'SAR':'AED',wrongCountry=country==='SA'?/(?:الإمارات|الامارات|\bUAE\b|Emirates)/i:/(?:السعودية|المملكة العربية السعودية|\bKSA\b|Saudi(?: Arabia)?)/i;
   const checks=[],pstats=paragraphStats(html),h1=count(html,/<h1\b/gi),h2=count(html,/<h2\b/gi),h3=count(html,/<h3\b/gi),imgs=[...html.matchAll(/<img\b[^>]*>/gi)].map(m=>m[0]);
   const codes=[...new Set((plain.match(/\b[A-Z]{2,8}\d{1,6}\b/g)||[]).map(x=>x.toUpperCase()))],targetCode=String(topic?.code||article?.coupon||'').toUpperCase();
   const ar=count(plain,/[\u0600-\u06FF]/g),latin=count(plain,/[A-Za-z]/g),arabicRatio=ar/Math.max(1,ar+latin);
-  const intro=strip(html.slice(0,Math.min(html.length,7000))),exactKw=exactOccurrences(plain,keyword),sig=contentSignature(plain);
-  const recent=Array.isArray(opts.recent)?opts.recent:[],semanticRecent=Array.isArray(opts.semanticRecent)?opts.semanticRecent:recent,distances=semanticRecent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=distances.length?Math.min(...distances):32;
+  const intro=strip(html.slice(0,Math.min(html.length,7000))),exactKw=exactOccurrences(plain,keyword),sig=semanticPreflight?.signature||contentSignature(plain);
+  const recent=Array.isArray(opts.recent)?opts.recent:[],semanticRecent=Array.isArray(opts.semanticRecent)?opts.semanticRecent:recent,distances=semanticPreflight?[]:semanticRecent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=Number.isFinite(Number(semanticPreflight?.minSignatureDistance))?Number(semanticPreflight.minSignatureDistance):(distances.length?Math.min(...distances):32);
   const recentKeywords=new Set(recent.map(r=>norm(r.primaryKeyword||''))),recentSlugs=new Set(recent.map(r=>String(r.slug||'')));
 
   addCheck(checks,'seo','article_identity',Boolean(keyword&&title&&slug),3,{critical:true});
