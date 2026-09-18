@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "e48df3588cd33ab10de01357c9deffe13dd0c91e",
-  "verifiedAt": "2026-09-18T13:01:53.113431+00:00",
+  "sourceSha": "8d77c6c68a5bcb8c48e1c35535c419704ae3fed3",
+  "verifiedAt": "2026-09-18T13:05:13.211586+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -22,16 +22,17 @@
     "englishCollectionSchemaVerified": true,
     "englishVisibleEEATVerified": true,
     "llmsControlledEnglishDiscoveryVerified": true,
-    "dynamicApprovedCouponCountVerified": true
+    "dynamicApprovedCouponCountVerified": true,
+    "englishPriorityDiscoveryVerified": true
   },
   "content": {
     "r2HtmlObjects": 49359,
-    "trackedPublished": 14252,
-    "arabic": 14226,
+    "trackedPublished": 14300,
+    "arabic": 14274,
     "english": 26,
-    "lastSlug": "شراء-sony-bravia-من-نون-السعودية-بذكاء-قبل-الإرجاع-اختيار-المقاس",
+    "lastSlug": "مقارنة-سعر-american-tourister-luggage-على-نون-السعودية-تقييم-المخاطرة",
     "lastQuality": 100,
-    "lastWordCount": 1744
+    "lastWordCount": 1741
   },
   "englishControlled": {
     "target": 200,
@@ -52,6 +53,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T13:01:18.344Z"
+    "completedAt": "2026-09-18T13:04:34.521Z"
   }
 }
