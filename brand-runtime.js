@@ -1,10 +1,52 @@
 import app from './network-entry.js';
 import {APPROVED_COUPON_CODES,replaceUnapprovedCouponTokens} from './approved-coupons.js';
+import {getSeoSettings} from './admin-runtime.js';
 export {ControlPlane,GeneratorControl} from './network-entry.js';
 
 const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
 const SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#111827"/><path d="M15 18h34v8H15zm0 12h25v8H15zm0 12h18v8H15z" fill="#facc15"/></svg>`;
 const APPROVED=new Set(APPROVED_COUPON_CODES.map(x=>String(x).toUpperCase()));
+let seoSettingsCache={at:0,value:null};
+const attr=s=>String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+async function cachedSeoSettings(env){
+  if(seoSettingsCache.value&&Date.now()-seoSettingsCache.at<300000)return seoSettingsCache.value;
+  try{seoSettingsCache={at:Date.now(),value:await getSeoSettings(env)}}catch{seoSettingsCache={at:Date.now(),value:null}}
+  return seoSettingsCache.value;
+}
+function escRe(s){return String(s).replace(/[.*+?^$()|[\]\\]/g,'\\const APPROVED=new Set(APPROVED_COUPON_CODES.map(x=>String(x).toUpperCase()));
+')}
+function upsertMetaName(html,name,value){
+  if(!value)return html;
+  const tag='<meta name="'+attr(name)+'" content="'+attr(value)+'">',re=new RegExp('<meta\\b[^>]*name=["\\\']'+escRe(name)+'["\\\'][^>]*>','i');
+  return re.test(html)?html.replace(re,tag):html.replace(/<\/head>/i,tag+'</head>');
+}
+function upsertMetaProperty(html,name,value){
+  if(!value)return html;
+  const tag='<meta property="'+attr(name)+'" content="'+attr(value)+'">',re=new RegExp('<meta\\b[^>]*property=["\\\']'+escRe(name)+'["\\\'][^>]*>','i');
+  return re.test(html)?html.replace(re,tag):html.replace(/<\/head>/i,tag+'</head>');
+}
+function applySeoSettings(html,settings,path,origin){
+  if(!settings)return html;
+  let out=String(html),route=settings.routeOverrides?.[path]||null;
+  out=upsertMetaProperty(out,'og:site_name',settings.siteName||'Noon Deals Now');
+  out=upsertMetaName(out,'google-site-verification',settings.googleVerification);
+  out=upsertMetaName(out,'msvalidate.01',settings.bingVerification);
+  out=upsertMetaName(out,'yandex-verification',settings.yandexVerification);
+  out=upsertMetaName(out,'p:domain_verify',settings.pinterestVerification);
+  out=upsertMetaName(out,'twitter:site',settings.twitterSite);
+  if(settings.facebookAppId)out=upsertMetaProperty(out,'fb:app_id',settings.facebookAppId);
+  const defaultOg=String(settings.defaultOgImage||'').trim();
+  if(defaultOg&&!/<meta\b[^>]*property=["']og:image["']/i.test(out))out=upsertMetaProperty(out,'og:image',defaultOg.startsWith('/')?origin+defaultOg:defaultOg);
+  if(!route)return out;
+  if(route.title){const t='<title>'+attr(route.title)+'</title>';out=/<title>[\s\S]*?<\/title>/i.test(out)?out.replace(/<title>[\s\S]*?<\/title>/i,t):out.replace(/<\/head>/i,t+'</head>');}
+  if(route.description)out=upsertMetaName(out,'description',route.description);
+  if(route.robots)out=upsertMetaName(out,'robots',route.robots);
+  if(route.canonical){const href=origin+route.canonical,tag='<link rel="canonical" href="'+attr(href)+'">';out=/<link\b[^>]*rel=["']canonical["'][^>]*>/i.test(out)?out.replace(/<link\b[^>]*rel=["']canonical["'][^>]*>/i,tag):out.replace(/<\/head>/i,tag+'</head>');}
+  if(route.ogTitle)out=upsertMetaProperty(out,'og:title',route.ogTitle);
+  if(route.ogDescription)out=upsertMetaProperty(out,'og:description',route.ogDescription);
+  if(route.ogImage)out=upsertMetaProperty(out,'og:image',origin+route.ogImage);
+  return out;
+}
 
 function walk(node,origin,state){
   if(!node||typeof node!=='object')return;
@@ -146,9 +188,11 @@ export default{
     const sanitized=sanitizeLegacyCouponTokens(repaired.html);
     const normalized=normalizeCouponUi(sanitized.html);
     const visibleSanitized=sanitizeVisibleCouponTokens(normalized.html);
-    const html=brandHead(visibleSanitized.html);
+    const settings=await cachedSeoSettings(env);
+    const html=applySeoSettings(brandHead(visibleSanitized.html),settings,u.pathname,origin);
     const h=new Headers(res.headers);h.delete('content-length');
     h.set('x-brand-layer','v1');
+    h.set('x-seo-settings',settings?'r2-v1':'default');
     h.set('x-organization-schema-count',String(repaired.state.organizations));
     h.set('x-organization-logo-fixed',String(repaired.state.fixed));
     h.set('x-coupon-ui-deduped',String(normalized.state.duplicatesRemoved));
@@ -160,4 +204,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:12,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:13,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
