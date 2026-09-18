@@ -28,6 +28,10 @@ jobs:
           grep -Fq "data-placement=\"home_coupon_grid\"" router.js
           grep -Fq "fire('copy_code'" router.js
           grep -Fq "fire('coupon_view'" router.js
+          node --check visual-platform.js
+          grep -Fq "data-shop-click" visual-platform.js
+          grep -Fq "fire('copy_code'" visual-platform.js
+          grep -Fq "fire('shop_click'" visual-platform.js
           grep -Fq "x-robots-tag':'noindex, follow'" router.js
           grep -Fq "const articleMarket=rec.country==='AE'?'AE':'SA'" network-entry.js
           grep -Fq "const market=marketHint||(location.pathname.startsWith('/uae')?'AE':'SA')" network-entry.js
