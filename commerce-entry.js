@@ -7,6 +7,7 @@ import {enhanceSpecialtyLanding,LANDING_SPECIALTY_V4} from './landing-specialty-
 import {serveEnglishCanaryArticle,serveEnglishCanaryHealth,englishCanaryHealth,englishCanarySitemap} from './english-canary.js';
 import {serveEnglishCanaryRepairHealth} from './english-canary-repair.js';
 import {readCouponR2MigrationState} from './coupon-r2-migration.js';
+import {APPROVED_COUPON_CODES} from './approved-coupons.js';
 export {ControlPlane,GeneratorControl} from './public-entry.js';
 
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
@@ -97,7 +98,34 @@ async function contentStats(req,env,ctx){
 }
 
 export default{
-  async fetch(req,env,ctx){const u=new URL(req.url),path=u.pathname.replace(/\/+$/,'')||'/',origin=env.SITE_ORIGIN||u.origin;if(req.method==='GET'&&path==='/saudi-arabia')return hardened(permanentRedirect('/saudi'+u.search));if(req.method==='GET'&&/^\/saudi\/noon-coupon-code(?:-today|-2026)?$/.test(path))return hardened(permanentRedirect(path.replace(/^\/saudi\//,'/saudi-arabia/')+u.search));if(req.method==='GET'&&path==='/sitemap-commerce.xml')return hardened(commerceSitemap(origin));if(req.method==='GET'&&path==='/sitemap-en-articles.xml')return hardened(await englishCanarySitemap(env,origin));if(req.method==='GET'&&path==='/api/english-canary-health')return serveEnglishCanaryHealth(env);if(req.method==='GET'&&path==='/api/english-canary-repair-health')return serveEnglishCanaryRepairHealth(env);if(req.method==='GET'&&path.startsWith('/en/articles/')){const er=await serveEnglishCanaryArticle(req,env);if(er)return hardened(er)}if(req.method==='GET'&&path==='/api/admin/live-overview'){
+  async fetch(req,env,ctx){const u=new URL(req.url),path=u.pathname.replace(/\/+$/,'')||'/',origin=env.SITE_ORIGIN||u.origin;if(req.method==='GET'&&path==='/saudi-arabia')return hardened(permanentRedirect('/saudi'+u.search));if(req.method==='GET'&&/^\/saudi\/noon-coupon-code(?:-today|-2026)?$/.test(path))return hardened(permanentRedirect(path.replace(/^\/saudi\//,'/saudi-arabia/')+u.search));if(req.method==='GET'&&path==='/sitemap-commerce.xml')return hardened(commerceSitemap(origin));if(req.method==='GET'&&path==='/sitemap-en-articles.xml')return hardened(await englishCanarySitemap(env,origin));if(req.method==='GET'&&path==='/api/english-canary-health')return serveEnglishCanaryHealth(env);if(req.method==='GET'&&path==='/api/english-canary-repair-health')return serveEnglishCanaryRepairHealth(env);if(req.method==='GET'&&path.startsWith('/en/articles/')){const er=await serveEnglishCanaryArticle(req,env);if(er)return hardened(er)}if(req.method==='GET'&&path==='/api/admin/seo-overview'){
+  const au=new URL(req.url);au.pathname='/api/admin/status';au.search='';
+  const adminRes=await app.fetch(new Request(au.toString(),{method:'GET',headers:req.headers}),env,ctx);
+  if(!adminRes.ok)return adminRes;
+  const probe=async pathname=>{try{const x=new URL(req.url);x.pathname=pathname;x.search='';const r=await app.fetch(new Request(x.toString(),{method:'GET',headers:{accept:'*/*'}}),env,ctx);const body=await r.text();return {ok:r.ok,status:r.status,contentType:r.headers.get('content-type')||'',length:body.length,body:body.slice(0,12000)}}catch(e){return {ok:false,status:0,error:String(e?.message||e)}}};
+  const [seo,robots,llms,sitemap,research,glossary,countries]=await Promise.all([
+    probe('/api/seo-health'),probe('/robots.txt'),probe('/llms.txt'),probe('/sitemap.xml'),probe('/research'),probe('/glossary'),probe('/countries')
+  ]);
+  const has=(x,s)=>String(x?.body||'').includes(s);
+  const checks={
+    robotsPublic:robots.ok&&has(robots,'Allow: /'),
+    sitemapDeclared:robots.ok&&has(robots,'Sitemap:'),
+    sitemapHealthy:sitemap.ok&&/<(?:sitemapindex|urlset)\b/i.test(sitemap.body||''),
+    llmsHealthy:llms.ok&&has(llms,'Approved coupon codes only:')&&has(llms,'/research')&&has(llms,'/glossary'),
+    researchHealthy:research.ok&&has(research,'بيانات ومنهجية كوبونات نون'),
+    glossaryHealthy:glossary.ok&&has(glossary,'DefinedTerm')===false&&has(glossary,'قاموس مصطلحات الكوبونات'),
+    countriesHealthy:countries.ok&&has(countries,'نون السعودية والإمارات'),
+    approvedCouponCount:APPROVED_COUPON_CODES.length,
+    approvedCoupons:[...APPROVED_COUPON_CODES],
+    indexNowEnabled:Boolean(seo.ok&&/"indexNowEnabled"\s*:\s*true/i.test(seo.body||'')),
+    llmsUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/llms.txt',
+    sitemapUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/sitemap.xml',
+    researchUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/research',
+    glossaryUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/glossary',
+    countriesUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/countries'
+  };
+  return new Response(JSON.stringify({ok:true,checks,probes:{seo:{ok:seo.ok,status:seo.status},robots:{ok:robots.ok,status:robots.status},llms:{ok:llms.ok,status:llms.status},sitemap:{ok:sitemap.ok,status:sitemap.status},research:{ok:research.ok,status:research.status},glossary:{ok:glossary.ok,status:glossary.status},countries:{ok:countries.ok,status:countries.status}},generatedAt:new Date().toISOString()},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+}if(req.method==='GET'&&path==='/api/admin/live-overview'){
   const au=new URL(req.url);au.pathname='/api/admin/status';au.search='';
   const adminRes=await app.fetch(new Request(au.toString(),{method:'GET',headers:req.headers}),env,ctx);
   if(!adminRes.ok)return adminRes;
@@ -106,4 +134,4 @@ export default{
 }if(req.method==='GET'&&path==='/api/content-stats')return new Response(JSON.stringify(await contentStats(req,env,ctx),null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});if(req.method==='GET'&&path==='/api/commerce-health')return new Response(JSON.stringify(await health(env),null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});if(req.method==='GET'){let landing=await commerceLanding(path,origin,env);if(landing){landing=await enhanceLandingPage(path,origin,landing,env);landing=await enhanceSpecialtyLanding(path,origin,landing);return hardened(landing)}}let res=await app.fetch(req,env,ctx);if(req.method==='GET'&&path.startsWith('/articles/'))res=await appendArticleCommerce(req,env,res);res=await appendHomeCommerce(req,res);res=await augmentSitemapResponse(req,env,res);return hardened(res)},
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
-export const COMMERCE_ENTRY_INFO={version:16,englishSchedulerOwner:false,entry:'commerce-entry',wraps:'public-entry',routes:COMMERCE_TAXONOMY_INFO.routes,articleBacklinks:true,homeNavigation:true,separateShoesAndBags:true,modelFamilyPages:true,explicitGeneratorTaxonomy:COMMERCE_GENERATOR_INFO.version,landingContent:LANDING_CONTENT_V3.version,landingSpecialty:LANDING_SPECIALTY_V4.version,minLandingWords:LANDING_CONTENT_V3.minWords,sitemapDiscovery:'main-index-or-direct-urlset'};
+export const COMMERCE_ENTRY_INFO={version:17,seoAdminOverview:true,englishSchedulerOwner:false,entry:'commerce-entry',wraps:'public-entry',routes:COMMERCE_TAXONOMY_INFO.routes,articleBacklinks:true,homeNavigation:true,separateShoesAndBags:true,modelFamilyPages:true,explicitGeneratorTaxonomy:COMMERCE_GENERATOR_INFO.version,landingContent:LANDING_CONTENT_V3.version,landingSpecialty:LANDING_SPECIALTY_V4.version,minLandingWords:LANDING_CONTENT_V3.minWords,sitemapDiscovery:'main-index-or-direct-urlset'};
