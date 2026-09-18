@@ -4,9 +4,10 @@ import {SEED_ARTICLES} from './seed-articles.js';
 import {SEED_BATCH_A} from './seed-batch-a.js';
 import {SEED_BATCH_B} from './seed-batch-b.js';
 import {SEED_BATCH_C} from './seed-batch-c.js';
+import {APPROVED_COUPON_CODES,isApprovedCoupon,normalizeApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 
 const ALL_SEED_ARTICLES=[...SEED_ARTICLES,...SEED_BATCH_A,...SEED_BATCH_B,...SEED_BATCH_C];
-const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
+const CODES=APPROVED_COUPON_CODES;
 const LIVE_MARKETS=['SA','AE'];
 const now=()=>new Date().toISOString();
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
@@ -27,7 +28,7 @@ const makeState=()=>({
 
 async function body(req){try{return await req.json()}catch{return {}}}
 async function ctl(env,path,init){const id=env.CONTROL.idFromName('primary');return env.CONTROL.get(id).fetch('https://control.internal'+path,init)}
-async function state(env){return (await ctl(env,'/state')).json()}
+async function state(env){const r=await ctl(env,'/state');if(!r.ok){let detail='';try{detail=await r.text()}catch{}throw new Error('control_state_'+r.status+':'+detail.slice(0,240))}return r.json()}
 function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
 function auditArticle(a){
@@ -57,10 +58,11 @@ function auditArticle(a){
   add('Cross-Brand Isolation',!leakage,5);
   const wrongCountry=country==='SA'?/(نون\s*)?(الإمارات|الامارات)|\bUAE\b|Emirates/i.test(plain):country==='AE'?/(نون\s*)?(السعودية|المملكة العربية السعودية)|\bKSA\b|Saudi(?: Arabia)?/i.test(plain):true;
   add('Country Lock',!wrongCountry,5);
-  const codes=[...new Set((plain.match(/\bOPS\d{2}\b/gi)||[]).map(x=>x.toUpperCase()))];
-  add('Coupon Lock',!coupon||(codes.length>=1&&codes.every(x=>x===coupon.toUpperCase())),5);
+  const codes=[...new Set((plain.match(/\b(?:OPS\d+|NOV\d+)\b/gi)||[]).map(x=>x.toUpperCase()))];
+  const couponCode=String(coupon||'').toUpperCase(),couponLock=!couponCode||(isApprovedCoupon(couponCode)&&codes.length>=1&&codes.every(x=>isApprovedCoupon(x)&&x===couponCode));
+  add('Coupon Lock',couponLock,5);
   const total=checks.reduce((s,c)=>s+c.weight,0),passed=checks.reduce((s,c)=>s+(c.pass?c.weight:0),0),score=Math.round(passed/total*1000)/10;
-  const hardPass=!unsupported&&!leakage&&!wrongCountry&&(!coupon||(codes.length>=1&&codes.every(x=>x===coupon.toUpperCase())))&&n>=Number(a.minWords||1000)&&n<=2000;
+  const hardPass=!unsupported&&!leakage&&!wrongCountry&&couponLock&&n>=Number(a.minWords||1000)&&n<=2000;
   return {score,wordCount:n,checks,productionReady:hardPass&&score>=95};
 }
 
@@ -82,11 +84,13 @@ async function seedIfNeeded(env){
   if(!env.CONTROL||!env.CONTENT_FINAL)return {seeded:0,reason:'bindings_missing'};
   const s=await state(env),existing=new Set((s.articles||[]).map(a=>a.slug));
   let seeded=0;
-  for(const a of ALL_SEED_ARTICLES){
-    if(existing.has(a.slug))continue;
+  for(const source of ALL_SEED_ARTICLES){
+    if(existing.has(source.slug))continue;
+    const fallback=source.country==='AE'?'NOV188':'NOV170',coupon=normalizeApprovedCoupon(source.coupon,fallback);
+    const a={...source,coupon,title:replaceUnapprovedCouponTokens(source.title,coupon),metaDescription:replaceUnapprovedCouponTokens(source.metaDescription,coupon),primaryKeyword:replaceUnapprovedCouponTokens(source.primaryKeyword||'',coupon),html:replaceUnapprovedCouponTokens(source.html,coupon)};
     const audit=auditArticle({...a,minWords:1000});
     const rec={id:crypto.randomUUID(),slug:a.slug,title:a.title,metaDescription:a.metaDescription,country:a.country,coupon:a.coupon,status:'published',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider:'manual-openai-seed',primaryKeyword:a.primaryKeyword||''};
-    await env.CONTENT_FINAL.put('articles/'+a.slug+'.html',a.html,{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:a.title,country:a.country,status:'published'}});
+    await env.CONTENT_FINAL.put('articles/'+a.slug+'.html',a.html,{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:a.title,country:a.country,status:'published',coupon:a.coupon}});
     await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});
     existing.add(a.slug);seeded++;
   }
@@ -138,20 +142,34 @@ export class ControlPlane{
     let s=await this.ctx.storage.get('state'),dirty=false;
     if(!s){s=makeState();dirty=true}
     else{
+      if(!s||typeof s!=='object'||Array.isArray(s))s=makeState(),dirty=true;
       const settings={...(s.settings||{})};
       if(settings.aiPrimary!=='workers-ai'){settings.aiPrimary='workers-ai';dirty=true}
       if(settings.aiFallback!==null){settings.aiFallback=null;dirty=true}
       if(Number(settings.targetWords||0)!==1500){settings.targetWords=1500;dirty=true}
       if(Number(settings.minWords||0)!==1000){settings.minWords=1000;dirty=true}
       if(Number(settings.qualityThreshold||0)!==95){settings.qualityThreshold=95;dirty=true}
-      if(s.version!==2){s.version=2;dirty=true}
       s.settings=settings;
+      const expectedCoupons=CODES.flatMap(code=>LIVE_MARKETS.map(country=>({id:country+'-'+code,code,country,status:'active',verified:false,priority:100,updatedAt:now()})));
+      const currentCodes=new Set((Array.isArray(s.coupons)?s.coupons:[]).map(x=>String(x?.code||'').toUpperCase()));
+      if(currentCodes.size!==CODES.length||CODES.some(code=>!currentCodes.has(code))){s.coupons=expectedCoupons;dirty=true}
+      if(!Array.isArray(s.articles)){s.articles=[];dirty=true}
+      s.articles=s.articles.map(a=>{
+        const fallback=a?.country==='AE'?'NOV188':'NOV170',coupon=normalizeApprovedCoupon(a?.coupon,fallback);
+        const next={...a,coupon,title:replaceUnapprovedCouponTokens(a?.title||'',coupon),metaDescription:replaceUnapprovedCouponTokens(a?.metaDescription||'',coupon),primaryKeyword:replaceUnapprovedCouponTokens(a?.primaryKeyword||'',coupon)};
+        if(coupon!==a?.coupon||next.title!==a?.title||next.metaDescription!==a?.metaDescription||next.primaryKeyword!==(a?.primaryKeyword||''))dirty=true;
+        return next;
+      });
+      if(!Array.isArray(s.audit)){s.audit=[];dirty=true}
+      if(s.version!==3){s.version=3;dirty=true}
     }
-    if(dirty)await this.ctx.storage.put('state',s);
+    if(dirty){try{await this.ctx.storage.put('state',s)}catch(e){s.storageMigrationWarning=String(e?.message||e).slice(0,220)}}
     return s;
   }
   async fetch(req){
+    try{
     const u=new URL(req.url);
+    if(u.pathname==='/ping')return json({ok:true,class:'ControlPlane',version:3});
     if(u.pathname==='/state')return json(await this.get());
     if(u.pathname==='/article'&&req.method==='POST'){
       const rec=await req.json(),s=await this.get(),i=s.articles.findIndex(a=>a.slug===rec.slug);
@@ -165,13 +183,15 @@ export class ControlPlane{
       if(n)await this.ctx.storage.put('state',s);return json({published:n});
     }
     return json({error:'not_found'},404);
+    }catch(e){return json({error:'control_plane_exception',message:String(e?.message||e).slice(0,500)},500)}
   }
 }
 
 export default{
   async fetch(req,env,ctx){
     const p=new URL(req.url).pathname.replace(/\/+$/,'')||'/';
-    if(p==='/api/platform-health')return json({ok:true,version:'platform-1.3-cloudflare-only',control:Boolean(env.CONTROL),r2:Boolean(env.CONTENT_FINAL),criteria:QUALITY_CRITERIA_COUNT,markets:LIVE_MARKETS,ai:{provider:'workers-ai',binding:Boolean(env.AI),externalProviders:false},time:now()});
+    if(p==='/api/control-health'){try{const r=await ctl(env,'/ping');return json({ok:r.ok,status:r.status,body:await r.json()})}catch(e){return json({ok:false,error:String(e?.message||e)},503)}}
+    if(p==='/api/platform-health')return json({ok:true,version:'platform-1.4-cloudflare-only',control:Boolean(env.CONTROL),r2:Boolean(env.CONTENT_FINAL),criteria:QUALITY_CRITERIA_COUNT,markets:LIVE_MARKETS,ai:{provider:'workers-ai',binding:Boolean(env.AI),externalProviders:false},time:now()});
     if(p==='/api/state'){await seedIfNeeded(env);return json(await state(env))}
     if(p==='/api/ai/generate'&&req.method==='POST')return json({error:'legacy_external_generation_disabled',provider:'workers-ai',externalProviders:false},410);
     if(p==='/api/articles'&&req.method==='POST')return save(req,env);
