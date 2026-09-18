@@ -98,7 +98,12 @@ jobs:
           const x=JSON.parse(fs.readFileSync('/tmp/migration.json','utf8'));
           if(x.ok!==true) process.exit(1);
           console.log('COUPON_R2_MIGRATION='+JSON.stringify({
-            scanned:x.scanned||0,updated:x.updated||0,replaced:x.replaced||0,done:Boolean(x.done)
+            scanned:x.scanned||0,
+            updated:x.updated||0,
+            replaced:x.replaced||0,
+            failedKeys:Array.isArray(x.failedKeys)?x.failedKeys.length:0,
+            scanDone:Boolean(x.scanDone),
+            done:Boolean(x.done)
           }));
           NODE
 
