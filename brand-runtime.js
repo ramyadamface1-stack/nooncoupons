@@ -227,11 +227,42 @@ function crawlSafe(res,path){
   return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
+function botLikeRequest(req){
+  const ua=(req.headers.get('user-agent')||'').toLowerCase();
+  return !ua||/(bot|crawler|spider|slurp|googlebot|bingbot|yandex|baiduspider|duckduckbot|facebookexternalhit|twitterbot|whatsapp|telegrambot|gptbot|oai-searchbot|ccbot|claudebot|perplexitybot)/i.test(ua);
+}
+function conversionTrackingScript(){
+  return `<script id="conversion-events-v1">(function(){
+    function send(type,label){if(!type)return;var payload=JSON.stringify({type:type,path:location.pathname,label:String(label||'').slice(0,120)});try{if(navigator.sendBeacon){navigator.sendBeacon('/api/track-event',new Blob([payload],{type:'application/json'}));return}}catch(e){}fetch('/api/track-event',{method:'POST',headers:{'content-type':'application/json'},body:payload,keepalive:true}).catch(function(){})}
+    document.addEventListener('click',function(e){
+      var el=e.target&&e.target.closest?e.target.closest('a,button,[data-copy-code],[data-code],[data-share]'):null;if(!el)return;
+      var share=(el.getAttribute('data-share')||'').toLowerCase();
+      if(share==='whatsapp')return send('share_whatsapp',share);
+      if(share==='x'||share==='twitter')return send('share_x',share);
+      if(share==='facebook')return send('share_facebook',share);
+      if(share==='native')return send('web_share',share);
+      var href=el.getAttribute&&el.getAttribute('href');
+      if(href){try{var u=new URL(href,location.href);if(/(^|\\.)noon\\.com$/i.test(u.hostname))return send('open_noon',u.hostname)}catch(_){}}
+      var code=el.getAttribute&&((el.getAttribute('data-copy-code')||el.getAttribute('data-code')||el.getAttribute('data-copy')||''));
+      var txt=(el.textContent||'').trim();
+      if(code||/نسخ الكود|انسخ الكود|copy code/i.test(txt)||el.classList?.contains('coupon-copy-btn'))send('copy_code',code||txt.slice(0,40));
+    },true);
+  })();</script>`;
+}
+async function handleConversionEvent(req,env){
+  if(!env.CONTROL||botLikeRequest(req))return new Response(null,{status:204,headers:{'cache-control':'no-store','x-event-tracking':'ignored'}});
+  const site=(req.headers.get('sec-fetch-site')||'').toLowerCase();
+  if(site&&site!=='same-origin'&&site!=='same-site')return new Response(JSON.stringify({ok:false,error:'cross_site_rejected'}),{status:403,headers:{'content-type':'application/json','cache-control':'no-store'}});
+  let b;try{b=await req.json()}catch{return new Response(JSON.stringify({ok:false,error:'invalid_json'}),{status:400,headers:{'content-type':'application/json','cache-control':'no-store'}})}
+  const allowed=new Set(['copy_code','open_noon','share_whatsapp','share_x','share_facebook','web_share']),type=String(b?.type||''),path=String(b?.path||'').slice(0,500),label=String(b?.label||'').slice(0,120);
+  if(!allowed.has(type)||!path.startsWith('/'))return new Response(JSON.stringify({ok:false,error:'invalid_event'}),{status:400,headers:{'content-type':'application/json','cache-control':'no-store'}});
+  const id=env.CONTROL.idFromName('primary'),res=await env.CONTROL.get(id).fetch('https://control.internal/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type,path,label})});
+  return new Response(null,{status:res.ok?204:503,headers:{'cache-control':'no-store','x-event-tracking':res.ok?'aggregate-v1':'failed'}});
+}
+
 function isCountableArticleVisit(req,path){
   if(req.method!=='GET'||!/^\/(?:en\/)?articles\//.test(path))return false;
-  const ua=(req.headers.get('user-agent')||'').toLowerCase();
-  if(!ua)return false;
-  return !/(bot|crawler|spider|slurp|googlebot|bingbot|yandex|baiduspider|duckduckbot|facebookexternalhit|twitterbot|whatsapp|telegrambot|gptbot|oai-searchbot|ccbot|claudebot|perplexitybot)/i.test(ua);
+  return !botLikeRequest(req);
 }
 async function trackUniqueArticleVisit(req,env,path){
   if(!env.CONTROL||!isCountableArticleVisit(req,path))return;
@@ -244,6 +275,7 @@ async function trackUniqueArticleVisit(req,env,path){
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
+    if(req.method==='POST'&&u.pathname==='/api/track-event')return handleConversionEvent(req,env);
     if(req.method==='GET'&&u.pathname==='/favicon.svg')return favicon();
     if(req.method==='GET'&&u.pathname==='/sw.js')return new Response(SW_JS,{headers:{'content-type':'application/javascript; charset=utf-8','cache-control':'no-cache','service-worker-allowed':'/','x-content-type-options':'nosniff'}});
     if(req.method==='GET'){const legacy=legacyCanonicalRedirect(u);if(legacy)return new Response(null,{status:301,headers:{location:(env.SITE_ORIGIN||u.origin)+legacy,'cache-control':'public, max-age=86400','x-legacy-canonical-redirect':'v1'}});}
@@ -265,6 +297,8 @@ export default{
     const imagePerf=!u.pathname.startsWith('/admin')?optimizeImages(html):{html,count:0,firstSrc:null};html=imagePerf.html;
     if(!u.pathname.startsWith('/admin')){
       html=serviceWorkerRegistration(html);
+      const conversion=conversionTrackingScript();
+      if(!html.includes('id="conversion-events-v1"'))html=/<\/body>/i.test(html)?html.replace(/<\/body>/i,conversion+'</body>'):html+conversion;
       const analytics=analyticsBootstrap(settings);
       if(analytics)html=/<\/body>/i.test(html)?html.replace(/<\/body>/i,analytics+'</body>'):html+analytics;
     }
@@ -275,6 +309,7 @@ export default{
     h.set('x-image-count',String(imagePerf.count));
     h.set('x-service-worker-cache','static-assets-v1');
     h.set('x-analytics-settings',settings?.analyticsEnabled?'enabled-v2':'disabled-v2');
+    h.set('x-conversion-events','aggregate-v1');
     h.set('x-organization-schema-count',String(repaired.state.organizations));
     h.set('x-organization-logo-fixed',String(repaired.state.fixed));
     h.set('x-coupon-ui-deduped',String(normalized.state.duplicatesRemoved));
@@ -286,4 +321,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:16,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:17,privacySafeConversionEvents:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
