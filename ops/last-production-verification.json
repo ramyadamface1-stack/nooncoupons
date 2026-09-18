@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "5b2f215ec253be7fedb32f8943f8b5fe92f1fb43",
-  "verifiedAt": "2026-09-18T18:15:13.500892+00:00",
+  "sourceSha": "fe5e7c32c8a76d139a20801cd2632cae4016addd",
+  "verifiedAt": "2026-09-18T18:21:08.062489+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -65,68 +65,70 @@
     "gscAdminEndpointPrivateVerified": true,
     "uniqueArticleVisitsVerified": true,
     "rawIpNotStoredVerified": true,
-    "botVisitFilteringVerified": true
+    "botVisitFilteringVerified": true,
+    "driveMinimum1500WordsVerified": true,
+    "persistedGeneratorConfigFloor1500Verified": true
   },
   "content": {
-    "r2HtmlObjects": 55436,
-    "trackedPublished": 21469,
-    "arabic": 21438,
-    "english": 31,
-    "lastSlug": "مقارنة-سعر-l-or-al-makeup-على-نون-الإمارات-للطلب-الأول-تجربة-منتج",
-    "lastQuality": 99,
-    "lastWordCount": 1772
+    "r2HtmlObjects": 55435,
+    "trackedPublished": 21621,
+    "arabic": 21589,
+    "english": 32,
+    "lastSlug": "كود-خصم-dyson-vacuum-نون-الإمارات-مراجعة-العنوان-الأبعاد",
+    "lastQuality": 100,
+    "lastWordCount": 1728
   },
   "catchup30k": {
     "target": 30000,
-    "current": 21438,
-    "remaining": 8562,
-    "requiredPerMinute": 17.84,
+    "current": 21589,
+    "remaining": 8411,
+    "requiredPerMinute": 17.52,
     "effectiveBatchSize": 32,
     "adaptiveBatchSize": 32,
     "adaptiveMode": "catchup-adaptive",
     "adaptiveReason": "duration_target",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 30,
-    "lastBatchTries": 127,
-    "lastBatchDurationMs": 48594,
-    "lastBatchYieldPct": 23.62,
+    "lastBatchPublished": 18,
+    "lastBatchTries": 135,
+    "lastBatchDurationMs": 46729,
+    "lastBatchYieldPct": 13.33,
     "lastBatchStageMs": {
-      "candidateLoop": 38132,
-      "articleWrites": 4142,
-      "clusterFlush": 4494,
-      "freshness": 2336,
-      "catalogs": 5923,
-      "indexNow": 248,
-      "postParallel": 5923
+      "candidateLoop": 38366,
+      "articleWrites": 2882,
+      "clusterFlush": 2560,
+      "freshness": 2561,
+      "catalogs": 5150,
+      "indexNow": 269,
+      "postParallel": 5150
     },
     "candidateBudgetMs": 38000,
     "candidateBudgetHit": true,
-    "executionRatePerMinute": 37.04,
+    "executionRatePerMinute": 23.11,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 30,
+    "observedRatePerMinute": 18,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 4.76,
+    "estimatedHoursAtObservedRate": 7.79,
     "qualityThresholdFloor": 95,
-    "minArticleWords": 1000,
-    "semanticPreAuditRejectedTotal": 1497,
-    "preflightRejectedTotal": 4664,
+    "minArticleWords": 1500,
+    "semanticPreAuditRejectedTotal": 1710,
+    "preflightRejectedTotal": 4982,
     "preflightRecentRejectedTotal": 7,
-    "preflightClusterRejectedTotal": 3186,
+    "preflightClusterRejectedTotal": 3504,
     "lastPreflightRejectReasons": {
-      "global_duplicate_slug": 25,
-      "global_duplicate_keyword": 25,
-      "global_keyword_cannibalization": 44
+      "global_keyword_cannibalization": 63,
+      "global_duplicate_slug": 34,
+      "global_duplicate_keyword": 34
     }
   },
   "englishControlled": {
     "target": 200,
-    "published": 31,
-    "remaining": 169,
-    "publishedToday": 11,
+    "published": 32,
+    "remaining": 168,
+    "publishedToday": 12,
     "dailyTarget": 24,
     "minIntervalMinutes": 60,
-    "nextEligibleAt": "2026-09-18T18:17:44.808Z"
+    "nextEligibleAt": "2026-09-18T19:18:44.441Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -138,6 +140,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T18:14:20.245Z"
+    "completedAt": "2026-09-18T18:20:17.307Z"
   }
 }
