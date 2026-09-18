@@ -25,6 +25,7 @@ async function r2json(env,key,fallback){
 const R2_GENERATOR_CONFIG_KEY='_ops/generator-config.json';
 const R2_GENERATOR_STATUS_KEY='_ops/generator-status.json';
 const R2_GENERATOR_LOCK_KEY='_ops/generator-lock.json';
+const R2_SEO_SETTINGS_KEY='_ops/seo-settings.json';
 const BULK_RUN_LOCK_MS=5*60*1000;
 
 export function chooseAdaptiveBulkBatch(env,status={}){
@@ -44,6 +45,48 @@ export function chooseAdaptiveBulkBatch(env,status={}){
     reason=adaptive<maxCatchup?'duration_target':'max_within_target';
   }
   return {batchSize:adaptive,mode:'catchup-adaptive',reason,targetMs,minCatchup,maxCatchup,lastPublished,lastDurationMs};
+}
+
+function cleanSeoToken(v,max=300){const s=String(v??'').trim();return /^[A-Za-z0-9._:@+\-]*$/.test(s)&&s.length<=max?s:''}
+function cleanSeoText(v,max=500){return String(v??'').replace(/[<>]/g,'').trim().slice(0,max)}
+function normalizeRouteOverrides(raw){
+  const out={},source=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};
+  for(const [path,value] of Object.entries(source).slice(0,100)){
+    if(!/^\/[A-Za-z0-9_\-/%\u0600-\u06FF.]*$/.test(path)||!value||typeof value!=='object'||Array.isArray(value))continue;
+    const row={};
+    if(value.title)row.title=cleanSeoText(value.title,180);
+    if(value.description)row.description=cleanSeoText(value.description,320);
+    if(value.canonical){const v=String(value.canonical).trim();if(v.startsWith('/')&&!v.startsWith('//'))row.canonical=v.slice(0,300)}
+    if(['index,follow','noindex,follow','noindex,nofollow'].includes(value.robots))row.robots=value.robots;
+    if(value.ogTitle)row.ogTitle=cleanSeoText(value.ogTitle,180);
+    if(value.ogDescription)row.ogDescription=cleanSeoText(value.ogDescription,320);
+    if(value.ogImage){const v=String(value.ogImage).trim();if(v.startsWith('/')&&!v.startsWith('//'))row.ogImage=v.slice(0,300)}
+    if(Object.keys(row).length)out[path]=row;
+  }
+  return out;
+}
+export function defaultSeoSettings(){
+  return {version:1,siteName:'Noon Deals Now',defaultOgImage:'/favicon.svg',googleVerification:'',bingVerification:'',yandexVerification:'',pinterestVerification:'',twitterSite:'',facebookAppId:'',routeOverrides:{},updatedAt:null};
+}
+export async function getSeoSettings(env){
+  const existing=await r2json(env,R2_SEO_SETTINGS_KEY,null);
+  return {...defaultSeoSettings(),...(existing||{}),routeOverrides:normalizeRouteOverrides(existing?.routeOverrides||{})};
+}
+async function saveSeoSettings(env,input={}){
+  const current=await getSeoSettings(env);
+  const next={...current,
+    siteName:cleanSeoText(input.siteName??current.siteName,120)||'Noon Deals Now',
+    defaultOgImage:(()=>{const v=String(input.defaultOgImage??current.defaultOgImage||'').trim();return v.startsWith('/')&&!v.startsWith('//')?v.slice(0,300):'/favicon.svg'})(),
+    googleVerification:cleanSeoToken(input.googleVerification??current.googleVerification),
+    bingVerification:cleanSeoToken(input.bingVerification??current.bingVerification),
+    yandexVerification:cleanSeoToken(input.yandexVerification??current.yandexVerification),
+    pinterestVerification:cleanSeoToken(input.pinterestVerification??current.pinterestVerification),
+    twitterSite:cleanSeoText(input.twitterSite??current.twitterSite,80),
+    facebookAppId:cleanSeoToken(input.facebookAppId??current.facebookAppId,120),
+    routeOverrides:normalizeRouteOverrides(input.routeOverrides??current.routeOverrides),
+    updatedAt:now(),version:1
+  };
+  return r2putJson(env,R2_SEO_SETTINGS_KEY,next);
 }
 
 async function r2putJson(env,key,value){
@@ -194,6 +237,11 @@ export async function handleAdminApi(req,env){
     const [cfg,gs,st]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env),readState(env)]);
     const bulkTotal=Math.max(0,Number(gs.bulkPublishedTotal||0));
     return json({articleCount:(st.articles||[]).length+bulkTotal,publishedCount:(st.articles||[]).filter(x=>x.status==='published').length+bulkTotal,workersAIReady:Boolean(env.AI),externalProviders:false,bulk:{publishedToday:Number(gs.bulkPublishedToday||0),publishedTotal:bulkTotal,dailyTarget:Number(gs.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),lastRun:gs.bulkLastRun||null,lastError:gs.bulkLastError||null},legacyUpgrade:{upgradedTotal:Number(gs.legacyUpgradeTotal||0),remaining:gs.legacyUpgradeRemaining==null?null:Number(gs.legacyUpgradeRemaining),complete:Boolean(gs.legacyUpgradeComplete),needsConsolidation:Boolean(gs.legacyUpgradeNeedsConsolidation),pausedForConsolidation:Boolean(gs.legacyUpgradePausedForConsolidation),recoveryActive:Boolean(gs.legacyUpgradeRecoveryActive),pass:Number(gs.legacyUpgradePassV2||1),cursor:Number(gs.legacyUpgradeCursorV2||0),lastRun:gs.legacyUpgradeLastRun||null,lastError:gs.legacyUpgradeLastError||null,lastQuality:gs.legacyUpgradeLastQuality??null,lastQualityFloor:gs.legacyUpgradeLastQualityFloor??null,lastWordCount:gs.legacyUpgradeLastWordCount??null,failureSamples:gs.legacyUpgradeFailureSamples||[]},config:cfg,generator:gs});
+  }
+  if(p==='/api/admin/seo-settings'&&req.method==='GET')return json(await getSeoSettings(env));
+  if(p==='/api/admin/seo-settings'&&req.method==='PUT'){
+    const b=await body(req);
+    return json({ok:true,settings:await saveSeoSettings(env,b)});
   }
   if(p==='/api/admin/generator'&&req.method==='POST'){
     const b=await body(req),allowed={};
