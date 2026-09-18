@@ -203,6 +203,16 @@ export async function repairEnglishStoredHtmlV1(env){
   return {ok:true,repaired:true,marker};
 }
 
+async function repairCouponWhitelist(env){
+  const {state}=await loadState(env);if(!state||!Array.isArray(state.records))return {ok:false,error:'canary_state_missing'};
+  const badRows=state.records.filter(r=>r?.languageSource==='native-intent-v6-canary'&&!isApprovedCoupon(r?.coupon));if(!badRows.length)return {ok:true,changed:[]};
+  const changed=[],patch=new Map(),at=now();
+  for(const r of badRows){const safe=r.country==='AE'?'OPS58':'OPS32',row=await inspectArticle(env,r.slug);if(!row.present)return {ok:false,error:'coupon_repair_article_missing',slug:r.slug};const meta=replaceUnapprovedCouponTokens(r.metaDescription||row.meta,safe),html=replaceUnapprovedCouponTokens(row.html,safe),customMetadata={...row.md,cp:safe,m:encode(meta),couponWhitelistRepair:'ops-only-v1'};await env.CONTENT_FINAL.put(row.key,html,{httpMetadata:row.httpMetadata,customMetadata});patch.set(r.slug,{safe,meta});changed.push({slug:r.slug,to:safe})}
+  const records=state.records.map(r=>{const x=patch.get(r.slug);return x?{...r,coupon:x.safe,metaDescription:x.meta,couponWhitelistRepair:'ops-only-v1',updatedAt:at}:r});
+  await env.CONTENT_FINAL.put(STATE_KEY,JSON.stringify({...state,records,couponWhitelistRepairAt:at,lastError:null}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+  return {ok:true,changed};
+}
+
 export async function repairEnglishCanaryLegacyMetadata(env){
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing'};
   const legacy=await ensureLegacyGuideRepair(env);
