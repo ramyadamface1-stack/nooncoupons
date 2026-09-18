@@ -51,7 +51,7 @@ export async function runCouponR2MigrationBatch(env,{limit=100}={}){
     return {updated:1,replaced:fixed.replaced};
   }
 
-  const concurrency=25;
+  const concurrency=90;
   for(let i=0;i<objects.length;i+=concurrency){
     const results=await Promise.all(objects.slice(i,i+concurrency).map(repairObject));
     for(const row of results){updated+=row.updated;replaced+=row.replaced;}
@@ -110,7 +110,7 @@ export async function runCouponR2AuditBatch(env,{limit=500}={}){
     return {invalidFiles:1,invalidTokens:bad.length,samples:[{key:obj.key,tokens:[...new Set(bad)].sort()}]};
   }
 
-  const concurrency=25;
+  const concurrency=90;
   for(let i=0;i<objects.length;i+=concurrency){
     const results=await Promise.all(objects.slice(i,i+concurrency).map(auditObject));
     for(const row of results){
