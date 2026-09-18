@@ -299,7 +299,7 @@ export async function commerceLanding(path, origin, env) {
 
 export function commerceArticlePathHtml(article = {}) {
   const links = articleCommerceLinks(article);
-  return `<section id="article-commerce-path" style="padding:30px 0;background:#eef2ff;border-top:1px solid #c7d2fe"><div style="width:min(940px,94%);margin:auto"><p style="font-weight:900;color:#6d28d9">استكمل داخل نفس شبكة الشراء</p><h2>القسم والبراند والمقالات المرتبطة</h2><div class="chips">${links.map((x) => `<a href="${x.path}">${esc(x.label)}</a>`).join('')}<a href="/blog">كل المقالات</a><a href="/">الرئيسية</a></div></div></section>`;
+  return `<section id="article-commerce-path" style="padding:30px 0;background:#eef2ff;border-top:1px solid #c7d2fe"><div style="width:min(940px,94%);margin:auto"><p style="font-weight:900;color:#7a6400">استكمل داخل نفس شبكة الشراء</p><strong style="display:block;font-size:24px;line-height:1.45;margin:6px 0 14px">القسم والبراند والمقالات المرتبطة</strong><div class="chips">${links.map((x) => `<a href="${x.path}">${esc(x.label)}</a>`).join('')}<a href="/blog">كل المقالات</a><a href="/">الرئيسية</a></div></div></section>`;
 }
 
 export function commerceNavHtml() {
