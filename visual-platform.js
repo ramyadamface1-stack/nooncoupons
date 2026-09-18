@@ -8,7 +8,7 @@ const strip=s=>String(s||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
 const countryAr=c=>c==='SA'?'السعودية':'الإمارات';
 const countryEn=c=>c==='SA'?'Saudi Arabia':'UAE';
 const validCountry=c=>c==='AE'?'AE':'SA';
-const validCoupon=(c,country='SA')=>normalizeApprovedCoupon(c,country==='AE'?'OPS58':'OPS32');
+const validCoupon=(c,country='SA')=>normalizeApprovedCoupon(c,country==='AE'?'NOV188':'NOV170');
 const keywordOf=rec=>String(rec?.primaryKeyword||rec?.title||rec?.slug||'كود خصم نون').trim();
 
 async function getState(env,ctx,origin){
