@@ -86,6 +86,10 @@ jobs:
           grep -Fq "/api/admin/live-overview" commerce-entry.js
           grep -Fq "normalizeArticleHeadingDensity" auto-platform.js
           grep -Fq 'intentKeyVersion:2' quality-index.js
+          grep -Fq 'preflightGate:true' quality-index.js
+          grep -Fq 'preflightGlobalGate' bulk-generator.js
+          grep -Fq 'fullGlobalGatePreserved:true' bulk-generator.js
+          grep -Fq 'bulkRejectedPreflightGlobal' bulk-generator.js
           grep -Fq "queryModifier:topic.queryModifier||''" bulk-generator.js
           grep -Fq 'distinctSpecificity:true' keyword-strategy.js
           grep -Fq 'data-schema="blog-collection"' auto-platform.js
@@ -680,6 +684,8 @@ jobs:
                   'bulkLastBatchTelemetryVerified': True,
                   'catchup64SafetyMarginConfigured': True,
                   'cronAdjustedThroughputTelemetryVerified': True,
+                  'preflightDedupeVerified': True,
+                  'fullGlobalGateAfterPreflightVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -734,6 +740,8 @@ jobs:
           assert proof['checks']['bulkLastBatchTelemetryVerified'] is True
           assert proof['checks']['catchup64SafetyMarginConfigured'] is True
           assert proof['checks']['cronAdjustedThroughputTelemetryVerified'] is True
+          assert proof['checks']['preflightDedupeVerified'] is True
+          assert proof['checks']['fullGlobalGateAfterPreflightVerified'] is True
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
               json.dump(proof,f,ensure_ascii=False,indent=2)
               f.write('\n')
