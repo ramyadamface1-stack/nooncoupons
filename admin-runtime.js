@@ -50,6 +50,7 @@ export function chooseAdaptiveBulkBatch(env,status={}){
 
 function cleanSeoToken(v,max=300){const s=String(v??'').trim();return /^[A-Za-z0-9._:@+\-]*$/.test(s)&&s.length<=max?s:''}
 function cleanSeoText(v,max=500){return String(v??'').replace(/[<>]/g,'').trim().slice(0,max)}
+function cleanPattern(v,re,max=120){const s=String(v??'').trim();return re.test(s)&&s.length<=max?s:''}
 function normalizeRouteOverrides(raw){
   const out={},source=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};
   for(const [path,value] of Object.entries(source).slice(0,100)){
@@ -67,7 +68,14 @@ function normalizeRouteOverrides(raw){
   return out;
 }
 export function defaultSeoSettings(){
-  return {version:1,siteName:'Noon Deals Now',defaultOgImage:'/favicon.svg',googleVerification:'',bingVerification:'',yandexVerification:'',pinterestVerification:'',twitterSite:'',facebookAppId:'',routeOverrides:{},updatedAt:null};
+  return {
+    version:2,siteName:'Noon Deals Now',defaultOgImage:'/favicon.svg',
+    googleVerification:'',bingVerification:'',yandexVerification:'',pinterestVerification:'',
+    twitterSite:'',facebookAppId:'',
+    analyticsEnabled:false,respectDoNotTrack:true,
+    ga4MeasurementId:'',gtmContainerId:'',metaPixelId:'',clarityProjectId:'',hotjarSiteId:'',tiktokPixelId:'',
+    routeOverrides:{},updatedAt:null
+  };
 }
 export async function getSeoSettings(env){
   const existing=await r2json(env,R2_SEO_SETTINGS_KEY,null);
@@ -84,8 +92,16 @@ async function saveSeoSettings(env,input={}){
     pinterestVerification:cleanSeoToken(input.pinterestVerification??current.pinterestVerification),
     twitterSite:cleanSeoText(input.twitterSite??current.twitterSite,80),
     facebookAppId:cleanSeoToken(input.facebookAppId??current.facebookAppId,120),
+    analyticsEnabled:Boolean(input.analyticsEnabled??current.analyticsEnabled),
+    respectDoNotTrack:Boolean(input.respectDoNotTrack??current.respectDoNotTrack??true),
+    ga4MeasurementId:cleanPattern(input.ga4MeasurementId??current.ga4MeasurementId,/^G-[A-Z0-9]{4,20}$/i,32),
+    gtmContainerId:cleanPattern(input.gtmContainerId??current.gtmContainerId,/^GTM-[A-Z0-9]{4,20}$/i,32),
+    metaPixelId:cleanPattern(input.metaPixelId??current.metaPixelId,/^\d{5,30}$/,30),
+    clarityProjectId:cleanPattern(input.clarityProjectId??current.clarityProjectId,/^[A-Za-z0-9_-]{4,60}$/,60),
+    hotjarSiteId:cleanPattern(input.hotjarSiteId??current.hotjarSiteId,/^\d{3,20}$/,20),
+    tiktokPixelId:cleanPattern(input.tiktokPixelId??current.tiktokPixelId,/^[A-Za-z0-9]{4,60}$/,60),
     routeOverrides:normalizeRouteOverrides(input.routeOverrides??current.routeOverrides),
-    updatedAt:now(),version:1
+    updatedAt:now(),version:2
   };
   return r2putJson(env,R2_SEO_SETTINGS_KEY,next);
 }
