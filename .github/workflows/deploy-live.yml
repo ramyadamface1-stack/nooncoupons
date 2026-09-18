@@ -120,6 +120,13 @@ jobs:
           grep -Fq 'imageLazyLoading:true' brand-runtime.js
           grep -Fq 'lcpImagePreload:true' brand-runtime.js
           grep -Fq 'serviceWorkerStaticCache:true' brand-runtime.js
+          node --check gsc-snapshot.js
+          grep -Fq "property:'sc-domain:noondealsnow.com'" gsc-snapshot.js
+          grep -Fq "dataAvailable:false" gsc-snapshot.js
+          grep -Fq "status:'no_rows_returned'" gsc-snapshot.js
+          grep -Fq "/api/admin/seo-drops" admin-runtime.js
+          grep -Fq 'id="seoDropsPanel"' admin-page.js
+          grep -Fq 'Google Search Console' admin-page.js
           grep -Fq "u.pathname==='/sw.js'" brand-runtime.js
           grep -Fq "startsWith('/assets/coupon-svg/')" brand-runtime.js
           grep -Fq "startsWith('/assets/featured/')" brand-runtime.js
@@ -454,6 +461,9 @@ jobs:
           grep -Fqi 'x-robots-tag: noindex, nofollow, noarchive' /tmp/apih
           grep -Fq 'Disallow: /admin' /tmp/robots.txt
           grep -Fq 'Disallow: /api/' /tmp/robots.txt
+          code=$(curl -sS -o /tmp/gsc-private.json -D /tmp/gsc-private.h -w '%{http_code}' "$RUNTIME_ORIGIN/api/admin/seo-drops?deploy=$GITHUB_SHA")
+          [ "$code" = "401" ]
+          grep -Fqi 'x-robots-tag: noindex, nofollow, noarchive' /tmp/gsc-private.h
 
           ARTICLE_IMG=$(python - <<'PY'
           from html.parser import HTMLParser
@@ -812,6 +822,9 @@ jobs:
                   'imageLazyLoadingVerified': True,
                   'lcpImagePreloadVerified': True,
                   'staticAssetServiceWorkerVerified': True,
+                  'gscSeoDropsSnapshotVerified': True,
+                  'gscNoDataTruthfulnessVerified': True,
+                  'gscAdminEndpointPrivateVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -921,6 +934,9 @@ jobs:
           assert proof['checks']['imageLazyLoadingVerified'] is True
           assert proof['checks']['lcpImagePreloadVerified'] is True
           assert proof['checks']['staticAssetServiceWorkerVerified'] is True
+          assert proof['checks']['gscSeoDropsSnapshotVerified'] is True
+          assert proof['checks']['gscNoDataTruthfulnessVerified'] is True
+          assert proof['checks']['gscAdminEndpointPrivateVerified'] is True
           if remaining>0 and cadence_rate>0:
               assert float(catchup.get('qualityThresholdFloor') or 0)>=95
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
