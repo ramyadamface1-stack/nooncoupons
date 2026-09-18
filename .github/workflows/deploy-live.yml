@@ -34,6 +34,7 @@ jobs:
           grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "64"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_MIN_BATCH_SIZE": "32"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_TARGET_BATCH_MS": "52000"' wrangler.jsonc
+          grep -Fq '"BULK_CANDIDATE_BUDGET_MS": "28000"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_WINDOW_HOURS": "8"' wrangler.jsonc
           grep -Fq "MAX_DAILY_TARGET=40000" bulk-generator.js
           grep -Fq "MAX_BATCH_SIZE=64" bulk-generator.js
@@ -95,6 +96,8 @@ jobs:
           grep -Fq 'parallelPostPublication:true' bulk-generator.js
           grep -Fq 'parallelCatalogShards:true' bulk-generator.js
           grep -Fq 'batchStageTelemetry:true' bulk-generator.js
+          grep -Fq 'candidateTimeBudget:true' bulk-generator.js
+          grep -Fq 'defaultCandidateBudgetMs:28000' bulk-generator.js
           grep -Fq 'r2WriteRetry:3' bulk-generator.js
           grep -Fq 'r2HeadRetry:3' bulk-generator.js
           grep -Fq 'failClosedOnClusterRead:true' quality-index.js
@@ -722,6 +725,7 @@ jobs:
                   'qualityClusterFailClosedVerified': True,
                   'arabicDiversityV4Verified': True,
                   'adaptiveCronBatchVerified': True,
+                  'candidateRuntimeBudgetVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -748,6 +752,8 @@ jobs:
                   'lastBatchDurationMs': bulk.get('lastBatchDurationMs'),
                   'lastBatchYieldPct': bulk.get('lastBatchYieldPct'),
                   'lastBatchStageMs': bulk.get('lastBatchStageMs'),
+                  'candidateBudgetMs': bulk.get('lastBatchCandidateBudgetMs'),
+                  'candidateBudgetHit': bulk.get('lastBatchCandidateBudgetHit'),
                   'executionRatePerMinute': catchup.get('lastBatchExecutionRate'),
                   'cronCadenceMinutes': catchup.get('lastBatchCronCadenceMinutes'),
                   'observedRatePerMinute': catchup.get('lastBatchCadenceRate'),
@@ -814,6 +820,7 @@ jobs:
           assert proof['checks']['qualityClusterFailClosedVerified'] is True
           assert proof['checks']['arabicDiversityV4Verified'] is True
           assert proof['checks']['adaptiveCronBatchVerified'] is True
+          assert proof['checks']['candidateRuntimeBudgetVerified'] is True
           if remaining>0 and cadence_rate>0:
               assert float(catchup.get('qualityThresholdFloor') or 0)>=95
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
