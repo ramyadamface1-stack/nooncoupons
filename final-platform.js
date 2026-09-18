@@ -44,6 +44,7 @@ function llms(origin){
 - UAE coupon hub: ${origin}/uae/noon-coupon-code
 - Saudi shopping categories: ${origin}/saudi/categories
 - UAE shopping categories: ${origin}/uae/categories
+- Markets hub: ${origin}/countries
 - Blog: ${origin}/blog
 - Research and methodology: ${origin}/research
 - Machine-readable research facts: ${origin}/research.json
