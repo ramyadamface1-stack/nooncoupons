@@ -23,6 +23,12 @@ jobs:
           grep -Fq "x-conversion-market-source','article-metadata'" network-entry.js
           grep -Fq "conversionDispatch:'single-v3'" network-entry.js
           grep -Fq "conversionEvents:['coupon_view','copy_code','shop_click']" network-entry.js
+          node --check router.js
+          grep -Fq "function modernSearchPage(url)" router.js
+          grep -Fq "data-placement=\"home_coupon_grid\"" router.js
+          grep -Fq "fire('copy_code'" router.js
+          grep -Fq "fire('coupon_view'" router.js
+          grep -Fq "x-robots-tag':'noindex, follow'" router.js
           grep -Fq "const articleMarket=rec.country==='AE'?'AE':'SA'" network-entry.js
           grep -Fq "const market=marketHint||(location.pathname.startsWith('/uae')?'AE':'SA')" network-entry.js
           grep -Fq "APPROVED_COUPON_CODES" network-entry.js
