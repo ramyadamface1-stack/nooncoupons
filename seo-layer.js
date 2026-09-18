@@ -1,7 +1,7 @@
 import app from './site.js';
 
 const ORIGIN='https://noondealsnow.com';
-const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];
+const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
 const CATEGORIES=['electronics','mobiles','laptops','gaming','tv','home-appliances','kitchen','home','fashion-men','fashion-women','kids-fashion','beauty','perfumes','grocery','baby','toys','sports','health','watches','jewelry','bags','shoes','automotive','tools','books','stationery','pet-supplies','travel','garden','office','smart-home','audio','cameras','tablets','wearables','coffee','air-care','cleaning','lighting','gifts','deals','new-arrivals'];
 const GUIDES=['how-to-use-noon-coupon','coupon-not-working','saudi-noon-saving-guide','uae-noon-saving-guide','first-order-guide','payment-methods-and-coupons','coupon-vs-offer','smart-cart-checklist'];
 const TRUST=['/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer','/terms'];
