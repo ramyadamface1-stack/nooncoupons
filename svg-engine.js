@@ -29,14 +29,14 @@ export function couponSvg({coupon='NOV170',country='SA',variant=1,brand='noon',t
   const code=esc(coupon);
   const brandText=esc(brand);
   const family=(titleSeed(title)+i)%4;
-  const topicLines=wrapTitle(title||'دليل كوبونات نون',family===2?28:34).slice(0,2).map(esc);
   const titleCfg=[
-    {x:1090,y:286,anchor:'end',sizes:[52,46]},
-    {x:110,y:286,anchor:'start',sizes:[52,46]},
-    {x:600,y:250,anchor:'middle',sizes:[50,44]},
-    {x:1090,y:250,anchor:'end',sizes:[48,42]}
+    {x:795,y:286,max:28,sizes:[50,44]},
+    {x:405,y:286,max:26,sizes:[48,42]},
+    {x:600,y:250,max:28,sizes:[48,42]},
+    {x:600,y:250,max:30,sizes:[46,40]}
   ][family];
-  const titleSvg=topicLines.map((line,idx)=>`<text x="${titleCfg.x}" y="${titleCfg.y+idx*68}" text-anchor="${titleCfg.anchor}" direction="rtl" unicode-bidi="plaintext" font-size="${titleCfg.sizes[idx]||42}" font-weight="900" fill="${t.ink}">${line}</text>`).join('');
+  const topicLines=wrapTitle(title||'دليل كوبونات نون',titleCfg.max).slice(0,2).map(esc);
+  const titleSvg=topicLines.map((line,idx)=>`<text x="${titleCfg.x}" y="${titleCfg.y+idx*66}" text-anchor="middle" direction="rtl" unicode-bidi="plaintext" font-size="${titleCfg.sizes[idx]||40}" font-weight="900" fill="${t.ink}">${line}</text>`).join('');
   const codeCfg=[
     {x:70,y:244,w:330,h:255},
     {x:800,y:244,w:330,h:255},
@@ -47,7 +47,7 @@ export function couponSvg({coupon='NOV170',country='SA',variant=1,brand='noon',t
     ?`<text x="${codeCfg.w-35}" y="44" text-anchor="end" direction="rtl" font-size="17" font-weight="800" fill="${t.muted}">كود للتجربة</text><rect x="35" y="28" width="300" height="88" rx="17" fill="${t.accent}"/><text x="185" y="87" text-anchor="middle" font-size="49" font-weight="900" letter-spacing="3" fill="#111">${code}</text><text x="${codeCfg.w-35}" y="88" text-anchor="end" direction="rtl" font-size="16" font-weight="800" fill="${t.ink}">تحقق من النتيجة داخل السلة</text>`
     :`<text x="${codeCfg.w/2}" y="58" text-anchor="middle" direction="rtl" font-size="18" font-weight="800" fill="${t.muted}">كود للتجربة</text><rect x="38" y="82" width="${codeCfg.w-76}" height="92" rx="17" fill="${t.accent}"/><text x="${codeCfg.w/2}" y="143" text-anchor="middle" font-size="52" font-weight="900" letter-spacing="3" fill="#111">${code}</text><text x="${codeCfg.w/2}" y="${family===2?205:207}" text-anchor="middle" direction="rtl" font-size="16" font-weight="800" fill="${t.ink}">تحقق من النتيجة داخل السلة</text>`;
   const footerY=family===3?610:family===2?660:620;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" preserveAspectRatio="xMidYMid meet" overflow="hidden" role="img" aria-labelledby="title desc">
 <title id="title">${esc(title||brandText+' coupon guide')} — ${code}</title>
 <desc id="desc">دليل عن نون ${esc(countryAr)} مع كود ${code}. تحقق من الأهلية والنتيجة داخل السلة.</desc>
 <rect width="1200" height="760" rx="34" fill="${t.bg}"/>
@@ -63,7 +63,7 @@ ${decor(i,t)}
   <rect x="1010" y="72" width="48" height="48" rx="14" fill="${t.accent}"/>
   <text x="1034" y="106" text-anchor="middle" font-size="24" font-weight="900" fill="#111">ك</text>
 
-  <text x="${family===1?110:family===2?600:1090}" y="${family===2?190:214}" text-anchor="${family===1?'start':family===2?'middle':'end'}" direction="rtl" font-size="20" font-weight="800" fill="${t.muted}">دليل شراء وكوبونات نون</text>
+  <text x="${family===0?795:family===1?405:600}" y="${family===2?190:214}" text-anchor="middle" direction="rtl" unicode-bidi="plaintext" font-size="20" font-weight="800" fill="${t.muted}">دليل شراء وكوبونات نون</text>
   ${titleSvg}
 
   <g transform="translate(${codeCfg.x} ${codeCfg.y})">
@@ -89,15 +89,15 @@ function wrapTitle(title,max=48){
 }
 
 export function featuredSvg({title='دليل كوبونات نون',coupon='NOV170',country='SA',brand='noon'}){
-  const label=esc(countryLabel(country));const cc=countryAccent(country);const code=esc(coupon);const brandText=esc(brand);const lines=wrapTitle(title,43).map(esc);
-  const text=lines.map((l,i)=>`<text x="80" y="${330+i*74}" font-size="56" font-weight="900" fill="#111827">${l}</text>`).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="ft fd">
+  const label=esc(countryLabel(country));const cc=countryAccent(country);const code=esc(coupon);const brandText=esc(brand);const lines=wrapTitle(title,31).slice(0,3).map(esc);
+  const text=lines.map((l,i)=>`<text x="515" y="${330+i*70}" text-anchor="middle" direction="rtl" unicode-bidi="plaintext" font-size="${i===0?52:48}" font-weight="900" fill="#111827">${l}</text>`).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" overflow="hidden" role="img" aria-labelledby="ft fd">
 <title id="ft">${esc(title)}</title><desc id="fd">صورة تحريرية عن نون ${label} مع الكود ${code}. تحقق من النتيجة داخل السلة.</desc>
 <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFDE7"/><stop offset="1" stop-color="#FFF"/></linearGradient><filter id="shadow"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-opacity=".12"/></filter></defs>
 <rect width="1600" height="900" fill="url(#bg)"/><circle cx="1430" cy="130" r="250" fill="#FEEE00" opacity=".35"/><circle cx="1460" cy="780" r="300" fill="#111" opacity=".045"/><path d="M0 760 C260 640 390 880 690 730 S1160 600 1600 720V900H0Z" fill="#FEEE00" opacity=".24"/>
 <g font-family="Arial, Helvetica, sans-serif"><g transform="translate(78 68)"><rect width="290" height="72" rx="22" fill="#fff" stroke="#111" stroke-opacity=".22" stroke-dasharray="9 7"/><circle cx="38" cy="36" r="18" fill="${cc}"/><text x="72" y="46" font-size="30" font-weight="800" fill="#111">${label}</text></g>
 <text x="1510" y="120" text-anchor="end" font-size="62" font-weight="900" fill="#111">${brandText}</text><circle cx="1325" cy="94" r="38" fill="#FEEE00"/><path d="M1307 77a27 27 0 1 0 36 39" fill="none" stroke="#111" stroke-width="10" stroke-linecap="round"/>
-<text x="80" y="245" font-size="27" font-weight="800" fill="#6B7280" letter-spacing="2">دليل شراء وكوبونات نون</text>${text}
+<text x="515" y="245" text-anchor="middle" direction="rtl" unicode-bidi="plaintext" font-size="27" font-weight="800" fill="#6B7280">دليل شراء وكوبونات نون</text>${text}
 <g transform="translate(1040 230)" filter="url(#shadow)"><rect width="440" height="500" rx="42" fill="#fff"/><text x="220" y="120" text-anchor="middle" font-size="76" font-weight="900" fill="#111">NOON</text><g transform="translate(268 55) rotate(-5)"><rect width="130" height="68" rx="16" fill="#FEEE00"/><text x="65" y="47" text-anchor="middle" font-size="31" font-weight="900" fill="#111">GUIDE</text></g><text x="220" y="175" text-anchor="middle" font-size="27" font-weight="800" fill="#111">كوبون نون</text><rect x="42" y="215" width="356" height="172" rx="26" fill="#FFFBE0" stroke="#111" stroke-width="4" stroke-dasharray="14 10"/><rect x="73" y="247" width="294" height="78" rx="15" fill="#FEEE00"/><text x="220" y="302" text-anchor="middle" font-size="52" font-weight="900" fill="#111">${code}</text><text x="220" y="357" text-anchor="middle" font-size="15" font-weight="800" fill="#111">تحقق داخل السلة</text><rect x="75" y="418" width="135" height="54" rx="16" fill="#111"/><text x="142" y="453" text-anchor="middle" font-size="21" font-weight="800" fill="#fff">نسخ الكود</text><rect x="230" y="418" width="135" height="54" rx="16" fill="#FEEE00"/><text x="297" y="453" text-anchor="middle" font-size="19" font-weight="900" fill="#111">فتح نون</text></g>
 <text x="80" y="800" font-size="25" font-weight="700" fill="#475467">اختيار أوضح • تجربة الكود • مراجعة النتيجة قبل الدفع</text></g></svg>`;
 }
@@ -107,3 +107,5 @@ export function svgAlt({coupon,country,variant}){
 }
 
 export function noonUrl(){return 'https://www.noon.com/';}
+
+export const SVG_LAYOUT_INFO={version:9,couponCanvas:[1200,760],featuredCanvas:[1600,900],safeAreaPx:70,preserveAspectRatio:'xMidYMid meet',rtlTitleAnchoring:'middle'};
