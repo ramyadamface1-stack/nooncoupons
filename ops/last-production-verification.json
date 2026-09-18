@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "8b69440e1f50260e776001a4b501d386ee498b1e",
-  "verifiedAt": "2026-09-18T17:26:50.427477+00:00",
+  "sourceSha": "816136276b673cf6e0ff977a360e3709b8cf8f9f",
+  "verifiedAt": "2026-09-18T17:30:20.620251+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -48,58 +48,60 @@
     "adaptiveCronBatchVerified": true,
     "candidateRuntimeBudgetVerified": true,
     "semanticPreAuditVerified": true,
-    "cooperativeYieldVerified": true
+    "cooperativeYieldVerified": true,
+    "r2CatalogReadFailClosedVerified": true,
+    "r2StatusReadRetryVerified": true
   },
   "content": {
     "r2HtmlObjects": 55414,
-    "trackedPublished": 20058,
-    "arabic": 20027,
+    "trackedPublished": 20151,
+    "arabic": 20120,
     "english": 31,
-    "lastSlug": "السعر-النهائي-البيت-والمطبخ-نون-السعودية-تثبيت-السلة-اللون",
+    "lastSlug": "مقارنة-سعر-adidas-football-للطلب-الأول-على-نون-الإمارات-الوزن",
     "lastQuality": 100,
-    "lastWordCount": 1733
+    "lastWordCount": 1766
   },
   "catchup30k": {
     "target": 30000,
-    "current": 20027,
-    "remaining": 9973,
-    "requiredPerMinute": 20.78,
-    "effectiveBatchSize": 34,
-    "adaptiveBatchSize": 34,
+    "current": 20120,
+    "remaining": 9880,
+    "requiredPerMinute": 20.58,
+    "effectiveBatchSize": 33,
+    "adaptiveBatchSize": 33,
     "adaptiveMode": "catchup-adaptive",
     "adaptiveReason": "duration_target",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 32,
-    "lastBatchTries": 115,
-    "lastBatchDurationMs": 48874,
-    "lastBatchYieldPct": 27.83,
+    "lastBatchPublished": 31,
+    "lastBatchTries": 122,
+    "lastBatchDurationMs": 48533,
+    "lastBatchYieldPct": 25.41,
     "lastBatchStageMs": {
-      "candidateLoop": 37097,
-      "articleWrites": 5670,
-      "clusterFlush": 4452,
-      "freshness": 2209,
-      "catalogs": 5581,
-      "indexNow": 266,
-      "postParallel": 5581
+      "candidateLoop": 38151,
+      "articleWrites": 4384,
+      "clusterFlush": 4870,
+      "freshness": 2658,
+      "catalogs": 5594,
+      "indexNow": 433,
+      "postParallel": 5594
     },
     "candidateBudgetMs": 38000,
-    "candidateBudgetHit": false,
-    "executionRatePerMinute": 39.28,
+    "candidateBudgetHit": true,
+    "executionRatePerMinute": 38.32,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 32,
+    "observedRatePerMinute": 31,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 5.19,
+    "estimatedHoursAtObservedRate": 5.31,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1000,
-    "semanticPreAuditRejectedTotal": 0,
-    "preflightRejectedTotal": 2795,
+    "semanticPreAuditRejectedTotal": 65,
+    "preflightRejectedTotal": 2894,
     "preflightRecentRejectedTotal": 6,
-    "preflightClusterRejectedTotal": 1318,
+    "preflightClusterRejectedTotal": 1417,
     "lastPreflightRejectReasons": {
-      "global_duplicate_slug": 15,
-      "global_duplicate_keyword": 15,
-      "global_keyword_cannibalization": 31
+      "global_duplicate_slug": 19,
+      "global_duplicate_keyword": 19,
+      "global_keyword_cannibalization": 37
     }
   },
   "englishControlled": {
@@ -121,6 +123,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T17:26:05.443Z"
+    "completedAt": "2026-09-18T17:29:30.954Z"
   }
 }
