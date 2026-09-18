@@ -38,6 +38,7 @@ jobs:
           echo CHECK_CATCHUP_BATCH; grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "48"' wrangler.jsonc
           echo CHECK_CATCHUP_WINDOW; grep -Fq '"BULK_CATCHUP_WINDOW_HOURS": "8"' wrangler.jsonc
           echo CHECK_CATCHUP_LOGIC; grep -Fq 'publishedTotal<catchupGoal?catchupBatch:steadyBatch' admin-runtime.js
+          echo CHECK_BULK_RUN_LOCK; grep -Fq 'BULK_RUN_LOCK_MS=5*60*1000' admin-runtime.js
           echo CHECK_BATCH_CEILING; grep -Fq 'MAX_BATCH_SIZE=48' bulk-generator.js
           grep -Fq 'MAX_DAILY_TARGET=40000' bulk-generator.js
           grep -Fq 'qualityThresholdFloor:95' bulk-generator.js
