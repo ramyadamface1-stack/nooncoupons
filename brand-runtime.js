@@ -95,6 +95,7 @@ function brandHead(html){
 }
 
 function favicon(){return new Response(SVG,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public, max-age=604800, immutable','x-content-type-options':'nosniff'}})}
+function legacyCanonicalRedirect(u){const path=u.pathname.replace(/\/+$/,'')||'/';if(path==='/saudi/noon-coupon-code')return '/saudi-arabia/noon-coupon-code';const m=path.match(/^\/(?:saudi-arabia|saudi|uae)\/article\/(.+)$/);if(m)return '/articles/'+m[1];return null}
 function indexNowKeyFile(env,path){const key=String(env.INDEXNOW_KEY||'').trim();if(!key||path!=='/'+key+'.txt')return null;return new Response(key+'\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=86400, immutable','x-content-type-options':'nosniff','x-indexnow-key-file':'v1'}})}
 async function ensureRobotsSitemap(res,origin){
   if(!res.ok)return res;
@@ -104,7 +105,7 @@ async function ensureRobotsSitemap(res,origin){
   const sitemap=`Sitemap: ${origin}/sitemap.xml`;
   if(!/^\s*Sitemap:\s*https?:\/\//im.test(body))body=body.replace(/\s*$/,'')+'\n'+sitemap+'\n';
   else if(!body.includes(origin+'/sitemap.xml'))body=body.replace(/\s*$/,'')+'\n'+sitemap+'\n';
-  const privateRules=['Disallow: /admin/','Disallow: /api/'];
+  const privateRules=['Disallow: /admin','Disallow: /api/'];
   if(!/User-agent:\s*\*/i.test(body))body='User-agent: *\n'+body;
   for(const rule of privateRules)if(!body.includes(rule))body=body.replace(/\s*$/,'')+'\n'+rule+'\n';
   const h=new Headers(res.headers);h.delete('content-length');h.set('x-robots-sitemap','guaranteed-v1');h.set('x-robots-private-routes','blocked-v1');
@@ -132,6 +133,7 @@ export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
     if(req.method==='GET'&&u.pathname==='/favicon.svg')return favicon();
+    if(req.method==='GET'){const legacy=legacyCanonicalRedirect(u);if(legacy)return new Response(null,{status:301,headers:{location:(env.SITE_ORIGIN||u.origin)+legacy,'cache-control':'public, max-age=86400','x-legacy-canonical-redirect':'v1'}});}
     if(req.method==='GET'){const keyFile=indexNowKeyFile(env,u.pathname);if(keyFile)return keyFile;}
     let res=await app.fetch(req,env,ctx);
     if(req.method==='GET'&&u.pathname==='/robots.txt')res=await ensureRobotsSitemap(res,env.SITE_ORIGIN||u.origin);
@@ -158,4 +160,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:11,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:12,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
