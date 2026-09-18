@@ -96,6 +96,29 @@ jobs:
             }
           done
 
+          ARTICLE_PATH="$(grep -oE 'href="/articles/[^"]+"' /tmp/blog.html | head -n1 | sed -E 's/^href="([^"]+)"$/\1/' || true)"
+          if [ -n "$ARTICLE_PATH" ]; then
+            curl -fsS --retry 4 --retry-delay 2 "$ORIGIN$ARTICLE_PATH?coupon-audit=3" -o /tmp/article.html
+            ! grep -Eq 'OPS[0-9]+' /tmp/article.html
+            for code in $(grep -oE 'NOV[0-9]+' /tmp/article.html | sort -u); do
+              grep -qw "$code" <<<"$APPROVED" || {
+                echo "UNAPPROVED_LIVE_ARTICLE_CODE=$code"
+                exit 1
+              }
+            done
+            echo "LIVE_ARTICLE_AUDITED=$ARTICLE_PATH"
+          fi
+
+          curl -fsS --retry 3 --retry-delay 2 "$ORIGIN/api/coupon-migration-health" -o /tmp/migration.json
+          node - <<'NODE'
+          const fs=require('fs');
+          const x=JSON.parse(fs.readFileSync('/tmp/migration.json','utf8'));
+          if(x.ok!==true) process.exit(1);
+          console.log('COUPON_R2_MIGRATION='+JSON.stringify({
+            scanned:x.scanned||0,updated:x.updated||0,replaced:x.replaced||0,done:Boolean(x.done)
+          }));
+          NODE
+
           echo 'LIVE_HOME_CODES'
           grep -oE 'NOV[0-9]+' /tmp/home.html | sort -u
           echo OWNER_COUPON_AUDIT=PASS
