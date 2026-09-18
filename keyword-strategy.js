@@ -36,7 +36,7 @@ function scenario(t,intent){
   return s;
 }
 function market(t){return clean(t.market)}
-function cat(t){return clean(t.category)}
+function cat(t){return clean(t.catalogTarget||t.category)}
 function specificityParts(t,intent){
   const u=clean(t.useCase),f=clean(t.factor),modifier=clean(t.queryModifier),base=['compare','seller','value','finalprice','warranty'].includes(intent)?[f,u]:[u,f];
   const natural=[...new Set(base.filter(Boolean))].sort((a,b)=>a.length-b.length);
@@ -141,4 +141,4 @@ export function applyKeywordStrategy(topic){
   return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,code,keywordStrategy:'search-intent-v6-noon-hierarchy',keywordWordCount:words,searchIntentFamily:intent};
 }
 
-export const KEYWORD_STRATEGY_INFO={version:'search-intent-v6-noon-hierarchy',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,distinctSpecificity:true,seasonalKeywords:true,seasonalMonth:freshness(),topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,approvedCouponCount:APPROVED_COUPON_CODES.length,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation','unapproved-coupon-code'],maxRecommendedWords:16,maxKeywordCharacters:70};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v6-noon-hierarchy',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,distinctSpecificity:true,hierarchyTargetPreserved:true,seasonalKeywords:true,seasonalMonth:freshness(),topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,approvedCouponCount:APPROVED_COUPON_CODES.length,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation','unapproved-coupon-code'],maxRecommendedWords:16,maxKeywordCharacters:70};
