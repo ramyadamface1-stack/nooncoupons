@@ -4,6 +4,18 @@ const STATE_KEY='maintenance/coupon-code-migration-v1.json';
 const AUDIT_STATE_KEY='maintenance/coupon-code-audit-v2.json';
 const TOKEN_RE=/\b(?:OPS\d+|NOV\d+)\b/gi;
 
+async function r2Retry(fn,attempts=4){
+  let last;
+  for(let i=0;i<attempts;i++){
+    try{return await fn();}
+    catch(err){
+      last=err;
+      if(i+1<attempts)await new Promise(resolve=>setTimeout(resolve,100*(i+1)));
+    }
+  }
+  throw last;
+}
+
 function codeForKey(key){
   const s=String(key||'');
   let h=2166136261;
@@ -37,21 +49,21 @@ export async function runCouponR2MigrationBatch(env,{limit=100}={}){
   scanned=objects.length;
 
   async function repairObject(obj){
-    const current=await env.CONTENT_FINAL.get(obj.key);
+    const current=await r2Retry(()=>env.CONTENT_FINAL.get(obj.key));
     if(!current)return {updated:0,replaced:0};
     const html=await current.text();
     const fallback=codeForKey(obj.key);
     const fixed=repairText(html,fallback);
     if(!fixed.changed)return {updated:0,replaced:0};
     const metadata=current.customMetadata||{};
-    await env.CONTENT_FINAL.put(obj.key,fixed.output,{
+    await r2Retry(()=>env.CONTENT_FINAL.put(obj.key,fixed.output,{
       httpMetadata:current.httpMetadata||{contentType:'text/html; charset=utf-8'},
       customMetadata:{...metadata,couponCleanup:'nov-v1'}
-    });
+    }));
     return {updated:1,replaced:fixed.replaced};
   }
 
-  const concurrency=90;
+  const concurrency=50;
   for(let i=0;i<objects.length;i+=concurrency){
     const results=await Promise.all(objects.slice(i,i+concurrency).map(repairObject));
     for(const row of results){updated+=row.updated;replaced+=row.replaced;}
@@ -103,14 +115,14 @@ export async function runCouponR2AuditBatch(env,{limit=500}={}){
   const samples=[];
 
   async function auditObject(obj){
-    const current=await env.CONTENT_FINAL.get(obj.key);
+    const current=await r2Retry(()=>env.CONTENT_FINAL.get(obj.key));
     if(!current)return {invalidFiles:0,invalidTokens:0,samples:[]};
     const bad=invalidCouponTokens(await current.text());
     if(!bad.length)return {invalidFiles:0,invalidTokens:0,samples:[]};
     return {invalidFiles:1,invalidTokens:bad.length,samples:[{key:obj.key,tokens:[...new Set(bad)].sort()}]};
   }
 
-  const concurrency=90;
+  const concurrency=50;
   for(let i=0;i<objects.length;i+=concurrency){
     const results=await Promise.all(objects.slice(i,i+concurrency).map(auditObject));
     for(const row of results){
