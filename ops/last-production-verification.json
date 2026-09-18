@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "fcdbf581f337eede524347ab1b837175e8d8d27d",
-  "verifiedAt": "2026-09-18T16:43:44.355707+00:00",
+  "sourceSha": "c946a4f34a0f8723a1c35be2e9facec70ce2292d",
+  "verifiedAt": "2026-09-18T16:55:05.304198+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -38,39 +38,45 @@
     "cronAdjustedThroughputTelemetryVerified": true,
     "preflightDedupeVerified": true,
     "fullGlobalGateAfterPreflightVerified": true,
-    "observedCatchupPerformanceRecorded": true
+    "observedCatchupPerformanceRecorded": true,
+    "twoStagePreflightVerified": true,
+    "parallelPostPublicationVerified": true,
+    "batchStageTelemetryVerified": true
   },
   "content": {
-    "r2HtmlObjects": 55428,
-    "trackedPublished": 19024,
-    "arabic": 18994,
+    "r2HtmlObjects": 55418,
+    "trackedPublished": 19344,
+    "arabic": 19314,
     "english": 30,
-    "lastSlug": "التوفير-lenovo-legion-نون-الإمارات-مراجعة-الدفع-الضمان",
+    "lastSlug": "مراجعة-سلة-philips-الديكور-نون-السعودية-مراجعة-الحساب-الخامة",
     "lastQuality": 100,
-    "lastWordCount": 1725
+    "lastWordCount": 1718
   },
   "catchup30k": {
     "target": 30000,
-    "current": 18994,
-    "remaining": 11006,
-    "requiredPerMinute": 22.93,
+    "current": 19314,
+    "remaining": 10686,
+    "requiredPerMinute": 22.26,
     "effectiveBatchSize": 64,
     "lastBatchPublished": 64,
-    "lastBatchTries": 528,
-    "lastBatchDurationMs": 108818,
-    "lastBatchYieldPct": 12.12,
-    "executionRatePerMinute": 35.29,
+    "lastBatchTries": 687,
+    "lastBatchDurationMs": 115209,
+    "lastBatchYieldPct": 9.32,
+    "lastBatchStageMs": null,
+    "executionRatePerMinute": 33.33,
     "cronCadenceMinutes": 2,
     "observedRatePerMinute": 32,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 5.73,
+    "estimatedHoursAtObservedRate": 5.57,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1000,
-    "preflightRejectedTotal": 211,
+    "preflightRejectedTotal": 1471,
+    "preflightRecentRejectedTotal": 0,
+    "preflightClusterRejectedTotal": 0,
     "lastPreflightRejectReasons": {
-      "global_duplicate_slug": 95,
-      "global_duplicate_keyword": 95,
-      "global_keyword_cannibalization": 210
+      "global_duplicate_slug": 117,
+      "global_duplicate_keyword": 117,
+      "global_keyword_cannibalization": 279
     }
   },
   "englishControlled": {
@@ -92,6 +98,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T16:43:00.244Z"
+    "completedAt": "2026-09-18T16:54:15.362Z"
   }
 }
