@@ -143,4 +143,16 @@ jobs:
             *) echo "CANONICAL_PROBE_FAILED=$canonical_code"; exit 1 ;;
           esac
 
+          python - <<'PY'
+          import json
+          s=json.load(open('/tmp/s.json'))
+          print('LIVE_ARTICLE_COUNTS='+json.dumps({
+              'r2Uploaded':s.get('r2Uploaded'),
+              'total':s.get('total'),
+              'arabic':s.get('arabic'),
+              'english':s.get('english'),
+              'countedAt':(s.get('r2Count') or {}).get('countedAt'),
+              'cached':(s.get('r2Count') or {}).get('cached')
+          },ensure_ascii=False,separators=(',',':')))
+          PY
           echo "PRODUCTION_RUNTIME_VERIFIED=1"
