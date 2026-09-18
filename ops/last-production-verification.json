@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "81a0085d70672dd09cea289f68e137bf784f998b",
-  "verifiedAt": "2026-09-18T19:28:59.371863+00:00",
+  "sourceSha": "90e5a188c6f5ad5ba4ace8e70830e1970c0a91cf",
+  "verifiedAt": "2026-09-18T19:52:17.438237+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -73,6 +73,15 @@
     "blogEditorialEntityLinkVerified": true,
     "indexNowEnglishHubPayloadVerified": true,
     "researchJsonDiscoveryVerified": true,
+    "seoAnalyticsSettingsV2Verified": true,
+    "analyticsDisabledByDefaultVerified": true,
+    "respectDoNotTrackVerified": true,
+    "seoSettingsJsonPortabilityVerified": true,
+    "privacySafeConversionTrackingVerified": true,
+    "conversionAdminPrivateVerified": true,
+    "articleCouponSummaryAeoVerified": true,
+    "articleOfficialNoonSourcesVerified": true,
+    "articleShareIntentTrackingVerified": true,
     "gscSeoDropsSnapshotVerified": true,
     "gscNoDataTruthfulnessVerified": true,
     "gscAdminEndpointPrivateVerified": true,
@@ -83,55 +92,55 @@
     "persistedGeneratorConfigFloor1500Verified": true
   },
   "content": {
-    "r2HtmlObjects": 55420,
-    "trackedPublished": 23316,
-    "arabic": 23283,
+    "r2HtmlObjects": 55435,
+    "trackedPublished": 23888,
+    "arabic": 23855,
     "english": 33,
-    "lastSlug": "التوفير-acer-aspire-الشحن-والتوصيل-نون-السعودية-مراجعة-الكمية-الضمان",
+    "lastSlug": "خطوات-قبل-الدفع-acer-predator-نون-السعودية-فحص-المواصفات-الضمان",
     "lastQuality": 100,
-    "lastWordCount": 1761
+    "lastWordCount": 1712
   },
   "catchup30k": {
     "target": 30000,
-    "current": 23283,
-    "remaining": 6717,
-    "requiredPerMinute": 13.99,
+    "current": 23855,
+    "remaining": 6145,
+    "requiredPerMinute": 12.8,
     "effectiveBatchSize": 32,
     "adaptiveBatchSize": 32,
     "adaptiveMode": "catchup-adaptive",
     "adaptiveReason": "duration_target",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 28,
-    "lastBatchTries": 187,
-    "lastBatchDurationMs": 53358,
-    "lastBatchYieldPct": 14.97,
+    "lastBatchPublished": 21,
+    "lastBatchTries": 192,
+    "lastBatchDurationMs": 50848,
+    "lastBatchYieldPct": 10.94,
     "lastBatchStageMs": {
-      "candidateLoop": 42353,
-      "articleWrites": 4635,
-      "clusterFlush": 4046,
-      "freshness": 2728,
-      "catalogs": 5954,
-      "indexNow": 215,
-      "postParallel": 5954
+      "candidateLoop": 42062,
+      "articleWrites": 2965,
+      "clusterFlush": 3449,
+      "freshness": 2730,
+      "catalogs": 5363,
+      "indexNow": 486,
+      "postParallel": 5363
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": true,
-    "executionRatePerMinute": 31.49,
+    "executionRatePerMinute": 24.78,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 28,
+    "observedRatePerMinute": 21,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 4.0,
+    "estimatedHoursAtObservedRate": 4.88,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 4319,
-    "preflightRejectedTotal": 10073,
-    "preflightRecentRejectedTotal": 20,
-    "preflightClusterRejectedTotal": 8582,
+    "semanticPreAuditRejectedTotal": 5235,
+    "preflightRejectedTotal": 12130,
+    "preflightRecentRejectedTotal": 30,
+    "preflightClusterRejectedTotal": 10629,
     "lastPreflightRejectReasons": {
-      "global_keyword_cannibalization": 93,
-      "global_duplicate_slug": 36,
-      "global_duplicate_keyword": 36
+      "global_duplicate_slug": 40,
+      "global_duplicate_keyword": 40,
+      "global_keyword_cannibalization": 99
     }
   },
   "englishControlled": {
@@ -153,6 +162,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T19:28:04.068Z"
+    "completedAt": "2026-09-18T19:51:23.933Z"
   }
 }
