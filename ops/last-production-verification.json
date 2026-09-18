@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "770d5d6dd33111ae4136b1172df0cc0a05005291",
-  "verifiedAt": "2026-09-18T13:15:50.514210+00:00",
+  "sourceSha": "b991b38d851d551baba6851e8ee80b84b96e8ba1",
+  "verifiedAt": "2026-09-18T13:21:53.650006+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -30,16 +30,18 @@
     "researchDatasetVerified": true,
     "researchStableFreshnessVerified": true,
     "blogCollectionSchemaVerified": true,
-    "dynamicRouterCouponCountsVerified": true
+    "dynamicRouterCouponCountsVerified": true,
+    "catchup30kEightHourPlanVerified": true,
+    "catchupQualityFloorPreserved": true
   },
   "content": {
-    "r2HtmlObjects": 49726,
-    "trackedPublished": 14421,
-    "arabic": 14394,
+    "r2HtmlObjects": 50025,
+    "trackedPublished": 14493,
+    "arabic": 14466,
     "english": 27,
-    "lastSlug": "شراء-الأجهزة-المنزلية-من-نون-الإمارات-بميزانية-محددة-شروط-الطلب-عائلة",
+    "lastSlug": "مراجعة-سلة-mac-studio-على-نون-الإمارات-بعد-رسوم-الشحن-فحص-الملاءمة",
     "lastQuality": 100,
-    "lastWordCount": 1742
+    "lastWordCount": 1737
   },
   "englishControlled": {
     "target": 200,
@@ -60,6 +62,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T13:15:06.244Z"
+    "completedAt": "2026-09-18T13:20:56.531Z"
   }
 }
