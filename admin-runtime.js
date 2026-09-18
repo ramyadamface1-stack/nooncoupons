@@ -67,19 +67,30 @@ function normalizeRouteOverrides(raw){
   }
   return out;
 }
+function normalizeRedirects(raw){
+  const out={},source=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};
+  for(const [from,toRaw] of Object.entries(source).slice(0,200)){
+    const to=String(toRaw||'').trim();
+    if(!/^\/[A-Za-z0-9_\-/%\u0600-\u06FF.]*$/.test(from)||!/^\/[A-Za-z0-9_\-/%\u0600-\u06FF.]*$/.test(to)||from===to)continue;
+    if(from.startsWith('/api/')||from==='/admin'||from.startsWith('/admin/'))continue;
+    out[from]=to.slice(0,300);
+  }
+  for(const [from,to] of Object.entries({...out}))if(out[to]===from)delete out[from],delete out[to];
+  return out;
+}
 export function defaultSeoSettings(){
   return {
-    version:2,siteName:'Noon Deals Now',defaultOgImage:'/favicon.svg',
+    version:3,siteName:'Noon Deals Now',defaultOgImage:'/favicon.svg',
     googleVerification:'',bingVerification:'',yandexVerification:'',pinterestVerification:'',
     twitterSite:'',facebookAppId:'',
     analyticsEnabled:false,respectDoNotTrack:true,
     ga4MeasurementId:'',gtmContainerId:'',metaPixelId:'',clarityProjectId:'',hotjarSiteId:'',tiktokPixelId:'',
-    routeOverrides:{},updatedAt:null
+    routeOverrides:{},redirects:{},updatedAt:null
   };
 }
 export async function getSeoSettings(env){
   const existing=await r2json(env,R2_SEO_SETTINGS_KEY,null);
-  return {...defaultSeoSettings(),...(existing||{}),routeOverrides:normalizeRouteOverrides(existing?.routeOverrides||{})};
+  return {...defaultSeoSettings(),...(existing||{}),routeOverrides:normalizeRouteOverrides(existing?.routeOverrides||{}),redirects:normalizeRedirects(existing?.redirects||{})};
 }
 async function saveSeoSettings(env,input={}){
   const current=await getSeoSettings(env);
@@ -101,7 +112,8 @@ async function saveSeoSettings(env,input={}){
     hotjarSiteId:cleanPattern(input.hotjarSiteId??current.hotjarSiteId,/^\d{3,20}$/,20),
     tiktokPixelId:cleanPattern(input.tiktokPixelId??current.tiktokPixelId,/^[A-Za-z0-9]{4,60}$/,60),
     routeOverrides:normalizeRouteOverrides(input.routeOverrides??current.routeOverrides),
-    updatedAt:now(),version:2
+    redirects:normalizeRedirects(input.redirects??current.redirects),
+    updatedAt:now(),version:3
   };
   return r2putJson(env,R2_SEO_SETTINGS_KEY,next);
 }
