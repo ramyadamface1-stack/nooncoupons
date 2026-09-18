@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "sourceSha": "c8afd5b5ad516f972c56b391b7bad3ad71fa2402",
+  "verifiedAt": "2026-09-18T12:53:17.689113+00:00",
+  "productionOrigin": "https://noondealsnow.com",
+  "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
+  "checks": {
+    "productionRuntimeVerified": true,
+    "canonicalProductionRoutesVerified": true,
+    "couponAllowlistRenderedHtml": "PASS",
+    "approvedCouponCount": 10,
+    "invalidCouponTokensLive": 0,
+    "r2CouponMigrationDone": true,
+    "r2CouponAuditDone": true,
+    "r2InvalidFiles": 0,
+    "r2InvalidTokens": 0,
+    "countryCouponSchemaVerified": true,
+    "articleSvgVerified": true,
+    "privateRoutesNoindex": true,
+    "indexNowKeyVerified": true,
+    "englishIndexNowUrlPathAware": true
+  },
+  "content": {
+    "r2HtmlObjects": 49064,
+    "trackedPublished": 14156,
+    "arabic": 14130,
+    "english": 26,
+    "lastSlug": "شراء-adidas-football-للطلب-الأول-من-نون-الإمارات-بذكاء-البديل-الأنسب",
+    "lastQuality": 100,
+    "lastWordCount": 1767
+  },
+  "englishControlled": {
+    "target": 200,
+    "published": 26,
+    "remaining": 174,
+    "publishedToday": 6,
+    "dailyTarget": 24,
+    "minIntervalMinutes": 60,
+    "nextEligibleAt": "2026-09-18T13:12:59.386Z"
+  },
+  "couponMigration": {
+    "scanned": 48759,
+    "updated": 31810,
+    "replaced": 1059946,
+    "completedAt": "2026-09-18T09:18:02.935Z"
+  },
+  "couponAudit": {
+    "scanned": 48759,
+    "invalidFiles": 0,
+    "invalidTokens": 0,
+    "completedAt": "2026-09-18T12:52:47.008Z"
+  }
+}
