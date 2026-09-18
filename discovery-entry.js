@@ -160,9 +160,11 @@ async function augmentRobots(res,origin){
   let body=await res.text();
   const root=`Sitemap: ${origin}/sitemap.xml`;
   const priority=`Sitemap: ${origin}/sitemap-priority.xml`;
+  const english=`Sitemap: ${origin}/sitemap-en-articles.xml`;
   if(!body.includes(root))body=(body.trimEnd()+`\n${root}\n`).replace(/^\n+/, '');
   if(!body.includes(priority))body=(body.trimEnd()+`\n${priority}\n`).replace(/^\n+/, '');
-  const h=new Headers(res.headers);h.delete('content-length');h.set('x-priority-sitemap-robots','v1');
+  if(!body.includes(english))body=(body.trimEnd()+`\n${english}\n`).replace(/^\n+/, '');
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-priority-sitemap-robots','v1');h.set('x-english-sitemap-robots','v1');
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
@@ -202,4 +204,4 @@ export default{
   async scheduled(event,env,ctx){const base=app.scheduled?app.scheduled(event,env,ctx):null;if(base)ctx.waitUntil(Promise.resolve(base));ctx.waitUntil((async()=>{await repairEnglishCanaryLegacyMetadata(env);return runEnglishCanary(env)})());}
 };
 
-export const DISCOVERY_ENTRY_INFO={version:8,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:9,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
