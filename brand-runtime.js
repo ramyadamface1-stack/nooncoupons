@@ -95,6 +95,7 @@ function brandHead(html){
 }
 
 function favicon(){return new Response(SVG,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public, max-age=604800, immutable','x-content-type-options':'nosniff'}})}
+function indexNowKeyFile(env,path){const key=String(env.INDEXNOW_KEY||'').trim();if(!key||path!=='/'+key+'.txt')return null;return new Response(key+'\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=86400, immutable','x-content-type-options':'nosniff','x-indexnow-key-file':'v1'}})}
 async function ensureRobotsSitemap(res,origin){
   if(!res.ok)return res;
   const type=(res.headers.get('content-type')||'').toLowerCase();
@@ -131,6 +132,7 @@ export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
     if(req.method==='GET'&&u.pathname==='/favicon.svg')return favicon();
+    if(req.method==='GET'){const keyFile=indexNowKeyFile(env,u.pathname);if(keyFile)return keyFile;}
     let res=await app.fetch(req,env,ctx);
     if(req.method==='GET'&&u.pathname==='/robots.txt')res=await ensureRobotsSitemap(res,env.SITE_ORIGIN||u.origin);
     res=crawlSafe(res,u.pathname);
@@ -156,4 +158,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:10,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:11,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
