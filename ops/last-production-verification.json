@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "59fb4754bc95474bc9a2753cd28f094de81e30dc",
-  "verifiedAt": "2026-09-18T17:02:24.724319+00:00",
+  "sourceSha": "e0f3aaf814940cceb02c626895b44af14629ecf8",
+  "verifiedAt": "2026-09-18T17:09:32.772901+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -44,50 +44,56 @@
     "batchStageTelemetryVerified": true,
     "r2TransientRetryVerified": true,
     "qualityClusterFailClosedVerified": true,
-    "arabicDiversityV4Verified": true
+    "arabicDiversityV4Verified": true,
+    "adaptiveCronBatchVerified": true
   },
   "content": {
-    "r2HtmlObjects": 55424,
-    "trackedPublished": 19519,
-    "arabic": 19489,
+    "r2HtmlObjects": 55417,
+    "trackedPublished": 19647,
+    "arabic": 19617,
     "english": 30,
-    "lastSlug": "اختيار-بائع-التلفزيونات-نون-الإمارات-فحص-الملاءمة-معدل-التحديث",
+    "lastSlug": "حل-رفض-الكود-lego-نون-الإمارات-مقارنة-تكلفة-الطلب-منزل-صغير",
     "lastQuality": 100,
-    "lastWordCount": 1699
+    "lastWordCount": 1754
   },
   "catchup30k": {
     "target": 30000,
-    "current": 19489,
-    "remaining": 10511,
-    "requiredPerMinute": 21.9,
-    "effectiveBatchSize": 64,
+    "current": 19617,
+    "remaining": 10383,
+    "requiredPerMinute": 21.63,
+    "effectiveBatchSize": 39,
+    "adaptiveBatchSize": 39,
+    "adaptiveMode": "catchup-adaptive",
+    "adaptiveReason": "duration_target",
+    "targetBatchDurationMs": 52000,
+    "minCatchupBatchSize": 32,
     "lastBatchPublished": 64,
-    "lastBatchTries": 208,
-    "lastBatchDurationMs": 77506,
-    "lastBatchYieldPct": 30.77,
+    "lastBatchTries": 233,
+    "lastBatchDurationMs": 84288,
+    "lastBatchYieldPct": 27.47,
     "lastBatchStageMs": {
-      "candidateLoop": 57968,
-      "articleWrites": 9750,
-      "clusterFlush": 9388,
-      "freshness": 2166,
-      "catalogs": 7109,
-      "indexNow": 459,
-      "postParallel": 9388
+      "candidateLoop": 63403,
+      "articleWrites": 9983,
+      "clusterFlush": 10513,
+      "freshness": 2174,
+      "catalogs": 7060,
+      "indexNow": 676,
+      "postParallel": 10513
     },
-    "executionRatePerMinute": 49.54,
+    "executionRatePerMinute": 45.56,
     "cronCadenceMinutes": 2,
     "observedRatePerMinute": 32,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 5.47,
+    "estimatedHoursAtObservedRate": 5.41,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1000,
-    "preflightRejectedTotal": 2293,
+    "preflightRejectedTotal": 2410,
     "preflightRecentRejectedTotal": 6,
-    "preflightClusterRejectedTotal": 816,
+    "preflightClusterRejectedTotal": 933,
     "lastPreflightRejectReasons": {
-      "global_keyword_cannibalization": 45,
-      "global_duplicate_slug": 22,
-      "global_duplicate_keyword": 22
+      "global_keyword_cannibalization": 60,
+      "global_duplicate_slug": 34,
+      "global_duplicate_keyword": 34
     }
   },
   "englishControlled": {
@@ -109,6 +115,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T17:01:35.852Z"
+    "completedAt": "2026-09-18T17:08:48.033Z"
   }
 }
