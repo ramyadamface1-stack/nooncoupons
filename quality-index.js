@@ -11,6 +11,25 @@ const norm=s=>String(s||'').toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').r
 const tokens=s=>norm(s).split(' ').filter(x=>x.length>1&&!STOP.has(x));
 const h32=s=>{let h=2166136261;for(const ch of String(s||'')){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function r2getCritical(env,key){
+  if(!env?.CONTENT_FINAL)throw new Error('r2_binding_missing');
+  let last=null;
+  for(let attempt=1;attempt<=3;attempt++){
+    try{return await env.CONTENT_FINAL.get(key)}
+    catch(e){last=e;if(attempt<3)await sleep(40*attempt)}
+  }
+  throw last||new Error('r2_get_failed');
+}
+async function r2putRetry(env,key,value,options){
+  if(!env?.CONTENT_FINAL)throw new Error('r2_binding_missing');
+  let last=null;
+  for(let attempt=1;attempt<=3;attempt++){
+    try{return await env.CONTENT_FINAL.put(key,value,options)}
+    catch(e){last=e;if(attempt<3)await sleep(60*attempt)}
+  }
+  throw last||new Error('r2_put_failed');
+}
 
 export function keywordSimilarity(a,b){
   const A=new Set(tokens(a)),B=new Set(tokens(b));if(!A.size||!B.size)return 0;
@@ -35,7 +54,7 @@ export function emptyCluster(topic){return {version:VERSION,country:topic?.count
 export async function loadCluster(env,topic,cache=new Map()){
   const key=clusterKey(topic);if(cache.has(key))return cache.get(key);
   let data=emptyCluster(topic);
-  try{const o=env?.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;if(o)data=await o.json()}catch{}
+  const o=await r2getCritical(env,key);if(o)data=await o.json();
   if(!Array.isArray(data.entries))data.entries=[];
   cache.set(key,data);return data;
 }
@@ -45,7 +64,7 @@ function compactEntry(rec){
   return {slug:rec.slug,title:rec.title||rec.primaryKeyword,primaryKeyword:rec.primaryKeyword,signature:rec.signature||null,country:rec.country,category:rec.category,intent:rec.intent||'',intentLabel:rec.intentLabel||'',intentKey:intentKey(rec),createdAt:rec.createdAt||rec.updatedAt||now()};
 }
 
-async function r2json(env,key,fallback){try{const o=env?.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
+async function r2json(env,key,fallback){try{const o=await r2getCritical(env,key);return o?await o.json():fallback}catch(e){if(String(e?.message||e)==='r2_binding_missing')throw e;return fallback}}
 
 export async function bootstrapGlobalIndex(env){
   if(!env?.CONTENT_FINAL)return {version:VERSION,complete:false,error:'r2_missing'};
@@ -71,10 +90,10 @@ export async function bootstrapGlobalIndex(env){
     const seen=new Set(),merged=[];
     for(const e of [...g.entries,...(existing.entries||[])]){if(!e?.slug||seen.has(e.slug))continue;seen.add(e.slug);merged.push(e);if(merged.length>=MAX_CLUSTER_ENTRIES)break}
     existing.version=VERSION;existing.country=g.topic.country;existing.category=g.topic.category;existing.updatedAt=now();existing.entries=merged;
-    await env.CONTENT_FINAL.put(key,JSON.stringify(existing),{httpMetadata:{contentType:'application/json; charset=utf-8'}});clusterWrites++;indexed+=g.entries.length;
+    await r2putRetry(env,key,JSON.stringify(existing),{httpMetadata:{contentType:'application/json; charset=utf-8'}});clusterWrites++;indexed+=g.entries.length;
   }
   const manifest={version:VERSION,complete:true,bootstrappedAt:now(),daysScanned:days.map(x=>x.day),daysAvailable:(daysIndex.days||[]).length,shardsRead,articlesScanned:scanned,eligibleArticles:eligible,indexedArticles:indexed,clusterWrites,maxDays:BOOTSTRAP_MAX_DAYS};
-  await env.CONTENT_FINAL.put(manifestKey,JSON.stringify(manifest),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+  await r2putRetry(env,manifestKey,JSON.stringify(manifest),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
   return manifest;
 }
 
@@ -152,8 +171,8 @@ export async function flushClusters(env,cache,dirtyKeys){
   if(!env?.CONTENT_FINAL)return;
   const rows=[...dirtyKeys].map(key=>[key,cache.get(key)]).filter(([,value])=>Boolean(value));
   for(let i=0;i<rows.length;i+=12){
-    await Promise.all(rows.slice(i,i+12).map(([key,value])=>env.CONTENT_FINAL.put(key,JSON.stringify(value),{httpMetadata:{contentType:'application/json; charset=utf-8'}})));
+    await Promise.all(rows.slice(i,i+12).map(([key,value])=>r2putRetry(env,key,JSON.stringify(value),{httpMetadata:{contentType:'application/json; charset=utf-8'}})));
   }
 }
 
-export const GLOBAL_INDEX_INFO={version:VERSION,intentKeyVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:5,cannibalizationSimilarityMax:0.82,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:12,preflightGate:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','keyword-cannibalization']};
+export const GLOBAL_INDEX_INFO={version:VERSION,intentKeyVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:5,cannibalizationSimilarityMax:0.82,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:12,r2ReadRetry:3,r2WriteRetry:3,failClosedOnClusterRead:true,preflightGate:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','keyword-cannibalization']};
