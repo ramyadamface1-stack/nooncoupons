@@ -52,6 +52,13 @@ jobs:
           grep -Fq "hreflang=\"ar-SA\"" commerce-pages-v2.js
           grep -Fq 'data-schema="english-collection"' commerce-pages-v2.js
           grep -Fq 'data-english-eeat="v1"' commerce-pages-v2.js
+          grep -Fq 'function englishArticlePath' commerce-pages-v2.js
+          grep -Fq 'data-english-freshness="content-derived"' commerce-pages-v2.js
+          grep -Fq 'data-english-nav="v1"' commerce-pages-v2.js
+          grep -Fq 'data-english-footer="v1"' commerce-pages-v2.js
+          grep -Fq 'page.dateModified=modified' commerce-pages-v2.js
+          grep -Fq "origin+englishArticlePath(a)" commerce-pages-v2.js
+          grep -Fq "origin+'/feed-en.xml'" commerce-pages-v2.js
           grep -Fq '${CODES.length} أكواد معتمدة فقط' commerce-pages-v2.js
           if grep -Fq '8 أكواد معتمدة فقط' commerce-pages-v2.js; then echo 'STALE_APPROVED_COUPON_COUNT=1'; exit 1; fi
           grep -Fq 'controlled native-English expansion' final-platform.js
@@ -80,6 +87,8 @@ jobs:
           grep -Fq 'discoveryLinks:true' discovery-entry.js
           grep -Fq 'discoveryLinkCount:12' discovery-entry.js
           grep -Fq 'robotsPrioritySitemap:true' discovery-entry.js
+          grep -Fq 'robotsEnglishSitemap:true' discovery-entry.js
+          grep -Fq '/sitemap-en-articles.xml' discovery-entry.js
           grep -Fq 'englishPriorityDiscovery:true' discovery-entry.js
           grep -Fq 'englishPriorityArticleLimit:200' discovery-entry.js
           grep -Fq 'englishCategoryEvidenceMin:3' discovery-entry.js
@@ -88,6 +97,7 @@ jobs:
           grep -Fq "refreshCountBtn" admin-page.js
           grep -Fq "/api/admin/live-overview" commerce-entry.js
           grep -Fq "normalizeArticleHeadingDensity" auto-platform.js
+          grep -Fq 'class="cardAuthor" href="/authors/editorial-team"' auto-platform.js
           grep -Fq 'intentKeyVersion:2' quality-index.js
           grep -Fq 'preflightGate:true' quality-index.js
           grep -Fq 'preflightGlobalGate' bulk-generator.js
@@ -321,7 +331,7 @@ jobs:
           grep -Fxq "$INDEXNOW_KEY" /tmp/indexnow-key.txt
           echo "INDEXNOW_DEPLOY_PING=START"
           export INDEXNOW_KEY
-          node -e "const fs=require('fs');const key=process.env.INDEXNOW_KEY;const urls=['https://noondealsnow.com/','https://noondealsnow.com/coupons','https://noondealsnow.com/blog','https://noondealsnow.com/saudi','https://noondealsnow.com/uae','https://noondealsnow.com/saudi/categories','https://noondealsnow.com/uae/categories','https://noondealsnow.com/saudi-arabia/noon-coupon-code','https://noondealsnow.com/uae/noon-coupon-code','https://noondealsnow.com/coupon-verification','https://noondealsnow.com/editorial-policy','https://noondealsnow.com/authors/editorial-team'];fs.writeFileSync('/tmp/indexnow-payload.json',JSON.stringify({host:'noondealsnow.com',key,keyLocation:'https://noondealsnow.com/'+key+'.txt',urlList:urls}))"
+          node -e "const fs=require('fs');const key=process.env.INDEXNOW_KEY;const urls=['https://noondealsnow.com/','https://noondealsnow.com/coupons','https://noondealsnow.com/blog','https://noondealsnow.com/saudi','https://noondealsnow.com/uae','https://noondealsnow.com/saudi/categories','https://noondealsnow.com/uae/categories','https://noondealsnow.com/saudi-arabia/noon-coupon-code','https://noondealsnow.com/uae/noon-coupon-code','https://noondealsnow.com/coupon-verification','https://noondealsnow.com/editorial-policy','https://noondealsnow.com/authors/editorial-team','https://noondealsnow.com/en/saudi','https://noondealsnow.com/en/uae'];fs.writeFileSync('/tmp/indexnow-payload.json',JSON.stringify({host:'noondealsnow.com',key,keyLocation:'https://noondealsnow.com/'+key+'.txt',urlList:urls}))"
           INDEXNOW_HTTP=$(curl -sS -o /tmp/indexnow-submit.json -w '%{http_code}' -H 'Content-Type: application/json; charset=utf-8' --data-binary @/tmp/indexnow-payload.json https://api.indexnow.org/indexnow || true)
           echo "INDEXNOW_DEPLOY_PING_HTTP=$INDEXNOW_HTTP"
           if [ "$INDEXNOW_HTTP" != "200" ] && [ "$INDEXNOW_HTTP" != "202" ]; then
@@ -332,8 +342,10 @@ jobs:
           echo "VERIFY_ROUTE=robots"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/robots.txt?deploy=$GITHUB_SHA" -D /tmp/rh -o /tmp/robots.txt
           grep -Fqi 'x-priority-sitemap-robots: v1' /tmp/rh
+          grep -Fqi 'x-english-sitemap-robots: v1' /tmp/rh
           grep -Fq 'Sitemap: https://noondealsnow.com/sitemap.xml' /tmp/robots.txt
           grep -Fq 'Sitemap: https://noondealsnow.com/sitemap-priority.xml' /tmp/robots.txt
+          grep -Fq 'Sitemap: https://noondealsnow.com/sitemap-en-articles.xml' /tmp/robots.txt
           grep -Fq 'User-agent: GPTBot' /tmp/robots.txt
           grep -Fq 'User-agent: OAI-SearchBot' /tmp/robots.txt
           grep -Fq 'User-agent: Google-Extended' /tmp/robots.txt
@@ -418,6 +430,7 @@ jobs:
           grep -Fq '"@type":"ItemList"' /tmp/blog.html
           grep -Fq 'type="application/rss+xml"' /tmp/blog.html
           grep -Fq 'href="https://noondealsnow.com/feed.xml"' /tmp/blog.html
+          grep -Fq 'class="cardAuthor" href="/authors/editorial-team"' /tmp/blog.html
 
           echo "VERIFY_ROUTE=saudi-money"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/saudi-arabia/noon-coupon-code?deploy=$GITHUB_SHA" -D /tmp/mh -o /tmp/money.html
@@ -581,6 +594,38 @@ jobs:
           grep -Fq 'English content policy' /tmp/en-saudi.html
           grep -Fq '/editorial-policy' /tmp/en-saudi.html
           grep -Fq '/coupon-verification' /tmp/en-saudi.html
+          grep -Fq 'hreflang="en-SA"' /tmp/en-saudi.html
+          grep -Fq 'hreflang="ar-SA"' /tmp/en-saudi.html
+          grep -Fq 'hreflang="x-default"' /tmp/en-saudi.html
+          grep -Fq 'data-english-nav="v1"' /tmp/en-saudi.html
+          grep -Fq 'data-english-footer="v1"' /tmp/en-saudi.html
+          grep -Fq 'href="https://noondealsnow.com/feed-en.xml"' /tmp/en-saudi.html
+          grep -Fq 'English RSS' /tmp/en-saudi.html
+          python - <<'PY'
+          t=open('/tmp/en-saudi.html',encoding='utf-8').read()
+          if '/en/articles/' in t:
+              assert 'data-english-freshness="content-derived"' in t
+              assert '"dateModified":' in t
+          PY
+
+          echo "VERIFY_ROUTE=english-uae"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/en/uae?deploy=$GITHUB_SHA" -D /tmp/en-uae.h -o /tmp/en-uae.html
+          grep -Fqi 'x-content-language: en' /tmp/en-uae.h
+          grep -Fq 'data-schema="english-collection"' /tmp/en-uae.html
+          grep -Fq '"@type":"CollectionPage"' /tmp/en-uae.html
+          grep -Fq 'hreflang="en-AE"' /tmp/en-uae.html
+          grep -Fq 'hreflang="ar-AE"' /tmp/en-uae.html
+          grep -Fq 'hreflang="x-default"' /tmp/en-uae.html
+          grep -Fq 'data-english-nav="v1"' /tmp/en-uae.html
+          grep -Fq 'data-english-footer="v1"' /tmp/en-uae.html
+          grep -Fq 'href="https://noondealsnow.com/feed-en.xml"' /tmp/en-uae.html
+          python - <<'PY'
+          t=open('/tmp/en-uae.html',encoding='utf-8').read()
+          if '/en/articles/' in t:
+              assert 'data-english-freshness="content-derived"' in t
+              assert '"dateModified":' in t
+          PY
+
           echo "VERIFY_ROUTE=uae"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/uae?deploy=$GITHUB_SHA" -o /tmp/uae.html
           echo "VERIFY_ROUTE=uae-money"
@@ -641,7 +686,7 @@ jobs:
           python - <<'PY'
           import re
           allowed={'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'}
-          files=['/tmp/home.html','/tmp/coupons.html','/tmp/blog.html','/tmp/saudi.html','/tmp/uae.html','/tmp/money.html','/tmp/uae-money.html','/tmp/saudi-category.html','/tmp/uae-category.html','/tmp/en-saudi.html','/tmp/team.html','/tmp/research.html','/tmp/old-arabic.html','/tmp/a.html','/tmp/english.html']
+          files=['/tmp/home.html','/tmp/coupons.html','/tmp/blog.html','/tmp/saudi.html','/tmp/uae.html','/tmp/money.html','/tmp/uae-money.html','/tmp/saudi-category.html','/tmp/uae-category.html','/tmp/en-saudi.html','/tmp/en-uae.html','/tmp/team.html','/tmp/research.html','/tmp/old-arabic.html','/tmp/a.html','/tmp/english.html']
           seen=set()
           for path in files:
               text=open(path,encoding='utf-8').read()
@@ -908,6 +953,13 @@ jobs:
                   'allFiveSvgVariantsVerified': True,
                   'responsiveArticleVisualCssVerified': True,
                   'bulkArticleRendererVisualV9Verified': True,
+                  'englishRobotsSitemapVerified': True,
+                  'englishHubHreflangVerified': True,
+                  'englishHubNavigationVerified': True,
+                  'englishHubContentFreshnessVerified': True,
+                  'englishUrlPathItemListVerified': True,
+                  'blogEditorialEntityLinkVerified': True,
+                  'indexNowEnglishHubPayloadVerified': True,
                   'gscSeoDropsSnapshotVerified': True,
                   'gscNoDataTruthfulnessVerified': True,
                   'gscAdminEndpointPrivateVerified': True,
@@ -1030,6 +1082,13 @@ jobs:
           assert proof['checks']['allFiveSvgVariantsVerified'] is True
           assert proof['checks']['responsiveArticleVisualCssVerified'] is True
           assert proof['checks']['bulkArticleRendererVisualV9Verified'] is True
+          assert proof['checks']['englishRobotsSitemapVerified'] is True
+          assert proof['checks']['englishHubHreflangVerified'] is True
+          assert proof['checks']['englishHubNavigationVerified'] is True
+          assert proof['checks']['englishHubContentFreshnessVerified'] is True
+          assert proof['checks']['englishUrlPathItemListVerified'] is True
+          assert proof['checks']['blogEditorialEntityLinkVerified'] is True
+          assert proof['checks']['indexNowEnglishHubPayloadVerified'] is True
           assert proof['checks']['gscSeoDropsSnapshotVerified'] is True
           assert proof['checks']['gscNoDataTruthfulnessVerified'] is True
           assert proof['checks']['gscAdminEndpointPrivateVerified'] is True
