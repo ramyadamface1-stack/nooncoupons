@@ -200,6 +200,7 @@ function serviceWorkerRegistration(html){
 function brandHead(html){
   let out=String(html);
   const tags=[];
+  if(!out.includes('id="render-performance-v1"'))tags.push('<style id="render-performance-v1">main>section:not(:first-child),.latest-editorial,.spider{content-visibility:auto;contain-intrinsic-size:auto 520px}@media(max-width:700px){main>section:not(:first-child){contain-intrinsic-size:auto 620px}}</style>');
   if(!/<link\b[^>]*rel=["'][^"']*icon/i.test(out))tags.push('<link rel="icon" type="image/svg+xml" href="/favicon.svg">');
   if(!/<meta\b[^>]*name=["']theme-color["']/i.test(out))tags.push('<meta name="theme-color" content="#111827">');
   if(!/<meta\b[^>]*property=["']og:site_name["']/i.test(out))tags.push('<meta property="og:site_name" content="Noon Deals Now">');
@@ -342,6 +343,7 @@ export default{
     h.set('x-seo-settings',settings?'r2-v1':'default');
     h.set('x-seo-redirects',settings&&Object.keys(settings.redirects||{}).length?'configured-v1':'none');
     h.set('x-image-performance','lazy-v1');
+    h.set('x-section-rendering','content-visibility-v1');
     h.set('x-image-count',String(imagePerf.count));
     h.set('x-service-worker-cache','static-assets-v1');
     h.set('x-analytics-settings',settings?.analyticsEnabled?'enabled-v2':'disabled-v2');
@@ -361,7 +363,7 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:19,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:20,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
 ;
     try{if(new RegExp(rx).test(path))return all[pattern]}catch{}
   }
