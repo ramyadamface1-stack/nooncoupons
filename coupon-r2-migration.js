@@ -92,7 +92,7 @@ export async function runCouponR2MigrationBatch(env,{limit=100}={}){
   state.failedKeys=uniqueKeys(state.failedKeys);
   if(state.done)return {ok:true,...state};
 
-  const batchLimit=Math.max(1,Math.min(Number(limit)||100,250));
+  const batchLimit=Math.max(1,Math.min(Number(limit)||100,500));
 
   if(state.scanDone){
     const retryNow=state.failedKeys.slice(0,batchLimit);
@@ -123,7 +123,7 @@ export async function runCouponR2MigrationBatch(env,{limit=100}={}){
     .map(obj=>String(obj.key||''))
     .filter(key=>key.endsWith('.html'));
 
-  const repaired=await processRepairKeys(env,keys,20);
+  const repaired=await processRepairKeys(env,keys,30);
   const failedKeys=uniqueKeys([...state.failedKeys,...repaired.failedKeys]);
   const scanDone=!page.truncated;
   const done=scanDone&&failedKeys.length===0;
@@ -205,7 +205,7 @@ export async function runCouponR2AuditBatch(env,{limit=100}={}){
   state.failedKeys=uniqueKeys(state.failedKeys);
   if(state.done)return {ok:true,...state};
 
-  const batchLimit=Math.max(1,Math.min(Number(limit)||100,250));
+  const batchLimit=Math.max(1,Math.min(Number(limit)||100,500));
 
   if(state.scanDone){
     const retryNow=state.failedKeys.slice(0,batchLimit);
@@ -236,7 +236,7 @@ export async function runCouponR2AuditBatch(env,{limit=100}={}){
   const keys=(page.objects||[])
     .map(obj=>String(obj.key||''))
     .filter(key=>key.endsWith('.html'));
-  const checked=await processAuditKeys(env,keys,20);
+  const checked=await processAuditKeys(env,keys,40);
   const failedKeys=uniqueKeys([...state.failedKeys,...checked.failedKeys]);
   const scanDone=!page.truncated;
   const done=scanDone&&failedKeys.length===0;
