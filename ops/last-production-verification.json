@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "c8afd5b5ad516f972c56b391b7bad3ad71fa2402",
-  "verifiedAt": "2026-09-18T12:53:17.689113+00:00",
+  "sourceSha": "e48df3588cd33ab10de01357c9deffe13dd0c91e",
+  "verifiedAt": "2026-09-18T13:01:53.113431+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -18,16 +18,20 @@
     "articleSvgVerified": true,
     "privateRoutesNoindex": true,
     "indexNowKeyVerified": true,
-    "englishIndexNowUrlPathAware": true
+    "englishIndexNowUrlPathAware": true,
+    "englishCollectionSchemaVerified": true,
+    "englishVisibleEEATVerified": true,
+    "llmsControlledEnglishDiscoveryVerified": true,
+    "dynamicApprovedCouponCountVerified": true
   },
   "content": {
-    "r2HtmlObjects": 49064,
-    "trackedPublished": 14156,
-    "arabic": 14130,
+    "r2HtmlObjects": 49359,
+    "trackedPublished": 14252,
+    "arabic": 14226,
     "english": 26,
-    "lastSlug": "شراء-adidas-football-للطلب-الأول-من-نون-الإمارات-بذكاء-البديل-الأنسب",
+    "lastSlug": "شراء-sony-bravia-من-نون-السعودية-بذكاء-قبل-الإرجاع-اختيار-المقاس",
     "lastQuality": 100,
-    "lastWordCount": 1767
+    "lastWordCount": 1744
   },
   "englishControlled": {
     "target": 200,
@@ -48,6 +52,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T12:52:47.008Z"
+    "completedAt": "2026-09-18T13:01:18.344Z"
   }
 }
