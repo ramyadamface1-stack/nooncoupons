@@ -35,7 +35,7 @@ function sanitizeLegacyCouponTokens(html){
     const before=(block.match(/\b(?:OPS\d+|NOV\d+)\b/gi)||[]).filter(x=>!APPROVED.has(x.toUpperCase())).length;
     if(!before)return block;
     state.blocks++;state.tokens+=before;
-    return replaceUnapprovedCouponTokens(block,market==='AE'?'OPS58':'OPS32');
+    return replaceUnapprovedCouponTokens(block,market==='AE'?'NOV188':'NOV170');
   });
   return {html:out,state};
 }
@@ -43,7 +43,7 @@ function normalizeCouponUi(html){
   const state={duplicatesRemoved:0,countLabelsFixed:0};
   const seen=new Set();
   let out=String(html).replace(/<article\b[^>]*class=(["'])[^"']*\bcoupon\b[^"']*\1[^>]*>[\s\S]*?<\/article>/gi,block=>{
-    const code=(block.match(/data-(?:copy|code)=["']([A-Z0-9_-]{3,20})["']/i)?.[1]||block.match(/\b(OPS\d{2})\b/i)?.[1]||'').toUpperCase();
+    const code=(block.match(/data-(?:copy|code)=["']([A-Z0-9_-]{3,20})["']/i)?.[1]||block.match(/(?:OPS|NOV)\\d+/i)?.[1]||'').toUpperCase();
     if(!APPROVED.has(code))return block;
     const market=marketForBlock(block);
     const key=market+':'+code;
@@ -51,11 +51,11 @@ function normalizeCouponUi(html){
     seen.add(key);return block;
   });
   const replacements=[
-    [/العشرة للسعودية والعشرة للإمارات/g,'الثمانية للسعودية والثمانية للإمارات'],
-    [/الأكواد العشرة/g,'الأكواد الثمانية'],
-    [/العشرة أكواد/g,'الثمانية أكواد'],
-    [/10 أكواد حالية/g,'8 أكواد حالية'],
-    [/10 أكواد/g,'8 أكواد'],
+    [/العشرة للسعودية والعشرة للإمارات/g,'العشرة للسعودية والإمارات'],
+    [/الأكواد العشرة/g,'الأكواد العشرة'],
+    [/العشرة أكواد/g,'العشرة أكواد'],
+    [/10 أكواد حالية/g,'10 أكواد حالية'],
+    [/10 أكواد/g,'10 أكواد'],
     [/20 بطاقة كوبون/g,'16 بطاقة كوبون'],
     [/20 بطاقة/g,'16 بطاقة']
   ];
@@ -124,4 +124,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:6,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:7,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
