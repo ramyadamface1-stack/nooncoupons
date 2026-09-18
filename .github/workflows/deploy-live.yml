@@ -121,6 +121,19 @@ jobs:
           grep -Fq 'seoSettingsR2:true' brand-runtime.js
           grep -Fq 'seoSettingsCacheSeconds:300' brand-runtime.js
           grep -Fq 'id="seoSettingsPanel"' admin-page.js
+          grep -Fq 'seoAnalyticsEnabled' admin-page.js
+          grep -Fq 'exportSeoSettings' admin-page.js
+          grep -Fq 'importSeoSettingsFile' admin-page.js
+          grep -Fq 'conversionEventsPanel' admin-page.js
+          grep -Fq '/api/admin/conversion-events' admin-runtime.js
+          grep -Fq 'analyticsEnabled:false' admin-runtime.js
+          grep -Fq 'respectDoNotTrack:true' admin-runtime.js
+          grep -Fq 'ga4MeasurementId' admin-runtime.js
+          grep -Fq 'gtmContainerId' admin-runtime.js
+          grep -Fq 'metaPixelId' admin-runtime.js
+          grep -Fq 'clarityProjectId' admin-runtime.js
+          grep -Fq 'hotjarSiteId' admin-runtime.js
+          grep -Fq 'tiktokPixelId' admin-runtime.js
           grep -Fq 'الكلمات</th>' admin-page.js
           grep -Fq 'تاريخ الإنشاء</th>' admin-page.js
           grep -Fq 'GPTBot' final-platform.js
@@ -128,6 +141,14 @@ jobs:
           grep -Fq 'Google-Extended' final-platform.js
           grep -Fq 'CCBot' final-platform.js
           grep -Fq 'imageLazyLoading:true' brand-runtime.js
+          grep -Fq 'analyticsSettingsV2:true' brand-runtime.js
+          grep -Fq 'analyticsDisabledByDefault:true' brand-runtime.js
+          grep -Fq 'respectDoNotTrack:true' brand-runtime.js
+          grep -Fq "id=\"seo-analytics-v2\"" brand-runtime.js
+          grep -Fq "id=\"conversion-events-v1\"" brand-runtime.js
+          grep -Fq "u.pathname==='/api/track-event'" brand-runtime.js
+          grep -Fq 'privacySafeConversionEvents:true' brand-runtime.js
+          grep -Fq 'eventPiiStored:false' brand-runtime.js
           grep -Fq 'lcpImagePreload:true' brand-runtime.js
           grep -Fq 'serviceWorkerStaticCache:true' brand-runtime.js
           node --check svg-engine.js
@@ -140,6 +161,14 @@ jobs:
           grep -Fq "v:'9'" visual-platform.js
           grep -Fq 'svg?v=9' bulk-content-engine-base.js
           grep -Fq 'article-responsive-v9' auto-platform.js
+          grep -Fq 'class="coupon-summary"' auto-platform.js
+          grep -Fq 'class="share-bar"' auto-platform.js
+          grep -Fq 'data-share="whatsapp"' auto-platform.js
+          grep -Fq 'data-share="x"' auto-platform.js
+          grep -Fq 'data-share="facebook"' auto-platform.js
+          grep -Fq 'https://help.noon.com/portal/ar/home' auto-platform.js
+          grep -Fq "https://www.noon.com/saudi-ar/" auto-platform.js
+          grep -Fq "https://www.noon.com/uae-ar/" auto-platform.js
           grep -Fq "x-article-visual-layout':'responsive-v9'" auto-platform.js
           grep -Fq 'object-fit:contain!important' auto-platform.js
           if grep -Fq '.svg?v=8&coupon=' auto-platform.js; then echo 'STALE_AUTO_PLATFORM_SVG_V8=1'; exit 1; fi
@@ -151,6 +180,11 @@ jobs:
           grep -Fq 'id="seoDropsPanel"' admin-page.js
           grep -Fq 'Google Search Console' admin-page.js
           grep -Fq 'uniqueArticleVisits:true' platform.js
+          grep -Fq 'conversionEvents:true' platform.js
+          grep -Fq 'eventPiiStored:false' platform.js
+          grep -Fq "u.pathname==='/event'" platform.js
+          grep -Fq "u.pathname==='/events-summary'" platform.js
+          grep -Fq "stored:'aggregate-only'" platform.js
           grep -Fq 'rawIpStored:false' platform.js
           grep -Fq "visit-pepper-v1" platform.js
           grep -Fq "visit-seen:" platform.js
@@ -369,10 +403,17 @@ jobs:
           x=json.load(open('/tmp/control-health.json'))
           b=x.get('body') or {}
           assert x.get('ok') is True
-          assert int(b.get('version') or 0)>=4
+          assert int(b.get('version') or 0)>=5
           assert b.get('uniqueArticleVisits') is True
           assert b.get('rawIpStored') is False
+          assert b.get('conversionEvents') is True
+          assert b.get('eventPiiStored') is False
           PY
+
+          echo "VERIFY_ROUTE=conversion-event-endpoint"
+          code=$(curl -sS -A 'Mozilla/5.0 nooncoupons-live-audit' -o /tmp/event-invalid.json -D /tmp/event-invalid.h -w '%{http_code}' -H 'Content-Type: application/json' --data '{"type":"invalid","path":"/"}' "$RUNTIME_ORIGIN/api/track-event?deploy=$GITHUB_SHA" || true)
+          [ "$code" = "400" ]
+          grep -Fqi 'cache-control: no-store' /tmp/event-invalid.h
 
           echo "VERIFY_ROUTE=service-worker"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/sw.js?deploy=$GITHUB_SHA" -D /tmp/sw.h -o /tmp/sw.js
@@ -400,6 +441,11 @@ jobs:
           grep -Fq '"@type":"ItemList"' /tmp/golden.html
           grep -Fq '/coupon/noon-discount-50' /tmp/golden.html
           grep -Fq '/guide/noon-yellow-friday' /tmp/golden.html
+
+          echo "VERIFY_ROUTE=admin-conversion-events-private"
+          code=$(curl -sS -o /tmp/admin-events.json -D /tmp/admin-events.h -w '%{http_code}' "$RUNTIME_ORIGIN/api/admin/conversion-events?deploy=$GITHUB_SHA" || true)
+          [ "$code" = "401" ]
+          grep -Fqi 'x-robots-tag: noindex, nofollow, noarchive' /tmp/admin-events.h
 
           echo "VERIFY_ROUTE=admin-seo-settings"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/admin/seo-settings?deploy=$GITHUB_SHA" -D /tmp/adminseo.h -o /tmp/adminseo.html
@@ -495,6 +541,18 @@ jobs:
           grep -Fq 'fetchpriority="high"' /tmp/a.html
           grep -Fq 'rel="preload" as="image"' /tmp/a.html
           grep -Fq "serviceWorker.register('/sw.js'" /tmp/a.html
+          grep -Fq 'class="coupon-summary"' /tmp/a.html
+          grep -Fq 'تحقق داخل السلة' /tmp/a.html
+          grep -Fq 'class="share-bar"' /tmp/a.html
+          grep -Fq 'data-share="whatsapp"' /tmp/a.html
+          grep -Fq 'data-share="x"' /tmp/a.html
+          grep -Fq 'data-share="facebook"' /tmp/a.html
+          grep -Fq 'https://help.noon.com/portal/ar/home' /tmp/a.html
+          grep -Eq 'https://www\.noon\.com/(saudi-ar|uae-ar)/' /tmp/a.html
+          grep -Fq 'id="conversion-events-v1"' /tmp/a.html
+          grep -Fqi 'x-conversion-events: aggregate-v1' /tmp/h
+          grep -Fqi 'x-analytics-settings: disabled-v2' /tmp/h
+          if grep -Fq 'id="seo-analytics-v2"' /tmp/a.html; then echo 'ANALYTICS_MUST_BE_DISABLED_BY_DEFAULT'; exit 1; fi
           python - <<'PY'
           import re
           t=open('/tmp/a.html',encoding='utf-8').read()
@@ -971,6 +1029,15 @@ jobs:
                   'blogEditorialEntityLinkVerified': True,
                   'indexNowEnglishHubPayloadVerified': True,
                   'researchJsonDiscoveryVerified': True,
+                  'seoAnalyticsSettingsV2Verified': True,
+                  'analyticsDisabledByDefaultVerified': True,
+                  'respectDoNotTrackVerified': True,
+                  'seoSettingsJsonPortabilityVerified': True,
+                  'privacySafeConversionTrackingVerified': True,
+                  'conversionAdminPrivateVerified': True,
+                  'articleCouponSummaryAeoVerified': True,
+                  'articleOfficialNoonSourcesVerified': True,
+                  'articleShareIntentTrackingVerified': True,
                   'gscSeoDropsSnapshotVerified': True,
                   'gscNoDataTruthfulnessVerified': True,
                   'gscAdminEndpointPrivateVerified': True,
@@ -1101,6 +1168,15 @@ jobs:
           assert proof['checks']['blogEditorialEntityLinkVerified'] is True
           assert proof['checks']['indexNowEnglishHubPayloadVerified'] is True
           assert proof['checks']['researchJsonDiscoveryVerified'] is True
+          assert proof['checks']['seoAnalyticsSettingsV2Verified'] is True
+          assert proof['checks']['analyticsDisabledByDefaultVerified'] is True
+          assert proof['checks']['respectDoNotTrackVerified'] is True
+          assert proof['checks']['seoSettingsJsonPortabilityVerified'] is True
+          assert proof['checks']['privacySafeConversionTrackingVerified'] is True
+          assert proof['checks']['conversionAdminPrivateVerified'] is True
+          assert proof['checks']['articleCouponSummaryAeoVerified'] is True
+          assert proof['checks']['articleOfficialNoonSourcesVerified'] is True
+          assert proof['checks']['articleShareIntentTrackingVerified'] is True
           assert proof['checks']['gscSeoDropsSnapshotVerified'] is True
           assert proof['checks']['gscNoDataTruthfulnessVerified'] is True
           assert proof['checks']['gscAdminEndpointPrivateVerified'] is True
