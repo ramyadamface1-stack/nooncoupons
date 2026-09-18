@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "6a242e8766253b8bec129d1a0bbdf5d8afef6fda",
-  "verifiedAt": "2026-09-18T13:11:49.838783+00:00",
+  "sourceSha": "770d5d6dd33111ae4136b1172df0cc0a05005291",
+  "verifiedAt": "2026-09-18T13:15:50.514210+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -27,25 +27,28 @@
     "englishArticleVisibleBylineVerified": true,
     "editorialTeamProfileVerified": true,
     "englishRssVerified": true,
-    "researchDatasetVerified": true
+    "researchDatasetVerified": true,
+    "researchStableFreshnessVerified": true,
+    "blogCollectionSchemaVerified": true,
+    "dynamicRouterCouponCountsVerified": true
   },
   "content": {
     "r2HtmlObjects": 49726,
-    "trackedPublished": 14372,
-    "arabic": 14346,
-    "english": 26,
-    "lastSlug": "كود-خصم-نون-السعودية-على-acer-predator-سبتمبر-2026-مراجعة-الملحقات",
+    "trackedPublished": 14421,
+    "arabic": 14394,
+    "english": 27,
+    "lastSlug": "شراء-الأجهزة-المنزلية-من-نون-الإمارات-بميزانية-محددة-شروط-الطلب-عائلة",
     "lastQuality": 100,
-    "lastWordCount": 1736
+    "lastWordCount": 1742
   },
   "englishControlled": {
     "target": 200,
-    "published": 26,
-    "remaining": 174,
-    "publishedToday": 6,
+    "published": 27,
+    "remaining": 173,
+    "publishedToday": 7,
     "dailyTarget": 24,
     "minIntervalMinutes": 60,
-    "nextEligibleAt": "2026-09-18T13:12:59.386Z"
+    "nextEligibleAt": "2026-09-18T14:13:44.461Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -57,6 +60,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T13:10:45.022Z"
+    "completedAt": "2026-09-18T13:15:06.244Z"
   }
 }
