@@ -46,12 +46,12 @@ function featuredSrc(rec){return couponSrc(rec,1)}
 function couponVisual(rec,v){
   const country=countryAr(rec.country),brand=noonUrl(),src=couponSrc(rec,v),code=validCoupon(rec.coupon,validCountry(rec.country)),keyword=keywordOf(rec);
   return `<figure class="coupon-visual coupon-visual-${v}">
-    <a class="coupon-image-link" href="${brand}" target="_blank" rel="noopener external sponsored" aria-label="فتح موقع نون الرسمي وتجربة ${esc(keyword)}">
+    <a class="coupon-image-link" href="${brand}" target="_blank" rel="noopener external sponsored" data-shop-click="${code}" data-market="${validCountry(rec.country)}" data-placement="article_visual_image_${v}" aria-label="فتح موقع نون الرسمي وتجربة ${esc(keyword)}">
       <img src="${src}" alt="${esc(keyword)} - كوبون نون ${country} ${code}" title="${esc(keyword)}" width="1200" height="760" loading="lazy" decoding="async">
     </a>
     <div class="coupon-live-actions" role="group" aria-label="إجراءات ${esc(keyword)}">
-      <button type="button" class="coupon-copy-btn" data-copy-code="${code}">نسخ الكود</button>
-      <a class="coupon-try-btn" href="${brand}" target="_blank" rel="noopener external sponsored">فتح نون</a>
+      <button type="button" class="coupon-copy-btn" data-copy-code="${code}" data-market="${validCountry(rec.country)}" data-placement="article_visual_${v}">نسخ الكود</button>
+      <a class="coupon-try-btn" href="${brand}" target="_blank" rel="noopener external sponsored" data-shop-click="${code}" data-market="${validCountry(rec.country)}" data-placement="article_visual_${v}">فتح نون</a>
     </div>
     <figcaption>${esc(keyword)} · كوبون ${code} · نون ${country}</figcaption>
   </figure>`;
@@ -60,7 +60,7 @@ function couponVisual(rec,v){
 function featuredBlock(rec){
   const country=countryAr(rec.country),code=validCoupon(rec.coupon,validCountry(rec.country)),src=featuredSrc(rec),keyword=keywordOf(rec);
   return `<figure class="article-featured">
-    <a href="${noonUrl()}" target="_blank" rel="noopener external sponsored" aria-label="فتح نون الرسمي - ${esc(keyword)}">
+    <a href="${noonUrl()}" target="_blank" rel="noopener external sponsored" data-shop-click="${code}" data-market="${validCountry(rec.country)}" data-placement="article_featured_image" aria-label="فتح نون الرسمي - ${esc(keyword)}">
       <img src="${src}" alt="${esc(keyword)} - كوبون نون ${country} ${code}" title="${esc(keyword)}" width="1200" height="760" loading="eager" fetchpriority="high" decoding="async">
     </a>
     <figcaption>${esc(keyword)} · ${code} · نون ${country}</figcaption>
@@ -97,7 +97,7 @@ function css(){return `<style id="visual-v4">
 @media(max-width:640px){.blog-grid{grid-template-columns:1fr}.coupon-live-actions{gap:8px}.coupon-copy-btn,.coupon-try-btn{min-width:0;flex:1;padding:12px 8px;font-size:14px}.a{font-size:16px}.article-featured,.coupon-visual{border-radius:16px}}
 </style>`}
 
-function js(){return `<script>document.addEventListener('click',async e=>{const b=e.target.closest('[data-copy-code]');if(!b)return;const code=b.dataset.copyCode||'';try{await navigator.clipboard.writeText(code);const old=b.textContent;b.classList.add('copied');b.textContent='تم النسخ ✓';setTimeout(()=>{b.textContent=old;b.classList.remove('copied')},1600)}catch{b.textContent=code}});</script>`}
+function js(){return `<script>(()=>{const fire=(name,data)=>{try{if(typeof window.gtag==='function')window.gtag('event',name,data);else{window.dataLayer=window.dataLayer||[];window.dataLayer.push({event:name,...data})}}catch{}};document.addEventListener('click',async e=>{const shop=e.target.closest('[data-shop-click]');if(shop)fire('shop_click',{coupon_code:shop.dataset.shopClick||'',market:shop.dataset.market||'UNSPECIFIED',page_path:location.pathname,placement:shop.dataset.placement||'article_visual',destination:shop.href||''});const b=e.target.closest('[data-copy-code]');if(!b)return;const code=b.dataset.copyCode||'',market=b.dataset.market||'UNSPECIFIED',placement=b.dataset.placement||'article_visual';let ok=false;try{await navigator.clipboard.writeText(code);ok=true;const old=b.textContent;b.classList.add('copied');b.textContent='تم النسخ ✓';setTimeout(()=>{b.textContent=old;b.classList.remove('copied')},1600)}catch{b.textContent=code}fire('copy_code',{coupon_code:code,market,page_path:location.pathname,placement,copy_success:ok})})})();</script>`}
 
 function imageSchema(rec,origin){
   const keyword=keywordOf(rec),featured=origin+featuredSrc(rec);
