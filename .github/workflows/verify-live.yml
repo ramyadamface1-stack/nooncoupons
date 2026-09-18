@@ -51,6 +51,9 @@ jobs:
           echo CHECK_LANDING_METADATA; grep -Fq 'landingPath' generator-core-v2.js
           echo CHECK_LANDING_WORD_FLOOR; grep -Fq 'minWords:5000' landing-content-v3.js
           echo CHECK_INDEXNOW_INTEGRATION; grep -Fq 'submitIndexNow' bulk-generator.js
+          echo CHECK_PREFLIGHT_DEDUPE; grep -Fq 'preflightGlobalGate' bulk-generator.js
+          grep -Fq 'preflightGate:true' quality-index.js
+          grep -Fq 'fullGlobalGatePreserved:true' bulk-generator.js
           echo SOURCE_INVARIANTS_PASS
 
       - name: Verify live commerce and generator runtime
