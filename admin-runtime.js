@@ -102,7 +102,7 @@ async function r2putJson(env,key,value){
   throw last||new Error('r2_status_put_failed');
 }
 function defaultGeneratorConfig(env){
-  return {...GENERATOR_DEFAULTS,enabled:true,model:env.WORKERS_AI_MODEL||GENERATOR_DEFAULTS.model,provider:'workers-ai',externalProviders:false,targetWords:1500,minWords:1000,qualityThreshold:95,backend:'r2-v1',updatedAt:now()};
+  return {...GENERATOR_DEFAULTS,enabled:true,model:env.WORKERS_AI_MODEL||GENERATOR_DEFAULTS.model,provider:'workers-ai',externalProviders:false,targetWords:1700,minWords:1500,qualityThreshold:95,backend:'r2-v1',updatedAt:now()};
 }
 async function bootstrapGeneratorStatus(env){
   const day=now().slice(0,10),days=await r2json(env,'bulk/days.json',{days:[]}),latest=await r2json(env,'bulk/latest.json',{articles:[]});
@@ -161,7 +161,7 @@ export class GeneratorControl{
     if(c.provider!=='workers-ai'){c.provider='workers-ai';dirty=true}
     if(c.externalProviders!==false){c.externalProviders=false;dirty=true}
     if(!Number.isFinite(Number(c.targetWords))){c.targetWords=GENERATOR_DEFAULTS.targetWords;dirty=true}
-    if(!Number.isFinite(Number(c.minWords))){c.minWords=GENERATOR_DEFAULTS.minWords;dirty=true}
+    if(!Number.isFinite(Number(c.minWords))||Number(c.minWords)<1500){c.minWords=Math.max(1500,Number(GENERATOR_DEFAULTS.minWords||1500));dirty=true}
     if(!Number.isFinite(Number(c.qualityThreshold))){c.qualityThreshold=GENERATOR_DEFAULTS.qualityThreshold;dirty=true}
     if(dirty)await this.ctx.storage.put('config',c);
     return c;
@@ -174,7 +174,7 @@ export class GeneratorControl{
       const b=await req.json(),c=await this.config(),next={...c};
       if('enabled' in b)next.enabled=true;
       if('targetWords' in b)next.targetWords=Math.max(1200,Math.min(1800,Number(b.targetWords)||1500));
-      if('minWords' in b)next.minWords=Math.max(1000,Math.min(1400,Number(b.minWords)||1000));
+      if('minWords' in b)next.minWords=Math.max(1500,Math.min(1800,Number(b.minWords)||1500));
       if('qualityThreshold' in b)next.qualityThreshold=Math.max(95,Math.min(100,Number(b.qualityThreshold)||95));
       next.model=this.env.WORKERS_AI_MODEL||GENERATOR_DEFAULTS.model;next.provider='workers-ai';next.externalProviders=false;next.updatedAt=now();
       await this.ctx.storage.put('config',next);return json(next);
