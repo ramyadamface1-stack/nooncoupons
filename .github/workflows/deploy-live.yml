@@ -136,6 +136,11 @@ jobs:
           grep -Fq "cf-connecting-ip" brand-runtime.js
           grep -Fq "uniqueVisits" admin-page.js
           grep -Fq "visitMetric:'unique-ip-per-article'" admin-runtime.js
+          grep -Fq '"MIN_ARTICLE_WORDS": "1500"' wrangler.jsonc
+          grep -Fq 'minArticleWords:1500' bulk-generator.js
+          grep -Fq 'Math.max(1500,Number(opts.minWords||1500))' quality-audit.js
+          grep -Fq 'minWords:1500' generator-core-v2.js
+          grep -Fq 'Math.max(1500,Number(existing.minWords||0))' admin-runtime.js
           grep -Fq "u.pathname==='/sw.js'" brand-runtime.js
           grep -Fq "startsWith('/assets/coupon-svg/')" brand-runtime.js
           grep -Fq "startsWith('/assets/featured/')" brand-runtime.js
@@ -269,7 +274,7 @@ jobs:
           for i in $(seq 1 8); do
             curl -fsS --connect-timeout 10 --max-time 30 "$RUNTIME_ORIGIN/api/generator-health?deploy=$GITHUB_SHA-$i" -o /tmp/g.json || true
             curl -fsS --connect-timeout 10 --max-time 60 "$RUNTIME_ORIGIN/api/content-stats?deploy=$GITHUB_SHA-$i" -o /tmp/s.json || true
-            if python -c "import json; g=json.load(open('/tmp/g.json')); s=json.load(open('/tmp/s.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; rc=s.get('r2Count',{}); assert int(b.get('dailyTarget') or 0)==32000; assert int(b.get('batchSize') or 0)==16; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert 16<=int(p.get('effectiveBatchSize') or 0)<=64; assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0); assert int(p.get('targetBatchDurationMs') or 0)==52000; assert int(p.get('minCatchupBatchSize') or 0)==32; assert int(p.get('windowHours') or 0)==8; assert p.get('capacityMeetsEightHourGoal') is True or int(p.get('remaining') or 0)==0; assert float(p.get('qualityThresholdFloor') or 0)>=95; assert int(p.get('minArticleWords') or 0)>=1000; assert int(s.get('dailyTargetArabic') or 0)==32000; assert s.get('r2Uploaded') is not None; assert rc.get('snapshotKey')=='_ops/article-count.json'; assert int(rc.get('ttlSeconds') or 0)==300" 2>/dev/null; then
+            if python -c "import json; g=json.load(open('/tmp/g.json')); s=json.load(open('/tmp/s.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; rc=s.get('r2Count',{}); assert int(b.get('dailyTarget') or 0)==32000; assert int(b.get('batchSize') or 0)==16; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert 16<=int(p.get('effectiveBatchSize') or 0)<=64; assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0); assert int(p.get('targetBatchDurationMs') or 0)==52000; assert int(p.get('minCatchupBatchSize') or 0)==32; assert int(p.get('windowHours') or 0)==8; assert p.get('capacityMeetsEightHourGoal') is True or int(p.get('remaining') or 0)==0; assert float(p.get('qualityThresholdFloor') or 0)>=95; assert int(p.get('minArticleWords') or 0)>=1500; assert int(s.get('dailyTargetArabic') or 0)==32000; assert s.get('r2Uploaded') is not None; assert rc.get('snapshotKey')=='_ops/article-count.json'; assert int(rc.get('ttlSeconds') or 0)==300" 2>/dev/null; then
               ready=1
               break
             fi
@@ -734,7 +739,7 @@ jobs:
           assert int(p.get('catchupBatchSize') or 0)==64
           assert int(p.get('windowHours') or 0)==8
           assert float(p.get('qualityThresholdFloor') or 0)>=95
-          assert int(p.get('minArticleWords') or 0)>=1000
+          assert int(p.get('minArticleWords') or 0)>=1500
           if int(p.get('remaining') or 0)>0:
               assert 32<=int(p.get('effectiveBatchSize') or 0)<=64
               assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0)
@@ -849,6 +854,8 @@ jobs:
                   'uniqueArticleVisitsVerified': True,
                   'rawIpNotStoredVerified': True,
                   'botVisitFilteringVerified': True,
+                  'driveMinimum1500WordsVerified': True,
+                  'persistedGeneratorConfigFloor1500Verified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -964,6 +971,8 @@ jobs:
           assert proof['checks']['uniqueArticleVisitsVerified'] is True
           assert proof['checks']['rawIpNotStoredVerified'] is True
           assert proof['checks']['botVisitFilteringVerified'] is True
+          assert proof['checks']['driveMinimum1500WordsVerified'] is True
+          assert proof['checks']['persistedGeneratorConfigFloor1500Verified'] is True
           if remaining>0 and cadence_rate>0:
               assert float(catchup.get('qualityThresholdFloor') or 0)>=95
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
