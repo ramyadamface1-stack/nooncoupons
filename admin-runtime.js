@@ -252,8 +252,15 @@ export async function handleAdminApi(req,env){
   }
   if(p==='/api/admin/articles'){
     const [st,latest]=await Promise.all([readState(env),r2json(env,'bulk/latest.json',{articles:[]})]);
-    const articles=[...(latest.articles||[]),...(st.articles||[])].sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
-    return json({articles:articles.slice(0,800),bulkLatestCount:(latest.articles||[]).length});
+    const articles=[...(latest.articles||[]),...(st.articles||[])].sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,800);
+    const paths=articles.map(x=>String(x.urlPath||((String(x.language||'').toLowerCase()==='en'?'/en/articles/':'/articles/')+x.slug)));
+    let visitCounts={};
+    try{
+      const vr=await ctl(env,'/visits-batch',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({paths})});
+      if(vr.ok)visitCounts=(await vr.json()).counts||{};
+    }catch{}
+    const withVisits=articles.map((x,i)=>({...x,uniqueVisits:Math.max(0,Number(visitCounts[paths[i]]||0))}));
+    return json({articles:withVisits,bulkLatestCount:(latest.articles||[]).length,visitMetric:'unique-ip-per-article',rawIpStored:false});
   }
   if(p==='/api/admin/article'&&req.method==='GET'){
     const slug=u.searchParams.get('slug')||'',st=await readState(env),rec=(st.articles||[]).find(x=>x.slug===slug);
