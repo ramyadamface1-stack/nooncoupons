@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "d7306153a070739c5ab3f1c523ae89b1664bcce8",
-  "verifiedAt": "2026-09-18T13:39:38.809496+00:00",
+  "sourceSha": "86d371254eec111c779fd1ac1a52144786d8a435",
+  "verifiedAt": "2026-09-18T13:44:21.541857+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -36,12 +36,12 @@
   },
   "content": {
     "r2HtmlObjects": 50975,
-    "trackedPublished": 14757,
-    "arabic": 14730,
+    "trackedPublished": 14829,
+    "arabic": 14802,
     "english": 27,
-    "lastSlug": "كود-خصم-نون-الإمارات-على-الديكور-من-التطبيق-الكمية-المناسبة-الخامة",
+    "lastSlug": "هل-كود-نون-يعمل-على-الديكور-في-السعودية-قبل-اختيار-البائع-فحص-الشحن",
     "lastQuality": 100,
-    "lastWordCount": 1718
+    "lastWordCount": 1735
   },
   "englishControlled": {
     "target": 200,
@@ -62,6 +62,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T13:38:55.178Z"
+    "completedAt": "2026-09-18T13:42:59.735Z"
   }
 }
