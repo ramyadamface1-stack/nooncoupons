@@ -2,7 +2,7 @@ export const GSC_SNAPSHOT={
   version:1,
   property:'sc-domain:noondealsnow.com',
   source:'Google Search Console',
-  syncedAt:'2026-09-18T17:59:00Z',
+  syncedAt:'2026-09-18T17:40:00Z',
   requestedRange:{startDate:'2026-08-19',endDate:'2026-09-15'},
   effectiveRange:{startDate:'2026-08-19',endDate:'2026-09-15'},
   comparisonRange:{startDate:'2026-07-22',endDate:'2026-08-18'},
