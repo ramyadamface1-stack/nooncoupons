@@ -32,6 +32,13 @@ jobs:
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
           grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
           node scripts/coupon-code-gate.mjs
+          grep -Fq "const CODES=APPROVED_COUPON_CODES" router.js
+          grep -Fq "const CODES = APPROVED_COUPON_CODES" commerce-pages-v2.js
+          grep -Fq "categoryAlternates" commerce-pages-v2.js
+          grep -Fq "hreflang=\"ar-SA\"" commerce-pages-v2.js
+          grep -Fq "privateNoindex" brand-runtime.js
+          grep -Fq "Disallow: /admin/" brand-runtime.js
+          grep -Fq "Disallow: /api/" brand-runtime.js
           grep -Fq "owner-approved-nov-v1-strict-copy" coupon-registry.js
           grep -Fq '/sitemap-priority.xml' discovery-entry.js
           grep -Fq 'recentArticleLimit:500' discovery-entry.js
