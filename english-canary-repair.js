@@ -215,12 +215,13 @@ async function repairCouponWhitelist(env){
 
 export async function repairEnglishCanaryLegacyMetadata(env){
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing'};
+  const coupons=await repairCouponWhitelist(env);if(!coupons.ok)return {ok:false,coupons};
   const legacy=await ensureLegacyGuideRepair(env);
   if(!legacy.ok)return legacy;
   const quality=await repairEnglishControlledQualityV2(env);
   if(!quality.ok)return {ok:false,legacy,quality};
   const html=await repairEnglishStoredHtmlV1(env);
-  return {ok:html.ok,legacy,quality,html};
+  return {ok:html.ok,coupons,legacy,quality,html};
 }
 
 export async function englishCanaryRepairHealth(env){
