@@ -13,7 +13,7 @@ const now=()=>new Date().toISOString();
 const enc=s=>encodeURIComponent(String(s||'')).slice(0,1800);
 const HIGH_VALUE_SCENARIOS=['وقت العروض','قبل الدفع','للطلب الأول','لحساب حالي','عند رفض الكود'];
 const HIGH_VALUE_SCENARIO_BY_CURSOR=(n,fallback)=>HIGH_VALUE_SCENARIOS[Math.abs(Number(n)||0)%HIGH_VALUE_SCENARIOS.length]||fallback;
-const ENGLISH_INTENT_CADENCE=20,ENGLISH_COMMERCIAL_INTENTS=new Set(['coupon','finalprice','value','cart','timing','smartbuy','eligibility']),MAX_LATEST=300,SHARD_SIZE=100,V2_CURSOR_START=500000,AUTO_BRAKE_AFTER=5,AUTO_BRAKE_MS=10*60*1000;
+const ENGLISH_INTENT_CADENCE=20,ENGLISH_COMMERCIAL_INTENTS=new Set(['coupon','finalprice','value','cart','timing','smartbuy','eligibility']),MAX_LATEST=300,SHARD_SIZE=100,V2_CURSOR_START=500000,AUTO_BRAKE_AFTER=5,AUTO_BRAKE_MS=10*60*1000,MAX_DAILY_TARGET=40000,MAX_BATCH_SIZE=48;
 async function readJson(env,key,fallback){try{const o=await env.CONTENT_FINAL.get(key);return o?await o.json():fallback}catch{return fallback}}
 function dedupeRecent(items){const seen=new Set(),out=[];for(const x of items||[]){if(!x?.slug||seen.has(x.slug))continue;seen.add(x.slug);out.push(x)}return out}
 async function writeCatalogs(env,day,countBefore,records){
@@ -29,7 +29,7 @@ async function writeCatalogs(env,day,countBefore,records){
 export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batchSize=3}={}){
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing',patch:{bulkLastError:'r2_binding_missing',bulkLastRun:now()}};
   const pauseUntil=Date.parse(status.bulkAutoPauseUntil||'');if(Number.isFinite(pauseUntil)&&pauseUntil>Date.now())return {ok:true,skipped:'bulk_auto_brake',records:[],patch:{bulkLastRun:now(),bulkLastError:null,bulkAutoPauseUntil:status.bulkAutoPauseUntil,bulkNoPassStreak:Number(status.bulkNoPassStreak||0)}};
-  const day=now().slice(0,10),countBefore=String(status.bulkDay||'')===day?Math.max(0,Number(status.bulkPublishedToday||0)):0,target=Math.max(0,Math.min(15000,Number(dailyTarget??2000))),batch=Math.max(1,Math.min(48,Number(batchSize||3)));
+  const day=now().slice(0,10),countBefore=String(status.bulkDay||'')===day?Math.max(0,Number(status.bulkPublishedToday||0)):0,target=Math.max(0,Math.min(MAX_DAILY_TARGET,Number(dailyTarget??2000))),batch=Math.max(1,Math.min(MAX_BATCH_SIZE,Number(batchSize||3)));
   if(target===0)return {ok:true,skipped:'bulk_paused',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:0,bulkLastRun:now(),bulkLastError:null,bulkEngine:BULK_ENGINE_INFO.version,bulkKeywordStrategyVersion:KEYWORD_STRATEGY_INFO.version}};
   if(countBefore>=target)return {ok:true,skipped:'daily_target_reached',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:target,bulkLastRun:now(),bulkLastError:null,bulkEngine:BULK_ENGINE_INFO.version,bulkKeywordStrategyVersion:KEYWORD_STRATEGY_INFO.version}};
   let bootstrap=null;if(Number(status.bulkGlobalIndexBootstrapVersion||0)!==GLOBAL_INDEX_INFO.version)bootstrap=await bootstrapGlobalIndex(env);
@@ -57,5 +57,6 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   return {ok:true,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,commerceTaxonomy:COMMERCE_GENERATOR_INFO.version,qualityLayer:'global-quality-v1',bootstrap,indexNow,records,tries,rejectedQuality,qualityRejectReasons,rejectedDuplicate,rejectedGlobal,rejectedCoupon,rejectedLinks,rejectedSchema,rejectedIndexation,freshnessSnapshot,patch};
 }
 
+export const BULK_RUNTIME_LIMITS={maxDailyTarget:MAX_DAILY_TARGET,maxBatchSize:MAX_BATCH_SIZE,qualityThresholdFloor:95,minArticleWords:1000};
 export const buildBulkTopic=(cursor=0)=>applyCommerceTarget(applyKeywordStrategy(buildRawBulkTopic(cursor)),cursor);
 export {buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO,SCHEMA_GATE_INFO,INDEXATION_GATE_INFO,EDITORIAL_TRUST_INFO,INDEXNOW_INFO,KEYWORD_STRATEGY_INFO,COMMERCE_GENERATOR_INFO};
