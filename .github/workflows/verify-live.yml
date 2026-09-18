@@ -57,6 +57,12 @@ jobs:
           grep -Fq 'parallelPostPublication:true' bulk-generator.js
           grep -Fq 'parallelCatalogShards:true' bulk-generator.js
           grep -Fq 'batchStageTelemetry:true' bulk-generator.js
+          grep -Fq 'r2WriteRetry:3' bulk-generator.js
+          grep -Fq 'r2HeadRetry:3' bulk-generator.js
+          grep -Fq 'failClosedOnClusterRead:true' quality-index.js
+          grep -Fq 'r2_status_put_failed' admin-runtime.js
+          grep -Fq 'query-modifier-v4' bulk-content-engine.js
+          grep -Fq 'diversityVersion:4' bulk-content-engine.js
           grep -Fq 'fullGlobalGatePreserved:true' bulk-generator.js
           echo SOURCE_INVARIANTS_PASS
 
