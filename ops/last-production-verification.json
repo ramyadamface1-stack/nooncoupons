@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "8d77c6c68a5bcb8c48e1c35535c419704ae3fed3",
-  "verifiedAt": "2026-09-18T13:05:13.211586+00:00",
+  "sourceSha": "6a242e8766253b8bec129d1a0bbdf5d8afef6fda",
+  "verifiedAt": "2026-09-18T13:11:49.838783+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -23,16 +23,20 @@
     "englishVisibleEEATVerified": true,
     "llmsControlledEnglishDiscoveryVerified": true,
     "dynamicApprovedCouponCountVerified": true,
-    "englishPriorityDiscoveryVerified": true
+    "englishPriorityDiscoveryVerified": true,
+    "englishArticleVisibleBylineVerified": true,
+    "editorialTeamProfileVerified": true,
+    "englishRssVerified": true,
+    "researchDatasetVerified": true
   },
   "content": {
-    "r2HtmlObjects": 49359,
-    "trackedPublished": 14300,
-    "arabic": 14274,
+    "r2HtmlObjects": 49726,
+    "trackedPublished": 14372,
+    "arabic": 14346,
     "english": 26,
-    "lastSlug": "مقارنة-سعر-american-tourister-luggage-على-نون-السعودية-تقييم-المخاطرة",
+    "lastSlug": "كود-خصم-نون-السعودية-على-acer-predator-سبتمبر-2026-مراجعة-الملحقات",
     "lastQuality": 100,
-    "lastWordCount": 1741
+    "lastWordCount": 1736
   },
   "englishControlled": {
     "target": 200,
@@ -53,6 +57,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T13:04:34.521Z"
+    "completedAt": "2026-09-18T13:10:45.022Z"
   }
 }
