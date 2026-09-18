@@ -176,7 +176,7 @@ export class ControlPlane{
   async fetch(req){
     try{
     const u=new URL(req.url);
-    if(u.pathname==='/ping')return json({ok:true,class:'ControlPlane',version:4,uniqueArticleVisits:true,rawIpStored:false});
+    if(u.pathname==='/ping')return json({ok:true,class:'ControlPlane',version:5,uniqueArticleVisits:true,rawIpStored:false,conversionEvents:true,eventPiiStored:false});
     if(u.pathname==='/state')return json(await this.get());
     if(u.pathname==='/visit'&&req.method==='POST'){
       const b=await req.json(),path=String(b?.path||'').slice(0,500),ip=String(b?.ip||'').slice(0,100);
@@ -196,6 +196,28 @@ export class ControlPlane{
       const keys=pairs.map(x=>x[1]),stored=keys.length?await this.ctx.storage.get(keys):new Map(),counts={};
       for(const [path,key] of pairs){const row=stored instanceof Map?stored.get(key):null;counts[path]=Math.max(0,Number(row?.count||0))}
       return json({ok:true,privacy:'sha256-with-private-do-pepper',rawIpStored:false,counts});
+    }
+    if(u.pathname==='/event'&&req.method==='POST'){
+      const b=await req.json(),type=String(b?.type||''),path=String(b?.path||'/').slice(0,500),label=String(b?.label||'').replace(/[<>]/g,'').slice(0,120);
+      const allowed=new Set(['copy_code','open_noon','share_whatsapp','share_x','share_facebook','web_share']);
+      if(!allowed.has(type)||!path.startsWith('/'))return json({ok:false,error:'invalid_event'},400);
+      const key='conversion-events-v1',current=await this.ctx.storage.get(key)||{version:1,totals:{},paths:{},updatedAt:null};
+      current.totals[type]=Math.max(0,Number(current.totals[type]||0))+1;
+      const p=current.paths[path]||{path,total:0,events:{},lastAt:null};
+      p.total=Math.max(0,Number(p.total||0))+1;p.events[type]=Math.max(0,Number(p.events[type]||0))+1;p.lastAt=now();if(label)p.lastLabel=label;
+      current.paths[path]=p;current.updatedAt=now();
+      const entries=Object.entries(current.paths);
+      if(entries.length>250){
+        entries.sort((a,b)=>Number(b[1]?.total||0)-Number(a[1]?.total||0)||String(b[1]?.lastAt||'').localeCompare(String(a[1]?.lastAt||'')));
+        current.paths=Object.fromEntries(entries.slice(0,250));
+      }
+      await this.ctx.storage.put(key,current);
+      return json({ok:true,stored:'aggregate-only',piiStored:false});
+    }
+    if(u.pathname==='/events-summary'&&req.method==='GET'){
+      const current=await this.ctx.storage.get('conversion-events-v1')||{version:1,totals:{},paths:{},updatedAt:null};
+      const topPaths=Object.values(current.paths||{}).sort((a,b)=>Number(b?.total||0)-Number(a?.total||0)).slice(0,50);
+      return json({ok:true,privacy:'aggregate-events-only',piiStored:false,totals:current.totals||{},topPaths,updatedAt:current.updatedAt||null});
     }
     if(u.pathname==='/article'&&req.method==='POST'){
       const rec=await req.json(),s=await this.get(),i=s.articles.findIndex(a=>a.slug===rec.slug);
