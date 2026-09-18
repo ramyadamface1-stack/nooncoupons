@@ -128,9 +128,9 @@ async function assetResponse(req,env,ctx){
     if(!rec)rec={slug,coupon:validCoupon(u.searchParams.get('coupon'),queryCountry),country:queryCountry,title:slug,primaryKeyword:String(slug).replace(/[-_]+/g,' '),status:'published'};
     try{
       const svg=couponSvg({coupon:validCoupon(rec.coupon,validCountry(rec.country)),country:validCountry(rec.country),variant:v,brand:'noon',title:keywordOf(rec)});
-      return new Response(svg,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=31536000,immutable','x-content-type-options':'nosniff','x-image-source':'r2-or-safe-v8'}});
+      return new Response(svg,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=31536000,immutable','x-content-type-options':'nosniff','x-image-source':'r2-or-safe-v9','x-svg-layout':'responsive-v9'}});
     }catch{
-      return new Response(safeFallbackSvg({slug,coupon:rec.coupon,country:rec.country}),{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=3600','x-content-type-options':'nosniff','x-image-source':'fallback-v8'}});
+      return new Response(safeFallbackSvg({slug,coupon:rec.coupon,country:rec.country}),{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=3600','x-content-type-options':'nosniff','x-image-source':'fallback-v9','x-svg-layout':'responsive-v9'}});
     }
   }
   m=u.pathname.match(/^\/assets\/featured\/([^/]+)\.svg$/);
