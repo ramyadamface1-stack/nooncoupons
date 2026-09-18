@@ -88,6 +88,11 @@ jobs:
           grep -Fq 'intentKeyVersion:2' quality-index.js
           grep -Fq 'preflightGate:true' quality-index.js
           grep -Fq 'preflightGlobalGate' bulk-generator.js
+          grep -Fq 'twoStagePreflight:true' bulk-generator.js
+          grep -Fq 'reusesCandidatePool:true' bulk-generator.js
+          grep -Fq 'parallelPostPublication:true' bulk-generator.js
+          grep -Fq 'parallelCatalogShards:true' bulk-generator.js
+          grep -Fq 'batchStageTelemetry:true' bulk-generator.js
           grep -Fq 'fullGlobalGatePreserved:true' bulk-generator.js
           grep -Fq 'bulkRejectedPreflightGlobal' bulk-generator.js
           grep -Fq "queryModifier:topic.queryModifier||''" bulk-generator.js
@@ -693,6 +698,9 @@ jobs:
                   'preflightDedupeVerified': True,
                   'fullGlobalGateAfterPreflightVerified': True,
                   'observedCatchupPerformanceRecorded': True,
+                  'twoStagePreflightVerified': True,
+                  'parallelPostPublicationVerified': True,
+                  'batchStageTelemetryVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -713,6 +721,7 @@ jobs:
                   'lastBatchTries': bulk.get('lastBatchTries'),
                   'lastBatchDurationMs': bulk.get('lastBatchDurationMs'),
                   'lastBatchYieldPct': bulk.get('lastBatchYieldPct'),
+                  'lastBatchStageMs': bulk.get('lastBatchStageMs'),
                   'executionRatePerMinute': catchup.get('lastBatchExecutionRate'),
                   'cronCadenceMinutes': catchup.get('lastBatchCronCadenceMinutes'),
                   'observedRatePerMinute': catchup.get('lastBatchCadenceRate'),
@@ -721,6 +730,8 @@ jobs:
                   'qualityThresholdFloor': catchup.get('qualityThresholdFloor'),
                   'minArticleWords': catchup.get('minArticleWords'),
                   'preflightRejectedTotal': bulk.get('rejectedPreflightGlobal'),
+                  'preflightRecentRejectedTotal': bulk.get('rejectedPreflightRecent'),
+                  'preflightClusterRejectedTotal': bulk.get('rejectedPreflightCluster'),
                   'lastPreflightRejectReasons': bulk.get('lastPreflightGlobalRejectReasons') or {},
               },
               'englishControlled': {
@@ -770,6 +781,9 @@ jobs:
           assert proof['checks']['preflightDedupeVerified'] is True
           assert proof['checks']['fullGlobalGateAfterPreflightVerified'] is True
           assert proof['checks']['observedCatchupPerformanceRecorded'] is True
+          assert proof['checks']['twoStagePreflightVerified'] is True
+          assert proof['checks']['parallelPostPublicationVerified'] is True
+          assert proof['checks']['batchStageTelemetryVerified'] is True
           if remaining>0 and cadence_rate>0:
               assert float(catchup.get('qualityThresholdFloor') or 0)>=95
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
