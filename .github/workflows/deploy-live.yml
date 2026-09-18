@@ -98,6 +98,9 @@ jobs:
           grep -Fq 'batchStageTelemetry:true' bulk-generator.js
           grep -Fq 'candidateTimeBudget:true' bulk-generator.js
           grep -Fq 'defaultCandidateBudgetMs:38000' bulk-generator.js
+          grep -Fq 'semanticPreAudit:true' bulk-generator.js
+          grep -Fq 'cooperativeYieldEveryTries:8' bulk-generator.js
+          grep -Fq 'preAuditSemanticGate' quality-audit.js
           grep -Fq 'r2WriteRetry:3' bulk-generator.js
           grep -Fq 'r2HeadRetry:3' bulk-generator.js
           grep -Fq 'failClosedOnClusterRead:true' quality-index.js
@@ -726,6 +729,8 @@ jobs:
                   'arabicDiversityV4Verified': True,
                   'adaptiveCronBatchVerified': True,
                   'candidateRuntimeBudgetVerified': True,
+                  'semanticPreAuditVerified': True,
+                  'cooperativeYieldVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -761,6 +766,7 @@ jobs:
                   'estimatedHoursAtObservedRate': None if eta_hours is None else round(eta_hours,2),
                   'qualityThresholdFloor': catchup.get('qualityThresholdFloor'),
                   'minArticleWords': catchup.get('minArticleWords'),
+                  'semanticPreAuditRejectedTotal': bulk.get('rejectedPreAuditSemantic'),
                   'preflightRejectedTotal': bulk.get('rejectedPreflightGlobal'),
                   'preflightRecentRejectedTotal': bulk.get('rejectedPreflightRecent'),
                   'preflightClusterRejectedTotal': bulk.get('rejectedPreflightCluster'),
@@ -821,6 +827,8 @@ jobs:
           assert proof['checks']['arabicDiversityV4Verified'] is True
           assert proof['checks']['adaptiveCronBatchVerified'] is True
           assert proof['checks']['candidateRuntimeBudgetVerified'] is True
+          assert proof['checks']['semanticPreAuditVerified'] is True
+          assert proof['checks']['cooperativeYieldVerified'] is True
           if remaining>0 and cadence_rate>0:
               assert float(catchup.get('qualityThresholdFloor') or 0)>=95
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
