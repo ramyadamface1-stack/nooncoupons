@@ -14,12 +14,63 @@ async function gctl(env,path,init){const id=env.GENERATOR_CONTROL.idFromName('pr
 async function ctl(env,path,init){const id=env.CONTROL.idFromName('primary');return env.CONTROL.get(id).fetch('https://control.internal'+path,init)}
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
 
-export async function getGeneratorConfig(env){return (await gctl(env,'/config')).json()}
-export async function getGeneratorStatus(env){return (await gctl(env,'/status')).json()}
-export async function updateGeneratorStatus(env,patch){return (await gctl(env,'/status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(patch)})).json()}
-export async function generatorLock(env,runId){return gctl(env,'/lock',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId})})}
-export async function generatorUnlock(env,runId){return gctl(env,'/unlock',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId})})}
-export async function bulkTick(env){const r=await gctl(env,'/bulk-tick',{method:'POST'});return r.json()}
+const R2_GENERATOR_CONFIG_KEY='_ops/generator-config.json';
+const R2_GENERATOR_STATUS_KEY='_ops/generator-status.json';
+const R2_GENERATOR_LOCK_KEY='_ops/generator-lock.json';
+
+async function r2putJson(env,key,value){
+  if(!env.CONTENT_FINAL)throw new Error('r2_binding_missing');
+  await env.CONTENT_FINAL.put(key,JSON.stringify(value),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+  return value;
+}
+function defaultGeneratorConfig(env){
+  return {...GENERATOR_DEFAULTS,enabled:true,model:env.WORKERS_AI_MODEL||GENERATOR_DEFAULTS.model,provider:'workers-ai',externalProviders:false,targetWords:1500,minWords:1000,qualityThreshold:95,backend:'r2-v1',updatedAt:now()};
+}
+async function bootstrapGeneratorStatus(env){
+  const day=now().slice(0,10),days=await r2json(env,'bulk/days.json',{days:[]}),latest=await r2json(env,'bulk/latest.json',{articles:[]});
+  const rows=Array.isArray(days?.days)?days.days:[],todayRow=rows.find(x=>x?.day===day),total=rows.reduce((s,x)=>s+Math.max(0,Number(x?.count||0)),0);
+  const topicMax=(latest?.articles||[]).reduce((m,x)=>Math.max(m,Number(x?.topicIndex||0)),0);
+  return {attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkDay:day,bulkPublishedTotal:total,bulkPublishedToday:Math.max(0,Number(todayRow?.count||0)),bulkCursorV2:Math.max(500000,topicMax+1),bulkRunningAt:null,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false,legacyUpgradePausedForConsolidation:true,backend:'r2-v1',updatedAt:now()};
+}
+export async function getGeneratorConfig(env){
+  const existing=await r2json(env,R2_GENERATOR_CONFIG_KEY,null);
+  if(existing?.backend==='r2-v1')return {...defaultGeneratorConfig(env),...existing,enabled:true,externalProviders:false};
+  return r2putJson(env,R2_GENERATOR_CONFIG_KEY,defaultGeneratorConfig(env));
+}
+export async function getGeneratorStatus(env){
+  const existing=await r2json(env,R2_GENERATOR_STATUS_KEY,null);
+  if(existing?.backend==='r2-v1')return existing;
+  const boot=await bootstrapGeneratorStatus(env);return r2putJson(env,R2_GENERATOR_STATUS_KEY,boot);
+}
+export async function updateGeneratorStatus(env,patch){
+  const current=await getGeneratorStatus(env),next={...current,...patch,backend:'r2-v1',updatedAt:now()};
+  next.recent=[{at:now(),ok:!patch.lastError,slug:patch.lastSlug||null,error:patch.lastError||null},...(current.recent||[])].slice(0,100);
+  return r2putJson(env,R2_GENERATOR_STATUS_KEY,next);
+}
+export async function generatorLock(env,runId){
+  const lock=await r2json(env,R2_GENERATOR_LOCK_KEY,null),lockedAt=Date.parse(lock?.at||'');
+  if(lock&&Number.isFinite(lockedAt)&&Date.now()-lockedAt<240000)return new Response(JSON.stringify({ok:false,lock}),{status:409,headers:{'content-type':'application/json'}});
+  await r2putJson(env,R2_GENERATOR_LOCK_KEY,{id:runId,at:now(),backend:'r2-v1'});
+  return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}});
+}
+export async function generatorUnlock(env,runId){
+  const lock=await r2json(env,R2_GENERATOR_LOCK_KEY,null);
+  if(!lock||!runId||lock.id===runId)try{await env.CONTENT_FINAL.delete(R2_GENERATOR_LOCK_KEY)}catch{}
+  return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}});
+}
+export async function bulkTick(env){
+  const status=await getGeneratorStatus(env),runningAt=Date.parse(status.bulkRunningAt||'');
+  if(Number.isFinite(runningAt)&&Date.now()-runningAt<55000)return {ok:true,skipped:'bulk_already_running',backend:'r2-v1',bulkPublishedToday:Number(status.bulkPublishedToday||0)};
+  const cfg=await getGeneratorConfig(env),locked={...status,bulkRunningAt:now(),backend:'r2-v1'};await r2putJson(env,R2_GENERATOR_STATUS_KEY,locked);
+  try{
+    const catchupGoal=Math.max(0,Number(env.BULK_CATCHUP_TOTAL||30000)),publishedTotal=Math.max(0,Number(locked.bulkPublishedTotal||0)),steadyBatch=Math.max(1,Number(env.BULK_BATCH_SIZE||16)),catchupBatch=Math.max(steadyBatch,Number(env.BULK_CATCHUP_BATCH_SIZE||24)),effectiveBatch=publishedTotal<catchupGoal?catchupBatch:steadyBatch;
+    const bulk=await runProgrammaticBatch(env,cfg,locked,{dailyTarget:Number(env.BULK_DAILY_TARGET||15000),batchSize:effectiveBatch});
+    const next={...locked,...(bulk.patch||{}),bulkRunningAt:null,backend:'r2-v1',updatedAt:now()};await r2putJson(env,R2_GENERATOR_STATUS_KEY,next);
+    return {ok:true,backend:'r2-v1',bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||env.BULK_DAILY_TARGET||15000),bulkCursorV2:Number(next.bulkCursorV2||0)}};
+  }catch(e){
+    const next={...locked,bulkRunningAt:null,bulkLastRun:now(),bulkLastError:String(e?.message||e),backend:'r2-v1',updatedAt:now()};await r2putJson(env,R2_GENERATOR_STATUS_KEY,next);return {ok:false,backend:'r2-v1',error:next.bulkLastError};
+  }
+}
 
 export class GeneratorControl{
   constructor(ctx,env){this.ctx=ctx;this.env=env}
