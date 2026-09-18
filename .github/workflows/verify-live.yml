@@ -53,6 +53,10 @@ jobs:
           echo CHECK_INDEXNOW_INTEGRATION; grep -Fq 'submitIndexNow' bulk-generator.js
           echo CHECK_PREFLIGHT_DEDUPE; grep -Fq 'preflightGlobalGate' bulk-generator.js
           grep -Fq 'preflightGate:true' quality-index.js
+          grep -Fq 'twoStagePreflight:true' bulk-generator.js
+          grep -Fq 'parallelPostPublication:true' bulk-generator.js
+          grep -Fq 'parallelCatalogShards:true' bulk-generator.js
+          grep -Fq 'batchStageTelemetry:true' bulk-generator.js
           grep -Fq 'fullGlobalGatePreserved:true' bulk-generator.js
           echo SOURCE_INVARIANTS_PASS
 
