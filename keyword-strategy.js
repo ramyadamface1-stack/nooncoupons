@@ -69,8 +69,8 @@ function addSpecificity(kw,t,intent,s){
 function distinctKeyword(kw,t,intent,s){
   const label=INTENT_LABELS[intent]||'دليل',category=cat(t),mk=market(t);
   let base=clean(`${label} ${category} نون ${mk}`);
-  if(base.length>52){
-    const room=Math.max(14,52-clean(`${label} نون ${mk}`).length);
+  if(base.length>70){
+    const room=Math.max(14,70-clean(`${label} نون ${mk}`).length);
     const shortCategory=category.slice(0,room).replace(/\s+\S*$/,'').trim()||category.slice(0,room).trim();
     base=clean(`${label} ${shortCategory} نون ${mk}`);
   }
