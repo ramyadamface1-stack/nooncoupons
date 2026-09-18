@@ -65,7 +65,7 @@ async function findCandidate(env,state,slot){
     if(!categoryKey)continue;
     const rawCandidate=buildEnglishNativeCandidate(topic);
     if(!rawCandidate)continue;
-    const fallbackCode=desiredCountry==='AE'?'OPS58':'OPS32',candidate={...rawCandidate,code:normalizeApprovedCoupon(rawCandidate.code,fallbackCode)};
+    const fallbackCode=desiredCountry==='AE'?'NOV188':'NOV170',candidate={...rawCandidate,code:normalizeApprovedCoupon(rawCandidate.code,fallbackCode)};
     if(!isApprovedCoupon(candidate.code))continue;
     if(slot<PROFILE_DIVERSITY_SLOTS&&usedProfiles.has(candidate.profileKey))continue;
     if((profileCounts.get(candidate.profileKey)||0)>=PROFILE_MAX_PER_BATCH)continue;
@@ -129,7 +129,7 @@ export async function serveEnglishCanaryArticle(req,env){
   const u=new URL(req.url),m=u.pathname.match(/^\/en\/articles\/([^/]+)$/);if(!m)return null;
   const slug=decodeURIComponent(m[1]),state=await readState(env),rec=(state.records||[]).find(r=>r.slug===slug&&r.languageSource==='native-intent-v6-canary');if(!rec)return null;
   const o=await env.CONTENT_FINAL.get('articles/'+slug+'.html');if(!o)return null;
-  const safeCoupon=normalizeApprovedCoupon(rec.coupon,rec.country==='AE'?'OPS58':'OPS32'),raw=replaceUnapprovedCouponTokens(await o.text(),safeCoupon),origin=env.SITE_ORIGIN||u.origin,canonical=origin+'/en/articles/'+enc(slug),countryLabel=rec.country==='SA'?'Saudi Arabia':'UAE',countryPath=rec.country==='SA'?'/en/saudi':'/en/uae',categoryPath=rec.categoryKey?`${countryPath}/category/${rec.categoryKey}`:countryPath;
+  const safeCoupon=normalizeApprovedCoupon(rec.coupon,rec.country==='AE'?'NOV188':'NOV170'),raw=replaceUnapprovedCouponTokens(await o.text(),safeCoupon),origin=env.SITE_ORIGIN||u.origin,canonical=origin+'/en/articles/'+enc(slug),countryLabel=rec.country==='SA'?'Saudi Arabia':'UAE',countryPath=rec.country==='SA'?'/en/saudi':'/en/uae',categoryPath=rec.categoryKey?`${countryPath}/category/${rec.categoryKey}`:countryPath;
   const graph={'@context':'https://schema.org','@type':'Article',headline:rec.title,description:rec.metaDescription,inLanguage:'en',datePublished:rec.createdAt,dateModified:rec.updatedAt||rec.createdAt,mainEntityOfPage:canonical,author:{'@type':'Organization',name:'NoonCoupons'},publisher:{'@type':'Organization',name:'NoonCoupons'},about:[{'@type':'Thing',name:'Noon'},{'@type':'Place',name:countryLabel},{'@type':'Thing',name:rec.primaryKeyword}]};
   const safeMeta=replaceUnapprovedCouponTokens(rec.metaDescription,safeCoupon);const head=`<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(rec.title)}</title><meta name="description" content="${esc(safeMeta)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(canonical)}"><link rel="alternate" hreflang="en" href="${esc(canonical)}"><link rel="alternate" hreflang="x-default" href="${esc(canonical)}"><meta property="og:type" content="article"><meta property="og:title" content="${esc(rec.title)}"><meta property="og:description" content="${esc(rec.metaDescription)}"><meta property="og:url" content="${esc(canonical)}"><meta property="og:site_name" content="NoonCoupons"><script type="application/ld+json" data-schema="article">${safeJson(graph)}</script>${pageCss()}`;
   const phaseLabel=rec.canary?'canary':'controlled expansion';
