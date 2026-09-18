@@ -40,7 +40,11 @@ jobs:
           grep -Fq '"BULK_CATCHUP_TARGET_BATCH_MS": "52000"' wrangler.jsonc
           grep -Fq 'chooseAdaptiveBulkBatch' admin-runtime.js
           echo CHECK_CATCHUP_WINDOW; grep -Fq '"BULK_CATCHUP_WINDOW_HOURS": "8"' wrangler.jsonc
-          echo CHECK_CATCHUP_LOGIC; grep -Fq 'publishedTotal<catchupGoal?catchupBatch:steadyBatch' admin-runtime.js
+          echo CHECK_CATCHUP_LOGIC
+          grep -Fq 'export function chooseAdaptiveBulkBatch' admin-runtime.js
+          grep -Fq "reason='cold_start_max'" admin-runtime.js
+          grep -Fq 'lastPublished*targetMs/lastDurationMs' admin-runtime.js
+          grep -Fq "mode:'catchup-adaptive'" admin-runtime.js
           echo CHECK_BULK_RUN_LOCK; grep -Fq 'BULK_RUN_LOCK_MS=5*60*1000' admin-runtime.js
           echo CHECK_BATCH_CEILING; grep -Fq 'MAX_BATCH_SIZE=64' bulk-generator.js
           grep -Fq 'MAX_DAILY_TARGET=40000' bulk-generator.js
