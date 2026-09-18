@@ -63,6 +63,9 @@ jobs:
           grep -Fq 'discoveryLinks:true' discovery-entry.js
           grep -Fq 'discoveryLinkCount:12' discovery-entry.js
           grep -Fq 'robotsPrioritySitemap:true' discovery-entry.js
+          grep -Fq 'englishPriorityDiscovery:true' discovery-entry.js
+          grep -Fq 'englishPriorityArticleLimit:200' discovery-entry.js
+          grep -Fq 'englishCategoryEvidenceMin:3' discovery-entry.js
           grep -Fq "R2_COUNT_SNAPSHOT_KEY='_ops/article-count.json'" commerce-entry.js
           grep -Fq "setInterval(()=>refreshMetrics(false).catch(()=>{}),60000)" admin-page.js
           grep -Fq "refreshCountBtn" admin-page.js
@@ -194,7 +197,9 @@ jobs:
           grep -Fqi 'x-priority-sitemap-discovery: v1' /tmp/sh
           echo "VERIFY_ROUTE=sitemap-priority"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/sitemap-priority.xml?deploy=$GITHUB_SHA" -D /tmp/ph -o /tmp/priority.xml
-          grep -Fqi 'x-priority-sitemap: v1' /tmp/ph
+          grep -Fqi 'x-priority-sitemap: v2' /tmp/ph
+          grep -Fqi 'x-english-priority-count:' /tmp/ph
+          grep -Fqi 'x-english-priority-hubs:' /tmp/ph
           grep -Fq '/saudi-arabia/noon-coupon-code' /tmp/priority.xml
           grep -Fq '/uae/noon-coupon-code' /tmp/priority.xml
           grep -Fq '/articles/' /tmp/priority.xml
@@ -373,6 +378,15 @@ jobs:
           grep -Fq '"@type":"WebPage"' /tmp/english.html
           grep -Fq '"@type":"Article"' /tmp/english.html
           grep -Fq 'Noon Deals Now Editorial Team' /tmp/english.html
+          grep -Fq "$ENGLISH_PATH" /tmp/priority.xml
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/english-health.json'))
+          c=x.get('controlled') or {}
+          p=open('/tmp/priority.xml',encoding='utf-8').read()
+          if int(c.get('sa') or 0)>0: assert '/en/saudi' in p
+          if int(c.get('ae') or 0)>0: assert '/en/uae' in p
+          PY
 
           grep -Fq '<svg' /tmp/a.html || grep -Fq '<svg' /tmp/favicon.svg
           python - <<'PY'
@@ -526,6 +540,7 @@ jobs:
                   'englishVisibleEEATVerified': True,
                   'llmsControlledEnglishDiscoveryVerified': True,
                   'dynamicApprovedCouponCountVerified': True,
+                  'englishPriorityDiscoveryVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -567,6 +582,7 @@ jobs:
           assert proof['checks']['englishVisibleEEATVerified'] is True
           assert proof['checks']['llmsControlledEnglishDiscoveryVerified'] is True
           assert proof['checks']['dynamicApprovedCouponCountVerified'] is True
+          assert proof['checks']['englishPriorityDiscoveryVerified'] is True
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
               json.dump(proof,f,ensure_ascii=False,indent=2)
               f.write('\n')
