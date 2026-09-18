@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "7d0afdf6bd5b7ae6184fb6d0dbef39c12367ce28",
-  "verifiedAt": "2026-09-18T14:00:00.685049+00:00",
+  "sourceSha": "68308dd0a9cd5302eb7c8cffa18fe710092d3d9a",
+  "verifiedAt": "2026-09-18T16:28:07.578144+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -32,25 +32,26 @@
     "blogCollectionSchemaVerified": true,
     "dynamicRouterCouponCountsVerified": true,
     "catchup30kEightHourPlanVerified": true,
-    "catchupQualityFloorPreserved": true
+    "catchupQualityFloorPreserved": true,
+    "bulkLastBatchTelemetryVerified": true
   },
   "content": {
-    "r2HtmlObjects": 52078,
-    "trackedPublished": 15117,
-    "arabic": 15090,
-    "english": 27,
-    "lastSlug": "استخدام-كود-الإلكترونيات-نون-السعودية-تكلفة-ما-بعد-الشراء-حالة-الجهاز",
+    "r2HtmlObjects": 55432,
+    "trackedPublished": 18624,
+    "arabic": 18594,
+    "english": 30,
+    "lastSlug": "فحص-الضمان-samsung-التابلت-نون-الإمارات-مقارنة-البدائل-التصميم",
     "lastQuality": 100,
-    "lastWordCount": 1739
+    "lastWordCount": 1717
   },
   "englishControlled": {
     "target": 200,
-    "published": 27,
-    "remaining": 173,
-    "publishedToday": 7,
+    "published": 30,
+    "remaining": 170,
+    "publishedToday": 10,
     "dailyTarget": 24,
     "minIntervalMinutes": 60,
-    "nextEligibleAt": "2026-09-18T14:13:44.461Z"
+    "nextEligibleAt": "2026-09-18T17:16:44.552Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -62,6 +63,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T13:59:19.899Z"
+    "completedAt": "2026-09-18T16:26:41.711Z"
   }
 }
