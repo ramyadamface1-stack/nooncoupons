@@ -31,10 +31,10 @@ jobs:
           grep -Fq '"BULK_DAILY_TARGET": "32000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_TOTAL": "30000"' wrangler.jsonc
-          grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "48"' wrangler.jsonc
+          grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "64"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_WINDOW_HOURS": "8"' wrangler.jsonc
           grep -Fq "MAX_DAILY_TARGET=40000" bulk-generator.js
-          grep -Fq "MAX_BATCH_SIZE=48" bulk-generator.js
+          grep -Fq "MAX_BATCH_SIZE=64" bulk-generator.js
           grep -Fq "qualityThresholdFloor:95" bulk-generator.js
           grep -Fq "capacityMeetsEightHourGoal" auto-platform.js
           grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
@@ -203,7 +203,7 @@ jobs:
           for i in $(seq 1 8); do
             curl -fsS --connect-timeout 10 --max-time 30 "$RUNTIME_ORIGIN/api/generator-health?deploy=$GITHUB_SHA-$i" -o /tmp/g.json || true
             curl -fsS --connect-timeout 10 --max-time 60 "$RUNTIME_ORIGIN/api/content-stats?deploy=$GITHUB_SHA-$i" -o /tmp/s.json || true
-            if python -c "import json; g=json.load(open('/tmp/g.json')); s=json.load(open('/tmp/s.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; rc=s.get('r2Count',{}); assert int(b.get('dailyTarget') or 0)==32000; assert int(b.get('batchSize') or 0)==16; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==48; assert int(p.get('effectiveBatchSize') or 0) in (16,48); assert int(p.get('windowHours') or 0)==8; assert p.get('capacityMeetsEightHourGoal') is True or int(p.get('remaining') or 0)==0; assert float(p.get('qualityThresholdFloor') or 0)>=95; assert int(p.get('minArticleWords') or 0)>=1000; assert int(s.get('dailyTargetArabic') or 0)==32000; assert s.get('r2Uploaded') is not None; assert rc.get('snapshotKey')=='_ops/article-count.json'; assert int(rc.get('ttlSeconds') or 0)==300" 2>/dev/null; then
+            if python -c "import json; g=json.load(open('/tmp/g.json')); s=json.load(open('/tmp/s.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; rc=s.get('r2Count',{}); assert int(b.get('dailyTarget') or 0)==32000; assert int(b.get('batchSize') or 0)==16; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert int(p.get('effectiveBatchSize') or 0) in (16,64); assert int(p.get('windowHours') or 0)==8; assert p.get('capacityMeetsEightHourGoal') is True or int(p.get('remaining') or 0)==0; assert float(p.get('qualityThresholdFloor') or 0)>=95; assert int(p.get('minArticleWords') or 0)>=1000; assert int(s.get('dailyTargetArabic') or 0)==32000; assert s.get('r2Uploaded') is not None; assert rc.get('snapshotKey')=='_ops/article-count.json'; assert int(rc.get('ttlSeconds') or 0)==300" 2>/dev/null; then
               ready=1
               break
             fi
@@ -589,6 +589,10 @@ jobs:
             'theoreticalPerHour':p.get('theoreticalPerHour'),
             'theoreticalWindowCapacity':p.get('theoreticalWindowCapacity'),
             'theoreticalHoursAtFullBatch':p.get('theoreticalHoursAtFullBatch'),
+            'lastBatchExecutionRate':p.get('lastBatchExecutionRate'),
+            'lastBatchCronCadenceMinutes':p.get('lastBatchCronCadenceMinutes'),
+            'lastBatchCadenceRate':p.get('lastBatchCadenceRate'),
+            'observedCapacityMeetsCurrentRequiredRate':p.get('observedCapacityMeetsCurrentRequiredRate'),
             'dailyTarget':p.get('dailyTarget'),
             'dailyHeadroom':p.get('dailyHeadroom'),
             'capacityMeetsEightHourGoal':p.get('capacityMeetsEightHourGoal'),
@@ -596,12 +600,12 @@ jobs:
             'minArticleWords':p.get('minArticleWords')
           },separators=(',',':')))
           assert int(p.get('target') or 0)==30000
-          assert int(p.get('catchupBatchSize') or 0)==48
+          assert int(p.get('catchupBatchSize') or 0)==64
           assert int(p.get('windowHours') or 0)==8
           assert float(p.get('qualityThresholdFloor') or 0)>=95
           assert int(p.get('minArticleWords') or 0)>=1000
           if int(p.get('remaining') or 0)>0:
-              assert int(p.get('effectiveBatchSize') or 0)==48
+              assert int(p.get('effectiveBatchSize') or 0)==64
               assert p.get('capacityMeetsEightHourGoal') is True
           PY
           echo "PRODUCTION_RUNTIME_VERIFIED=1"
@@ -674,6 +678,8 @@ jobs:
                   'catchup30kEightHourPlanVerified': True,
                   'catchupQualityFloorPreserved': True,
                   'bulkLastBatchTelemetryVerified': True,
+                  'catchup64SafetyMarginConfigured': True,
+                  'cronAdjustedThroughputTelemetryVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -726,6 +732,8 @@ jobs:
           assert proof['checks']['catchup30kEightHourPlanVerified'] is True
           assert proof['checks']['catchupQualityFloorPreserved'] is True
           assert proof['checks']['bulkLastBatchTelemetryVerified'] is True
+          assert proof['checks']['catchup64SafetyMarginConfigured'] is True
+          assert proof['checks']['cronAdjustedThroughputTelemetryVerified'] is True
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
               json.dump(proof,f,ensure_ascii=False,indent=2)
               f.write('\n')
