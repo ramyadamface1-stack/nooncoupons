@@ -10,6 +10,7 @@ function dashboard(){return `<!doctype html><html lang="ar" dir="rtl"><head><met
 <div class="row"><div><label>Google verification</label><input id="seoGoogleVerification"></div><div><label>Bing verification</label><input id="seoBingVerification"></div><div><label>Yandex verification</label><input id="seoYandexVerification"></div><div><label>Pinterest verification</label><input id="seoPinterestVerification"></div></div>
 <label>Per-route overrides JSON</label><textarea id="seoRouteOverrides" style="min-height:220px" placeholder='{"\/coupons":{"title":"...","description":"...","canonical":"\/coupons","robots":"index,follow","ogImage":"\/favicon.svg"}}'></textarea>
 <div class="row"><button id="saveSeoSettingsBtn">حفظ SEO Settings</button><button id="reloadSeoSettingsBtn">إعادة تحميل</button></div><pre id="seoSettingsStatus">Loading...</pre></section>
+<section class="panel" id="seoDropsPanel"><h2>SEO Drops Report — Google Search Console</h2><p class="sub">البيانات من Search Console المتصل بالمشروع. التقرير لا يخمّن زيارات أو انخفاضات عند غياب rows.</p><div class="seoGrid"><div class="seoCheck"><b>الفترة الحالية</b><span id="gscRange">-</span></div><div class="seoCheck"><b>المقارنة</b><span id="gscCompare">-</span></div><div class="seoCheck"><b>Impressions</b><span id="gscImpressions">-</span></div><div class="seoCheck"><b>Clicks</b><span id="gscClicks">-</span></div></div><div class="row"><button id="refreshGscBtn">تحديث التقرير من Snapshot</button></div><div id="gscMessage" class="sub" style="margin:12px 0"></div><div class="scroll"><table><thead><tr><th>الصفحة/الكلمة</th><th>السبب</th><th>قبل</th><th>الآن</th><th>التغيير</th><th>الإجراء</th></tr></thead><tbody id="gscDropRows"></tbody></table></div><pre id="gscRaw">Loading...</pre></section>
 <section class="panel"><h2>إعدادات الجودة</h2><div class="row"><div style="flex:2"><label>Workers AI model (Cloudflare-only)</label><input id="cfgModel" readonly></div><div style="flex:1"><label>Target words</label><input id="cfgTarget" type="number" min="1200" max="1800"></div><div style="flex:1"><label>Minimum words</label><input id="cfgMin" type="number" min="1000" max="1400"></div><div style="flex:1"><label>Quality threshold</label><input id="cfgQuality" type="number" min="95" max="100"></div></div><button id="saveConfigBtn">حفظ إعدادات الجودة</button></section><section class="panel"><h2>المقالات</h2><div class="scroll"><table><thead><tr><th>العنوان</th><th>الدولة</th><th>الكوبون</th><th>الكلمات</th><th>الجودة</th><th>تاريخ الإنشاء</th><th>آخر تحديث</th><th>Provider</th><th>Status</th><th>تعديل</th></tr></thead><tbody id="articleRows"></tbody></table></div></section><section class="panel" id="editorPanel" hidden><h2>تعديل المقال</h2><input id="editSlug" readonly><label>العنوان</label><input id="editTitle"><label>Meta description</label><input id="editMeta"><label>Primary keyword</label><input id="editKeyword"><label>Status</label><select id="editStatus"><option value="published">published</option><option value="draft">draft</option><option value="scheduled">scheduled</option></select><label>HTML</label><textarea id="editHtml"></textarea><button id="saveArticleBtn">حفظ المقال</button></section></main><script>
 const $=id=>document.getElementById(id);
 async function api(path,options={}){const r=await fetch(path,options);if(r.status===401){location='/admin';throw new Error('unauthorized')}const t=await r.text();try{return JSON.parse(t)}catch{return {raw:t}}}
@@ -56,6 +57,16 @@ async function refreshSeo(){
   $('seoCodes').textContent=(x.approvedCouponCount??'-')+' · '+((x.approvedCoupons||[]).join(', '));
   $('seoOverviewJson').textContent=JSON.stringify(s,null,2);
 }
+async function refreshGscDrops(){
+  const s=await api('/api/admin/seo-drops'),r=s.effectiveRange||{},p=s.comparisonRange||{},t=s.totals||{};
+  $('gscRange').textContent=(r.startDate||'-')+' → '+(r.endDate||'-');
+  $('gscCompare').textContent=(p.startDate||'-')+' → '+(p.endDate||'-');
+  $('gscImpressions').textContent=t.impressions??0;$('gscClicks').textContent=t.clicks??0;
+  $('gscMessage').textContent=s.dataAvailable?'بيانات GSC متاحة.':'GSC متصل، لكن لا توجد rows قابلة للتحليل في الفترة النهائية الحالية.';
+  const rows=[...(s.drops||[]),...(s.lowCtrPages||[]),...(s.fallingKeywords||[])];
+  $('gscDropRows').innerHTML=rows.length?rows.map(x=>'<tr><td>'+escHtml(x.page||x.query||x.url||'-')+'</td><td>'+escHtml(x.reason||x.type||'-')+'</td><td>'+escHtml(x.previousImpressions??x.previousClicks??'-')+'</td><td>'+escHtml(x.impressions??x.clicks??'-')+'</td><td>'+escHtml(x.change??x.impressionChange??x.clickChange??'-')+'</td><td>'+escHtml(x.action||'راجع المحتوى والـCTR والربط الداخلي')+'</td></tr>').join(''):'<tr><td colspan="6">لا توجد Drops قابلة للتصنيف من بيانات GSC الحالية.</td></tr>';
+  $('gscRaw').textContent=JSON.stringify(s,null,2);
+}
 async function loadSeoSettings(){
   const s=await api('/api/admin/seo-settings');
   $('seoSiteName').value=s.siteName||'Noon Deals Now';
@@ -84,14 +95,14 @@ async function refreshArticles(){
   }).join('');
   document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(b.dataset.edit));
 }
-async function refresh(){await Promise.all([refreshMetrics(false),refreshArticles(),refreshSeo(),loadSeoSettings()])}
+async function refresh(){await Promise.all([refreshMetrics(false),refreshArticles(),refreshSeo(),loadSeoSettings(),refreshGscDrops()])}
 async function setGenerator(enabled){await api('/api/admin/generator',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({enabled})});await refreshMetrics(false)}
 async function generateNow(){$('generatorStatus').textContent='Generating...';const r=await api('/api/admin/generate-now',{method:'POST'});$('generatorStatus').textContent=JSON.stringify(r,null,2);await Promise.all([refreshMetrics(true),refreshArticles()])}
 async function saveConfig(){await api('/api/admin/generator',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({targetWords:+$('cfgTarget').value,minWords:+$('cfgMin').value,qualityThreshold:+$('cfgQuality').value})});await refreshMetrics(false)}
 async function edit(slug){const d=await api('/api/admin/article?slug='+slug);$('editSlug').value=d.record.slug;$('editTitle').value=d.record.title;$('editMeta').value=d.record.metaDescription||'';$('editKeyword').value=d.record.primaryKeyword||'';$('editStatus').value=d.record.status;$('editHtml').value=d.html||'';$('editorPanel').hidden=false;$('editorPanel').scrollIntoView({behavior:'smooth'})}
 async function saveArticle(){await api('/api/admin/article',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({slug:$('editSlug').value,title:$('editTitle').value,metaDescription:$('editMeta').value,primaryKeyword:$('editKeyword').value,status:$('editStatus').value,html:$('editHtml').value})});alert('تم الحفظ');await Promise.all([refreshMetrics(true),refreshArticles()])}
 async function logout(){await api('/api/admin/logout',{method:'POST'});location='/admin'}
-$('refreshSeoBtn').onclick=refreshSeo;$('saveSeoSettingsBtn').onclick=saveSeoSettings;$('reloadSeoSettingsBtn').onclick=loadSeoSettings;$('resumeBtn').onclick=()=>setGenerator(true);$('pauseBtn').onclick=()=>{};$('generateBtn').onclick=generateNow;$('refreshCountBtn').onclick=()=>refreshMetrics(true);$('saveConfigBtn').onclick=saveConfig;$('saveArticleBtn').onclick=saveArticle;$('logoutBtn').onclick=logout;refresh();setInterval(()=>refreshMetrics(false).catch(()=>{}),60000);
+$('refreshSeoBtn').onclick=refreshSeo;$('refreshGscBtn').onclick=refreshGscDrops;$('saveSeoSettingsBtn').onclick=saveSeoSettings;$('reloadSeoSettingsBtn').onclick=loadSeoSettings;$('resumeBtn').onclick=()=>setGenerator(true);$('pauseBtn').onclick=()=>{};$('generateBtn').onclick=generateNow;$('refreshCountBtn').onclick=()=>refreshMetrics(true);$('saveConfigBtn').onclick=saveConfig;$('saveArticleBtn').onclick=saveArticle;$('logoutBtn').onclick=logout;refresh();setInterval(()=>refreshMetrics(false).catch(()=>{}),60000);
 </script></body></html>`}
 
 export async function renderAdmin(req,env){return (await isAdmin(req,env))?html(dashboard()):html(login())}
