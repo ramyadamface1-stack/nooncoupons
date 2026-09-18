@@ -27,6 +27,7 @@ a{color:inherit}.w{width:min(1180px,92%);margin:auto}.site-note{background:#1118
 .card,.box{background:#fff;border:1px solid var(--line);border-radius:19px;padding:18px;box-shadow:0 12px 34px rgba(16,24,40,.05)}.card h3{line-height:1.55;margin:8px 0}.card p{color:#667085;line-height:1.8}.card a{text-decoration:none}.visual-card{min-height:220px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;position:relative}.visual-card:before{display:none}.category-art{width:100%;height:auto;display:block;margin:-4px 0 14px}.visual-icon{font-size:30px;line-height:1}.visual-theme{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#7b6200;font-weight:900}.country-hero{padding:46px 0 34px;background:linear-gradient(180deg,#fffdf0,#fff);color:var(--ink);border-bottom:1px solid var(--line)}.market-switch{display:inline-flex;gap:6px;padding:4px;background:#f3f4f6;border-radius:13px;margin-top:8px}.market-switch a{padding:8px 11px;border-radius:10px;text-decoration:none;font-size:12px;font-weight:900;color:#475467}.market-switch a.current{background:#111827;color:#fff}.city-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.read{color:#4f46e5;font-weight:900}
 .chips a{display:inline-block;background:#fff;border:1px solid #dfe3e8;border-radius:999px;padding:9px 13px;text-decoration:none;font-weight:800}.coupon{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:center;background:#fffbea;border:1px solid #efd95b;border-radius:18px;padding:20px;margin:22px 0;box-shadow:none;position:relative}.coupon:before,.coupon:after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:50%;transform:translateY(-50%)}.coupon:before{right:-11px;border-left:1px solid #efd95b}.coupon:after{left:-11px;border-right:1px solid #efd95b}
 .code{display:inline-block;background:#111827;color:#fff;border-radius:10px;padding:7px 11px;font-weight:900}.cta{display:inline-block;background:var(--gold);color:#111827;border:0;text-decoration:none;font-weight:900;padding:13px 16px;border-radius:12px;cursor:pointer}.check{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.check .box{line-height:1.85}.spider{padding:28px 0;background:#f8fafc;color:var(--ink);border-top:1px solid var(--line)}.trust-row{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}.trust-row span{padding:8px 11px;border:1px solid #ffffff1f;background:#ffffff0d;border-radius:999px;font-size:12px;color:#e5e7eb}.empty{background:#fff;border:1px dashed #cbd5e1;border-radius:18px;padding:20px;color:#64748b}.table{width:100%;border-collapse:collapse;background:#fff}.table th,.table td{border:1px solid #e5e7eb;padding:12px;text-align:right;vertical-align:top}
+.site-footer{background:#111827;color:#e5e7eb;padding:36px 0;margin-top:24px}.site-foot{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:24px;align-items:start}.site-foot p{color:#cbd5e1;line-height:1.8}.site-foot b{display:block;margin-bottom:10px;color:#fff}.site-foot a{display:block;color:#e5e7eb;text-decoration:none;margin:8px 0}.site-footer .site-brand{color:#fff}.site-footer .site-mark{background:#FEEE00;color:#111827}
 @media(max-width:900px){.grid,.grid4,.city-grid{grid-template-columns:1fr 1fr}.site-nav nav{display:none}.site-foot{grid-template-columns:1fr 1fr}}@media(max-width:620px){.grid,.grid4,.city-grid,.check,.coupon,.site-foot{grid-template-columns:1fr}.site-note .w{display:block}.site-note .w span:last-child{display:none}.site-cta{display:none}}
 `;
 
@@ -35,6 +36,14 @@ function commerceHeader(){
 }
 function commerceFooter(){
   return `<footer class="site-footer"><div class="w site-foot"><div><a class="site-brand" href="/"><span class="site-mark">ك</span><strong>كوبونات نون</strong></a><p>أكواد وأدلة نون للسعودية والإمارات. لا نعرض نسبة خصم أو أهلية غير موثقة.</p></div><div><b>الدول</b><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a></div><div><b>الأقسام</b><a href="/saudi/categories">السعودية</a><a href="/uae/categories">الإمارات</a></div><div><b>الثقة</b><a href="/coupon-verification">منهجية التحقق</a><a href="/editorial-policy">السياسة التحريرية</a><a href="/authors/editorial-team">فريق التحرير</a></div></div></footer>`;
+}
+
+function englishHeader(market){
+  const sa=market==='saudi'?' current':'',ae=market==='uae'?' current':'';
+  return `<div class="site-note"><div class="w"><span>Noon coupon guides for Saudi Arabia and the UAE</span><span>Independent site · not affiliated with Noon</span></div></div><header class="site-head" data-english-nav="v1"><div class="w site-nav"><a class="site-brand" href="/"><span class="site-mark">N</span><strong>Noon Deals Now</strong></a><div class="header-markets" aria-label="Choose market"><a class="${sa.trim()}" href="/en/saudi" aria-label="Saudi Arabia">🇸🇦</a><a class="${ae.trim()}" href="/en/uae" aria-label="UAE">🇦🇪</a></div><nav><a href="/en/saudi">Saudi Arabia</a><a href="/en/uae">UAE</a><a href="/coupons">Coupons</a><a href="/blog">Arabic blog</a><a href="/coupon-verification">Verification</a></nav><a class="site-cta" href="/coupons">Copy code</a></div></header>`;
+}
+function englishFooter(){
+  return `<footer class="site-footer" data-english-footer="v1"><div class="w site-foot"><div><a class="site-brand" href="/"><span class="site-mark">N</span><strong>Noon Deals Now</strong></a><p>Independent Noon coupon and shopping guidance for Saudi Arabia and the UAE. Checkout remains the final reference for eligibility and savings.</p></div><div><b>Markets</b><a href="/en/saudi">Saudi Arabia</a><a href="/en/uae">UAE</a><a href="/saudi">العربية — السعودية</a><a href="/uae">العربية — الإمارات</a></div><div><b>Discovery</b><a href="/sitemap-en-articles.xml">English sitemap</a><a href="/feed-en.xml">English RSS</a><a href="/blog">Arabic blog</a></div><div><b>Trust</b><a href="/coupon-verification">Coupon verification</a><a href="/editorial-policy">Editorial policy</a><a href="/authors/editorial-team">Editorial team</a><a href="/research">Research & methodology</a></div></div></footer>`;
 }
 
 async function latestArticles(env) {
@@ -67,8 +76,24 @@ async function englishMarketRows(env, market) {
   return (await englishCanaryRecords(env)).filter((a) => a?.slug && a.indexable !== false && a.country === country && a.languageSource === 'native-intent-v6-canary');
 }
 
+function englishArticlePath(a){
+  const path=String(a?.urlPath||'');
+  return /^\/en\/articles\/[^?#]+$/.test(path)?path:'/en/articles/'+enc(a?.slug||'');
+}
+function latestEnglishModified(rows=[]){
+  return (rows||[]).map(a=>String(a?.updatedAt||a?.createdAt||'')).filter(Boolean).sort().at(-1)||'';
+}
+function englishDateLabel(value){
+  const d=new Date(value);if(!Number.isFinite(d.getTime()))return '';
+  return new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(d);
+}
+function englishFreshness(rows=[]){
+  const modified=latestEnglishModified(rows),label=englishDateLabel(modified);
+  return modified&&label?`<p class="lead" data-english-freshness="content-derived">Latest eligible guide update: <time datetime="${esc(modified)}">${esc(label)}</time> · ${rows.length} eligible guide${rows.length===1?'':'s'} in this hub.</p>`:'';
+}
 function englishArticleCard(a) {
-  return `<article class="card"><small>${a.country === 'AE' ? 'UAE' : 'Saudi Arabia'} · ${esc(a.intent || 'guide')}</small><h3><a href="/en/articles/${enc(a.slug)}">${esc(a.title || a.primaryKeyword || a.slug)}</a></h3><p>${esc((a.metaDescription || '').slice(0,180))}</p><a class="read" href="/en/articles/${enc(a.slug)}">Read guide →</a></article>`;
+  const path=englishArticlePath(a);
+  return `<article class="card"><small>${a.country === 'AE' ? 'UAE' : 'Saudi Arabia'} · ${esc(a.intent || 'guide')}</small><h3><a href="${esc(path)}">${esc(a.title || a.primaryKeyword || a.slug)}</a></h3><p>${esc((a.metaDescription || '').slice(0,180))}</p><a class="read" href="${esc(path)}">Read guide →</a></article>`;
 }
 
 function breadcrumbs(market, parts = []) {
@@ -169,14 +194,16 @@ function englishCategoryGrid(market){
  return `<div class="grid4">${Object.keys(CATEGORIES).map(k=>`<article class="card visual-card"><div>${visualSvg(k,EN_CATEGORY_LABELS[k]||k)}<span class="visual-theme">${esc(CATEGORY_VISUALS[k]?.theme||'shopping')}</span><h3><a href="/en/${market}/category/${k}">${esc(EN_CATEGORY_LABELS[k]||k)}</a></h3><p>Explore coupon-focused guides and eligible shopping content for this category.</p></div><a class="read" href="/en/${market}/category/${k}">Explore category →</a></article>`).join('')}</div>`;
 }
 function englishSchema(origin,path,title,desc,market,rows=[]){
- const marketName=market==='saudi'?'Saudi Arabia':'UAE',marketPath=`/en/${market}`,isCategory=/^\/en\/(?:saudi|uae)\/category\/[^/]+$/.test(path);
+ const marketName=market==='saudi'?'Saudi Arabia':'UAE',marketPath=`/en/${market}`,isCategory=/^\/en\/(?:saudi|uae)\/category\/[^/]+$/.test(path),modified=latestEnglishModified(rows);
+ const page={'@type':'CollectionPage','@id':origin+path+'#page',url:origin+path,name:title,description:desc,inLanguage:'en',isPartOf:{'@id':origin+'/#website'},publisher:{'@id':origin+'/#organization'},mainEntity:{'@type':'ItemList',numberOfItems:rows.length,itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+englishArticlePath(a),name:a.title||a.slug}))}};
+ if(modified)page.dateModified=modified;
  return {
   '@context':'https://schema.org',
   '@graph':[
    {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',url:origin+'/'},
    {'@type':'Organization','@id':origin+'/authors/editorial-team#team',name:'Noon Deals Now Editorial Team',url:origin+'/authors/editorial-team',parentOrganization:{'@id':origin+'/#organization'}},
    {'@type':'WebSite','@id':origin+'/#website',name:'Noon Deals Now',url:origin+'/',inLanguage:['ar','en'],publisher:{'@id':origin+'/#organization'}},
-   {'@type':'CollectionPage','@id':origin+path+'#page',url:origin+path,name:title,description:desc,inLanguage:'en',isPartOf:{'@id':origin+'/#website'},publisher:{'@id':origin+'/#organization'},mainEntity:{'@type':'ItemList',numberOfItems:rows.length,itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+'/en/articles/'+enc(a.slug),name:a.title||a.slug}))}},
+   page,
    {'@type':'BreadcrumbList','@id':origin+path+'#breadcrumb',itemListElement:[
     {'@type':'ListItem',position:1,name:'Home',item:origin+'/'},
     {'@type':'ListItem',position:2,name:'Noon '+marketName,item:origin+marketPath},
@@ -190,7 +217,7 @@ function englishTrust(){
 }
 function englishHead(origin,path,title,desc,market,rows=[]){
  const arPath=path.replace(/^\/en/,''),enLang=market==='saudi'?'en-SA':'en-AE',arLang=market==='saudi'?'ar-SA':'ar-AE',schema=englishSchema(origin,path,title,desc,market,rows);
- return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | Noon Coupons</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin+path)}"><link rel="alternate" hreflang="${enLang}" href="${esc(origin+path)}"><link rel="alternate" hreflang="${arLang}" href="${esc(origin+arPath)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+'/')}"><script type="application/ld+json" data-schema="english-collection">${safeJson(schema)}</script><style>${CSS}</style>`;
+ return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | Noon Coupons</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin+path)}"><link rel="alternate" hreflang="${enLang}" href="${esc(origin+path)}"><link rel="alternate" hreflang="${arLang}" href="${esc(origin+arPath)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+'/')}"><link rel="alternate" type="application/rss+xml" title="Noon Deals Now — English guides" href="${esc(origin+'/feed-en.xml')}"><script type="application/ld+json" data-schema="english-collection">${safeJson(schema)}</script><style>${CSS}</style>`;
 }
 async function englishCategoryPage(market,key,origin,env){
  const mk=MARKETS[market],cat=CATEGORIES[key];if(!mk||!cat)return null;
@@ -203,10 +230,10 @@ async function englishCategoryPage(market,key,origin,env){
  const coupon=`<aside class="coupon"><div><small>Coupon-first action</small><h2>Copy code <span class="code">${code}</span></h2><p class="lead">Try the code against an eligible cart. Do not assume a fixed discount until Noon confirms it at checkout.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside>`;
  const brands=Object.entries(BRANDS).filter(([,b])=>b.categories?.includes(key)).map(([bk,b])=>`<article class="card"><h3>${esc(b.label)}</h3><p>Brand navigation within the ${esc(label)} category.</p><a class="read" href="/${market}/brand/${bk}">View Arabic brand hub →</a></article>`).join('');
  const evidence=rows.length>=3;
- const main=`${coupon}<section class="section">${englishTrust()}</section><section class="section"><h2>${esc(label)} shopping guidance</h2><div class="check"><div class="box"><strong>Before copying a code</strong><p>Check seller, product eligibility, minimum cart rules and account status.</p></div><div class="box"><strong>At checkout</strong><p>The final Noon total is the source of truth for whether a coupon applies.</p></div></div></section><section class="section"><h2>Relevant brands</h2><div class="grid4">${brands||'<div class="empty">Brand hubs will be added only where they are relevant to this category.</div>'}</div></section><section class="section"><h2>Eligible guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">This English category stays out of search until it has enough supporting content.</div>'}</section>`;
+ const main=`${coupon}<section class="section">${englishTrust()}${englishFreshness(rows)}</section><section class="section"><h2>${esc(label)} shopping guidance</h2><div class="check"><div class="box"><strong>Before copying a code</strong><p>Check seller, product eligibility, minimum cart rules and account status.</p></div><div class="box"><strong>At checkout</strong><p>The final Noon total is the source of truth for whether a coupon applies.</p></div></div></section><section class="section"><h2>Relevant brands</h2><div class="grid4">${brands||'<div class="empty">Brand hubs will be added only where they are relevant to this category.</div>'}</div></section><section class="section"><h2>Eligible guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">This English category stays out of search until it has enough supporting content.</div>'}</section>`;
  const robots=evidence?'index,follow,max-image-preview:large':'noindex,follow';
  const head=englishHead(origin,path,title,desc,market,rows).replace('content="index,follow,max-image-preview:large"',`content="${robots}"`);
- return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${head}</head><body>${hero}<main class="w">${main}</main></body></html>`,'category-en',{'x-content-language':'en','x-english-evidence':evidence?'content-backed':'insufficient','x-robots-tag':robots});
+ return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${head}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'category-en',{'x-content-language':'en','x-english-evidence':evidence?'content-backed':'insufficient','x-robots-tag':robots});
 }
 
 async function englishCountryPage(market,origin,env){
@@ -214,8 +241,8 @@ async function englishCountryPage(market,origin,env){
  const path=`/en/${market}`,rows=(await englishMarketRows(env,market)),title=`Noon coupons in ${market==='saudi'?'Saudi Arabia':'the UAE'}`,desc=`Coupon-first shopping hub for Noon ${market==='saudi'?'Saudi Arabia':'UAE'}, with categories, cities and buying guides.`,code=codeFor('country:'+market);
  const cities=(CITIES[market]||[]).map(c=>`<article class="card"><small>${esc(c.ar)}</small><h3>${esc(c.en)}</h3><p>Local navigation for shoppers in ${esc(c.en)} without claiming a city-specific discount unless verified.</p></article>`).join('');
  const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/en/${market}">English</a> · <a href="/${market}">العربية</a></div><h1>${title}</h1><p>${desc}</p><aside class="coupon"><div><small>Primary action</small><h2>Copy code <span class="code">${code}</span></h2><p class="lead">Check eligibility in your cart; the final Noon checkout is the reference.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside></div></header>`;
- const main=`<section class="section">${englishTrust()}</section><section class="section"><h2>Shop by category</h2>${englishCategoryGrid(market)}</section><section class="section"><h2>Major cities</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>Latest eligible guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">Eligible English guides will appear here as they are published.</div>'}</section>`;
- return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${englishHead(origin,path,title,desc,market,rows)}</head><body>${hero}<main class="w">${main}</main></body></html>`,'country-en',{'x-commerce-market':market,'x-content-language':'en','x-english-eeat':'v1'});
+ const main=`<section class="section">${englishTrust()}${englishFreshness(rows)}</section><section class="section"><h2>Shop by category</h2>${englishCategoryGrid(market)}</section><section class="section"><h2>Major cities</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>Latest eligible guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">Eligible English guides will appear here as they are published.</div>'}</section>`;
+ return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${englishHead(origin,path,title,desc,market,rows)}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'country-en',{'x-commerce-market':market,'x-content-language':'en','x-english-eeat':'v1'});
 }
 
 async function countryPage(market,origin,env){
