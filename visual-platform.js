@@ -38,7 +38,7 @@ async function r2ArticleMeta(env,slug){
 }
 
 function params(rec){
-  return new URLSearchParams({v:'4',coupon:validCoupon(rec.coupon,validCountry(rec.country)),country:validCountry(rec.country)}).toString();
+  return new URLSearchParams({v:'7',coupon:validCoupon(rec.coupon,validCountry(rec.country)),country:validCountry(rec.country)}).toString();
 }
 function couponSrc(rec,v){return `/assets/coupon-svg/${encodeURIComponent(rec.slug)}/${v}.svg?${params(rec)}`}
 function featuredSrc(rec){return couponSrc(rec,1)}
@@ -47,11 +47,11 @@ function couponVisual(rec,v){
   const country=countryAr(rec.country),brand=noonUrl(),src=couponSrc(rec,v),code=validCoupon(rec.coupon,validCountry(rec.country)),keyword=keywordOf(rec);
   return `<figure class="coupon-visual coupon-visual-${v}">
     <a class="coupon-image-link" href="${brand}" target="_blank" rel="noopener external sponsored" aria-label="فتح موقع نون الرسمي وتجربة ${esc(keyword)}">
-      <img src="${src}" alt="${esc(keyword)} - كوبون نون ${country} ${code} - تصميم ${v}" title="${esc(keyword)}" width="1200" height="760" loading="lazy" decoding="async">
+      <img src="${src}" alt="${esc(keyword)} - كوبون نون ${country} ${code}" title="${esc(keyword)}" width="1200" height="760" loading="lazy" decoding="async">
     </a>
     <div class="coupon-live-actions" role="group" aria-label="إجراءات ${esc(keyword)}">
-      <button type="button" class="coupon-copy-btn" data-copy-code="${code}">⧉ Copy it</button>
-      <a class="coupon-try-btn" href="${brand}" target="_blank" rel="noopener external sponsored">↗ Try it</a>
+      <button type="button" class="coupon-copy-btn" data-copy-code="${code}">نسخ الكود</button>
+      <a class="coupon-try-btn" href="${brand}" target="_blank" rel="noopener external sponsored">فتح نون</a>
     </div>
     <figcaption>${esc(keyword)} · كوبون ${code} · نون ${country}</figcaption>
   </figure>`;
