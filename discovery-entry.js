@@ -1,7 +1,7 @@
 import app from './brand-runtime.js';
 import {runEnglishCanary} from './english-canary.js';
 import {repairEnglishCanaryLegacyMetadata} from './english-canary-repair.js';
-import {runCouponR2MigrationBatch,readCouponR2MigrationState} from './coupon-r2-migration.js';
+import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
 import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
@@ -156,11 +156,22 @@ export default{
       const state=await readCouponR2MigrationState(env);
       return new Response(JSON.stringify(state,null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
+    if(req.method==='GET'&&u.pathname==='/api/coupon-r2-audit-health'){
+      const state=await readCouponR2AuditState(env);
+      return new Response(JSON.stringify(state,null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+    }
     if(req.method==='POST'&&u.pathname==='/api/internal/coupon-migration-step'){
       if(!await verifyMaintenanceToken(req))return new Response(JSON.stringify({ok:false,reason:'unauthorized'}),{status:401,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
       let limit=500;
       try{const body=await req.json();limit=Math.max(1,Math.min(Number(body?.limit)||500,500));}catch{}
       const state=await runCouponR2MigrationBatch(env,{limit});
+      return new Response(JSON.stringify(state),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+    }
+    if(req.method==='POST'&&u.pathname==='/api/internal/coupon-r2-audit-step'){
+      if(!await verifyMaintenanceToken(req))return new Response(JSON.stringify({ok:false,reason:'unauthorized'}),{status:401,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+      let limit=500;
+      try{const body=await req.json();limit=Math.max(1,Math.min(Number(body?.limit)||500,500));}catch{}
+      const state=await runCouponR2AuditBatch(env,{limit});
       return new Response(JSON.stringify(state),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     let res=await app.fetch(req,env,ctx);
@@ -170,7 +181,7 @@ export default{
     res=await sanitizeCouponSurface(req,res);
     return res;
   },
-  async scheduled(event,env,ctx){const base=app.scheduled?app.scheduled(event,env,ctx):null;if(base)ctx.waitUntil(Promise.resolve(base));ctx.waitUntil((async()=>{await repairEnglishCanaryLegacyMetadata(env);return runEnglishCanary(env)})());ctx.waitUntil(runCouponR2MigrationBatch(env,{limit:500}))}
+  async scheduled(event,env,ctx){const base=app.scheduled?app.scheduled(event,env,ctx):null;if(base)ctx.waitUntil(Promise.resolve(base));ctx.waitUntil((async()=>{await repairEnglishCanaryLegacyMetadata(env);return runEnglishCanary(env)})());}
 };
 
-export const DISCOVERY_ENTRY_INFO={version:7,couponR2Migration:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:18,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:7,couponR2Migration:true,couponR2Audit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:18,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,manifestCacheSeconds:120};
