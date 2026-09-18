@@ -117,6 +117,12 @@ jobs:
           grep -Fq 'OAI-SearchBot' final-platform.js
           grep -Fq 'Google-Extended' final-platform.js
           grep -Fq 'CCBot' final-platform.js
+          grep -Fq 'imageLazyLoading:true' brand-runtime.js
+          grep -Fq 'lcpImagePreload:true' brand-runtime.js
+          grep -Fq 'serviceWorkerStaticCache:true' brand-runtime.js
+          grep -Fq "u.pathname==='/sw.js'" brand-runtime.js
+          grep -Fq "startsWith('/assets/coupon-svg/')" brand-runtime.js
+          grep -Fq "startsWith('/assets/featured/')" brand-runtime.js
           grep -Fq 'r2ReadRetry:3' bulk-generator.js
           grep -Fq 'r2CatalogFailClosed:true' bulk-generator.js
           grep -Fq 'r2WriteRetry:3' bulk-generator.js
@@ -307,6 +313,14 @@ jobs:
           grep -Fq 'English RSS: https://noondealsnow.com/feed-en.xml' /tmp/llms.txt
           grep -Fq 'Golden keyword/search-intent hub: https://noondealsnow.com/golden-keywords' /tmp/llms.txt
 
+          echo "VERIFY_ROUTE=service-worker"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/sw.js?deploy=$GITHUB_SHA" -D /tmp/sw.h -o /tmp/sw.js
+          grep -Fqi 'service-worker-allowed: /' /tmp/sw.h
+          grep -Fq "noondeals-static-v1" /tmp/sw.js
+          grep -Fq "/assets/coupon-svg/" /tmp/sw.js
+          grep -Fq "/assets/featured/" /tmp/sw.js
+          if grep -Fq "articles/" /tmp/sw.js; then echo 'SERVICE_WORKER_MUST_NOT_CACHE_ARTICLES'; exit 1; fi
+
           echo "VERIFY_ROUTE=editorial-team"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/authors/editorial-team?deploy=$GITHUB_SHA" -D /tmp/team.h -o /tmp/team.html
           grep -Fq 'data-schema="editorial-team-profile"' /tmp/team.html
@@ -388,6 +402,23 @@ jobs:
           grep -Fq 'id="article-link-network"' /tmp/a.html
           grep -Fq 'اقرأ أيضًا قبل الشراء' /tmp/a.html
           grep -Fq 'href="/favicon.svg"' /tmp/a.html
+          grep -Fqi 'x-image-performance: lazy-v1' /tmp/h
+          grep -Fqi 'x-service-worker-cache: static-assets-v1' /tmp/h
+          grep -Fq 'decoding="async"' /tmp/a.html
+          grep -Fq 'loading="eager"' /tmp/a.html
+          grep -Fq 'fetchpriority="high"' /tmp/a.html
+          grep -Fq 'rel="preload" as="image"' /tmp/a.html
+          grep -Fq "serviceWorker.register('/sw.js'" /tmp/a.html
+          python - <<'PY'
+          import re
+          t=open('/tmp/a.html',encoding='utf-8').read()
+          imgs=re.findall(r'<img\b[^>]*>',t,re.I)
+          assert imgs, 'no article images'
+          assert 'loading="eager"' in imgs[0].lower()
+          assert 'fetchpriority="high"' in imgs[0].lower()
+          if len(imgs)>1:
+              assert any('loading="lazy"' in x.lower() for x in imgs[1:])
+          PY
           echo "VERIFY_ROUTE=legacy-redirects"
           code=$(curl -sS -o /dev/null -D /tmp/lrh -w '%{http_code}' "$RUNTIME_ORIGIN/saudi/noon-coupon-code?deploy=$GITHUB_SHA")
           [ "$code" = "301" ]
@@ -778,6 +809,9 @@ jobs:
                   'seoSettingsR2Verified': True,
                   'adminArticleWordDateColumnsVerified': True,
                   'aiCrawlerRobotsVerified': True,
+                  'imageLazyLoadingVerified': True,
+                  'lcpImagePreloadVerified': True,
+                  'staticAssetServiceWorkerVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -884,6 +918,9 @@ jobs:
           assert proof['checks']['seoSettingsR2Verified'] is True
           assert proof['checks']['adminArticleWordDateColumnsVerified'] is True
           assert proof['checks']['aiCrawlerRobotsVerified'] is True
+          assert proof['checks']['imageLazyLoadingVerified'] is True
+          assert proof['checks']['lcpImagePreloadVerified'] is True
+          assert proof['checks']['staticAssetServiceWorkerVerified'] is True
           if remaining>0 and cadence_rate>0:
               assert float(catchup.get('qualityThresholdFloor') or 0)>=95
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
