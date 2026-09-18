@@ -67,6 +67,9 @@ jobs:
           grep -Fq 'batchStageTelemetry:true' bulk-generator.js
           grep -Fq 'candidateTimeBudget:true' bulk-generator.js
           grep -Fq 'defaultCandidateBudgetMs:38000' bulk-generator.js
+          grep -Fq 'semanticPreAudit:true' bulk-generator.js
+          grep -Fq 'cooperativeYieldEveryTries:8' bulk-generator.js
+          grep -Fq 'preAuditSemanticGate' quality-audit.js
           grep -Fq 'r2WriteRetry:3' bulk-generator.js
           grep -Fq 'r2HeadRetry:3' bulk-generator.js
           grep -Fq 'failClosedOnClusterRead:true' quality-index.js
