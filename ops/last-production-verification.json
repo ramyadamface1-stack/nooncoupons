@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "587358164c92187ba46604a0f999a32cbc2df3db",
-  "verifiedAt": "2026-09-18T17:21:02.146676+00:00",
+  "sourceSha": "8b69440e1f50260e776001a4b501d386ee498b1e",
+  "verifiedAt": "2026-09-18T17:26:50.427477+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -46,57 +46,60 @@
     "qualityClusterFailClosedVerified": true,
     "arabicDiversityV4Verified": true,
     "adaptiveCronBatchVerified": true,
-    "candidateRuntimeBudgetVerified": true
+    "candidateRuntimeBudgetVerified": true,
+    "semanticPreAuditVerified": true,
+    "cooperativeYieldVerified": true
   },
   "content": {
-    "r2HtmlObjects": 55413,
-    "trackedPublished": 19874,
-    "arabic": 19843,
+    "r2HtmlObjects": 55414,
+    "trackedPublished": 20058,
+    "arabic": 20027,
     "english": 31,
-    "lastSlug": "خطوات-قبل-الدفع-أزياء-النساء-نون-الإمارات-مراجعة-شروط-الكود-القصة",
+    "lastSlug": "السعر-النهائي-البيت-والمطبخ-نون-السعودية-تثبيت-السلة-اللون",
     "lastQuality": 100,
-    "lastWordCount": 1737
+    "lastWordCount": 1733
   },
   "catchup30k": {
     "target": 30000,
-    "current": 19843,
-    "remaining": 10157,
-    "requiredPerMinute": 21.16,
-    "effectiveBatchSize": 35,
-    "adaptiveBatchSize": 35,
+    "current": 20027,
+    "remaining": 9973,
+    "requiredPerMinute": 20.78,
+    "effectiveBatchSize": 34,
+    "adaptiveBatchSize": 34,
     "adaptiveMode": "catchup-adaptive",
     "adaptiveReason": "duration_target",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 27,
-    "lastBatchTries": 73,
-    "lastBatchDurationMs": 39383,
-    "lastBatchYieldPct": 36.99,
+    "lastBatchPublished": 32,
+    "lastBatchTries": 115,
+    "lastBatchDurationMs": 48874,
+    "lastBatchYieldPct": 27.83,
     "lastBatchStageMs": {
-      "candidateLoop": 28483,
-      "articleWrites": 4148,
-      "clusterFlush": 3953,
-      "freshness": 2318,
-      "catalogs": 6189,
-      "indexNow": 263,
-      "postParallel": 6189
+      "candidateLoop": 37097,
+      "articleWrites": 5670,
+      "clusterFlush": 4452,
+      "freshness": 2209,
+      "catalogs": 5581,
+      "indexNow": 266,
+      "postParallel": 5581
     },
-    "candidateBudgetMs": 28000,
-    "candidateBudgetHit": true,
-    "executionRatePerMinute": 41.13,
+    "candidateBudgetMs": 38000,
+    "candidateBudgetHit": false,
+    "executionRatePerMinute": 39.28,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 27,
+    "observedRatePerMinute": 32,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 6.27,
+    "estimatedHoursAtObservedRate": 5.19,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1000,
-    "preflightRejectedTotal": 2622,
+    "semanticPreAuditRejectedTotal": 0,
+    "preflightRejectedTotal": 2795,
     "preflightRecentRejectedTotal": 6,
-    "preflightClusterRejectedTotal": 1145,
+    "preflightClusterRejectedTotal": 1318,
     "lastPreflightRejectReasons": {
-      "global_duplicate_slug": 8,
-      "global_duplicate_keyword": 8,
-      "global_keyword_cannibalization": 16
+      "global_duplicate_slug": 15,
+      "global_duplicate_keyword": 15,
+      "global_keyword_cannibalization": 31
     }
   },
   "englishControlled": {
@@ -118,6 +121,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T17:20:15.093Z"
+    "completedAt": "2026-09-18T17:26:05.443Z"
   }
 }
