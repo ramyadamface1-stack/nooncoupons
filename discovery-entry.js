@@ -72,7 +72,9 @@ function keyPages(origin){
     '/coupon-verification',
     '/authors/editorial-team',
     '/about',
-    '/privacy'
+    '/privacy',
+    '/research',
+    '/glossary'
   ].map(path=>({loc:origin+path,lastmod:null}));
 }
 
@@ -184,4 +186,4 @@ export default{
   async scheduled(event,env,ctx){const base=app.scheduled?app.scheduled(event,env,ctx):null;if(base)ctx.waitUntil(Promise.resolve(base));ctx.waitUntil((async()=>{await repairEnglishCanaryLegacyMetadata(env);return runEnglishCanary(env)})());}
 };
 
-export const DISCOVERY_ENTRY_INFO={version:7,couponR2Migration:true,couponR2Audit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:18,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:7,couponR2Migration:true,couponR2Audit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:20,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,manifestCacheSeconds:120};
