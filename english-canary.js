@@ -3,11 +3,15 @@ import {auditEnglishSeoArticle} from './quality-audit.js';
 
 const STATE_KEY='english-canary/state.json';
 const DEFAULT_TARGET=2;
-const DEFAULT_CONTROLLED_TOTAL=2;
-const MAX_CONTROLLED_TOTAL=20;
+const DEFAULT_CONTROLLED_TOTAL=200;
+const MAX_CONTROLLED_TOTAL=1000;
+const DEFAULT_DAILY_TARGET=24;
+const MAX_DAILY_TARGET=48;
+const DEFAULT_MIN_INTERVAL_MINUTES=60;
+const DIVERSITY_WINDOW=24;
 const PROFILE_DIVERSITY_SLOTS=16;
-const PROFILE_MAX_PER_BATCH=2;
-const INTENT_MAX_PER_BATCH=3;
+const PROFILE_MAX_PER_BATCH=3;
+const INTENT_MAX_PER_BATCH=5;
 const START_CURSOR=760000;
 const MAX_SCAN=5000;
 const PROFILE_TO_CATEGORY={
@@ -27,26 +31,31 @@ const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
 
 function targetFromEnv(env){return Math.max(0,Math.min(2,Number(env.ENGLISH_CANARY_TOTAL||DEFAULT_TARGET)||DEFAULT_TARGET))}
 function controlledTargetFromEnv(env){const base=targetFromEnv(env),requested=Number(env.ENGLISH_CONTROLLED_TOTAL||DEFAULT_CONTROLLED_TOTAL)||DEFAULT_CONTROLLED_TOTAL;return Math.max(base,Math.min(MAX_CONTROLLED_TOTAL,requested))}
-function emptyState(env){return {version:2,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:targetFromEnv(env),controlledTarget:controlledTargetFromEnv(env),status:'active',controlledStatus:'active',cursor:START_CURSOR,records:[],updatedAt:now()}}
+function dailyTargetFromEnv(env){const requested=Number(env.ENGLISH_DAILY_TARGET||DEFAULT_DAILY_TARGET)||DEFAULT_DAILY_TARGET;return Math.max(1,Math.min(MAX_DAILY_TARGET,requested))}
+function minIntervalMinutesFromEnv(env){const requested=Number(env.ENGLISH_MIN_INTERVAL_MINUTES||DEFAULT_MIN_INTERVAL_MINUTES)||DEFAULT_MIN_INTERVAL_MINUTES;return Math.max(5,Math.min(1440,requested))}
+function cairoDay(ts=Date.now()){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(ts))}
+function publishedToday(records){const day=cairoDay();return (records||[]).filter(r=>r?.createdAt&&cairoDay(r.createdAt)===day).length}
+function nextEligibleAt(state,env){const last=Date.parse(state?.lastPublishedAt||'');if(!Number.isFinite(last))return null;return new Date(last+minIntervalMinutesFromEnv(env)*60000).toISOString()}
+function emptyState(env){return {version:3,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:targetFromEnv(env),controlledTarget:controlledTargetFromEnv(env),status:'active',controlledStatus:'active',cursor:START_CURSOR,records:[],updatedAt:now()}}
 async function readState(env){
-  try{const o=await env.CONTENT_FINAL?.get(STATE_KEY);if(!o)return emptyState(env);const s=await o.json();const records=Array.isArray(s.records)?s.records.map(r=>({...r,metaDescription:sanitizeMeta(r?.metaDescription)})):[];return {...emptyState(env),...s,version:2,target:targetFromEnv(env),controlledTarget:controlledTargetFromEnv(env),records}}
+  try{const o=await env.CONTENT_FINAL?.get(STATE_KEY);if(!o)return emptyState(env);const s=await o.json();const records=Array.isArray(s.records)?s.records.map(r=>({...r,metaDescription:sanitizeMeta(r?.metaDescription)})):[];return {...emptyState(env),...s,version:3,target:targetFromEnv(env),controlledTarget:controlledTargetFromEnv(env),records}}
   catch{return emptyState(env)}
 }
 async function writeState(env,state){
   const baseTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env),n=(state.records||[]).length;
-  const clean={...state,version:2,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:baseTarget,controlledTarget,status:n>=baseTarget?'complete':'active',controlledStatus:n>=controlledTarget?'complete':'active',updatedAt:now()};
+  const clean={...state,version:3,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:baseTarget,controlledTarget,status:n>=baseTarget?'complete':'active',controlledStatus:n>=controlledTarget?'complete':'active',updatedAt:now()};
   await env.CONTENT_FINAL.put(STATE_KEY,JSON.stringify(clean),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
   return clean;
 }
 function publicRecord(r){if(!r)return r;const {plain,...safe}=r;return safe}
-function recentForAudit(records){return (records||[]).map(r=>({slug:r.slug,primaryKeyword:r.primaryKeyword,signature:r.signature,plain:r.plain||'',blueprint:r.blueprint}))}
+function recentForAudit(records){return (records||[]).slice(-64).map(r=>({slug:r.slug,primaryKeyword:r.primaryKeyword,signature:r.signature,plain:r.plain||'',blueprint:r.blueprint}))}
 function qualityFloor(audit){const values=Object.values(audit?.groups||{}).map(Number).filter(Number.isFinite);return values.length?Math.min(...values):0}
 function categoryKeyFor(profileKey){return PROFILE_TO_CATEGORY[profileKey]||null}
 
 async function findCandidate(env,state,slot){
   const desiredCountry=slot%2===0?'SA':'AE',recent=recentForAudit(state.records),threshold=Math.max(95,Number(env.QUALITY_PUBLISH_THRESHOLD||95));
-  const usedProfiles=new Set((state.records||[]).map(r=>r.profileKey).filter(Boolean)),profileCounts=new Map(),intentCounts=new Map();
-  for(const r of state.records||[]){if(r.profileKey)profileCounts.set(r.profileKey,(profileCounts.get(r.profileKey)||0)+1);if(r.intent)intentCounts.set(r.intent,(intentCounts.get(r.intent)||0)+1)}
+  const history=state.records||[],recentWindow=history.slice(-DIVERSITY_WINDOW),usedProfiles=new Set(history.map(r=>r.profileKey).filter(Boolean)),profileCounts=new Map(),intentCounts=new Map(),usedSlugs=new Set(history.map(r=>r.slug).filter(Boolean)),usedKeywords=new Set(history.map(r=>String(r.primaryKeyword||'').toLowerCase()).filter(Boolean));
+  for(const r of recentWindow){if(r.profileKey)profileCounts.set(r.profileKey,(profileCounts.get(r.profileKey)||0)+1);if(r.intent)intentCounts.set(r.intent,(intentCounts.get(r.intent)||0)+1)}
   let cursor=Math.max(START_CURSOR,Number(state.cursor||START_CURSOR));
   for(let tries=0;tries<MAX_SCAN;tries++,cursor++){
     const topic=buildBulkTopic(cursor);
@@ -60,6 +69,7 @@ async function findCandidate(env,state,slot){
     if((intentCounts.get(candidate.intent)||0)>=INTENT_MAX_PER_BATCH)continue;
     const article=buildEnglishUsefulArticle(candidate,cursor);
     if(!article)continue;
+    if(usedSlugs.has(article.slug)||usedKeywords.has(String(article.primaryKeyword||'').toLowerCase()))continue;
     if(await env.CONTENT_FINAL.head('articles/'+article.slug+'.html'))continue;
     const audit=auditEnglishSeoArticle(article,candidate,{recent,threshold});
     if(!audit.productionReady||audit.minJaccardDistance<0.18)continue;
@@ -74,6 +84,9 @@ export async function runEnglishCanary(env){
   if(canaryTarget===0)return {ok:true,skipped:'english_canary_disabled',target:canaryTarget,controlledTarget:target};
   let state=await readState(env);
   if(state.records.length>=target){if(state.controlledStatus!=='complete')state=await writeState(env,state);return {ok:true,skipped:'english_controlled_complete',target:canaryTarget,controlledTarget:target,published:state.records.length}}
+  const dailyTarget=dailyTargetFromEnv(env),todayCount=publishedToday(state.records),minInterval=minIntervalMinutesFromEnv(env),nextAt=nextEligibleAt(state,env),nowMs=Date.now();
+  if(todayCount>=dailyTarget)return {ok:true,skipped:'english_daily_target_complete',published:state.records.length,publishedToday:todayCount,dailyTarget,controlledTarget:target};
+  if(nextAt&&Date.parse(nextAt)>nowMs)return {ok:true,skipped:'english_interval_wait',published:state.records.length,publishedToday:todayCount,dailyTarget,minIntervalMinutes:minInterval,nextEligibleAt:nextAt,controlledTarget:target};
   const slot=state.records.length,found=await findCandidate(env,state,slot);
   if(!found){state.cursor=Math.max(Number(state.cursor||START_CURSOR)+MAX_SCAN,START_CURSOR);state.lastError='no_production_ready_candidate';state=await writeState(env,state);return {ok:false,error:'no_production_ready_candidate',published:state.records.length,target:canaryTarget,controlledTarget:target}}
   const {cursor,candidate,article,audit,categoryKey}=found,createdAt=now(),floor=qualityFloor(audit),urlPath='/en/articles/'+article.slug,isCanary=slot<canaryTarget;
@@ -90,7 +103,7 @@ export async function runEnglishCanary(env){
     customMetadata:{lang:'en',ls:'native-intent-v6-canary',t:encodeURIComponent(record.title).slice(0,900),m:encodeURIComponent(record.metaDescription).slice(0,900),c:record.country,cp:record.coupon,q:String(record.quality),qf:String(record.qualityFloor),qc:String(record.qualityChecks),p:record.provider,kw:encodeURIComponent(record.primaryKeyword).slice(0,900),bp:String(record.blueprint),at:createdAt,status:'published',canary:isCanary?'1':'0',phase:record.phase}
   });
   state.records.push(record);state.cursor=cursor+1;state.lastError=null;state.lastPublishedAt=createdAt;state=await writeState(env,state);
-  return {ok:true,target:canaryTarget,controlledTarget:target,published:state.records.length,canaryComplete:state.status==='complete',controlledComplete:state.controlledStatus==='complete',record:publicRecord(record),audit:{score:audit.score,wordCount:audit.wordCount,minJaccardDistance:audit.minJaccardDistance,groups:audit.groups}};
+  return {ok:true,target:canaryTarget,controlledTarget:target,published:state.records.length,publishedToday:publishedToday(state.records),dailyTarget:dailyTargetFromEnv(env),minIntervalMinutes:minIntervalMinutesFromEnv(env),nextEligibleAt:nextEligibleAt(state,env),canaryComplete:state.status==='complete',controlledComplete:state.controlledStatus==='complete',record:publicRecord(record),audit:{score:audit.score,wordCount:audit.wordCount,minJaccardDistance:audit.minJaccardDistance,groups:audit.groups}};
 }
 
 export async function englishCanaryRecords(env){const s=await readState(env);return (s.records||[]).map(publicRecord)}
@@ -100,7 +113,7 @@ export async function englishCanaryHealth(env){
   for(const r of state.records||[]){let r2Present=false;try{r2Present=Boolean(await env.CONTENT_FINAL?.head('articles/'+r.slug+'.html'))}catch{}allRecords.push({...publicRecord(r),r2Present})}
   const canaryTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env),records=allRecords.slice(0,canaryTarget);
   const sa=allRecords.filter(r=>r.country==='SA').length,ae=allRecords.filter(r=>r.country==='AE').length,profileCount=new Set(allRecords.map(r=>r.profileKey).filter(Boolean)).size;
-  return {ok:true,version:2,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:canaryTarget,status:records.length>=canaryTarget?'complete':'active',published:records.length,complete:records.length>=canaryTarget,records,lastError:state.lastError||null,updatedAt:state.updatedAt,controlled:{target:controlledTarget,published:allRecords.length,remaining:Math.max(0,controlledTarget-allRecords.length),complete:allRecords.length>=controlledTarget,status:allRecords.length>=controlledTarget?'complete':'active',sa,ae,uniqueProfiles:profileCount,records:allRecords}};
+  const today=publishedToday(allRecords),dailyTarget=dailyTargetFromEnv(env),minIntervalMinutes=minIntervalMinutesFromEnv(env);return {ok:true,version:3,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:canaryTarget,status:records.length>=canaryTarget?'complete':'active',published:records.length,complete:records.length>=canaryTarget,records,lastError:state.lastError||null,updatedAt:state.updatedAt,controlled:{target:controlledTarget,published:allRecords.length,remaining:Math.max(0,controlledTarget-allRecords.length),complete:allRecords.length>=controlledTarget,status:allRecords.length>=controlledTarget?'complete':'active',sa,ae,uniqueProfiles:profileCount,publishedToday:today,dailyTarget,minIntervalMinutes,nextEligibleAt:nextEligibleAt(state,env),records:allRecords}};
 }
 
 export async function serveEnglishCanaryHealth(env){return jsonResponse(await englishCanaryHealth(env))}
@@ -127,4 +140,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:2,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:3,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
