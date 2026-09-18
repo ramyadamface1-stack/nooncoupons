@@ -22,7 +22,7 @@ const makeState=()=>({
   markets:{SA:{enabled:true,label:'السعودية'},AE:{enabled:true,label:'الإمارات'},EG:{enabled:false,label:'مصر'}},
   coupons:CODES.flatMap(code=>LIVE_MARKETS.map(country=>({id:country+'-'+code,code,country,status:'active',verified:false,priority:100,updatedAt:now()}))),
   articles:[],
-  settings:{brand:'Noon',qualityThreshold:95,minWords:1000,targetWords:1500,aiPrimary:'workers-ai',aiFallback:null},
+  settings:{brand:'Noon',qualityThreshold:95,minWords:1500,targetWords:1700,aiPrimary:'workers-ai',aiFallback:null},
   audit:[]
 });
 
@@ -45,7 +45,7 @@ function auditArticle(a){
   add('H1 Optimization',(content.match(/<h1\b/gi)||[]).length===1,2);
   add('H2 Hierarchy',(content.match(/<h2\b/gi)||[]).length>=6,2);
   add('H3 Hierarchy',(content.match(/<h3\b/gi)||[]).length>=1,1);
-  add('Content Length',n>=Number(a.minWords||1000)&&n<=2000,4);
+  add('Content Length',n>=Number(a.minWords||1500)&&n<=2000,4);
   add('FAQ Section',/FAQ|الأسئلة الشائعة|سؤال/i.test(content),2);
   add('Internal Linking',(content.match(/href=["']\//gi)||[]).length>=3,1);
   add('External Linking',/https:\/\/www\.noon\.com\//i.test(content),1);
@@ -62,7 +62,7 @@ function auditArticle(a){
   const couponCode=String(coupon||'').toUpperCase(),couponLock=!couponCode||(isApprovedCoupon(couponCode)&&codes.length>=1&&codes.every(x=>isApprovedCoupon(x)&&x===couponCode));
   add('Coupon Lock',couponLock,5);
   const total=checks.reduce((s,c)=>s+c.weight,0),passed=checks.reduce((s,c)=>s+(c.pass?c.weight:0),0),score=Math.round(passed/total*1000)/10;
-  const hardPass=!unsupported&&!leakage&&!wrongCountry&&couponLock&&n>=Number(a.minWords||1000)&&n<=2000;
+  const hardPass=!unsupported&&!leakage&&!wrongCountry&&couponLock&&n>=Number(a.minWords||1500)&&n<=2000;
   return {score,wordCount:n,checks,productionReady:hardPass&&score>=95};
 }
 
@@ -153,8 +153,8 @@ export class ControlPlane{
       const settings={...(s.settings||{})};
       if(settings.aiPrimary!=='workers-ai'){settings.aiPrimary='workers-ai';dirty=true}
       if(settings.aiFallback!==null){settings.aiFallback=null;dirty=true}
-      if(Number(settings.targetWords||0)!==1500){settings.targetWords=1500;dirty=true}
-      if(Number(settings.minWords||0)!==1000){settings.minWords=1000;dirty=true}
+      if(Number(settings.targetWords||0)!==1700){settings.targetWords=1700;dirty=true}
+      if(Number(settings.minWords||0)!==1500){settings.minWords=1500;dirty=true}
       if(Number(settings.qualityThreshold||0)!==95){settings.qualityThreshold=95;dirty=true}
       s.settings=settings;
       const expectedCoupons=CODES.flatMap(code=>LIVE_MARKETS.map(country=>({id:country+'-'+code,code,country,status:'active',verified:false,priority:100,updatedAt:now()})));
