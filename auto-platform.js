@@ -7,6 +7,7 @@ import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStat
 import {readState,pickTopic,publishGenerated} from './generator-core-v2.js';
 import {generateWithWorkersAI,workersAiBudget,isWorkersAiFreeQuotaError} from './workers-ai-generator.js';
 import {BULK_ENGINE_INFO} from './bulk-generator.js';
+import {normalizeApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 
 const VERSION='generator-5.0-quality-first';
 const PLATFORM_VERSION='platform-1.6-quality-first';
@@ -67,9 +68,10 @@ async function bulkArticlePage(u,env){
   const o=await env.CONTENT_FINAL.get('articles/'+slug+'.html');
   if(!o)return null;
   const md=o.customMetadata||{};
-  if(!String(md.p||'').startsWith('programmatic-cloudflare:'))return null;
-  const title=dec(md.t)||slug,meta=dec(md.m),country=md.c==='AE'?'AE':'SA',coupon=String(md.cp||''),keyword=dec(md.kw)||title,quality=Number(md.q||0),qualityFloor=Number(md.qf||0),checks=Number(md.qc||0),origin=env.SITE_ORIGIN||u.origin;
-  const rawBody=await o.text(),headingDensity=normalizeArticleHeadingDensity(rawBody,12),decorated=decorateArticleBody(headingDensity.html),body=decorated.body,canonical=origin+'/articles/'+encodeURI(slug),market=country==='SA'?'السعودية':'الإمارات',lang=country==='SA'?'ar-SA':'ar-AE',marketPath=country==='SA'?'/saudi':'/uae',published=md.at||now(),modified=o.uploaded?new Date(o.uploaded).toISOString():published;
+  if(md.status&&md.status!=='published')return null;
+  const country=(md.c||md.country)==='AE'?'AE':'SA',fallbackCoupon=country==='AE'?'NOV188':'NOV170';
+  const title=dec(md.t||md.title)||slug,rawMeta=dec(md.m||md.metaDescription||''),coupon=normalizeApprovedCoupon(md.cp||md.coupon,fallbackCoupon),keyword=dec(md.kw||md.primaryKeyword)||title,quality=Number(md.q||md.quality||0),qualityFloor=Number(md.qf||md.qualityFloor||0),checks=Number(md.qc||md.qualityChecks||0),origin=env.SITE_ORIGIN||u.origin;
+  const rawText=await o.text(),safeRaw=replaceUnapprovedCouponTokens(rawText,coupon),plainMeta=safeRaw.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),meta=rawMeta||plainMeta.slice(0,165)||title,headingDensity=normalizeArticleHeadingDensity(safeRaw,12),decorated=decorateArticleBody(headingDensity.html),body=decorated.body,canonical=origin+'/articles/'+encodeURI(slug),market=country==='SA'?'السعودية':'الإمارات',lang=country==='SA'?'ar-SA':'ar-AE',marketPath=country==='SA'?'/saudi':'/uae',published=md.at||md.createdAt||(o.uploaded?new Date(o.uploaded).toISOString():now()),modified=o.uploaded?new Date(o.uploaded).toISOString():published;
   const imgPath=`/assets/coupon-svg/${encodeURIComponent(slug)}/1.svg?v=8&coupon=${encodeURIComponent(coupon)}&country=${country}`,featured=origin+imgPath;
   const images=[1,2,3,4,5].map(v=>origin+`/assets/coupon-svg/${encodeURIComponent(slug)}/${v}.svg?v=8&coupon=${encodeURIComponent(coupon)}&country=${country}`);
   const graph={'@context':'https://schema.org','@graph':[
