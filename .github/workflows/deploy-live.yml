@@ -191,6 +191,33 @@ jobs:
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/$INDEXNOW_KEY.txt?deploy=$GITHUB_SHA" -D /tmp/ikh -o /tmp/indexnow-key.txt
           grep -Fqi 'x-indexnow-key-file: v1' /tmp/ikh
           grep -Fxq "$INDEXNOW_KEY" /tmp/indexnow-key.txt
+          echo "INDEXNOW_DEPLOY_PING=START"
+          INDEXNOW_HTTP=$(curl -sS -o /tmp/indexnow-submit.json -w '%{http_code}'             -H 'Content-Type: application/json; charset=utf-8'             --data "$(python - <<'PY'
+import json,os
+key=os.environ.get('INDEXNOW_KEY','')
+urls=[
+ 'https://noondealsnow.com/',
+ 'https://noondealsnow.com/coupons',
+ 'https://noondealsnow.com/blog',
+ 'https://noondealsnow.com/saudi',
+ 'https://noondealsnow.com/uae',
+ 'https://noondealsnow.com/saudi/categories',
+ 'https://noondealsnow.com/uae/categories',
+ 'https://noondealsnow.com/saudi-arabia/noon-coupon-code',
+ 'https://noondealsnow.com/uae/noon-coupon-code',
+ 'https://noondealsnow.com/coupon-verification',
+ 'https://noondealsnow.com/editorial-policy',
+ 'https://noondealsnow.com/authors/editorial-team'
+]
+print(json.dumps({'host':'noondealsnow.com','key':key,'keyLocation':f'https://noondealsnow.com/{key}.txt','urlList':urls},separators=(',',':')))
+PY
+)" https://api.indexnow.org/indexnow || true)
+          echo "INDEXNOW_DEPLOY_PING_HTTP=$INDEXNOW_HTTP"
+          if [ "$INDEXNOW_HTTP" != "200" ] && [ "$INDEXNOW_HTTP" != "202" ]; then
+            echo "INDEXNOW_DEPLOY_PING_WARNING=1"
+            cat /tmp/indexnow-submit.json || true
+          fi
+
 
           echo "VERIFY_ROUTE=robots"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/robots.txt?deploy=$GITHUB_SHA" -D /tmp/rh -o /tmp/robots.txt
