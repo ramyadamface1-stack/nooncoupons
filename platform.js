@@ -136,6 +136,13 @@ async function articlePage(path,env){
   return new Response(h,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=0,s-maxage=600'}});
 }
 
+async function privacyHash(value){
+  const bytes=new TextEncoder().encode(String(value||''));
+  const digest=await crypto.subtle.digest('SHA-256',bytes);
+  return [...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+function randomHex(bytes=32){const a=new Uint8Array(bytes);crypto.getRandomValues(a);return [...a].map(x=>x.toString(16).padStart(2,'0')).join('')}
+
 export class ControlPlane{
   constructor(ctx,env){this.ctx=ctx;this.env=env}
   async get(){
@@ -169,8 +176,27 @@ export class ControlPlane{
   async fetch(req){
     try{
     const u=new URL(req.url);
-    if(u.pathname==='/ping')return json({ok:true,class:'ControlPlane',version:3});
+    if(u.pathname==='/ping')return json({ok:true,class:'ControlPlane',version:4,uniqueArticleVisits:true,rawIpStored:false});
     if(u.pathname==='/state')return json(await this.get());
+    if(u.pathname==='/visit'&&req.method==='POST'){
+      const b=await req.json(),path=String(b?.path||'').slice(0,500),ip=String(b?.ip||'').slice(0,100);
+      if(!/^\/(?:en\/)?articles\//.test(path)||!ip)return json({ok:false,error:'invalid_visit'},400);
+      let pepper=await this.ctx.storage.get('visit-pepper-v1');
+      if(!pepper){pepper=randomHex(32);await this.ctx.storage.put('visit-pepper-v1',pepper)}
+      const pathHash=await privacyHash(path),visitorHash=await privacyHash(pepper+'|'+ip+'|'+pathHash),seenKey='visit-seen:'+pathHash+':'+visitorHash,totalKey='visit-total:'+pathHash;
+      if(await this.ctx.storage.get(seenKey))return json({ok:true,unique:false});
+      const current=await this.ctx.storage.get(totalKey)||{path,count:0,lastAt:null};
+      const next={path,count:Math.max(0,Number(current.count||0))+1,lastAt:now()};
+      await this.ctx.storage.put({[seenKey]:1,[totalKey]:next});
+      return json({ok:true,unique:true,count:next.count});
+    }
+    if(u.pathname==='/visits-batch'&&req.method==='POST'){
+      const b=await req.json(),paths=[...new Set((Array.isArray(b?.paths)?b.paths:[]).map(x=>String(x||'').slice(0,500)).filter(x=>/^\/(?:en\/)?articles\//.test(x)))].slice(0,800);
+      const pairs=await Promise.all(paths.map(async path=>[path,'visit-total:'+await privacyHash(path)]));
+      const keys=pairs.map(x=>x[1]),stored=keys.length?await this.ctx.storage.get(keys):new Map(),counts={};
+      for(const [path,key] of pairs){const row=stored instanceof Map?stored.get(key):null;counts[path]=Math.max(0,Number(row?.count||0))}
+      return json({ok:true,privacy:'sha256-with-private-do-pepper',rawIpStored:false,counts});
+    }
     if(u.pathname==='/article'&&req.method==='POST'){
       const rec=await req.json(),s=await this.get(),i=s.articles.findIndex(a=>a.slug===rec.slug);
       if(i>=0)s.articles[i]={...s.articles[i],...rec};else s.articles.unshift(rec);
