@@ -12,7 +12,15 @@ function cookie(req,name){const raw=req.headers.get('cookie')||'';for(const p of
 async function body(req){try{return await req.json()}catch{return {}}}
 async function gctl(env,path,init){const id=env.GENERATOR_CONTROL.idFromName('primary');return env.GENERATOR_CONTROL.get(id).fetch('https://generator.internal'+path,init)}
 async function ctl(env,path,init){const id=env.CONTROL.idFromName('primary');return env.CONTROL.get(id).fetch('https://control.internal'+path,init)}
-async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
+async function r2json(env,key,fallback){
+  if(!env.CONTENT_FINAL)return fallback;
+  let last=null;
+  for(let attempt=1;attempt<=3;attempt++){
+    try{const o=await env.CONTENT_FINAL.get(key);return o?await o.json():fallback}
+    catch(e){last=e;if(attempt<3)await new Promise(resolve=>setTimeout(resolve,40*attempt))}
+  }
+  throw last||new Error('r2_status_read_failed');
+}
 
 const R2_GENERATOR_CONFIG_KEY='_ops/generator-config.json';
 const R2_GENERATOR_STATUS_KEY='_ops/generator-status.json';
