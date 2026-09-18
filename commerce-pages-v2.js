@@ -11,8 +11,9 @@ import {
   CATEGORY_VISUALS,
 } from './commerce-taxonomy.js';
 import {englishCanaryRecords} from './english-canary.js';
+import {APPROVED_COUPON_CODES} from './approved-coupons.js';
 
-const CODES = ['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
+const CODES = APPROVED_COUPON_CODES;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const enc = (s) => encodeURI(String(s || ''));
 const safeJson = (x) => JSON.stringify(x).replace(/</g, '\\u003c');
@@ -33,7 +34,7 @@ function commerceHeader(){
   return `<div class="site-note"><div class="w"><span>كوبونات نون للسعودية والإمارات</span><span>موقع مستقل غير تابع لـ Noon</span></div></div><header class="site-head"><div class="w site-nav"><a class="site-brand" href="/"><span class="site-mark">ك</span><strong>كوبونات نون</strong></a><div class="header-markets" aria-label="اختيار السوق"><a href="/saudi">🇸🇦</a><a href="/uae">🇦🇪</a></div><nav><a href="/coupons">الكوبونات</a><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a><a href="/saudi/categories">الأقسام</a><a href="/blog">المقالات</a><a href="/coupon-verification">التحقق</a></nav><a class="site-cta" href="/coupons">انسخ كود</a></div></header>`;
 }
 function commerceFooter(){
-  return `<footer class="site-footer"><div class="w site-foot"><div><a class="site-brand" href="/"><span class="site-mark">%</span><strong>كوبونات نون</strong></a><p>أكواد وأدلة نون للسعودية والإمارات. لا نعرض نسبة خصم أو أهلية غير موثقة.</p></div><div><b>الدول</b><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a></div><div><b>الأقسام</b><a href="/saudi/categories">السعودية</a><a href="/uae/categories">الإمارات</a></div><div><b>الثقة</b><a href="/coupon-verification">منهجية التحقق</a><a href="/editorial-policy">السياسة التحريرية</a><a href="/authors/editorial-team">فريق التحرير</a></div></div></footer>`;
+  return `<footer class="site-footer"><div class="w site-foot"><div><a class="site-brand" href="/"><span class="site-mark">ك</span><strong>كوبونات نون</strong></a><p>أكواد وأدلة نون للسعودية والإمارات. لا نعرض نسبة خصم أو أهلية غير موثقة.</p></div><div><b>الدول</b><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a></div><div><b>الأقسام</b><a href="/saudi/categories">السعودية</a><a href="/uae/categories">الإمارات</a></div><div><b>الثقة</b><a href="/coupon-verification">منهجية التحقق</a><a href="/editorial-policy">السياسة التحريرية</a><a href="/authors/editorial-team">فريق التحرير</a></div></div></footer>`;
 }
 
 async function latestArticles(env) {
@@ -76,8 +77,19 @@ function breadcrumbs(market, parts = []) {
   return html + '</div>';
 }
 
+function marketLocale(path){
+  return path.startsWith('/saudi')?'ar-SA':path.startsWith('/uae')?'ar-AE':'ar';
+}
+function categoryAlternates(origin,path,rows=[]){
+  const categoryLike=/^\/(?:saudi|uae)\/(?:categories|category\/[^/]+)$/.test(path);
+  if(!categoryLike)return `<link rel="alternate" hreflang="${marketLocale(path)}" href="${esc(origin+path)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+'/')}">`;
+  const saPath=path.replace(/^\/uae/,'/saudi'),aePath=path.replace(/^\/saudi/,'/uae');
+  const market=path.startsWith('/saudi')?'saudi':'uae',enLang=market==='saudi'?'en-SA':'en-AE';
+  const en=(rows||[]).length>=3?`<link rel="alternate" hreflang="${enLang}" href="${esc(origin+'/en'+path)}">`:'';
+  return `<link rel="alternate" hreflang="ar-SA" href="${esc(origin+saPath)}"><link rel="alternate" hreflang="ar-AE" href="${esc(origin+aePath)}">${en}<link rel="alternate" hreflang="x-default" href="${esc(origin+'/')}">`;
+}
 function schema(origin, path, title, desc, rows) {
-  const segments = path.split('/').filter(Boolean);
+  const segments = path.split('/').filter(Boolean),locale=marketLocale(path);
   return {
     '@context': 'https://schema.org',
     '@graph': [
@@ -89,7 +101,7 @@ function schema(origin, path, title, desc, rows) {
         url: origin + path,
         name: title,
         description: desc,
-        inLanguage: 'ar',
+        inLanguage: locale,
         isPartOf:{'@id':origin+'/#website'},
         publisher:{'@id':origin+'/#organization'},
         mainEntity: {
@@ -117,7 +129,7 @@ function schema(origin, path, title, desc, rows) {
 }
 
 function pageHead(origin, path, title, desc, rows) {
-  const enPath='/en'+path, alternates=`<link rel="alternate" hreflang="ar" href="${esc(origin+path)}"><link rel="alternate" hreflang="en" href="${esc(origin+enPath)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+path)}">`;
+  const alternates=categoryAlternates(origin,path,rows);
   return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | كوبونات نون</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin + path)}">${alternates}<script type="application/ld+json">${safeJson(schema(origin,path,title,desc,rows))}</script><style>${CSS}</style>`;
 }
 
@@ -157,8 +169,8 @@ function englishCategoryGrid(market){
  return `<div class="grid4">${Object.keys(CATEGORIES).map(k=>`<article class="card visual-card"><div>${visualSvg(k,EN_CATEGORY_LABELS[k]||k)}<span class="visual-theme">${esc(CATEGORY_VISUALS[k]?.theme||'shopping')}</span><h3><a href="/en/${market}/category/${k}">${esc(EN_CATEGORY_LABELS[k]||k)}</a></h3><p>Explore coupon-focused guides and eligible shopping content for this category.</p></div><a class="read" href="/en/${market}/category/${k}">Explore category →</a></article>`).join('')}</div>`;
 }
 function englishHead(origin,path,title,desc,market){
- const arPath=path.replace(/^\/en/,'');
- return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | Noon Coupons</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin+path)}"><link rel="alternate" hreflang="en" href="${esc(origin+path)}"><link rel="alternate" hreflang="ar" href="${esc(origin+arPath)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+arPath)}"><style>${CSS}</style>`;
+ const arPath=path.replace(/^\/en/,''),enLang=market==='saudi'?'en-SA':'en-AE',arLang=market==='saudi'?'ar-SA':'ar-AE';
+ return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | Noon Coupons</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin+path)}"><link rel="alternate" hreflang="${enLang}" href="${esc(origin+path)}"><link rel="alternate" hreflang="${arLang}" href="${esc(origin+arPath)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+'/')}"><style>${CSS}</style>`;
 }
 async function englishCategoryPage(market,key,origin,env){
  const mk=MARKETS[market],cat=CATEGORIES[key];if(!mk||!cat)return null;
