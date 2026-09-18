@@ -95,6 +95,7 @@ jobs:
           grep -Fq "h2_structure" workers-ai-generator.js
           grep -Fq "h2Count>=6&&h2Count<=10" generator-core-v2.js
           grep -Fq "R2_GENERATOR_STATUS_KEY='_ops/generator-status.json'" admin-runtime.js
+          grep -Fq 'BULK_RUN_LOCK_MS=5*60*1000' admin-runtime.js
           grep -Fq "backend:'r2-v1'" admin-runtime.js
           grep -Fq "ctx.waitUntil(bulkTick(env))" auto-platform.js
       - name: Validate dedicated Cloudflare token
