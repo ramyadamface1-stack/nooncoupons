@@ -35,6 +35,8 @@ jobs:
           grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
           grep -Fq 'const INTENT_MAX_PER_BATCH=5;' english-canary.js
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
+          grep -Fq 'const MAX_SCAN=1500;' english-canary.js
+          grep -Fq "h2>=6&&h2<=18" quality-audit.js
           grep -Fq "audit.minJaccardDistance<0.18" english-canary.js
           grep -Fq "provider:isCanary?'programmatic-cloudflare:english-v6-canary':'programmatic-cloudflare:english-v6-controlled'" english-canary.js
           grep -Fq "export * from './bulk-content-engine-base.js';" bulk-content-engine.js
