@@ -170,9 +170,9 @@ export function addToCluster(cluster,rec,topic){
 export async function flushClusters(env,cache,dirtyKeys){
   if(!env?.CONTENT_FINAL)return;
   const rows=[...dirtyKeys].map(key=>[key,cache.get(key)]).filter(([,value])=>Boolean(value));
-  for(let i=0;i<rows.length;i+=12){
-    await Promise.all(rows.slice(i,i+12).map(([key,value])=>r2putRetry(env,key,JSON.stringify(value),{httpMetadata:{contentType:'application/json; charset=utf-8'}})));
+  for(let i=0;i<rows.length;i+=16){
+    await Promise.all(rows.slice(i,i+16).map(([key,value])=>r2putRetry(env,key,JSON.stringify(value),{httpMetadata:{contentType:'application/json; charset=utf-8'}})));
   }
 }
 
-export const GLOBAL_INDEX_INFO={version:VERSION,intentKeyVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:5,cannibalizationSimilarityMax:0.82,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:12,r2ReadRetry:3,r2WriteRetry:3,failClosedOnClusterRead:true,preflightGate:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','keyword-cannibalization']};
+export const GLOBAL_INDEX_INFO={version:VERSION,intentKeyVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:5,cannibalizationSimilarityMax:0.82,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:16,r2ReadRetry:3,r2WriteRetry:3,failClosedOnClusterRead:true,preflightGate:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','keyword-cannibalization']};
