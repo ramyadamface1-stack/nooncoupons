@@ -39,6 +39,9 @@ jobs:
           grep -Fq "setInterval(()=>refreshMetrics(false).catch(()=>{}),60000)" admin-page.js
           grep -Fq "refreshCountBtn" admin-page.js
           grep -Fq "/api/admin/live-overview" commerce-entry.js
+          grep -Fq "normalizeArticleHeadingDensity" auto-platform.js
+          grep -Fq "h2_structure" workers-ai-generator.js
+          grep -Fq "h2Count>=6&&h2Count<=10" generator-core-v2.js
       - name: Validate dedicated Cloudflare token
         id: cf
         env:
