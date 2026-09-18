@@ -31,7 +31,8 @@ jobs:
           grep -Fq "audit.minJaccardDistance<0.18" english-canary.js
           grep -Fq "languageSource:'arabic-primary'" bulk-generator.js
           grep -Fq "native-intent-v6-canary" commerce-pages-v2.js
-          grep -Fq "const market=noonUrl.includes('/uae-ar/')?'AE':'SA'" public-entry.js
+          grep -Fq "function marketFromRecord(rec,contentLanguage='')" public-entry.js
+          grep -Fq "function noonUrlForMarket(market){return market==='AE'?NOON_MARKETS['ar-AE']:NOON_MARKETS['ar-SA']}" public-entry.js
           grep -Fq 'const metaLead=/\bguide$/i.test(kw)?kw:`${kw} guide`;' bulk-content-engine.js
       - name: Verify deployed two-canary baseline
         run: |
