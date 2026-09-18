@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: nooncoupons-production-v2
@@ -26,7 +26,7 @@ jobs:
       - name: Validate worker source
         run: |
           set -euo pipefail
-          for f in discovery-entry.js brand-runtime.js network-entry.js commerce-entry.js public-entry.js premium-entry.js auto-platform.js final-platform.js visual-platform.js platform.js seo-layer.js site.js router.js index.js commerce-pages-v2.js commerce-taxonomy.js svg-engine.js approved-coupons.js admin-page.js; do node --check "$f"; done
+          for f in discovery-entry.js brand-runtime.js network-entry.js commerce-entry.js public-entry.js premium-entry.js auto-platform.js final-platform.js visual-platform.js platform.js seo-layer.js site.js router.js index.js commerce-pages-v2.js commerce-taxonomy.js svg-engine.js approved-coupons.js admin-page.js english-canary.js indexnow.js; do node --check "$f"; done
           grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "15000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
@@ -47,6 +47,9 @@ jobs:
           grep -Fq "legacyCanonicalRedirect" brand-runtime.js
           grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
           grep -Fq '"INDEXNOW_KEY": "' wrangler.jsonc
+          grep -Fq "urlPathAware:true" indexnow.js
+          grep -Fq "indexNowOnPublish:true" english-canary.js
+          grep -Fq "const indexNow=await submitIndexNow(env,[record])" english-canary.js
           grep -Fq "owner-approved-nov-v1-strict-copy" coupon-registry.js
           grep -Fq '/sitemap-priority.xml' discovery-entry.js
           grep -Fq 'recentArticleLimit:500' discovery-entry.js
@@ -431,5 +434,106 @@ jobs:
           assert int(c.get('target') or 0)==200
           assert int(c.get('dailyTarget') or 0)==24
           assert int(c.get('minIntervalMinutes') or 0)==60
+          idx=x.get('indexNow') or {}
+          assert idx.get('urlPathAware') is True
           PY
           echo "PRODUCTION_RUNTIME_VERIFIED=1"
+
+
+      - name: Record verified production state
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "nooncoupons-production-verifier"
+          git config user.email "actions@users.noreply.github.com"
+          git fetch origin main
+          remote_sha="$(git rev-parse origin/main)"
+          if [ "$remote_sha" != "$GITHUB_SHA" ]; then
+            echo "PRODUCTION_PROOF_SKIPPED_REMOTE_ADVANCED source=$GITHUB_SHA remote=$remote_sha"
+            exit 0
+          fi
+          git checkout -B production-proof origin/main
+          mkdir -p ops
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+
+          def load(path, fallback=None):
+              try:
+                  with open(path, encoding='utf-8') as f:
+                      return json.load(f)
+              except Exception:
+                  return {} if fallback is None else fallback
+
+          s=load('/tmp/s.json')
+          migration=load('/tmp/migration-final.json')
+          audit=load('/tmp/r2-audit-final.json')
+          english=load('/tmp/english-health.json')
+          controlled=english.get('controlled') or {}
+          proof={
+              'version': 1,
+              'sourceSha': os.environ.get('GITHUB_SHA'),
+              'verifiedAt': datetime.now(timezone.utc).isoformat(),
+              'productionOrigin': 'https://noondealsnow.com',
+              'workerOrigin': 'https://nooncoupons.ramychatgptgcoupons.workers.dev',
+              'checks': {
+                  'productionRuntimeVerified': True,
+                  'canonicalProductionRoutesVerified': True,
+                  'couponAllowlistRenderedHtml': 'PASS',
+                  'approvedCouponCount': 10,
+                  'invalidCouponTokensLive': 0,
+                  'r2CouponMigrationDone': bool(migration.get('done')),
+                  'r2CouponAuditDone': bool(audit.get('done')),
+                  'r2InvalidFiles': int(audit.get('invalidFiles') or 0),
+                  'r2InvalidTokens': int(audit.get('invalidTokens') or 0),
+                  'countryCouponSchemaVerified': True,
+                  'articleSvgVerified': True,
+                  'privateRoutesNoindex': True,
+                  'indexNowKeyVerified': True,
+                  'englishIndexNowUrlPathAware': bool((english.get('indexNow') or {}).get('urlPathAware')),
+              },
+              'content': {
+                  'r2HtmlObjects': s.get('r2Uploaded'),
+                  'trackedPublished': s.get('total'),
+                  'arabic': s.get('arabic'),
+                  'english': s.get('english'),
+                  'lastSlug': (s.get('last') or {}).get('slug'),
+                  'lastQuality': (s.get('last') or {}).get('quality'),
+                  'lastWordCount': (s.get('last') or {}).get('wordCount'),
+              },
+              'englishControlled': {
+                  'target': controlled.get('target'),
+                  'published': controlled.get('published'),
+                  'remaining': controlled.get('remaining'),
+                  'publishedToday': controlled.get('publishedToday'),
+                  'dailyTarget': controlled.get('dailyTarget'),
+                  'minIntervalMinutes': controlled.get('minIntervalMinutes'),
+                  'nextEligibleAt': controlled.get('nextEligibleAt'),
+              },
+              'couponMigration': {
+                  'scanned': migration.get('scanned'),
+                  'updated': migration.get('updated'),
+                  'replaced': migration.get('replaced'),
+                  'completedAt': migration.get('completedAt'),
+              },
+              'couponAudit': {
+                  'scanned': audit.get('scanned'),
+                  'invalidFiles': audit.get('invalidFiles'),
+                  'invalidTokens': audit.get('invalidTokens'),
+                  'completedAt': audit.get('completedAt'),
+              }
+          }
+          assert proof['checks']['r2CouponMigrationDone'] is True
+          assert proof['checks']['r2CouponAuditDone'] is True
+          assert proof['checks']['r2InvalidFiles'] == 0
+          assert proof['checks']['r2InvalidTokens'] == 0
+          assert proof['checks']['englishIndexNowUrlPathAware'] is True
+          with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
+              json.dump(proof,f,ensure_ascii=False,indent=2)
+              f.write('\n')
+          PY
+          git add ops/last-production-verification.json
+          git commit -m "Record production verification for $GITHUB_SHA [skip ci]"
+          git push origin HEAD:main
+          echo "PRODUCTION_PROOF_RECORDED=1"
