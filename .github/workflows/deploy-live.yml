@@ -85,6 +85,9 @@ jobs:
           grep -Fq "refreshCountBtn" admin-page.js
           grep -Fq "/api/admin/live-overview" commerce-entry.js
           grep -Fq "normalizeArticleHeadingDensity" auto-platform.js
+          grep -Fq 'intentKeyVersion:2' quality-index.js
+          grep -Fq "queryModifier:topic.queryModifier||''" bulk-generator.js
+          grep -Fq 'distinctSpecificity:true' keyword-strategy.js
           grep -Fq 'data-schema="blog-collection"' auto-platform.js
           grep -Fq "x-blog-schema':'collection-v1'" auto-platform.js
           grep -Fq "RESEARCH_UPDATED_AT='2026-09-18'" router.js
