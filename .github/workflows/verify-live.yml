@@ -38,7 +38,7 @@ jobs:
           echo CHECK_CATCHUP_BATCH; grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "64"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_MIN_BATCH_SIZE": "32"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_TARGET_BATCH_MS": "52000"' wrangler.jsonc
-          grep -Fq '"BULK_CANDIDATE_BUDGET_MS": "38000"' wrangler.jsonc
+          grep -Fq '"BULK_CANDIDATE_BUDGET_MS": "42000"' wrangler.jsonc
           grep -Fq 'chooseAdaptiveBulkBatch' admin-runtime.js
           echo CHECK_CATCHUP_WINDOW; grep -Fq '"BULK_CATCHUP_WINDOW_HOURS": "8"' wrangler.jsonc
           echo CHECK_CATCHUP_LOGIC
@@ -66,7 +66,7 @@ jobs:
           grep -Fq 'parallelCatalogShards:true' bulk-generator.js
           grep -Fq 'batchStageTelemetry:true' bulk-generator.js
           grep -Fq 'candidateTimeBudget:true' bulk-generator.js
-          grep -Fq 'defaultCandidateBudgetMs:38000' bulk-generator.js
+          grep -Fq 'defaultCandidateBudgetMs:42000' bulk-generator.js
           grep -Fq 'semanticPreAudit:true' bulk-generator.js
           grep -Fq 'cooperativeYieldEveryTries:8' bulk-generator.js
           grep -Fq 'preAuditSemanticGate' quality-audit.js
