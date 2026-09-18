@@ -125,6 +125,35 @@ function normalizeCouponUi(html){
   return {html:out,state};
 }
 
+function setImgAttr(attrs,name,value){
+  const re=new RegExp('\\s'+name+'=["\\\'][^"\\\']*["\\\']','i'),chunk=' '+name+'="'+attr(value)+'"';
+  return re.test(attrs)?attrs.replace(re,chunk):attrs+chunk;
+}
+function optimizeImages(html){
+  let firstSrc=null,count=0;
+  let out=String(html).replace(/<img\\b([^>]*)>/gi,(whole,attrs)=>{
+    const m=String(attrs).match(/\\bsrc=(["'])(.*?)\\1/i);if(!m||!m[2])return whole;
+    const src=m[2],isFirst=count===0;count++;if(isFirst)firstSrc=src;
+    let next=setImgAttr(attrs,'decoding','async');
+    next=setImgAttr(next,'loading',isFirst?'eager':'lazy');
+    next=setImgAttr(next,'fetchpriority',isFirst?'high':'low');
+    return '<img'+next+'>';
+  });
+  if(firstSrc&&!/<link\\b[^>]*rel=["'][^"']*preload[^"']*["'][^>]*as=["']image["']/i.test(out)){
+    const tag='<link rel="preload" as="image" href="'+attr(firstSrc)+'" fetchpriority="high">';
+    out=out.replace(/<\\/head>/i,tag+'</head>');
+  }
+  return {html:out,count,firstSrc};
+}
+const SW_JS=`const CACHE='noondeals-static-v1';
+self.addEventListener('install',event=>event.waitUntil(self.skipWaiting()));
+self.addEventListener('activate',event=>event.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith('noondeals-static-')&&key!==CACHE)await caches.delete(key);await self.clients.claim()})()));
+self.addEventListener('fetch',event=>{const req=event.request;if(req.method!=='GET')return;const u=new URL(req.url);if(u.origin!==location.origin)return;if(!(u.pathname.startsWith('/assets/coupon-svg/')||u.pathname.startsWith('/assets/featured/')||u.pathname==='/favicon.svg'))return;event.respondWith((async()=>{const cache=await caches.open(CACHE),hit=await cache.match(req);if(hit)return hit;const res=await fetch(req);if(res.ok)event.waitUntil(cache.put(req,res.clone()));return res})())});`;
+function serviceWorkerRegistration(html){
+  if(String(html).includes("serviceWorker.register('/sw.js'"))return html;
+  const s=`<script>if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('/sw.js',{scope:'/'}).catch(()=>{}),{once:true})}</script>`;
+  return /<\\/body>/i.test(html)?String(html).replace(/<\\/body>/i,s+'</body>'):String(html)+s;
+}
 function brandHead(html){
   let out=String(html);
   const tags=[];
@@ -174,6 +203,7 @@ export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
     if(req.method==='GET'&&u.pathname==='/favicon.svg')return favicon();
+    if(req.method==='GET'&&u.pathname==='/sw.js')return new Response(SW_JS,{headers:{'content-type':'application/javascript; charset=utf-8','cache-control':'no-cache','service-worker-allowed':'/','x-content-type-options':'nosniff'}});
     if(req.method==='GET'){const legacy=legacyCanonicalRedirect(u);if(legacy)return new Response(null,{status:301,headers:{location:(env.SITE_ORIGIN||u.origin)+legacy,'cache-control':'public, max-age=86400','x-legacy-canonical-redirect':'v1'}});}
     if(req.method==='GET'){const keyFile=indexNowKeyFile(env,u.pathname);if(keyFile)return keyFile;}
     let res=await app.fetch(req,env,ctx);
@@ -188,10 +218,15 @@ export default{
     const normalized=normalizeCouponUi(sanitized.html);
     const visibleSanitized=sanitizeVisibleCouponTokens(normalized.html);
     const settings=await cachedSeoSettings(env);
-    const html=applySeoSettings(brandHead(visibleSanitized.html),settings,u.pathname,origin);
+    let html=applySeoSettings(brandHead(visibleSanitized.html),settings,u.pathname,origin);
+    const imagePerf=!u.pathname.startsWith('/admin')?optimizeImages(html):{html,count:0,firstSrc:null};html=imagePerf.html;
+    if(!u.pathname.startsWith('/admin'))html=serviceWorkerRegistration(html);
     const h=new Headers(res.headers);h.delete('content-length');
     h.set('x-brand-layer','v1');
     h.set('x-seo-settings',settings?'r2-v1':'default');
+    h.set('x-image-performance','lazy-v1');
+    h.set('x-image-count',String(imagePerf.count));
+    h.set('x-service-worker-cache','static-assets-v1');
     h.set('x-organization-schema-count',String(repaired.state.organizations));
     h.set('x-organization-logo-fixed',String(repaired.state.fixed));
     h.set('x-coupon-ui-deduped',String(normalized.state.duplicatesRemoved));
@@ -203,4 +238,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:13,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:14,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
