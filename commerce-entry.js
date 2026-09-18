@@ -113,7 +113,7 @@ export default{
     sitemapHealthy:sitemap.ok&&/<(?:sitemapindex|urlset)\b/i.test(sitemap.body||''),
     llmsHealthy:llms.ok&&has(llms,'Approved coupon codes only:')&&has(llms,'/research')&&has(llms,'/glossary'),
     researchHealthy:research.ok&&has(research,'بيانات ومنهجية كوبونات نون'),
-    glossaryHealthy:glossary.ok&&has(glossary,'DefinedTerm')===false&&has(glossary,'قاموس مصطلحات الكوبونات'),
+    glossaryHealthy:glossary.ok&&has(glossary,'DefinedTerm')&&has(glossary,'قاموس مصطلحات الكوبونات'),
     countriesHealthy:countries.ok&&has(countries,'نون السعودية والإمارات'),
     approvedCouponCount:APPROVED_COUPON_CODES.length,
     approvedCoupons:[...APPROVED_COUPON_CODES],
