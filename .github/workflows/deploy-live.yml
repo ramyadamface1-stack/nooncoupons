@@ -39,6 +39,9 @@ jobs:
           grep -Fq "privateNoindex" brand-runtime.js
           grep -Fq "Disallow: /admin/" brand-runtime.js
           grep -Fq "Disallow: /api/" brand-runtime.js
+          grep -Fq "indexNowKeyFile" brand-runtime.js
+          grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
+          grep -Fq '"INDEXNOW_KEY": "' wrangler.jsonc
           grep -Fq "owner-approved-nov-v1-strict-copy" coupon-registry.js
           grep -Fq '/sitemap-priority.xml' discovery-entry.js
           grep -Fq 'recentArticleLimit:500' discovery-entry.js
@@ -180,6 +183,13 @@ jobs:
           grep -Fq '/saudi-arabia/noon-coupon-code' /tmp/priority.xml
           grep -Fq '/uae/noon-coupon-code' /tmp/priority.xml
           grep -Fq '/articles/' /tmp/priority.xml
+
+          INDEXNOW_KEY=$(node -e "const fs=require('fs');const t=fs.readFileSync('wrangler.jsonc','utf8');const m=t.match(/\"INDEXNOW_KEY\"\s*:\s*\"([^\"]+)\"/);process.stdout.write(m?m[1]:'')")
+          [ -n "$INDEXNOW_KEY" ] || { echo 'INDEXNOW_KEY_MISSING'; exit 1; }
+          echo "VERIFY_ROUTE=indexnow-key"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/$INDEXNOW_KEY.txt?deploy=$GITHUB_SHA" -D /tmp/ikh -o /tmp/indexnow-key.txt
+          grep -Fqi 'x-indexnow-key-file: v1' /tmp/ikh
+          grep -Fxq "$INDEXNOW_KEY" /tmp/indexnow-key.txt
 
           echo "VERIFY_ROUTE=robots"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/robots.txt?deploy=$GITHUB_SHA" -D /tmp/rh -o /tmp/robots.txt
