@@ -1,5 +1,6 @@
 import {buildBulkTopic,buildEnglishNativeCandidate,buildEnglishUsefulArticle,BULK_ENGINE_INFO} from './bulk-content-engine.js';
 import {auditEnglishSeoArticle} from './quality-audit.js';
+import {normalizeApprovedCoupon,isApprovedCoupon} from './approved-coupons.js';
 
 const STATE_KEY='english-canary/state.json';
 const DEFAULT_TARGET=2;
@@ -62,8 +63,10 @@ async function findCandidate(env,state,slot){
     if(topic.country!==desiredCountry)continue;
     const categoryKey=categoryKeyFor(topic.profileKey);
     if(!categoryKey)continue;
-    const candidate=buildEnglishNativeCandidate(topic);
-    if(!candidate)continue;
+    const rawCandidate=buildEnglishNativeCandidate(topic);
+    if(!rawCandidate)continue;
+    const fallbackCode=desiredCountry==='AE'?'OPS58':'OPS32',candidate={...rawCandidate,code:normalizeApprovedCoupon(rawCandidate.code,fallbackCode)};
+    if(!isApprovedCoupon(candidate.code))continue;
     if(slot<PROFILE_DIVERSITY_SLOTS&&usedProfiles.has(candidate.profileKey))continue;
     if((profileCounts.get(candidate.profileKey)||0)>=PROFILE_MAX_PER_BATCH)continue;
     if((intentCounts.get(candidate.intent)||0)>=INTENT_MAX_PER_BATCH)continue;
