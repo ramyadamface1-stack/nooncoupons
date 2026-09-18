@@ -21,7 +21,9 @@ jobs:
           node --check premium-entry.js
           node --check discovery-entry.js
           node --check brand-runtime.js
-          grep -Fq "2026-09-15-v1" keyword-pages.js
+          grep -Fq "2026-09-18-v2-golden-hub" keyword-pages.js
+          grep -Fq "GOLDEN_KEYWORD_ROUTES" keyword-pages.js
+          grep -Fq "goldenKeywordsHub" keyword-pages.js
           grep -Fq "كود خصم نون 2026" keyword-pages.js
           grep -Fq "كود خصم نون السعودية 2026" keyword-pages.js
           grep -Fq "كود خصم نون الإمارات 2026" keyword-pages.js
@@ -65,4 +67,8 @@ jobs:
           pages="$(curl -fsS --max-time 20 "$ORIGIN/sitemap-pages.xml")"
           grep -Fq '/coupon/noon-discount-50' <<<"$pages"
           grep -Fq '/guide/noon-yellow-friday' <<<"$pages"
+          grep -Fq '/golden-keywords' <<<"$pages"
+          golden="$(curl -fsS --max-time 20 "$ORIGIN/golden-keywords")"
+          grep -Fq 'الكلمات والصفحات الذهبية لنون' <<<"$golden"
+          grep -Fq '"@type":"CollectionPage"' <<<"$golden"
           echo 'KEYWORD_MAP_LIVE=PASS'
