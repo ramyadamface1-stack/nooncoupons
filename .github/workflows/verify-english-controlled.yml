@@ -37,6 +37,9 @@ jobs:
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
           grep -Fq 'const MAX_SCAN=1500;' english-canary.js
           grep -Fq "h2>=6&&h2<=18" quality-audit.js
+          grep -Fq "const CODES=['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'];" bulk-content-engine-base.js
+          grep -Fq "normalizeApprovedCoupon(rawCandidate.code" english-canary.js
+          grep -Fq "repairCouponWhitelist" english-canary-repair.js
           grep -Fq "audit.minJaccardDistance<0.18" english-canary.js
           grep -Fq "provider:isCanary?'programmatic-cloudflare:english-v6-canary':'programmatic-cloudflare:english-v6-controlled'" english-canary.js
           grep -Fq "export * from './bulk-content-engine-base.js';" bulk-content-engine.js
@@ -109,7 +112,7 @@ jobs:
               rows.every(r=>r.r2Present===true && r.status==='published' && r.indexable===true &&
                 r.language==='en' && r.languageIntent==='en' && r.languageSource==='native-intent-v6-canary' &&
                 Number(r.quality)>=95 && Number(r.qualityFloor)>=95 && Number(r.wordCount)>=1000 &&
-                Number(r.minJaccardDistance)>=0.18 && validGroups(r) && copyClean(r)) &&
+                Number(r.minJaccardDistance)>=0.18 && ['OPS32','OPS56','OPS47','OPS48','OPS43','OPS41','OPS38','OPS58'].includes(String(r.coupon||'').toUpperCase()) && validGroups(r) && copyClean(r)) &&
               canaries.every(r=>r.provider==='programmatic-cloudflare:english-v6-canary') &&
               expanded.every(r=>r.provider==='programmatic-cloudflare:english-v6-controlled');
             process.exit(pass?0:1);
@@ -159,6 +162,7 @@ jobs:
           assert v[-1] in '.!?', v
           PY
             if grep -Eiq "(save|discount)[[:space:]]+(up to[[:space:]]+)?[0-9]{1,3}%" /tmp/page.html; then echo "UNSUPPORTED_PERCENT $slug"; exit 1; fi
+            if grep -Eiq '\bNOV[0-9]+\b' /tmp/page.html; then echo "UNAPPROVED_NOV $slug"; exit 1; fi
             if [ -n "$category" ]; then
               curl -fsS -D /tmp/cat.h --max-time 20 "$ORIGIN$market/category/$category" -o /tmp/cat.html
               ev="$(awk -F': ' 'tolower($1)=="x-english-evidence"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
