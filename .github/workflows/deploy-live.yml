@@ -120,6 +120,15 @@ jobs:
           grep -Fq 'imageLazyLoading:true' brand-runtime.js
           grep -Fq 'lcpImagePreload:true' brand-runtime.js
           grep -Fq 'serviceWorkerStaticCache:true' brand-runtime.js
+          node --check svg-engine.js
+          node svg-responsive-selftest.js
+          grep -Fq "version:9" svg-engine.js
+          grep -Fq "preserveAspectRatio:'xMidYMid meet'" svg-engine.js
+          grep -Fq 'rtlTitleAnchoring:' svg-engine.js
+          grep -Fq 'visual-v5' visual-platform.js
+          grep -Fq "x-visual-layout','responsive-v9'" visual-platform.js
+          grep -Fq "v:'9'" visual-platform.js
+          grep -Fq 'svg?v=9' bulk-content-engine-base.js
           node --check gsc-snapshot.js
           grep -Fq "property:'sc-domain:noondealsnow.com'" gsc-snapshot.js
           grep -Fq "dataAvailable:false" gsc-snapshot.js
@@ -437,6 +446,12 @@ jobs:
           grep -Fq 'href="/favicon.svg"' /tmp/a.html
           grep -Fqi 'x-image-performance: lazy-v1' /tmp/h
           grep -Fqi 'x-service-worker-cache: static-assets-v1' /tmp/h
+          grep -Fqi 'x-visual-layout: responsive-v9' /tmp/h
+          grep -Fqi 'x-svg-safe-area: 70px' /tmp/h
+          grep -Fq 'style id="visual-v5"' /tmp/a.html
+          grep -Fq 'object-fit:contain!important' /tmp/a.html
+          grep -Fq '/assets/coupon-svg/' /tmp/a.html
+          grep -Eq '/assets/coupon-svg/[^" ]+/[1-5]\.svg\?v=9' /tmp/a.html
           grep -Fq 'decoding="async"' /tmp/a.html
           grep -Fq 'loading="eager"' /tmp/a.html
           grep -Fq 'fetchpriority="high"' /tmp/a.html
@@ -506,7 +521,10 @@ jobs:
           echo "VERIFY_ROUTE=article-image path=$ARTICLE_IMG"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN$ARTICLE_IMG" -D /tmp/imh -o /tmp/article.svg
           grep -Fqi 'content-type: image/svg+xml' /tmp/imh
+          grep -Fqi 'x-svg-layout: responsive-v9' /tmp/imh
           grep -Fq '<svg' /tmp/article.svg
+          grep -Fq 'preserveAspectRatio="xMidYMid meet"' /tmp/article.svg
+          if grep -Eqi 'text-anchor="start"[^>]*direction="rtl"|direction="rtl"[^>]*text-anchor="start"' /tmp/article.svg; then echo 'UNSAFE_RTL_SVG_ANCHOR'; exit 1; fi
           python - <<'PY'
           from html.parser import HTMLParser
           class P(HTMLParser):
@@ -518,6 +536,20 @@ jobs:
           p=P(); p.feed(open('/tmp/a.html',encoding='utf-8').read())
           assert not p.missing, f'missing alt on {len(p.missing)} images'
           PY
+
+          echo "VERIFY_ROUTE=responsive-svg-all-variants"
+          TEST_SLUG="$(python - <<'PY'
+          import urllib.parse
+          print(urllib.parse.quote('كود نون لشراء عدة منتجات dyson الأجهزة المنزلية في السعودية الأبعاد والسعر النهائي قبل الدفع',safe=''))
+          PY
+          )"
+          for v in 1 2 3 4 5; do
+            curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/assets/coupon-svg/$TEST_SLUG/$v.svg?v=9&coupon=NOV163&country=SA" -D "/tmp/svg$v.h" -o "/tmp/svg$v.svg"
+            grep -Fqi 'x-svg-layout: responsive-v9' "/tmp/svg$v.h"
+            grep -Fq 'viewBox="0 0 1200 760"' "/tmp/svg$v.svg"
+            grep -Fq 'preserveAspectRatio="xMidYMid meet"' "/tmp/svg$v.svg"
+            if grep -Eqi 'text-anchor="start"[^>]*direction="rtl"|direction="rtl"[^>]*text-anchor="start"' "/tmp/svg$v.svg"; then echo "UNSAFE_RTL_SVG_VARIANT=$v"; exit 1; fi
+          done
 
           echo "VERIFY_ROUTE=home"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/?deploy=$GITHUB_SHA" -o /tmp/home.html
@@ -849,6 +881,10 @@ jobs:
                   'imageLazyLoadingVerified': True,
                   'lcpImagePreloadVerified': True,
                   'staticAssetServiceWorkerVerified': True,
+                  'responsiveSvgV9Verified': True,
+                  'rtlSvgClippingFixedVerified': True,
+                  'allFiveSvgVariantsVerified': True,
+                  'responsiveArticleVisualCssVerified': True,
                   'gscSeoDropsSnapshotVerified': True,
                   'gscNoDataTruthfulnessVerified': True,
                   'gscAdminEndpointPrivateVerified': True,
@@ -966,6 +1002,10 @@ jobs:
           assert proof['checks']['imageLazyLoadingVerified'] is True
           assert proof['checks']['lcpImagePreloadVerified'] is True
           assert proof['checks']['staticAssetServiceWorkerVerified'] is True
+          assert proof['checks']['responsiveSvgV9Verified'] is True
+          assert proof['checks']['rtlSvgClippingFixedVerified'] is True
+          assert proof['checks']['allFiveSvgVariantsVerified'] is True
+          assert proof['checks']['responsiveArticleVisualCssVerified'] is True
           assert proof['checks']['gscSeoDropsSnapshotVerified'] is True
           assert proof['checks']['gscNoDataTruthfulnessVerified'] is True
           assert proof['checks']['gscAdminEndpointPrivateVerified'] is True
