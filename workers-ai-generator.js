@@ -60,7 +60,7 @@ function basePrompt(t,cfg,existing){
 - ممنوع اختلاق نسبة خصم أو حد أقصى أو مدة صلاحية أو أهلية أو claim تجاري غير متحقق.
 - وضّح أن النتيجة النهائية للكوبون تتحقق داخل سلة نون قبل الدفع.
 - Answer-first ثم شرح عملي عميق، بدون حشو أو إعادة صياغة نفس الفقرة.
-- اكتب 8 أقسام H2 على الأقل وH3 عند الحاجة.
+- اكتب بين 6 و9 أقسام H2 فقط للمقال كله، ويجب ألا يتجاوز العدد 10. استخدم H3 للتفاصيل داخل كل قسم.
 - أضف جدول HTML مفيد للمقارنة أو قائمة قرار واضحة.
 - أضف خطوات استخدام الكوبون، troubleshooting، مقارنة السعر النهائي، قرار شراء، ونصائح خاصة بـ ${t.category}.
 - أضف قسم H2 بعنوان "الأسئلة الشائعة" وفيه 4 أسئلة H3 على الأقل وإجابات مباشرة.
@@ -165,7 +165,7 @@ function buildArticle(body,t){
   const slug=slugify(t.kw),faq=faqData(t);let h=body;
   if(!/data-copy-code/i.test(h))h+=`<section class="coupon-action"><h2>جرّب الكود في السلة</h2><p>انسخ <strong>${esc(t.code)}</strong> وتحقق من النتيجة داخل سلة نون قبل الدفع.</p><button type="button" data-copy-code="${esc(t.code)}">نسخ الكود ${esc(t.code)}</button></section>`;
   if(!/الأسئلة الشائعة|FAQ/i.test(h))h+=`<section class="faq"><h2>الأسئلة الشائعة</h2>${faq.map(x=>`<h3>${esc(x.question)}</h3><p>${esc(x.answer)}</p>`).join('')}</section>`;
-  h+=`<nav class="related-links" aria-label="روابط مفيدة"><h2>روابط تساعدك قبل الشراء</h2><ul><li><a href="/">الرئيسية</a></li><li><a href="/${t.country==='SA'?'saudi-arabia':'uae'}">نون ${esc(t.countryName)}</a></li><li><a href="/coupons">كل الكوبونات</a></li><li><a href="/blog">المدونة</a></li><li><a href="/categories">التصنيفات</a></li></ul><p><a href="https://www.noon.com/" rel="noopener external sponsored">تحقق من السلة على نون</a></p></nav>`;
+  h+=`<nav class="related-links" aria-label="روابط مفيدة"><strong class="related-links-title">روابط تساعدك قبل الشراء</strong><ul><li><a href="/">الرئيسية</a></li><li><a href="/${t.country==='SA'?'saudi-arabia':'uae'}">نون ${esc(t.countryName)}</a></li><li><a href="/coupons">كل الكوبونات</a></li><li><a href="/blog">المدونة</a></li><li><a href="/categories">التصنيفات</a></li></ul><p><a href="https://www.noon.com/" rel="noopener external sponsored">تحقق من السلة على نون</a></p></nav>`;
   const article={title,metaDescription:meta,slug,primaryKeyword:t.kw,secondaryKeywords:[t.category,`كود ${t.code}`,`نون ${t.countryName}`,t.modifier].filter(Boolean),faq,sources:['https://www.noon.com/'],claims:[],country:t.country,coupon:t.code,html:''};
   article.html=`<article lang="ar" dir="rtl"><h1>${esc(title)}</h1><p><strong>${esc(t.kw)}</strong>: هذا الدليل يركز على التحقق العملي من السعر النهائي والكوبون داخل سلة نون ${esc(t.countryName)} قبل الدفع.</p>${h}${schemaBlock(article,t,faq)}</article>`;
   return article;
@@ -182,7 +182,8 @@ function strictAudit(article,t,cfg,base){
     {name:'arabic_content',pass:arabicRatio>=0.78},
     {name:'coupon_lock',pass:codes.length>=1&&codes.every(x=>x===String(t.code).toUpperCase())},
     {name:'brand_lock_strict',pass:!competitor.test(plain)},
-    {name:'country_lock_strict',pass:!wrongCountry.test(plain)}
+    {name:'country_lock_strict',pass:!wrongCountry.test(plain)},
+    {name:'h2_structure',pass:(article?.html?.match(/<h2\b/gi)||[]).length>=6&&(article?.html?.match(/<h2\b/gi)||[]).length<=10}
   ];
   const hardPass=hard.every(x=>x.pass);
   return {...base,wordCount,score:hardPass?base.score:Math.min(Number(base.score||0),94.9),checks:[...(base.checks||[]),...hard],productionReady:Boolean(base.productionReady)&&hardPass&&wordCount>=Number(cfg.minWords||1000)&&wordCount<=2000,hardGate:{pass:hardPass,arabicRatio:Math.round(arabicRatio*1000)/1000,codes}};
@@ -193,7 +194,7 @@ function repairPrompt(t,cfg,article,audit){
   return `أعد كتابة/توسيع/اختصار BODY HTML التالي لمقال نون بحيث يعالج هذه المشاكل فقط: ${failed}.
 أعد HTML BODY فقط بدون JSON وبدون <h1> وبدون <script>.
 الدولة الوحيدة ${t.countryName} (${t.country})، الكوبون الوحيد ${t.code}، الكلمة الأساسية ${t.kw}.
-ممنوع اختلاق نسبة خصم أو شروط. أزل أي متجر منافس، وأزل أي ذكر لسوق نون غير ${t.countryName}، وأزل أي كود NOV غير ${t.code}. المطلوب بين ${cfg.minWords} و2000 كلمة مفيدة، 8 H2، H3، FAQ، روابط داخلية، رابط Noon، CTA data-copy-code، ومحتوى عربي طبيعي غير مكرر. لا تستخدم تفكيرًا مطولًا واكتب النسخة النهائية مباشرة.
+ممنوع اختلاق نسبة خصم أو شروط. أزل أي متجر منافس، وأزل أي ذكر لسوق نون غير ${t.countryName}، وأزل أي كود NOV غير ${t.code}. المطلوب بين ${cfg.minWords} و2000 كلمة مفيدة، من 6 إلى 9 عناوين H2 فقط وبحد أقصى 10، واستخدم H3 للتفاصيل، مع FAQ وروابط داخلية ورابط Noon وCTA data-copy-code ومحتوى عربي طبيعي غير مكرر. لا تستخدم تفكيرًا مطولًا واكتب النسخة النهائية مباشرة.
 
 المحتوى الحالي:
 ${plain}`;
