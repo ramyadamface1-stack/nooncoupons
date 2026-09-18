@@ -56,12 +56,12 @@ export function pickTopic(state,attempt=0){
 export function auditGenerated(a,t,cfg){
   const content=String(a.html||''),plain=content.replace(/<[^>]+>/g,' '),checks=[];const add=(n,p,w)=>checks.push({name:n,pass:!!p,weight:w});
   const n=wc(content),codes=[...new Set((plain.match(/\b(?:OPS|NOV)\d+\b/gi)||[]).map(x=>x.toUpperCase()))],expected=normalizeApprovedCoupon(t.code);
-  add('word_count',n>=Number(cfg.minWords||1000)&&n<=2000,20);add('primary_keyword',norm(plain).includes(norm(a.primaryKeyword||t.kw)),10);add('coupon',codes.length>=1&&codes.every(x=>isApprovedCoupon(x)&&x===expected),10);add('brand',/نون|Noon/i.test(plain),8);add('country',t.country==='SA'?/السعودية|Saudi/i.test(plain):/الإمارات|UAE|Emirates/i.test(plain),8);add('h1',(content.match(/<h1\b/gi)||[]).length===1,8);const h2Count=(content.match(/<h2\b/gi)||[]).length;add('h2_structure',h2Count>=6&&h2Count<=10,8);add('faq',/الأسئلة الشائعة|FAQ/i.test(plain),6);add('internal',(content.match(/href=["']\//gi)||[]).length>=4,6);add('external',/https:\/\/www\.noon\.com\//i.test(content),5);add('schema',/application\/ld\+json/i.test(content),5);add('meta',String(a.metaDescription||'').length>=95,4);add('cta',/data-copy-code|Try it|جرّب|نسخ/i.test(content),4);add('sources',Array.isArray(a.sources)&&a.sources.length>=1,4);add('faq_data',Array.isArray(a.faq)&&a.faq.length>=4,4);
+  add('word_count',n>=Number(cfg.minWords||1500)&&n<=2000,20);add('primary_keyword',norm(plain).includes(norm(a.primaryKeyword||t.kw)),10);add('coupon',codes.length>=1&&codes.every(x=>isApprovedCoupon(x)&&x===expected),10);add('brand',/نون|Noon/i.test(plain),8);add('country',t.country==='SA'?/السعودية|Saudi/i.test(plain):/الإمارات|UAE|Emirates/i.test(plain),8);add('h1',(content.match(/<h1\b/gi)||[]).length===1,8);const h2Count=(content.match(/<h2\b/gi)||[]).length;add('h2_structure',h2Count>=6&&h2Count<=10,8);add('faq',/الأسئلة الشائعة|FAQ/i.test(plain),6);add('internal',(content.match(/href=["']\//gi)||[]).length>=4,6);add('external',/https:\/\/www\.noon\.com\//i.test(content),5);add('schema',/application\/ld\+json/i.test(content),5);add('meta',String(a.metaDescription||'').length>=95,4);add('cta',/data-copy-code|Try it|جرّب|نسخ/i.test(content),4);add('sources',Array.isArray(a.sources)&&a.sources.length>=1,4);add('faq_data',Array.isArray(a.faq)&&a.faq.length>=4,4);
   const leak=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|extra|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|علي\s?اكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i.test(plain);add('brand_lock',!leak,12);
   const wrong=t.country==='SA'?/(نون\s*)?(الإمارات|الامارات)|\bUAE\b|Emirates/i:/(نون\s*)?(السعودية|المملكة العربية السعودية)|\bKSA\b|Saudi(?: Arabia)?/i,wrongCountry=wrong.test(plain);add('country_lock',!wrongCountry,12);
   const ar=(plain.match(/[\u0600-\u06FF]/g)||[]).length,latin=(plain.match(/[A-Za-z]/g)||[]).length,arabicRatio=ar/Math.max(1,ar+latin);add('arabic_content',arabicRatio>=0.78,8);
   const total=checks.reduce((s,x)=>s+x.weight,0),passed=checks.reduce((s,x)=>s+(x.pass?x.weight:0),0),score=Math.round(passed/total*1000)/10;
-  return {score,wordCount:n,checks,productionReady:score>=Number(cfg.qualityThreshold||95)&&n>=Number(cfg.minWords||1000)&&n<=2000&&!leak&&!wrongCountry&&arabicRatio>=0.78};
+  return {score,wordCount:n,checks,productionReady:score>=Number(cfg.qualityThreshold||95)&&n>=Number(cfg.minWords||1500)&&n<=2000&&!leak&&!wrongCountry&&arabicRatio>=0.78};
 }
 
 export async function generateArticle(){throw new Error('legacy_external_generator_disabled_use_generateWithWorkersAI')}
@@ -78,4 +78,4 @@ export async function publishGenerated(env,article,topic,audit,provider){
   const r=await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});if(!r.ok)throw new Error('control_article_'+r.status);return rec;
 }
 
-export const GENERATOR_DEFAULTS={enabled:true,model:WORKERS_AI_MODEL,targetWords:1500,minWords:1000,qualityThreshold:95};
+export const GENERATOR_DEFAULTS={enabled:true,model:WORKERS_AI_MODEL,targetWords:1500,minWords:1500,qualityThreshold:95};
