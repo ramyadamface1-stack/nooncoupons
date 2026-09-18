@@ -1,5 +1,6 @@
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const countryLabel=c=>c==='SA'?'Saudi Arabia':'UAE';
+const countryLabelAr=c=>c==='SA'?'السعودية':'الإمارات';
 const countryAccent=c=>c==='SA'?'#087A3E':'#D71920';
 
 const THEMES=[
@@ -18,32 +19,52 @@ function decor(i,t){
   return `<g opacity=".17" stroke="${t.ink}" stroke-width="12">${Array.from({length:8},(_,n)=>`<path d="M${-70+n*190} 760L${260+n*190} 0"/>`).join('')}</g>`;
 }
 
-export function couponSvg({coupon='OPS32',country='SA',variant=1,brand='noon',title=''}){
+export function couponSvg({coupon='OPS32',country='SA',variant=1,brand='noon',title=''}) {
   const i=Math.max(1,Math.min(5,Number(variant)||1));
   const t=THEMES[i-1];
   const countryName=countryLabel(country);
+  const countryAr=countryLabelAr(country);
   const cc=countryAccent(country);
   const code=esc(coupon);
   const brandText=esc(brand);
-  const label=esc(countryName);
-  const topic=esc(String(title||'').replace(/\s+/g,' ').trim().slice(0,72));
+  const topicLines=wrapTitle(title||'دليل كوبونات نون',34).slice(0,2).map(esc);
+  const titleSvg=topicLines.map((line,idx)=>`<text x="1090" y="${286+idx*70}" text-anchor="end" direction="rtl" unicode-bidi="plaintext" font-size="${idx===0?52:46}" font-weight="900" fill="${t.ink}">${line}</text>`).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
-<title id="title">${brandText} promo code ${code} — ${label}</title><desc id="desc">Promo code card for ${brandText} ${label}, code ${code}. Check the saving and eligibility at checkout.</desc>
-<rect width="1200" height="760" rx="36" fill="${t.bg}"/>
+<title id="title">${esc(title||brandText+' coupon guide')} — ${code}</title>
+<desc id="desc">دليل عن نون ${esc(countryAr)} مع كود ${code}. تحقق من الأهلية والنتيجة داخل السلة.</desc>
+<rect width="1200" height="760" rx="34" fill="${t.bg}"/>
 ${decor(i,t)}
-<rect x="32" y="32" width="1136" height="696" rx="32" fill="${t.panel}" stroke="${t.ink}" stroke-opacity=".10"/>
-<g font-family="Arial, Helvetica, sans-serif">
-  <g transform="translate(72 68)"><rect width="220" height="58" rx="18" fill="${t.bg}" stroke="${t.ink}" stroke-opacity=".25" stroke-dasharray="7 7"/><circle cx="31" cy="29" r="14" fill="${cc}"/><text x="56" y="38" font-size="24" font-weight="700" fill="${t.ink}">${label}</text></g>
-  <text x="1115" y="110" text-anchor="end" font-size="48" font-weight="900" fill="${t.ink}">${brandText}</text><circle cx="982" cy="91" r="29" fill="${t.accent}"/><path d="M970 77a20 20 0 1 0 27 29" fill="none" stroke="#111" stroke-width="8" stroke-linecap="round"/>
-  <text x="600" y="250" text-anchor="middle" font-size="112" font-weight="900" fill="${t.ink}">PROMO</text>
-  <g transform="translate(790 168) rotate(-4)"><rect width="150" height="72" rx="16" fill="${t.accent}"/><text x="75" y="51" text-anchor="middle" font-size="34" font-weight="900" fill="#111">CODE</text></g>
-  <text x="600" y="310" text-anchor="middle" font-size="30" font-weight="700" fill="${t.ink}">${brandText.charAt(0).toUpperCase()+brandText.slice(1)} coupon guide</text>
-  <text x="600" y="342" text-anchor="middle" font-size="22" font-weight="700" fill="${t.muted}">${topic}</text>
-  <g transform="translate(245 342)"><rect width="710" height="220" rx="26" fill="${t.bg}" stroke="${t.ink}" stroke-width="5" stroke-dasharray="16 12"/><rect x="38" y="36" width="634" height="102" rx="18" fill="${t.accent}"/><text x="355" y="108" text-anchor="middle" font-size="72" font-weight="900" letter-spacing="3" fill="#111">${code}</text><text x="355" y="180" text-anchor="middle" font-size="22" font-weight="800" fill="${t.ink}">CHECK SAVINGS &amp; ELIGIBILITY AT CHECKOUT</text></g>
-  <g transform="translate(353 602)"><rect width="230" height="72" rx="20" fill="${t.ink}"/><text x="126" y="47" text-anchor="middle" font-size="26" font-weight="800" fill="${t.panel}">Copy code</text><rect x="31" y="23" width="22" height="25" rx="3" fill="none" stroke="${t.panel}" stroke-width="3"/><rect x="40" y="15" width="22" height="25" rx="3" fill="none" stroke="${t.panel}" stroke-width="3"/></g>
-  <g transform="translate(616 602)"><rect width="230" height="72" rx="20" fill="${t.accent}"/><text x="126" y="47" text-anchor="middle" font-size="26" font-weight="900" fill="#111">Try at Noon</text><path d="M38 44V24h20M38 24l24 24M50 24h18v18" fill="none" stroke="#111" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></g>
-  <text x="92" y="690" font-size="18" font-weight="700" fill="${t.muted}">COUPON CARD 0${i}</text>
-</g></svg>`;
+<rect x="34" y="34" width="1132" height="692" rx="30" fill="${t.panel}" stroke="${t.ink}" stroke-opacity=".09"/>
+<g font-family="Arial, Tahoma, Helvetica, sans-serif">
+  <g transform="translate(70 66)">
+    <rect width="215" height="54" rx="17" fill="${t.bg}" stroke="${t.ink}" stroke-opacity=".18"/>
+    <circle cx="29" cy="27" r="13" fill="${cc}"/>
+    <text x="54" y="36" font-size="22" font-weight="800" fill="${t.ink}">${esc(countryName)}</text>
+  </g>
+  <text x="1090" y="105" text-anchor="end" font-size="38" font-weight="900" fill="${t.ink}">${brandText}</text>
+  <rect x="1010" y="72" width="48" height="48" rx="14" fill="${t.accent}"/>
+  <text x="1034" y="106" text-anchor="middle" font-size="24" font-weight="900" fill="#111">%</text>
+
+  <text x="1090" y="214" text-anchor="end" direction="rtl" font-size="20" font-weight="800" fill="${t.muted}">دليل شراء وكوبونات نون</text>
+  ${titleSvg}
+
+  <g transform="translate(70 244)">
+    <rect width="330" height="255" rx="24" fill="${t.bg}" stroke="${t.ink}" stroke-opacity=".12"/>
+    <text x="165" y="58" text-anchor="middle" direction="rtl" font-size="18" font-weight="800" fill="${t.muted}">كود للتجربة</text>
+    <rect x="38" y="82" width="254" height="92" rx="17" fill="${t.accent}"/>
+    <text x="165" y="143" text-anchor="middle" font-size="52" font-weight="900" letter-spacing="3" fill="#111">${code}</text>
+    <text x="165" y="207" text-anchor="middle" direction="rtl" font-size="16" font-weight="800" fill="${t.ink}">تحقق من النتيجة داخل السلة</text>
+  </g>
+
+  <line x1="70" y1="560" x2="1090" y2="560" stroke="${t.ink}" stroke-opacity=".12"/>
+  <text x="1090" y="620" text-anchor="end" direction="rtl" font-size="19" font-weight="800" fill="${t.ink}">كوبونات نون · محتوى مستقل</text>
+  <text x="1090" y="657" text-anchor="end" direction="rtl" font-size="16" fill="${t.muted}">السوق: ${esc(countryAr)} · الأهلية والخصم يحددهما متجر نون وقت الطلب</text>
+  <g transform="translate(70 595)">
+    <rect width="230" height="62" rx="18" fill="${t.ink}"/>
+    <text x="115" y="40" text-anchor="middle" direction="rtl" font-size="20" font-weight="900" fill="${t.panel}">انسخ الكود</text>
+  </g>
+</g>
+</svg>`;
 }
 
 function wrapTitle(title,max=48){
@@ -52,7 +73,7 @@ function wrapTitle(title,max=48){
   if(line)lines.push(line);return lines.slice(0,3);
 }
 
-export function featuredSvg({title='Noon Coupon Guide',coupon='NOON10',country='SA',brand='noon'}){
+export function featuredSvg({title='دليل كوبونات نون',coupon='OPS32',country='SA',brand='noon'}){
   const label=esc(countryLabel(country));const cc=countryAccent(country);const code=esc(coupon);const brandText=esc(brand);const lines=wrapTitle(title,43).map(esc);
   const text=lines.map((l,i)=>`<text x="80" y="${330+i*74}" font-size="56" font-weight="900" fill="#111827">${l}</text>`).join('');
   return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="ft fd">
@@ -61,8 +82,8 @@ export function featuredSvg({title='Noon Coupon Guide',coupon='NOON10',country='
 <rect width="1600" height="900" fill="url(#bg)"/><circle cx="1430" cy="130" r="250" fill="#FEEE00" opacity=".35"/><circle cx="1460" cy="780" r="300" fill="#111" opacity=".045"/><path d="M0 760 C260 640 390 880 690 730 S1160 600 1600 720V900H0Z" fill="#FEEE00" opacity=".24"/>
 <g font-family="Arial, Helvetica, sans-serif"><g transform="translate(78 68)"><rect width="290" height="72" rx="22" fill="#fff" stroke="#111" stroke-opacity=".22" stroke-dasharray="9 7"/><circle cx="38" cy="36" r="18" fill="${cc}"/><text x="72" y="46" font-size="30" font-weight="800" fill="#111">${label}</text></g>
 <text x="1510" y="120" text-anchor="end" font-size="62" font-weight="900" fill="#111">${brandText}</text><circle cx="1325" cy="94" r="38" fill="#FEEE00"/><path d="M1307 77a27 27 0 1 0 36 39" fill="none" stroke="#111" stroke-width="10" stroke-linecap="round"/>
-<text x="80" y="245" font-size="27" font-weight="800" fill="#6B7280" letter-spacing="2">NOON EDITORIAL GUIDE</text>${text}
-<g transform="translate(1040 230)" filter="url(#shadow)"><rect width="440" height="500" rx="42" fill="#fff"/><text x="220" y="120" text-anchor="middle" font-size="76" font-weight="900" fill="#111">PROMO</text><g transform="translate(268 55) rotate(-5)"><rect width="130" height="68" rx="16" fill="#FEEE00"/><text x="65" y="47" text-anchor="middle" font-size="31" font-weight="900" fill="#111">CODE</text></g><text x="220" y="175" text-anchor="middle" font-size="27" font-weight="800" fill="#111">Noon coupon</text><rect x="42" y="215" width="356" height="172" rx="26" fill="#FFFBE0" stroke="#111" stroke-width="4" stroke-dasharray="14 10"/><rect x="73" y="247" width="294" height="78" rx="15" fill="#FEEE00"/><text x="220" y="302" text-anchor="middle" font-size="52" font-weight="900" fill="#111">${code}</text><text x="220" y="357" text-anchor="middle" font-size="15" font-weight="800" fill="#111">CHECK SAVINGS AT CHECKOUT</text><rect x="75" y="418" width="135" height="54" rx="16" fill="#111"/><text x="142" y="453" text-anchor="middle" font-size="21" font-weight="800" fill="#fff">Copy code</text><rect x="230" y="418" width="135" height="54" rx="16" fill="#FEEE00"/><text x="297" y="453" text-anchor="middle" font-size="19" font-weight="900" fill="#111">Try at Noon</text></g>
+<text x="80" y="245" font-size="27" font-weight="800" fill="#6B7280" letter-spacing="2">SHOPPING &amp; COUPON GUIDE</text>${text}
+<g transform="translate(1040 230)" filter="url(#shadow)"><rect width="440" height="500" rx="42" fill="#fff"/><text x="220" y="120" text-anchor="middle" font-size="76" font-weight="900" fill="#111">NOON</text><g transform="translate(268 55) rotate(-5)"><rect width="130" height="68" rx="16" fill="#FEEE00"/><text x="65" y="47" text-anchor="middle" font-size="31" font-weight="900" fill="#111">GUIDE</text></g><text x="220" y="175" text-anchor="middle" font-size="27" font-weight="800" fill="#111">Noon coupon</text><rect x="42" y="215" width="356" height="172" rx="26" fill="#FFFBE0" stroke="#111" stroke-width="4" stroke-dasharray="14 10"/><rect x="73" y="247" width="294" height="78" rx="15" fill="#FEEE00"/><text x="220" y="302" text-anchor="middle" font-size="52" font-weight="900" fill="#111">${code}</text><text x="220" y="357" text-anchor="middle" font-size="15" font-weight="800" fill="#111">VERIFY AT CHECKOUT</text><rect x="75" y="418" width="135" height="54" rx="16" fill="#111"/><text x="142" y="453" text-anchor="middle" font-size="21" font-weight="800" fill="#fff">Copy code</text><rect x="230" y="418" width="135" height="54" rx="16" fill="#FEEE00"/><text x="297" y="453" text-anchor="middle" font-size="19" font-weight="900" fill="#111">Try at Noon</text></g>
 <text x="80" y="800" font-size="25" font-weight="700" fill="#475467">Smart shopping • clear coupon testing • verify before payment</text></g></svg>`;
 }
 
