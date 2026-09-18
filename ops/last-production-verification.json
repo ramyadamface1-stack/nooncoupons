@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "c69fa980020530814bfc01b2a1786780814d96dc",
-  "verifiedAt": "2026-09-18T16:34:39.090853+00:00",
+  "sourceSha": "edaf6ab0100e313ddc72a0e6805263cddbe9a2e1",
+  "verifiedAt": "2026-09-18T16:37:30.527114+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -39,12 +39,12 @@
   },
   "content": {
     "r2HtmlObjects": 55434,
-    "trackedPublished": 18768,
-    "arabic": 18738,
+    "trackedPublished": 18896,
+    "arabic": 18866,
     "english": 30,
-    "lastSlug": "التوفير-الأحذية-نون-الإمارات-قرار-الاستبدال-سياسة-الإرجاع",
+    "lastSlug": "شراء-ذكي-acer-predator-نون-السعودية-فحص-المواصفات-الضمان",
     "lastQuality": 100,
-    "lastWordCount": 1689
+    "lastWordCount": 1719
   },
   "englishControlled": {
     "target": 200,
@@ -65,6 +65,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T16:33:18.747Z"
+    "completedAt": "2026-09-18T16:36:47.516Z"
   }
 }
