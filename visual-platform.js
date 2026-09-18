@@ -12,9 +12,11 @@ const validCoupon=(c,country='SA')=>normalizeApprovedCoupon(c,country==='AE'?'NO
 const keywordOf=rec=>String(rec?.primaryKeyword||rec?.title||rec?.slug||'كود خصم نون').trim();
 
 async function getState(env,ctx,origin){
-  const r=await app.fetch(new Request(origin+'/api/state',{headers:{accept:'application/json'}}),env,ctx);
-  if(!r.ok)return {articles:[]};
-  try{return await r.json()}catch{return {articles:[]}}
+  try{
+    const r=await app.fetch(new Request(origin+'/api/state',{headers:{accept:'application/json'}}),env,ctx);
+    if(!r.ok)return {articles:[]};
+    try{return await r.json()}catch{return {articles:[]}}
+  }catch{return {articles:[]}}
 }
 
 function fallbackRec(html,slug){
@@ -22,7 +24,7 @@ function fallbackRec(html,slug){
   const title=strip(h1)||slug;
   const hay=(slug+' '+title+' '+html.slice(0,1800));
   const country=/الإمارات|الامارات|UAE/i.test(hay)?'AE':'SA';
-  const coupon=(String(html).match(/\bOPS\d{2}\b/i)||[])[0]||'';
+  const coupon=(String(html).match(/\b(?:NOV\d+|OPS\d+)\b/i)||[])[0]||'';
   return {slug,title,primaryKeyword:title,coupon:validCoupon(coupon,country),country,status:'published',metaDescription:''};
 }
 
@@ -38,7 +40,7 @@ async function r2ArticleMeta(env,slug){
 }
 
 function params(rec){
-  return new URLSearchParams({v:'7',coupon:validCoupon(rec.coupon,validCountry(rec.country)),country:validCountry(rec.country)}).toString();
+  return new URLSearchParams({v:'8',coupon:validCoupon(rec.coupon,validCountry(rec.country)),country:validCountry(rec.country)}).toString();
 }
 function couponSrc(rec,v){return `/assets/coupon-svg/${encodeURIComponent(rec.slug)}/${v}.svg?${params(rec)}`}
 function featuredSrc(rec){return couponSrc(rec,1)}
@@ -97,7 +99,7 @@ function css(){return `<style id="visual-v4">
 @media(max-width:640px){.blog-grid{grid-template-columns:1fr}.coupon-live-actions{gap:8px}.coupon-copy-btn,.coupon-try-btn{min-width:0;flex:1;padding:12px 8px;font-size:14px}.a{font-size:16px}.article-featured,.coupon-visual{border-radius:16px}}
 </style>`}
 
-function js(){return `<script>(()=>{const fire=(name,data)=>{try{if(typeof window.gtag==='function')window.gtag('event',name,data);else{window.dataLayer=window.dataLayer||[];window.dataLayer.push({event:name,...data})}}catch{}};document.addEventListener('click',async e=>{const shop=e.target.closest('[data-shop-click]');if(shop)fire('shop_click',{coupon_code:shop.dataset.shopClick||'',market:shop.dataset.market||'UNSPECIFIED',page_path:location.pathname,placement:shop.dataset.placement||'article_visual',destination:shop.href||''});const b=e.target.closest('[data-copy-code]');if(!b)return;const code=b.dataset.copyCode||'',market=b.dataset.market||'UNSPECIFIED',placement=b.dataset.placement||'article_visual';let ok=false;try{await navigator.clipboard.writeText(code);ok=true;const old=b.textContent;b.classList.add('copied');b.textContent='تم النسخ ✓';setTimeout(()=>{b.textContent=old;b.classList.remove('copied')},1600)}catch{b.textContent=code}fire('copy_code',{coupon_code:code,market,page_path:location.pathname,placement,copy_success:ok})})})();</script>`}
+function js(){return `<script>(()=>{const fire=(name,data)=>{try{if(typeof window.gtag==='function')window.gtag('event',name,data);else{window.dataLayer=window.dataLayer||[];window.dataLayer.push({event:name,...data})}}catch{}};document.addEventListener('error',e=>{const img=e.target;if(!(img instanceof HTMLImageElement)||img.dataset.fallbackApplied==='1')return;const m=location.pathname.match(/^\/articles\/(.+)$/);if(!m)return;img.dataset.fallbackApplied='1';const code=document.querySelector('[data-copy-code]')?.dataset.copyCode||'NOV170',market=document.querySelector('[data-market]')?.dataset.market||'SA';img.src='/assets/coupon-svg/'+m[1]+'/1.svg?v=8&coupon='+encodeURIComponent(code)+'&country='+encodeURIComponent(market)},true);document.addEventListener('click',async e=>{const shop=e.target.closest('[data-shop-click]');if(shop)fire('shop_click',{coupon_code:shop.dataset.shopClick||'',market:shop.dataset.market||'UNSPECIFIED',page_path:location.pathname,placement:shop.dataset.placement||'article_visual',destination:shop.href||''});const b=e.target.closest('[data-copy-code]');if(!b)return;const code=b.dataset.copyCode||'',market=b.dataset.market||'UNSPECIFIED',placement=b.dataset.placement||'article_visual';let ok=false;try{await navigator.clipboard.writeText(code);ok=true;const old=b.textContent;b.classList.add('copied');b.textContent='تم النسخ ✓';setTimeout(()=>{b.textContent=old;b.classList.remove('copied')},1600)}catch{b.textContent=code}fire('copy_code',{coupon_code:code,market,page_path:location.pathname,placement,copy_success:ok})})})();</script>`}
 
 function imageSchema(rec,origin){
   const keyword=keywordOf(rec),featured=origin+featuredSrc(rec);
@@ -108,22 +110,32 @@ function imageSchema(rec,origin){
   return `<script type="application/ld+json">${JSON.stringify({'@context':'https://schema.org','@graph':graph}).replace(/</g,'\\u003c')}</script>`;
 }
 
+function safeFallbackSvg({slug='',coupon='NOV170',country='SA'}={}){
+  const label=countryAr(validCountry(country)),code=validCoupon(coupon,validCountry(country)),title=esc(String(slug||'دليل كوبونات نون').replace(/[-_]+/g,' ').slice(0,90));
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760"><rect width="1200" height="760" fill="#fffdf0"/><rect x="35" y="35" width="1130" height="690" rx="32" fill="#fff" stroke="#eadb72"/><text x="1080" y="120" text-anchor="end" direction="rtl" font-family="Arial,Tahoma,sans-serif" font-size="34" font-weight="800" fill="#111827">كوبونات نون · ${esc(label)}</text><text x="1080" y="245" text-anchor="end" direction="rtl" font-family="Arial,Tahoma,sans-serif" font-size="42" font-weight="900" fill="#111827">${title}</text><rect x="70" y="355" width="350" height="150" rx="24" fill="#feee00"/><text x="245" y="450" text-anchor="middle" font-family="Arial,sans-serif" font-size="54" font-weight="900" fill="#111">${esc(code)}</text><text x="1080" y="610" text-anchor="end" direction="rtl" font-family="Arial,Tahoma,sans-serif" font-size="22" fill="#667085">تحقق من الكود والنتيجة داخل سلة نون</text></svg>`;
+}
+
 async function assetResponse(req,env,ctx){
-  const u=new URL(req.url),s=await getState(env,ctx,u.origin);
+  const u=new URL(req.url);
   let m=u.pathname.match(/^\/assets\/coupon-svg\/([^/]+)\/([1-5])\.svg$/);
   if(m){
-    const slug=decodeURIComponent(m[1]),v=Number(m[2]);
-    let rec=(s.articles||[]).find(a=>a.slug===slug&&a.status==='published');
-    if(!rec)rec=await r2ArticleMeta(env,slug);
-    if(!rec){const country=validCountry(u.searchParams.get('country'));rec={slug,coupon:validCoupon(u.searchParams.get('coupon'),country),country,title:slug,primaryKeyword:slug,status:'published'}}
-    return new Response(couponSvg({coupon:rec.coupon,country:rec.country,variant:v,brand:'noon',title:keywordOf(rec)}),{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=31536000,immutable','x-content-type-options':'nosniff'}});
+    const slug=decodeURIComponent(m[1]),v=Number(m[2]),queryCountry=validCountry(u.searchParams.get('country'));
+    let rec=null;
+    try{rec=await r2ArticleMeta(env,slug)}catch{}
+    if(!rec)rec={slug,coupon:validCoupon(u.searchParams.get('coupon'),queryCountry),country:queryCountry,title:slug,primaryKeyword:String(slug).replace(/[-_]+/g,' '),status:'published'};
+    try{
+      const svg=couponSvg({coupon:validCoupon(rec.coupon,validCountry(rec.country)),country:validCountry(rec.country),variant:v,brand:'noon',title:keywordOf(rec)});
+      return new Response(svg,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=31536000,immutable','x-content-type-options':'nosniff','x-image-source':'r2-or-safe-v8'}});
+    }catch{
+      return new Response(safeFallbackSvg({slug,coupon:rec.coupon,country:rec.country}),{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=3600','x-content-type-options':'nosniff','x-image-source':'fallback-v8'}});
+    }
   }
   m=u.pathname.match(/^\/assets\/featured\/([^/]+)\.svg$/);
   if(m){
-    const slug=decodeURIComponent(m[1]);
-    let rec=(s.articles||[]).find(a=>a.slug===slug&&a.status==='published');
-    if(!rec)rec=await r2ArticleMeta(env,slug);
-    if(!rec){const country=validCountry(u.searchParams.get('country'));rec={slug,coupon:validCoupon(u.searchParams.get('coupon'),country),country,title:slug,primaryKeyword:slug,status:'published'}}
+    const slug=decodeURIComponent(m[1]),country=validCountry(u.searchParams.get('country'));
+    let rec=null;
+    try{rec=await r2ArticleMeta(env,slug)}catch{}
+    if(!rec)rec={slug,coupon:validCoupon(u.searchParams.get('coupon'),country),country,title:slug,primaryKeyword:String(slug).replace(/[-_]+/g,' '),status:'published'};
     return Response.redirect(new URL(couponSrc(rec,1),u.origin).toString(),308);
   }
   return null;
