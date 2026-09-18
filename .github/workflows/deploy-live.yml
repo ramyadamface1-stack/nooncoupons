@@ -129,6 +129,10 @@ jobs:
           grep -Fq "x-visual-layout','responsive-v9'" visual-platform.js
           grep -Fq "v:'9'" visual-platform.js
           grep -Fq 'svg?v=9' bulk-content-engine-base.js
+          grep -Fq 'article-responsive-v9' auto-platform.js
+          grep -Fq "x-article-visual-layout':'responsive-v9'" auto-platform.js
+          grep -Fq 'object-fit:contain!important' auto-platform.js
+          if grep -Fq '.svg?v=8&coupon=' auto-platform.js; then echo 'STALE_AUTO_PLATFORM_SVG_V8=1'; exit 1; fi
           node --check gsc-snapshot.js
           grep -Fq "property:'sc-domain:noondealsnow.com'" gsc-snapshot.js
           grep -Fq "dataAvailable:false" gsc-snapshot.js
@@ -441,6 +445,7 @@ jobs:
           grep -Fqi 'x-article-network: v1' /tmp/h
           grep -Fqi 'x-external-link-safety: merged-v2' /tmp/h
           grep -Fqi 'x-related-manifest-cache: 120s-isolate' /tmp/h
+          grep -Fqi 'x-article-visual-layout: responsive-v9' /tmp/h
           grep -Fq 'id="article-link-network"' /tmp/a.html
           grep -Fq 'اقرأ أيضًا قبل الشراء' /tmp/a.html
           grep -Fq 'href="/favicon.svg"' /tmp/a.html
@@ -450,10 +455,12 @@ jobs:
           import re
           t=open('/tmp/a.html',encoding='utf-8').read()
           checks={
-            'visual-v5':'<style id="visual-v5">' in t,
+            'article-responsive-v9':'<style id="article-responsive-v9">' in t,
             'contain-css':'object-fit:contain!important' in t,
-            'article-visual-css':'.article-featured,.coupon-visual,.article-visual' in t,
-            'mobile-css':'@media(max-width:640px)' in t,
+            'article-visual-css':'.hero,.article-visual' in t and '.wrap figure img' in t,
+            'desktop-max-width':'max-width:840px' in t,
+            'mobile-css':'@media(max-width:680px)' in t and 'width:calc(100% - 16px)' in t,
+            'mobile-image-width':'max-width:100%!important' in t,
             'svg-assets':'/assets/coupon-svg/' in t,
             'v9-assets':bool(re.search(r'/assets/coupon-svg/[^"\s]+/[1-5]\.svg\?v=9',t)),
           }
@@ -900,6 +907,7 @@ jobs:
                   'rtlSvgClippingFixedVerified': True,
                   'allFiveSvgVariantsVerified': True,
                   'responsiveArticleVisualCssVerified': True,
+                  'bulkArticleRendererVisualV9Verified': True,
                   'gscSeoDropsSnapshotVerified': True,
                   'gscNoDataTruthfulnessVerified': True,
                   'gscAdminEndpointPrivateVerified': True,
@@ -1021,6 +1029,7 @@ jobs:
           assert proof['checks']['rtlSvgClippingFixedVerified'] is True
           assert proof['checks']['allFiveSvgVariantsVerified'] is True
           assert proof['checks']['responsiveArticleVisualCssVerified'] is True
+          assert proof['checks']['bulkArticleRendererVisualV9Verified'] is True
           assert proof['checks']['gscSeoDropsSnapshotVerified'] is True
           assert proof['checks']['gscNoDataTruthfulnessVerified'] is True
           assert proof['checks']['gscAdminEndpointPrivateVerified'] is True
