@@ -3,25 +3,6 @@ name: Audit Coupon Codes
 on:
   push:
     branches: [main]
-    paths:
-      - 'approved-coupons.js'
-      - 'router.js'
-      - 'public-entry.js'
-      - 'network-entry.js'
-      - 'visual-platform.js'
-      - 'svg-engine.js'
-      - 'site.js'
-      - 'commerce-pages-v2.js'
-      - 'platform.js'
-      - 'coupon-registry.js'
-      - 'coupon-r2-migration.js'
-      - 'landing-content-v3.js'
-      - 'topic-hubs.js'
-      - 'seo-layer.js'
-      - 'sitemap-routes.js'
-      - 'english-canary.js'
-      - 'english-canary-repair.js'
-      - '.github/workflows/audit-coupon-codes.yml'
   workflow_dispatch:
 
 permissions:
@@ -52,6 +33,8 @@ jobs:
           }
           console.log('OWNER_ALLOWLIST_OK='+APPROVED_COUPON_CODES.join(','));
           NODE
+
+          node scripts/coupon-code-gate.mjs
 
           unexpected="$(grep -RIlE 'OPS[0-9]+' --exclude-dir=.git . | grep -Ev '^./approved-coupons\.js$' || true)"
           if [ -n "$unexpected" ]; then
