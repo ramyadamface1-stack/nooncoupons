@@ -20,15 +20,32 @@ async function runLimited(items,limit,fn){
   for(let i=0;i<rows.length;i+=width)await Promise.all(rows.slice(i,i+width).map(fn));
 }
 async function timed(fn){const started=Date.now(),value=await fn();return {value,ms:Date.now()-started}}
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function r2PutRetry(env,key,value,options){
+  let last=null;
+  for(let attempt=1;attempt<=3;attempt++){
+    try{return await env.CONTENT_FINAL.put(key,value,options)}
+    catch(e){last=e;if(attempt<3)await sleep(60*attempt)}
+  }
+  throw last||new Error('r2_put_failed');
+}
+async function r2HeadRetry(env,key){
+  let last=null;
+  for(let attempt=1;attempt<=3;attempt++){
+    try{return await env.CONTENT_FINAL.head(key)}
+    catch(e){last=e;if(attempt<3)await sleep(40*attempt)}
+  }
+  throw last||new Error('r2_head_failed');
+}
 function dedupeRecent(items){const seen=new Set(),out=[];for(const x of items||[]){if(!x?.slug||seen.has(x.slug))continue;seen.add(x.slug);out.push(x)}return out}
 async function writeCatalogs(env,day,countBefore,records){
   if(!records.length)return;const latest=await readJson(env,'bulk/latest.json',{version:2,articles:[]}),seen=new Set(records.map(r=>r.slug));
   const merged=[...records.slice().reverse(),...(latest.articles||[]).filter(r=>!seen.has(r.slug))].slice(0,MAX_LATEST);
-  await env.CONTENT_FINAL.put('bulk/latest.json',JSON.stringify({version:3,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,commerceTaxonomy:COMMERCE_GENERATOR_INFO.version,qualityLayer:'global-quality-v1',indexationPolicy:INDEXATION_GATE_INFO.policy,updatedAt:now(),articles:merged}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+  await r2PutRetry(env,'bulk/latest.json',JSON.stringify({version:3,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,commerceTaxonomy:COMMERCE_GENERATOR_INFO.version,qualityLayer:'global-quality-v1',indexationPolicy:INDEXATION_GATE_INFO.policy,updatedAt:now(),articles:merged}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
   const groups=new Map();records.forEach((r,i)=>{const shard=Math.floor((countBefore+i)/SHARD_SIZE);if(!groups.has(shard))groups.set(shard,[]);groups.get(shard).push(r)});
-  await runLimited([...groups.entries()],4,async([shard,items])=>{const key=`bulk/day/${day}/${shard}.json`,current=await readJson(env,key,{version:3,day,shard,articles:[]}),have=new Set((current.articles||[]).map(r=>r.slug)),articles=[...(current.articles||[]),...items.filter(r=>!have.has(r.slug))];await env.CONTENT_FINAL.put(key,JSON.stringify({version:3,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,commerceTaxonomy:COMMERCE_GENERATOR_INFO.version,qualityLayer:'global-quality-v1',indexationPolicy:INDEXATION_GATE_INFO.policy,day,shard,updatedAt:now(),articles}),{httpMetadata:{contentType:'application/json; charset=utf-8'}})});
+  await runLimited([...groups.entries()],4,async([shard,items])=>{const key=`bulk/day/${day}/${shard}.json`,current=await readJson(env,key,{version:3,day,shard,articles:[]}),have=new Set((current.articles||[]).map(r=>r.slug)),articles=[...(current.articles||[]),...items.filter(r=>!have.has(r.slug))];await r2PutRetry(env,key,JSON.stringify({version:3,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,commerceTaxonomy:COMMERCE_GENERATOR_INFO.version,qualityLayer:'global-quality-v1',indexationPolicy:INDEXATION_GATE_INFO.policy,day,shard,updatedAt:now(),articles}),{httpMetadata:{contentType:'application/json; charset=utf-8'}})});
   const days=await readJson(env,'bulk/days.json',{version:2,days:[]}),newCount=countBefore+records.length,row={day,count:newCount,shards:Math.ceil(newCount/SHARD_SIZE),engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,commerceTaxonomy:COMMERCE_GENERATOR_INFO.version,qualityLayer:'global-quality-v1',indexationPolicy:INDEXATION_GATE_INFO.policy,updatedAt:now()},next=[row,...(days.days||[]).filter(x=>x.day!==day)].sort((a,b)=>String(b.day).localeCompare(String(a.day))).slice(0,3650);
-  await env.CONTENT_FINAL.put('bulk/days.json',JSON.stringify({version:3,updatedAt:now(),days:next}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+  await r2PutRetry(env,'bulk/days.json',JSON.stringify({version:3,updatedAt:now(),days:next}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
 }
 
 export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batchSize=3}={}){
@@ -55,13 +72,13 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     const auditRecent=combinedEntries.filter(x=>(!x?.country||x.country===topic.country)&&(!x?.category||x.category===topic.category)).slice(0,25000),semanticRecent=auditRecent.filter(x=>!x?.intent||x.intent===topic.intent),audit=auditSeoArticle(article,topic,{...cfg,minWords:Math.max(1000,Number(cfg.minWords||1000)),threshold:Math.max(95,Number(cfg.qualityThreshold||95)),recent:auditRecent,semanticRecent});if(!audit.productionReady){rejectedQuality++;const reasons=(audit.p0?.length?audit.p0:(audit.failed||[])).slice(0,10);for(const reason of reasons)qualityRejectReasons[reason]=(qualityRejectReasons[reason]||0)+1;continue}
     const gg=globalGate(article,topic,audit,{entries:auditRecent});if(!gg.pass){rejectedGlobal++;for(const reason of gg.reasons||[])globalRejectReasons[reason]=(globalRejectReasons[reason]||0)+1;continue}
     const indexation=evaluateIndexation(article,topic,{globalGate:gg,contextualLinks:links.length,clusterSize:(cluster.entries||[]).length,schemaGate,coupon});if(!indexation.indexable){rejectedIndexation++;continue}
-    const key='articles/'+article.slug+'.html';if(await env.CONTENT_FINAL.head(key)){rejectedDuplicate++;continue}
+    const key='articles/'+article.slug+'.html';if(await r2HeadRetry(env,key)){rejectedDuplicate++;continue}
     const createdAt=now(),summary=auditSummary(audit),commerce=commerceRecordFields(topic);
     const rec={slug:article.slug,title:article.title,metaDescription:article.metaDescription,country:topic.country,coupon:topic.code,status:'published',createdAt,updatedAt:createdAt,indexable:true,quality:audit.score,qualityGroups:audit.groups,qualityFloor:audit.groupFloor,qualityChecks:audit.measuredChecks,provider:BULK_ENGINE_INFO.version,primaryKeyword:topic.kw,keywordStrategy:KEYWORD_STRATEGY_INFO.version,keywordWordCount:topic.keywordWordCount,searchIntentFamily:topic.searchIntentFamily,wordCount:audit.wordCount,signature:audit.signature,blueprint:article.blueprint,topicIndex:topic.topicIndex,category:topic.category,profileKey:topic.profileKey,intent:topic.intent,intentLabel:topic.intentLabel,useCase:topic.useCase,factor:topic.factor,scenario:topic.scenario,queryModifier:topic.queryModifier||'',languageIntent,languageSource:'arabic-primary',catalogLevel:topic.catalogLevel||null,catalogTarget:topic.catalogTarget||null,seasonalTerm:topic.seasonalTerm||'',topicExpansionVersion:topic.topicExpansionVersion||null,...commerce,contentPolicy:'helpful-quality-first-global',p0:[],auditSummary:summary,globalQuality:{indexVersion:GLOBAL_INDEX_INFO.version,clusterKey:clusterKey(topic),indexSizeBefore:gg.indexSize,minDistance:gg.minDistance,maxKeywordSimilarity:gg.maxKeywordSimilarity,intentKey:gg.intentKey},indexation,contextualLinks:(article.contextualLinks||[]).map(x=>x.slug),editorialTrust:article.editorialTrust,couponFreshness:{state:coupon.state,evidence:coupon.evidence,officialVerified:coupon.officialVerified,catalogUpdatedAt:coupon.catalogUpdatedAt,reviewDueAt:coupon.reviewDueAt,publishBlockAt:coupon.publishBlockAt,registryVersion:COUPON_REGISTRY_INFO.version},schemaGate:{version:SCHEMA_GATE_INFO.version,blocks:schemaGate.blocks,nodes:schemaGate.nodes,faqQuestions:schemaGate.faqQuestions}};
     pendingArticleWrites.push({key,body:String(article.html||''),options:{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{t:enc(rec.title),m:enc(rec.metaDescription),c:rec.country,cp:rec.coupon,q:String(rec.quality),qf:String(rec.qualityFloor),qc:String(rec.qualityChecks),p:rec.provider,kw:enc(rec.primaryKeyword),ks:KEYWORD_STRATEGY_INFO.version,sig:rec.signature,bp:String(rec.blueprint),at:createdAt,status:'published',qv:'global-quality-v1',cf:coupon.state,sg:String(SCHEMA_GATE_INFO.version),ig:String(INDEXATION_GATE_INFO.version),ix:'1',et:String(EDITORIAL_TRUST_INFO.version),cat:commerce.categoryKey,bk:commerce.brandKey||'',mk:commerce.modelKey||'',ck:commerce.comparisonKey||'',lp:commerce.landingPath,ct:String(COMMERCE_GENERATOR_INFO.version)}}});
     records.push(rec);addToCluster(cluster,rec,topic);dirtyKeys.add(clusterKey(topic));latestRecent.unshift(rec);if(latestRecent.length>300)latestRecent.pop();
   }
-  const candidateLoopMs=Date.now()-candidateLoopStartedMs,articleWriteStep=await timed(()=>runLimited(pendingArticleWrites,12,w=>env.CONTENT_FINAL.put(w.key,w.body,w.options))),postParallelStartedMs=Date.now();
+  const candidateLoopMs=Date.now()-candidateLoopStartedMs,articleWriteStep=await timed(()=>runLimited(pendingArticleWrites,12,w=>r2PutRetry(env,w.key,w.body,w.options))),postParallelStartedMs=Date.now();
   const [clusterStep,freshnessStep,catalogStep,indexNowStep]=await Promise.all([
     timed(()=>flushClusters(env,clusterCache,dirtyKeys)),
     timed(()=>records.length?writeCouponFreshnessSnapshot(env,new Date()):Promise.resolve(null)),
@@ -73,6 +90,6 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   return {ok:true,engine:BULK_ENGINE_INFO.version,keywordStrategy:KEYWORD_STRATEGY_INFO.version,commerceTaxonomy:COMMERCE_GENERATOR_INFO.version,qualityLayer:'global-quality-v1',bootstrap,indexNow,records,tries,rejectedQuality,qualityRejectReasons,globalRejectReasons,preflightGlobalRejectReasons,rejectedDuplicate,rejectedGlobal,rejectedPreflightGlobal,rejectedPreflightRecent,rejectedPreflightCluster,rejectedCoupon,rejectedLinks,rejectedSchema,rejectedIndexation,freshnessSnapshot,patch};
 }
 
-export const BULK_RUNTIME_LIMITS={maxDailyTarget:MAX_DAILY_TARGET,maxBatchSize:MAX_BATCH_SIZE,qualityThresholdFloor:95,minArticleWords:1000,batchTelemetry:true,articleWriteConcurrency:12,catchupSafetyMargin:true,preflightGlobalGate:true,twoStagePreflight:true,reusesCandidatePool:true,parallelPostPublication:true,parallelCatalogShards:true,batchStageTelemetry:true,fullGlobalGatePreserved:true};
+export const BULK_RUNTIME_LIMITS={maxDailyTarget:MAX_DAILY_TARGET,maxBatchSize:MAX_BATCH_SIZE,qualityThresholdFloor:95,minArticleWords:1000,batchTelemetry:true,articleWriteConcurrency:12,catchupSafetyMargin:true,preflightGlobalGate:true,twoStagePreflight:true,reusesCandidatePool:true,parallelPostPublication:true,parallelCatalogShards:true,batchStageTelemetry:true,r2WriteRetry:3,r2HeadRetry:3,fullGlobalGatePreserved:true};
 export const buildBulkTopic=(cursor=0)=>applyCommerceTarget(applyKeywordStrategy(buildRawBulkTopic(cursor)),cursor);
 export {buildUsefulArticle,BULK_ENGINE_INFO,GLOBAL_INDEX_INFO,COUPON_REGISTRY_INFO,SCHEMA_GATE_INFO,INDEXATION_GATE_INFO,EDITORIAL_TRUST_INFO,INDEXNOW_INFO,KEYWORD_STRATEGY_INFO,COMMERCE_GENERATOR_INFO};
