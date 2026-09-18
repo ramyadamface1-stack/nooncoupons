@@ -76,7 +76,7 @@ async function saveSeoSettings(env,input={}){
   const current=await getSeoSettings(env);
   const next={...current,
     siteName:cleanSeoText(input.siteName??current.siteName,120)||'Noon Deals Now',
-    defaultOgImage:(()=>{const v=String(input.defaultOgImage??current.defaultOgImage||'').trim();return v.startsWith('/')&&!v.startsWith('//')?v.slice(0,300):'/favicon.svg'})(),
+    defaultOgImage:(()=>{const v=String(input.defaultOgImage??current.defaultOgImage??'').trim();return v.startsWith('/')&&!v.startsWith('//')?v.slice(0,300):'/favicon.svg'})(),
     googleVerification:cleanSeoToken(input.googleVerification??current.googleVerification),
     bingVerification:cleanSeoToken(input.bingVerification??current.bingVerification),
     yandexVerification:cleanSeoToken(input.yandexVerification??current.yandexVerification),
