@@ -194,6 +194,16 @@ function brandHead(html){
 
 function favicon(){return new Response(SVG,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public, max-age=604800, immutable','x-content-type-options':'nosniff'}})}
 function legacyCanonicalRedirect(u){const path=u.pathname.replace(/\/+$/,'')||'/';if(path==='/saudi/noon-coupon-code')return '/saudi-arabia/noon-coupon-code';const m=path.match(/^\/(?:saudi-arabia|saudi|uae)\/article\/(.+)$/);if(m)return '/articles/'+m[1];return null}
+function configuredSeoRedirect(path,settings){
+  const from=String(path||'').replace(/\/+$/,'')||'/',to=settings?.redirects?.[from];
+  if(!to||from===to||String(to).startsWith('//'))return null;
+  return String(to).startsWith('/')?String(to):null;
+}
+function notFoundNoindex(res){
+  if(res.status!==404)return res;
+  const h=new Headers(res.headers);h.set('x-robots-tag','noindex, follow');h.set('cache-control','public, max-age=0, s-maxage=60');h.set('x-404-indexing','blocked-v1');
+  return new Response(res.body,{status:404,statusText:res.statusText,headers:h});
+}
 function indexNowKeyFile(env,path){const key=String(env.INDEXNOW_KEY||'').trim();if(!key||path!=='/'+key+'.txt')return null;return new Response(key+'\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=86400, immutable','x-content-type-options':'nosniff','x-indexnow-key-file':'v1'}})}
 async function ensureRobotsSitemap(res,origin){
   if(!res.ok)return res;
@@ -278,9 +288,16 @@ export default{
     if(req.method==='POST'&&u.pathname==='/api/track-event')return handleConversionEvent(req,env);
     if(req.method==='GET'&&u.pathname==='/favicon.svg')return favicon();
     if(req.method==='GET'&&u.pathname==='/sw.js')return new Response(SW_JS,{headers:{'content-type':'application/javascript; charset=utf-8','cache-control':'no-cache','service-worker-allowed':'/','x-content-type-options':'nosniff'}});
-    if(req.method==='GET'){const legacy=legacyCanonicalRedirect(u);if(legacy)return new Response(null,{status:301,headers:{location:(env.SITE_ORIGIN||u.origin)+legacy,'cache-control':'public, max-age=86400','x-legacy-canonical-redirect':'v1'}});}
+    let preSettings=null;
+    if(req.method==='GET'){
+      preSettings=await cachedSeoSettings(env);
+      const configured=configuredSeoRedirect(u.pathname,preSettings);
+      if(configured)return new Response(null,{status:301,headers:{location:(env.SITE_ORIGIN||u.origin)+configured+(u.search||''),'cache-control':'public, max-age=86400','x-seo-configured-redirect':'r2-v1'}});
+      const legacy=legacyCanonicalRedirect(u);if(legacy)return new Response(null,{status:301,headers:{location:(env.SITE_ORIGIN||u.origin)+legacy,'cache-control':'public, max-age=86400','x-legacy-canonical-redirect':'v1'}});
+    }
     if(req.method==='GET'){const keyFile=indexNowKeyFile(env,u.pathname);if(keyFile)return keyFile;}
     let res=await app.fetch(req,env,ctx);
+    res=notFoundNoindex(res);
     if(req.method==='GET'&&u.pathname==='/robots.txt')res=await ensureRobotsSitemap(res,env.SITE_ORIGIN||u.origin);
     res=crawlSafe(res,u.pathname);
     res=privateNoindex(res,u.pathname);
@@ -292,7 +309,7 @@ export default{
     const sanitized=sanitizeLegacyCouponTokens(repaired.html);
     const normalized=normalizeCouponUi(sanitized.html);
     const visibleSanitized=sanitizeVisibleCouponTokens(normalized.html);
-    const settings=await cachedSeoSettings(env);
+    const settings=preSettings||await cachedSeoSettings(env);
     let html=applySeoSettings(brandHead(visibleSanitized.html),settings,u.pathname,origin);
     const imagePerf=!u.pathname.startsWith('/admin')?optimizeImages(html):{html,count:0,firstSrc:null};html=imagePerf.html;
     if(!u.pathname.startsWith('/admin')){
@@ -305,6 +322,7 @@ export default{
     const h=new Headers(res.headers);h.delete('content-length');
     h.set('x-brand-layer','v1');
     h.set('x-seo-settings',settings?'r2-v1':'default');
+    h.set('x-seo-redirects',settings&&Object.keys(settings.redirects||{}).length?'configured-v1':'none');
     h.set('x-image-performance','lazy-v1');
     h.set('x-image-count',String(imagePerf.count));
     h.set('x-service-worker-cache','static-assets-v1');
@@ -321,4 +339,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:17,privacySafeConversionEvents:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:18,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
