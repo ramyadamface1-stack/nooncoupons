@@ -199,6 +199,20 @@ function crawlSafe(res,path){
   return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
+function isCountableArticleVisit(req,path){
+  if(req.method!=='GET'||!/^\/(?:en\/)?articles\//.test(path))return false;
+  const ua=(req.headers.get('user-agent')||'').toLowerCase();
+  if(!ua)return false;
+  return !/(bot|crawler|spider|slurp|googlebot|bingbot|yandex|baiduspider|duckduckbot|facebookexternalhit|twitterbot|whatsapp|telegrambot|gptbot|oai-searchbot|ccbot|claudebot|perplexitybot)/i.test(ua);
+}
+async function trackUniqueArticleVisit(req,env,path){
+  if(!env.CONTROL||!isCountableArticleVisit(req,path))return;
+  const ip=(req.headers.get('cf-connecting-ip')||'').trim();
+  if(!ip)return;
+  const id=env.CONTROL.idFromName('primary');
+  await env.CONTROL.get(id).fetch('https://control.internal/visit',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({path,ip})});
+}
+
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
@@ -211,6 +225,7 @@ export default{
     res=crawlSafe(res,u.pathname);
     res=privateNoindex(res,u.pathname);
     if(!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
+    if(isCountableArticleVisit(req,u.pathname))ctx.waitUntil(trackUniqueArticleVisit(req,env,u.pathname).catch(()=>{}));
     const origin=env.SITE_ORIGIN||u.origin;
     const source=await res.text();
     const repaired=repairJsonLd(source,origin);
@@ -238,4 +253,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:14,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:15,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
