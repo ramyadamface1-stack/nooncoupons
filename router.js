@@ -1,7 +1,8 @@
 import base from './index.js';
+import {APPROVED_COUPON_CODES} from './approved-coupons.js';
 
 const ORIGIN='https://noondealsnow.com';
-const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
+const CODES=APPROVED_COUPON_CODES;
 const SEARCH_SUGGESTIONS=[
   ...CODES.map(code=>({label:`كود نون ${code}`,hint:'كوبون',url:`/coupon/${code.toLowerCase()}`})),
   {label:'كود نون اليوم',hint:'دليل',url:'/coupon/best-noon-coupon-today'},
