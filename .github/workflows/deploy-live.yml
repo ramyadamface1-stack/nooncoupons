@@ -56,6 +56,9 @@ jobs:
           grep -Fq "normalizeArticleHeadingDensity" auto-platform.js
           grep -Fq "h2_structure" workers-ai-generator.js
           grep -Fq "h2Count>=6&&h2Count<=10" generator-core-v2.js
+          grep -Fq "R2_GENERATOR_STATUS_KEY='_ops/generator-status.json'" admin-runtime.js
+          grep -Fq "backend:'r2-v1'" admin-runtime.js
+          grep -Fq "ctx.waitUntil(bulkTick(env))" auto-platform.js
       - name: Validate dedicated Cloudflare token
         id: cf
         env:
@@ -149,6 +152,24 @@ jobs:
                       if not (d.get('alt') or '').strip(): self.missing.append(d)
           p=P(); p.feed(open('/tmp/a.html',encoding='utf-8').read())
           assert not p.missing, f'missing alt on {len(p.missing)} images'
+          PY
+
+          curl -fsS "$RUNTIME_ORIGIN/?deploy=$GITHUB_SHA" -o /tmp/home.html
+          curl -fsS "$RUNTIME_ORIGIN/coupons?deploy=$GITHUB_SHA" -o /tmp/coupons.html
+          curl -fsS "$RUNTIME_ORIGIN/uae/noon-coupon-code?deploy=$GITHUB_SHA" -o /tmp/uae-money.html
+          python - <<'PY'
+          import re
+          allowed={'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'}
+          files=['/tmp/home.html','/tmp/coupons.html','/tmp/money.html','/tmp/uae-money.html','/tmp/a.html']
+          seen=set()
+          for path in files:
+              text=open(path,encoding='utf-8').read()
+              tokens={x.upper() for x in re.findall(r'\b(?:OPS\d+|NOV\d+)\b',text,re.I)}
+              bad=tokens-allowed
+              assert not bad, f'unapproved coupon tokens in {path}: {sorted(bad)}'
+              seen|=tokens
+          assert allowed.issubset(seen), f'approved coupon list incomplete in live audit: missing={sorted(allowed-seen)}'
+          print('LIVE_COUPON_WHITELIST=PASS')
           PY
 
           # One light canonical-domain probe only; no tight retry loop that can trigger 429/1027.
