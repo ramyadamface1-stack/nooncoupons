@@ -10,6 +10,7 @@ import {
 const englishSlugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const plainWords=html=>String(html||'').replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim().split(/\s+/).filter(Boolean).length;
+const arabicSlugify=s=>String(s||'').toLowerCase().trim().replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-+|-+$/g,'').replace(/-{2,}/g,'-').slice(0,120);
 
 const ARABIC_QUERY_MODIFIERS=[
   'فحص الشحن','مراجعة البائع','سياسة الإرجاع','مراجعة الضمان','تثبيت السلة','السعر الكامل','قرار الشراء','مراجعة الدفع',
@@ -50,7 +51,9 @@ function diversitySection(topic,cursor,offset=0){
 
 export function buildBulkTopic(cursor=0){
   const topic=buildBulkTopicBase(cursor),queryModifier=queryModifierFor(cursor);
-  return {...topic,queryModifier,diversitySeed:Math.max(0,Number(cursor)||0),diversityVersion:2};
+  const kw=(String(topic.kw||'')+' '+queryModifier).replace(/\s+/g,' ').trim();
+  const slug=arabicSlugify(kw);
+  return {...topic,kw,slug,queryModifier,diversitySeed:Math.max(0,Number(cursor)||0),diversityVersion:3,topicExpansionVersion:'query-modifier-v3'};
 }
 
 export function buildUsefulArticle(topic,cursor=0){
@@ -62,7 +65,7 @@ export function buildUsefulArticle(topic,cursor=0){
   if(!sections.length)return article;
   const marker='<section class="methodology accountability">',insert=sections.join('');
   const html=String(article.html||'').includes(marker)?String(article.html).replace(marker,`${insert}${marker}`):String(article.html).replace('</article>',`${insert}</article>`);
-  return {...article,html,diversityVersion:2,diversityKey:`${stableIndex(cursor,ARABIC_QUERY_MODIFIERS.length,17)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,101)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,138)}`};
+  return {...article,html,diversityVersion:3,topicExpansionVersion:'query-modifier-v3',diversityKey:`${stableIndex(cursor,ARABIC_QUERY_MODIFIERS.length,17)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,101)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,138)}`};
 }
 
 function normalizeEnglishCandidate(candidate){
