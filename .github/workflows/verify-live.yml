@@ -36,6 +36,9 @@ jobs:
           echo CHECK_BULK_BATCH; grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
           echo CHECK_CATCHUP_TOTAL; grep -Fq '"BULK_CATCHUP_TOTAL": "30000"' wrangler.jsonc
           echo CHECK_CATCHUP_BATCH; grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "64"' wrangler.jsonc
+          grep -Fq '"BULK_CATCHUP_MIN_BATCH_SIZE": "32"' wrangler.jsonc
+          grep -Fq '"BULK_CATCHUP_TARGET_BATCH_MS": "52000"' wrangler.jsonc
+          grep -Fq 'chooseAdaptiveBulkBatch' admin-runtime.js
           echo CHECK_CATCHUP_WINDOW; grep -Fq '"BULK_CATCHUP_WINDOW_HOURS": "8"' wrangler.jsonc
           echo CHECK_CATCHUP_LOGIC; grep -Fq 'publishedTotal<catchupGoal?catchupBatch:steadyBatch' admin-runtime.js
           echo CHECK_BULK_RUN_LOCK; grep -Fq 'BULK_RUN_LOCK_MS=5*60*1000' admin-runtime.js
@@ -79,7 +82,7 @@ jobs:
             fetch "$ORIGIN/api/generator-health?v=brand-v1-$i" /tmp/generator.json 2>/dev/null || true
             fetch "$ORIGIN/api/commerce-health?v=brand-v1-$i" /tmp/commerce.json 2>/dev/null || true
             fetch "$ORIGIN/api/content-stats?v=brand-v1-$i" /tmp/stats.json 2>/dev/null || true
-            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); s=json.load(open('/tmp/stats.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert s.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==32000; assert int(b.get('batchSize') or 0)==16; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert int(p.get('windowHours') or 0)==8; assert int(s.get('dailyTargetArabic') or 0)==32000" 2>/dev/null; then
+            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); s=json.load(open('/tmp/stats.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert s.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==32000; assert int(b.get('batchSize') or 0)==16; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert 16<=int(p.get('effectiveBatchSize') or 0)<=64; assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0); assert int(p.get('targetBatchDurationMs') or 0)==52000; assert int(p.get('windowHours') or 0)==8; assert int(s.get('dailyTargetArabic') or 0)==32000" 2>/dev/null; then
               ready=1
               echo "RUNTIME_READY attempt=$i"
               break
@@ -165,6 +168,10 @@ jobs:
           assert int(b.get('dailyTarget') or 0)==32000 and int(b.get('batchSize') or 0)==16, 'bulk target/batch'
           p=b.get('catchupPlan') or {}
           assert int(p.get('target') or 0)==30000 and int(p.get('catchupBatchSize') or 0)==64 and int(p.get('windowHours') or 0)==8, '30k catchup plan'
+          if int(p.get('remaining') or 0)>0:
+              assert 32<=int(p.get('effectiveBatchSize') or 0)<=64, 'adaptive effective batch'
+              assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0), 'adaptive batch health'
+              assert int(p.get('targetBatchDurationMs') or 0)==52000, 'adaptive target ms'
           assert float(p.get('qualityThresholdFloor') or 0)>=95 and int(p.get('minArticleWords') or 0)>=1000, 'catchup quality floor'
           if int(p.get('remaining') or 0)>0: assert p.get('capacityMeetsEightHourGoal') is True, '8h catchup capacity'
           assert int(s.get('dailyTargetArabic') or 0)==32000, 'instant stats target'
