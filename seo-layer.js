@@ -47,15 +47,15 @@ export default {
     const path=new URL(request.url).pathname.replace(/\/+$/,'')||'/';
     if(path==='/sitemap.xml') return xml(index());
     if(path==='/sitemap-money.xml') return xml(urlset(MONEY.map(x=>x[0])));
-    if(path==='/sitemap-pages.xml') return xml(urlset(['/', '/coupons','/saudi','/uae','/blog','/shopping-world','/about','/contact','/privacy','/faq','/noon-coupon-code-saudi-uae',...TRUST]));
+    if(path==='/sitemap-pages.xml') return xml(urlset(['/', '/coupons','/saudi','/uae','/blog','/shopping-world','/about','/contact','/privacy','/faq','/research','/glossary','/noon-coupon-code-saudi-uae',...TRUST]));
     if(path==='/sitemap-categories.xml') return xml(urlset(CATEGORIES.map(x=>`/category/${x}`)));
     if(path==='/sitemap-guides.xml') return xml(urlset(GUIDES.map(x=>`/guide/${x}`)));
     if(path==='/sitemap-coupons.xml') return xml(urlset(CODES.map(x=>`/coupon/${x.toLowerCase()}`)));
     if(path==='/sitemap-coupons-saudi.xml') return xml(urlset(CODES.map(x=>`/saudi-arabia/coupon/${x.toLowerCase()}`)));
     if(path==='/sitemap-coupons-uae.xml') return xml(urlset(CODES.map(x=>`/uae/coupon/${x.toLowerCase()}`)));
     const money=MONEY.find(x=>x[0]===path);if(money)return new Response(moneyPage(money),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=0,s-maxage=300','x-money-page':'gsc-v1'}});
-    let m=path.match(/^\/(saudi-arabia|uae)\/coupon\/(ops\d+)$/i);
-    if(m){const code=m[2].toUpperCase();if(CODES.includes(code))return new Response(countryCoupon(code,m[1]==='saudi-arabia'?'SA':'AE'),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});}
+    let m=path.match(/^\/(saudi-arabia|uae)\/coupon\/((?:ops|nov)\d+)$/i);
+    if(m){const code=m[2].toUpperCase();if(CODES.includes(code))return new Response(countryCoupon(code,m[1]==='saudi-arabia'?'SA':'AE'),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});return Response.redirect(ORIGIN+'/coupons',301);}
     return app.fetch(request,env,ctx);
   },
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
