@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "ced3487ce4ad65a990a48b985a7d9ae043c44ab4",
-  "verifiedAt": "2026-09-18T13:57:44.927353+00:00",
+  "sourceSha": "7d0afdf6bd5b7ae6184fb6d0dbef39c12367ce28",
+  "verifiedAt": "2026-09-18T14:00:00.685049+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -36,12 +36,12 @@
   },
   "content": {
     "r2HtmlObjects": 52078,
-    "trackedPublished": 15069,
-    "arabic": 15042,
+    "trackedPublished": 15117,
+    "arabic": 15090,
     "english": 27,
-    "lastSlug": "استخدام-كود-nike-lifestyle-للطلب-الأول-نون-الإمارات-شروط-الطلب-القصة",
+    "lastSlug": "استخدام-كود-الإلكترونيات-نون-السعودية-تكلفة-ما-بعد-الشراء-حالة-الجهاز",
     "lastQuality": 100,
-    "lastWordCount": 1770
+    "lastWordCount": 1739
   },
   "englishControlled": {
     "target": 200,
@@ -62,6 +62,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T13:56:59.104Z"
+    "completedAt": "2026-09-18T13:59:19.899Z"
   }
 }
