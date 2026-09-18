@@ -4,7 +4,11 @@ export async function submitIndexNow(env,records=[]){
   if(!enabled(env)||!records.length)return {enabled:enabled(env),submitted:0,status:null,error:null};
   let origin;
   try{origin=new URL(env.SITE_ORIGIN)}catch{return {enabled:true,submitted:0,status:null,error:'invalid_site_origin'}}
-  const urlList=[...new Set(records.filter(r=>r?.slug&&r?.indexable!==false).map(r=>origin.origin+'/articles/'+encodeURI(r.slug)))].slice(0,10000);
+  const urlList=[...new Set(records.filter(r=>r?.slug&&r?.indexable!==false).map(r=>{
+    const explicit=String(r.urlPath||'').trim();
+    const path=explicit.startsWith('/')?explicit:'/articles/'+encodeURI(r.slug);
+    try{return new URL(path,origin.origin).toString()}catch{return null}
+  }).filter(Boolean))].slice(0,10000);
   if(!urlList.length)return {enabled:true,submitted:0,status:null,error:null};
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),2500);
   try{
@@ -14,4 +18,4 @@ export async function submitIndexNow(env,records=[]){
   finally{clearTimeout(timer)}
 }
 
-export const INDEXNOW_INFO={version:1,endpoint:'https://api.indexnow.org/indexnow',batchPerPublish:true,nonBlockingForPublication:true};
+export const INDEXNOW_INFO={version:2,urlPathAware:true,endpoint:'https://api.indexnow.org/indexnow',batchPerPublish:true,nonBlockingForPublication:true};
