@@ -152,7 +152,10 @@ jobs:
               'arabic':s.get('arabic'),
               'english':s.get('english'),
               'countedAt':(s.get('r2Count') or {}).get('countedAt'),
-              'cached':(s.get('r2Count') or {}).get('cached')
+              'cached':(s.get('r2Count') or {}).get('cached'),
+              'lastSlug':(s.get('last') or {}).get('slug'),
+              'lastQuality':(s.get('last') or {}).get('quality'),
+              'lastWordCount':(s.get('last') or {}).get('wordCount')
           },ensure_ascii=False,separators=(',',':')))
           PY
           echo "PRODUCTION_RUNTIME_VERIFIED=1"
