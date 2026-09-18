@@ -127,6 +127,15 @@ jobs:
           grep -Fq "/api/admin/seo-drops" admin-runtime.js
           grep -Fq 'id="seoDropsPanel"' admin-page.js
           grep -Fq 'Google Search Console' admin-page.js
+          grep -Fq 'uniqueArticleVisits:true' platform.js
+          grep -Fq 'rawIpStored:false' platform.js
+          grep -Fq "visit-pepper-v1" platform.js
+          grep -Fq "visit-seen:" platform.js
+          grep -Fq "uniqueArticleVisitTracking:true" brand-runtime.js
+          grep -Fq "botVisitFiltering:true" brand-runtime.js
+          grep -Fq "cf-connecting-ip" brand-runtime.js
+          grep -Fq "uniqueVisits" admin-page.js
+          grep -Fq "visitMetric:'unique-ip-per-article'" admin-runtime.js
           grep -Fq "u.pathname==='/sw.js'" brand-runtime.js
           grep -Fq "startsWith('/assets/coupon-svg/')" brand-runtime.js
           grep -Fq "startsWith('/assets/featured/')" brand-runtime.js
@@ -319,6 +328,18 @@ jobs:
           grep -Fq 'English article sitemap: https://noondealsnow.com/sitemap-en-articles.xml' /tmp/llms.txt
           grep -Fq 'English RSS: https://noondealsnow.com/feed-en.xml' /tmp/llms.txt
           grep -Fq 'Golden keyword/search-intent hub: https://noondealsnow.com/golden-keywords' /tmp/llms.txt
+
+          echo "VERIFY_ROUTE=control-health-visits"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/api/control-health?deploy=$GITHUB_SHA" -o /tmp/control-health.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/control-health.json'))
+          b=x.get('body') or {}
+          assert x.get('ok') is True
+          assert int(b.get('version') or 0)>=4
+          assert b.get('uniqueArticleVisits') is True
+          assert b.get('rawIpStored') is False
+          PY
 
           echo "VERIFY_ROUTE=service-worker"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/sw.js?deploy=$GITHUB_SHA" -D /tmp/sw.h -o /tmp/sw.js
@@ -825,6 +846,9 @@ jobs:
                   'gscSeoDropsSnapshotVerified': True,
                   'gscNoDataTruthfulnessVerified': True,
                   'gscAdminEndpointPrivateVerified': True,
+                  'uniqueArticleVisitsVerified': True,
+                  'rawIpNotStoredVerified': True,
+                  'botVisitFilteringVerified': True,
               },
               'content': {
                   'r2HtmlObjects': s.get('r2Uploaded'),
@@ -937,6 +961,9 @@ jobs:
           assert proof['checks']['gscSeoDropsSnapshotVerified'] is True
           assert proof['checks']['gscNoDataTruthfulnessVerified'] is True
           assert proof['checks']['gscAdminEndpointPrivateVerified'] is True
+          assert proof['checks']['uniqueArticleVisitsVerified'] is True
+          assert proof['checks']['rawIpNotStoredVerified'] is True
+          assert proof['checks']['botVisitFilteringVerified'] is True
           if remaining>0 and cadence_rate>0:
               assert float(catchup.get('qualityThresholdFloor') or 0)>=95
           with open('ops/last-production-verification.json','w',encoding='utf-8') as f:
