@@ -21,8 +21,14 @@ const BULK_RUN_LOCK_MS=5*60*1000;
 
 async function r2putJson(env,key,value){
   if(!env.CONTENT_FINAL)throw new Error('r2_binding_missing');
-  await env.CONTENT_FINAL.put(key,JSON.stringify(value),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
-  return value;
+  let last=null;
+  for(let attempt=1;attempt<=3;attempt++){
+    try{
+      await env.CONTENT_FINAL.put(key,JSON.stringify(value),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+      return value;
+    }catch(e){last=e;if(attempt<3)await new Promise(resolve=>setTimeout(resolve,60*attempt))}
+  }
+  throw last||new Error('r2_status_put_failed');
 }
 function defaultGeneratorConfig(env){
   return {...GENERATOR_DEFAULTS,enabled:true,model:env.WORKERS_AI_MODEL||GENERATOR_DEFAULTS.model,provider:'workers-ai',externalProviders:false,targetWords:1500,minWords:1000,qualityThreshold:95,backend:'r2-v1',updatedAt:now()};
