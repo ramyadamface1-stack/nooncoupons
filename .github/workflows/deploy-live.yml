@@ -49,6 +49,7 @@ jobs:
           grep -Fq '"INDEXNOW_KEY": "' wrangler.jsonc
           grep -Fq "urlPathAware:true" indexnow.js
           grep -Fq "indexNowOnPublish:true" english-canary.js
+          grep -Fq "richArticleSchema:true" english-canary.js
           grep -Fq "const indexNow=await submitIndexNow(env,[record])" english-canary.js
           grep -Fq "owner-approved-nov-v1-strict-copy" coupon-registry.js
           grep -Fq '/sitemap-priority.xml' discovery-entry.js
@@ -345,6 +346,10 @@ jobs:
           echo "VERIFY_ROUTE=english-article path=$ENGLISH_PATH"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN$ENGLISH_PATH?deploy=$GITHUB_SHA" -D /tmp/english.h -o /tmp/english.html
           grep -Fqi 'content-language: en' /tmp/english.h
+          grep -Fq '"@type":"BreadcrumbList"' /tmp/english.html
+          grep -Fq '"@type":"WebPage"' /tmp/english.html
+          grep -Fq '"@type":"Article"' /tmp/english.html
+          grep -Fq 'Noon Deals Now Editorial Team' /tmp/english.html
 
           grep -Fq '<svg' /tmp/a.html || grep -Fq '<svg' /tmp/favicon.svg
           python - <<'PY'
