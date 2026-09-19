@@ -1,6 +1,9 @@
 name: Full Article Corpus Audit
 
 on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/full-article-corpus-audit.yml"]
   workflow_run:
     workflows: ["Deploy Live Worker"]
     types: [completed]
@@ -11,7 +14,7 @@ permissions:
 
 jobs:
   audit:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
