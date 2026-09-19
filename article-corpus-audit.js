@@ -65,18 +65,18 @@ export async function runArticleCorpusAuditBatch(env,{limit=250,reset=false}={})
   if(!reset){const o=await retry(()=>env.CONTENT_FINAL.get(STATE_KEY));if(o){try{state={...state,...JSON.parse(await o.text())}}catch{}}}
   if(reset){await save(env,state);return {ok:true,reset:true,...publicState(state)}}
   if(state.done)return {ok:true,...publicState(state)};
-  const target=Math.max(1,Math.min(Number(limit)||250,500));
+  const target=Math.max(1000,Math.min(Number(limit)||1000,1000));
   const objs=[];
   let cursor=state.cursor||undefined,truncated=true,pagesRead=0;
-  while(truncated&&objs.length<target&&pagesRead<20){
+  while(truncated&&objs.length<target&&pagesRead<30){
     const page=await retry(()=>env.CONTENT_FINAL.list({prefix:'articles/',cursor,limit:1000,include:['customMetadata']}));
     pagesRead++;
     for(const obj of page.objects||[])if(String(obj.key||'').endsWith('.html'))objs.push(obj);
     truncated=Boolean(page.truncated);
     cursor=truncated?page.cursor:undefined;
   }
-  for(let i=0;i<objs.length;i+=25){
-    const rows=await Promise.all(objs.slice(i,i+25).map(async obj=>{try{const o=await retry(()=>env.CONTENT_FINAL.get(obj.key));if(!o)return {failed:true,key:obj.key};const html=await o.text();return {failed:false,key:obj.key,audit:auditOne(obj.key,html,o.customMetadata||obj.customMetadata||{}),size:Number(obj.size||html.length)}}catch{return {failed:true,key:obj.key}}}));
+  for(let i=0;i<objs.length;i+=50){
+    const rows=await Promise.all(objs.slice(i,i+50).map(async obj=>{try{const o=await retry(()=>env.CONTENT_FINAL.get(obj.key));if(!o)return {failed:true,key:obj.key};const html=await o.text();return {failed:false,key:obj.key,audit:auditOne(obj.key,html,o.customMetadata||obj.customMetadata||{}),size:Number(obj.size||html.length)}}catch{return {failed:true,key:obj.key}}}));
     for(const row of rows){
       state.scanned++;
       if(row.failed){state.readFailures++;sample(state.samples,'storage_read_failure',row.key);continue}
