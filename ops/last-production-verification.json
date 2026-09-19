@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "5364cf24801226e4669ae60a994de810bc357406",
-  "verifiedAt": "2026-09-19T19:54:44.108764+00:00",
+  "sourceSha": "ac224056e8a0732861149d746379955b7de7cee5",
+  "verifiedAt": "2026-09-19T20:32:43.494456+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -101,17 +101,17 @@
     "persistedGeneratorConfigFloor1500Verified": true
   },
   "content": {
-    "r2HtmlObjects": 55210,
-    "trackedPublished": 46651,
-    "arabic": 46594,
+    "r2HtmlObjects": 55204,
+    "trackedPublished": 47069,
+    "arabic": 47012,
     "english": 57,
-    "lastSlug": "شروط-الكود-adidas-الأحذية-نون-الإمارات-مقارنة-حالة-المنتج-اللون",
+    "lastSlug": "دليل-شراء-الساعات-الذكية-نون-السعودية-فحص-قياسات-المنتج-المنافذ",
     "lastQuality": 100,
-    "lastWordCount": 1721
+    "lastWordCount": 1719
   },
   "catchup30k": {
     "target": 30000,
-    "current": 46594,
+    "current": 47012,
     "remaining": 0,
     "requiredPerMinute": 0,
     "effectiveBatchSize": 16,
@@ -120,36 +120,36 @@
     "adaptiveReason": "catchup_complete",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 14,
-    "lastBatchTries": 228,
-    "lastBatchDurationMs": 50308,
-    "lastBatchYieldPct": 6.14,
+    "lastBatchPublished": 16,
+    "lastBatchTries": 211,
+    "lastBatchDurationMs": 47844,
+    "lastBatchYieldPct": 7.58,
     "lastBatchStageMs": {
-      "candidateLoop": 42440,
-      "articleWrites": 2281,
-      "clusterFlush": 2355,
-      "freshness": 2456,
-      "catalogs": 5179,
-      "indexNow": 278,
-      "postParallel": 5179
+      "candidateLoop": 39481,
+      "articleWrites": 2139,
+      "clusterFlush": 3517,
+      "freshness": 2646,
+      "catalogs": 5827,
+      "indexNow": 256,
+      "postParallel": 5827
     },
     "candidateBudgetMs": 42000,
-    "candidateBudgetHit": true,
-    "executionRatePerMinute": 16.7,
+    "candidateBudgetHit": false,
+    "executionRatePerMinute": 20.07,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 14,
+    "observedRatePerMinute": 16,
     "observedMeetsRequiredRate": true,
     "estimatedHoursAtObservedRate": 0.0,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 59626,
-    "preflightRejectedTotal": 158286,
-    "preflightRecentRejectedTotal": 641,
-    "preflightClusterRejectedTotal": 156174,
+    "semanticPreAuditRejectedTotal": 61114,
+    "preflightRejectedTotal": 162895,
+    "preflightRecentRejectedTotal": 659,
+    "preflightClusterRejectedTotal": 160765,
     "lastPreflightRejectReasons": {
-      "global_keyword_cannibalization": 141,
-      "global_duplicate_slug": 59,
-      "global_duplicate_keyword": 59
+      "global_keyword_cannibalization": 127,
+      "global_duplicate_slug": 46,
+      "global_duplicate_keyword": 46
     }
   },
   "englishControlled": {
@@ -171,6 +171,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-19T19:53:16.243Z"
+    "completedAt": "2026-09-19T20:31:51.863Z"
   }
 }
