@@ -1,0 +1,71 @@
+name: Full Article Corpus Audit
+
+on:
+  workflow_run:
+    workflows: ["Deploy Live Worker"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Audit every R2 article
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+          ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
+          [ -n "${CF_TOKEN:-}" ] || { echo 'MISSING_CF_TOKEN'; exit 10; }
+          echo "::add-mask::$CF_TOKEN"
+          AUTH="Authorization: Bearer $CF_TOKEN"
+
+          code=$(curl -sS -o /tmp/cf-check.json -w '%{http_code}' -H "$AUTH" -H 'Content-Type: application/json' "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/services/nooncoupons" || true)
+          [ "$code" = "200" ] && [ "$(jq -r '.success // false' /tmp/cf-check.json)" = "true" ] || { cat /tmp/cf-check.json; exit 10; }
+
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60             -X POST -H "$AUTH" -H 'Content-Type: application/json'             --data '{"reset":true,"limit":500}'             "$ORIGIN/api/internal/article-corpus-audit-step?reset=${GITHUB_RUN_ID}" -o /tmp/reset.json
+          jq -e '.ok==true and .reset==true' /tmp/reset.json >/dev/null
+
+          complete=false
+          transient=0
+          for i in $(seq 1 400); do
+            if ! curl -fsS --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 120               -X POST -H "$AUTH" -H 'Content-Type: application/json'               --data '{"limit":500}'               "$ORIGIN/api/internal/article-corpus-audit-step?run=${GITHUB_RUN_ID}-$i" -o /tmp/step.json; then
+              transient=$((transient+1))
+              echo "ARTICLE_AUDIT_TRANSIENT step=$i count=$transient"
+              sleep 5
+              continue
+            fi
+            transient=0
+            ok=$(jq -r '.ok // false' /tmp/step.json)
+            scanned=$(jq -r '.scanned // 0' /tmp/step.json)
+            done=$(jq -r '.done // false' /tmp/step.json)
+            readFailures=$(jq -r '.readFailures // 0' /tmp/step.json)
+            echo "ARTICLE_AUDIT_PROGRESS step=$i scanned=$scanned readFailures=$readFailures done=$done"
+            [ "$ok" = "true" ] || { cat /tmp/step.json; exit 1; }
+            if [ "$done" = "true" ]; then complete=true; break; fi
+            if [ "$(jq -r '.scanDone // false' /tmp/step.json)" = "true" ] && [ "$readFailures" != "0" ]; then
+              echo "ARTICLE_AUDIT_SCAN_FINISHED_WITH_READ_FAILURES=$readFailures"
+              break
+            fi
+            sleep 1
+          done
+
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60             -H "$AUTH" "$ORIGIN/api/article-corpus-audit-health?final=${GITHUB_RUN_ID}" -o /tmp/final.json
+          jq -e '.ok==true' /tmp/final.json >/dev/null
+          jq -c '{
+            scanned,readFailures,bytes,languages,wordBands,
+            duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,
+            scoreAverage:(. as $x | reduce (.scoreSums|keys[]) as $k ({}; .[$k]=((($x.scoreSums[$k] / ($x.scanned|if .==0 then 1 else . end))*10|round)/10))),
+            scoreHist,issues,samples,scanDone,done,startedAt,completedAt
+          }' /tmp/final.json > /tmp/summary.json
+          echo "ARTICLE_CORPUS_AUDIT_FINAL=$(cat /tmp/summary.json)"
+          [ "$(jq -r '.scanDone // false' /tmp/final.json)" = "true" ] || { echo 'ARTICLE_AUDIT_NOT_FULL_SCAN'; exit 1; }
+          [ "$(jq -r '.readFailures // 0' /tmp/final.json)" = "0" ] || { echo 'ARTICLE_AUDIT_HAS_READ_FAILURES'; exit 1; }
+          [ "$complete" = "true" ] || { echo 'ARTICLE_AUDIT_NOT_COMPLETE'; exit 1; }
