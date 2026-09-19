@@ -1,0 +1,27 @@
+name: Snapshot Corpus Audit
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/snapshot-corpus-audit.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read corpus audit state
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
+          echo "::add-mask::$CF_TOKEN"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            "$ORIGIN/api/article-corpus-audit-health?snapshot=$GITHUB_RUN_ID" -o /tmp/state.json
+          jq -e '.ok==true' /tmp/state.json >/dev/null
+          jq -c '{scanned,readFailures,languages,wordBands,duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,scoreSums,scoreHist,issues,scanDone,done,startedAt,lastBatchAt,completedAt}' /tmp/state.json
