@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "73b898cf85aaec83d115a67252844f793d7d3515",
-  "verifiedAt": "2026-09-18T20:01:50.383666+00:00",
+  "sourceSha": "5364cf24801226e4669ae60a994de810bc357406",
+  "verifiedAt": "2026-09-19T19:54:44.108764+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -101,65 +101,65 @@
     "persistedGeneratorConfigFloor1500Verified": true
   },
   "content": {
-    "r2HtmlObjects": 55429,
-    "trackedPublished": 24105,
-    "arabic": 24072,
-    "english": 33,
-    "lastSlug": "كود-خصم-nivea-العناية-بالبشرة-نون-الإمارات-خطة-الشراء-هدية",
+    "r2HtmlObjects": 55210,
+    "trackedPublished": 46651,
+    "arabic": 46594,
+    "english": 57,
+    "lastSlug": "شروط-الكود-adidas-الأحذية-نون-الإمارات-مقارنة-حالة-المنتج-اللون",
     "lastQuality": 100,
-    "lastWordCount": 1766
+    "lastWordCount": 1721
   },
   "catchup30k": {
     "target": 30000,
-    "current": 24072,
-    "remaining": 5928,
-    "requiredPerMinute": 12.35,
-    "effectiveBatchSize": 32,
-    "adaptiveBatchSize": 32,
-    "adaptiveMode": "catchup-adaptive",
-    "adaptiveReason": "duration_target",
+    "current": 46594,
+    "remaining": 0,
+    "requiredPerMinute": 0,
+    "effectiveBatchSize": 16,
+    "adaptiveBatchSize": 16,
+    "adaptiveMode": "steady",
+    "adaptiveReason": "catchup_complete",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 27,
-    "lastBatchTries": 184,
-    "lastBatchDurationMs": 51683,
-    "lastBatchYieldPct": 14.67,
+    "lastBatchPublished": 14,
+    "lastBatchTries": 228,
+    "lastBatchDurationMs": 50308,
+    "lastBatchYieldPct": 6.14,
     "lastBatchStageMs": {
-      "candidateLoop": 42064,
-      "articleWrites": 3618,
-      "clusterFlush": 3975,
-      "freshness": 2636,
-      "catalogs": 5594,
-      "indexNow": 484,
-      "postParallel": 5594
+      "candidateLoop": 42440,
+      "articleWrites": 2281,
+      "clusterFlush": 2355,
+      "freshness": 2456,
+      "catalogs": 5179,
+      "indexNow": 278,
+      "postParallel": 5179
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": true,
-    "executionRatePerMinute": 31.34,
+    "executionRatePerMinute": 16.7,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 27,
+    "observedRatePerMinute": 14,
     "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 3.66,
+    "estimatedHoursAtObservedRate": 0.0,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 5605,
-    "preflightRejectedTotal": 12957,
-    "preflightRecentRejectedTotal": 39,
-    "preflightClusterRejectedTotal": 11447,
+    "semanticPreAuditRejectedTotal": 59626,
+    "preflightRejectedTotal": 158286,
+    "preflightRecentRejectedTotal": 641,
+    "preflightClusterRejectedTotal": 156174,
     "lastPreflightRejectReasons": {
-      "global_duplicate_slug": 38,
-      "global_duplicate_keyword": 38,
-      "global_keyword_cannibalization": 88
+      "global_keyword_cannibalization": 141,
+      "global_duplicate_slug": 59,
+      "global_duplicate_keyword": 59
     }
   },
   "englishControlled": {
     "target": 200,
-    "published": 33,
-    "remaining": 167,
-    "publishedToday": 13,
+    "published": 57,
+    "remaining": 143,
+    "publishedToday": 23,
     "dailyTarget": 24,
     "minIntervalMinutes": 60,
-    "nextEligibleAt": "2026-09-18T20:19:44.461Z"
+    "nextEligibleAt": "2026-09-19T20:42:44.482Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -171,6 +171,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-18T20:00:29.967Z"
+    "completedAt": "2026-09-19T19:53:16.243Z"
   }
 }
