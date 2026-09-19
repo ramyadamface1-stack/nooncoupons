@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "ac224056e8a0732861149d746379955b7de7cee5",
-  "verifiedAt": "2026-09-19T20:32:43.494456+00:00",
+  "sourceSha": "e29f8aadf47f7f6627639ba22f7b24f779934d30",
+  "verifiedAt": "2026-09-19T20:37:31.893355+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -101,17 +101,17 @@
     "persistedGeneratorConfigFloor1500Verified": true
   },
   "content": {
-    "r2HtmlObjects": 55204,
-    "trackedPublished": 47069,
-    "arabic": 47012,
+    "r2HtmlObjects": 55200,
+    "trackedPublished": 47131,
+    "arabic": 47074,
     "english": 57,
-    "lastSlug": "دليل-شراء-الساعات-الذكية-نون-السعودية-فحص-قياسات-المنتج-المنافذ",
+    "lastSlug": "كود-نون-لشراء-عدة-منتجات-الألعاب-الإلكترونية-في-الإمارات-الشاشة",
     "lastQuality": 100,
-    "lastWordCount": 1719
+    "lastWordCount": 1715
   },
   "catchup30k": {
     "target": 30000,
-    "current": 47012,
+    "current": 47074,
     "remaining": 0,
     "requiredPerMinute": 0,
     "effectiveBatchSize": 16,
@@ -120,36 +120,37 @@
     "adaptiveReason": "catchup_complete",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 16,
-    "lastBatchTries": 211,
-    "lastBatchDurationMs": 47844,
-    "lastBatchYieldPct": 7.58,
+    "lastBatchPublished": 13,
+    "lastBatchTries": 240,
+    "lastBatchDurationMs": 50126,
+    "lastBatchYieldPct": 5.42,
     "lastBatchStageMs": {
-      "candidateLoop": 39481,
-      "articleWrites": 2139,
-      "clusterFlush": 3517,
-      "freshness": 2646,
-      "catalogs": 5827,
-      "indexNow": 256,
-      "postParallel": 5827
+      "candidateLoop": 42022,
+      "articleWrites": 2678,
+      "clusterFlush": 1755,
+      "freshness": 2125,
+      "catalogs": 5028,
+      "indexNow": 267,
+      "postParallel": 5028
     },
     "candidateBudgetMs": 42000,
-    "candidateBudgetHit": false,
-    "executionRatePerMinute": 20.07,
+    "candidateBudgetHit": true,
+    "executionRatePerMinute": 15.56,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 16,
+    "observedRatePerMinute": 13,
     "observedMeetsRequiredRate": true,
     "estimatedHoursAtObservedRate": 0.0,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 61114,
-    "preflightRejectedTotal": 162895,
-    "preflightRecentRejectedTotal": 659,
-    "preflightClusterRejectedTotal": 160765,
+    "semanticPreAuditRejectedTotal": 61355,
+    "preflightRejectedTotal": 163630,
+    "preflightRecentRejectedTotal": 661,
+    "preflightClusterRejectedTotal": 161498,
     "lastPreflightRejectReasons": {
-      "global_keyword_cannibalization": 127,
-      "global_duplicate_slug": 46,
-      "global_duplicate_keyword": 46
+      "global_duplicate_slug": 67,
+      "global_duplicate_keyword": 67,
+      "global_keyword_cannibalization": 154,
+      "global_duplicate_intent": 1
     }
   },
   "englishControlled": {
@@ -171,6 +172,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-19T20:31:51.863Z"
+    "completedAt": "2026-09-19T20:36:39.931Z"
   }
 }
