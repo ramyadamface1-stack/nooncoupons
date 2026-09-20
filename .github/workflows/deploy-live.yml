@@ -98,7 +98,12 @@ jobs:
           grep -Fq "/api/admin/live-overview" commerce-entry.js
           grep -Fq "normalizeArticleHeadingDensity" auto-platform.js
           grep -Fq 'class="cardAuthor" href="/authors/editorial-team"' auto-platform.js
-          grep -Fq 'intentKeyVersion:2' quality-index.js
+          grep -Fq 'intentKeyVersion:3' quality-index.js
+          grep -Fq 'intentOwnerVersion:1' quality-index.js
+          grep -Fq 'semanticDistanceMin:6' quality-index.js
+          grep -Fq 'cannibalizationSimilarityMax:0.78' quality-index.js
+          grep -Fq "maintenance/article-corpus-audit-v2.json" article-corpus-audit.js
+          grep -Fq "auditModel:'rendered-live-v2'" article-corpus-audit.js
           grep -Fq 'preflightGate:true' quality-index.js
           grep -Fq 'preflightGlobalGate' bulk-generator.js
           grep -Fq 'twoStagePreflight:true' bulk-generator.js
