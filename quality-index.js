@@ -1,6 +1,6 @@
 import {signatureDistance} from './quality-audit.js';
 
-const VERSION=3;
+const VERSION=2;
 const MAX_CLUSTER_ENTRIES=25000;
 const MAX_RELATED=6;
 const BOOTSTRAP_MAX_DAYS=90;
@@ -193,4 +193,4 @@ export async function flushClusters(env,cache,dirtyKeys){
   }
 }
 
-export const GLOBAL_INDEX_INFO={version:VERSION,intentKeyVersion:3,intentOwnerVersion:1,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],intentOwnerDimensions:['country','category','intent','useCase','factor','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:6,cannibalizationSimilarityMax:0.78,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:16,r2ReadRetry:3,r2WriteRetry:3,failClosedOnClusterRead:true,preflightGate:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','intent-owner-collision','keyword-cannibalization'],postBuildChecks:['duplicate-title','semantic-collision']};
+export const GLOBAL_INDEX_INFO={version:VERSION,gateRevision:3,intentKeyVersion:3,intentOwnerVersion:1,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],intentOwnerDimensions:['country','category','intent','useCase','factor','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:6,cannibalizationSimilarityMax:0.78,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:16,r2ReadRetry:3,r2WriteRetry:3,failClosedOnClusterRead:true,preflightGate:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','intent-owner-collision','keyword-cannibalization'],postBuildChecks:['duplicate-title','semantic-collision']};
