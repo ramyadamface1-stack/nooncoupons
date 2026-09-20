@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "9ae344e945ef108f583cd68840f2623b5128acdd",
-  "verifiedAt": "2026-09-20T10:00:03.634697+00:00",
+  "sourceSha": "6678469a493945de6be0cec46921f8097bffea73",
+  "verifiedAt": "2026-09-20T10:05:29.588524+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -102,16 +102,16 @@
   },
   "content": {
     "r2HtmlObjects": 122298,
-    "trackedPublished": 55967,
-    "arabic": 55896,
+    "trackedPublished": 56003,
+    "arabic": 55932,
     "english": 71,
-    "lastSlug": "استخدام-كود-السماعات-والصوتيات-نون-السعودية-أهلية-المنتج-الراحة",
+    "lastSlug": "هل-يعمل-الكود-ألعاب-الأطفال-نون-السعودية-قرار-الشراء-سهولة-الاستخدام",
     "lastQuality": 100,
-    "lastWordCount": 1709
+    "lastWordCount": 1737
   },
   "catchup30k": {
     "target": 30000,
-    "current": 55896,
+    "current": 55932,
     "remaining": 0,
     "requiredPerMinute": 0,
     "effectiveBatchSize": 16,
@@ -120,37 +120,37 @@
     "adaptiveReason": "catchup_complete",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 5,
+    "lastBatchPublished": 10,
     "lastBatchTries": 288,
-    "lastBatchDurationMs": 19380,
-    "lastBatchYieldPct": 1.74,
+    "lastBatchDurationMs": 21421,
+    "lastBatchYieldPct": 3.47,
     "lastBatchStageMs": {
-      "candidateLoop": 16687,
-      "articleWrites": 436,
-      "clusterFlush": 436,
-      "freshness": 516,
-      "catalogs": 2070,
-      "indexNow": 815,
-      "postParallel": 2070
+      "candidateLoop": 18373,
+      "articleWrites": 755,
+      "clusterFlush": 793,
+      "freshness": 769,
+      "catalogs": 2159,
+      "indexNow": 1066,
+      "postParallel": 2159
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": false,
-    "executionRatePerMinute": 15.48,
+    "executionRatePerMinute": 28.01,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 5,
+    "observedRatePerMinute": 10,
     "observedMeetsRequiredRate": true,
     "estimatedHoursAtObservedRate": 0.0,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 107758,
-    "preflightRejectedTotal": 288409,
-    "preflightRecentRejectedTotal": 2312,
-    "preflightClusterRejectedTotal": 284626,
+    "semanticPreAuditRejectedTotal": 108194,
+    "preflightRejectedTotal": 289346,
+    "preflightRecentRejectedTotal": 2340,
+    "preflightClusterRejectedTotal": 285535,
     "lastPreflightRejectReasons": {
-      "global_intent_owner_collision": 119,
-      "global_duplicate_slug": 59,
-      "global_duplicate_keyword": 59,
-      "global_keyword_cannibalization": 121,
+      "global_intent_owner_collision": 108,
+      "global_keyword_cannibalization": 119,
+      "global_duplicate_slug": 47,
+      "global_duplicate_keyword": 47,
       "global_duplicate_intent": 1
     }
   },
@@ -173,6 +173,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-20T09:59:19.843Z"
+    "completedAt": "2026-09-20T10:04:34.915Z"
   }
 }
