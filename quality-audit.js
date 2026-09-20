@@ -22,7 +22,7 @@ export function preAuditSemanticGate(article,semanticRecent=[]){
   const html=String(article?.html||''),plain=strip(html),signature=contentSignature(plain);
   const distances=(Array.isArray(semanticRecent)?semanticRecent:[]).map(r=>signatureDistance(signature,r?.signature)).filter(Number.isFinite);
   const minSignatureDistance=distances.length?Math.min(...distances):32;
-  return {pass:minSignatureDistance>=4,plain,signature,minSignatureDistance};
+  return {pass:minSignatureDistance>=6,plain,signature,minSignatureDistance};
 }
 
 function addCheck(list,group,name,pass,weight=1,{critical=false,note=''}={}){list.push({group,name,pass:Boolean(pass),weight,critical,note})}
@@ -134,17 +134,17 @@ export function auditSeoArticle(article,topic,opts={}){
   const sameKeyword=recentKeywords.has(norm(keyword)),sameSlug=recentSlugs.has(slug);
   addCheck(checks,'uniqueness','unique_keyword',!sameKeyword,4,{critical:sameKeyword});
   addCheck(checks,'uniqueness','unique_slug',!sameSlug,4,{critical:sameSlug});
-  addCheck(checks,'uniqueness','semantic_distance',minSignatureDistance>=4,5,{critical:minSignatureDistance<2,note:String(minSignatureDistance)});
+  addCheck(checks,'uniqueness','semantic_distance',minSignatureDistance>=6,6,{critical:minSignatureDistance<4,note:String(minSignatureDistance)});
   addCheck(checks,'uniqueness','blueprint_diversity',recent.length<3||!recent.slice(0,3).every(r=>r.blueprint===article?.blueprint),2);
 
   const groups=groupScores(checks),weights={seo:15,content:18,trust:15,aeo:9,geo:7,eeat:8,technical:8,image:6,ux:6,language:4,uniqueness:14};
   let sum=0,total=0;for(const [g,v] of Object.entries(groups)){const gw=weights[g]||1;sum+=v*gw;total+=gw}
   const score=clamp(sum/Math.max(1,total)),p0=checks.filter(x=>x.critical&&!x.pass),failed=checks.filter(x=>!x.pass),groupFloor=Math.min(...['seo','content','trust','aeo','geo','eeat','technical','uniqueness'].map(g=>groups[g]??0)),threshold=Math.max(95,Number(opts.threshold||opts.qualityThreshold||95));
   const productionReady=p0.length===0&&score>=threshold&&groupFloor>=88&&wordCount>=minWords&&wordCount<=2000;
-  return {score,wordCount,productionReady,signature:sig,minSignatureDistance,plain,groups,checks,failed:failed.map(x=>x.name),p0:p0.map(x=>x.name),measuredChecks:checks.length,criteriaCatalogCount:QUALITY_CRITERIA_COUNT,criteriaCatalog:QUALITY_CRITERIA,groupFloor,arabicRatio:Math.round(arabicRatio*1000)/1000};
+  return {score,scoreMode:'compliance-gated-v2',wordCount,productionReady,signature:sig,minSignatureDistance,plain,groups,checks,failed:failed.map(x=>x.name),p0:p0.map(x=>x.name),measuredChecks:checks.length,criteriaCatalogCount:QUALITY_CRITERIA_COUNT,criteriaCatalog:QUALITY_CRITERIA,groupFloor,arabicRatio:Math.round(arabicRatio*1000)/1000};
 }
 
-export function auditSummary(a){return {score:a.score,wordCount:a.wordCount,productionReady:a.productionReady,groups:a.groups,p0:a.p0,failed:a.failed,minSignatureDistance:a.minSignatureDistance,signature:a.signature,measuredChecks:a.measuredChecks,criteriaCatalogCount:a.criteriaCatalogCount}}
+export function auditSummary(a){return {score:a.score,scoreMode:a.scoreMode||'compliance-gated-v2',wordCount:a.wordCount,productionReady:a.productionReady,groups:a.groups,p0:a.p0,failed:a.failed,minSignatureDistance:a.minSignatureDistance,signature:a.signature,measuredChecks:a.measuredChecks,criteriaCatalogCount:a.criteriaCatalogCount}}
 
 
 function englishShingleSet(text,n=5){const a=words(norm(text));const out=new Set();for(let i=0;i<=a.length-n;i++)out.add(a.slice(i,i+n).join(' '));return out}
