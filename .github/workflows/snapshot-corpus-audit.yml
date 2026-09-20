@@ -24,4 +24,4 @@ jobs:
             -H "Authorization: Bearer $CF_TOKEN" \
             "$ORIGIN/api/article-corpus-audit-health?snapshot=$GITHUB_RUN_ID" -o /tmp/state.json
           jq -e '.ok==true' /tmp/state.json >/dev/null
-          jq -c '{scanned,readFailures,languages,wordBands,duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,scoreSums,scoreHist,issues,scanDone,done,startedAt,lastBatchAt,completedAt}' /tmp/state.json
+          jq -c '{version,auditModel,runId,uniqueArticles,scanned,readFailures,listCalls,listedObjects,htmlObjectsListed,duplicateListedKeys,countSnapshotKey,languages,wordBands,duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,scoreSums,scoreHist,issues,scanDone,done,startedAt,lastBatchAt,completedAt}' /tmp/state.json
