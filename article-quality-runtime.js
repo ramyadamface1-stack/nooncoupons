@@ -35,7 +35,9 @@ export function ensureRuntimeArticleQuality(html,{slug='',coupon='',country='SA'
   const beforePromo=out;
   out=out
     .replace(/(?:خصم|توفير)\s*(?:حتى\s*)?\d{1,3}\s*[%٪]/gi,'خصم متغير حسب أهلية السلة')
-    .replace(/(?:مضمون|مؤكد)\s*(?:الخصم|الكود|القسيمة)/gi,'الكود متاح للتجربة');
+    .replace(/\d{1,4}\s*(?:ريال|درهم)\s*(?:خصم|توفير)/gi,'توفير متغير حسب أهلية السلة')
+    .replace(/(?:مضمون|مؤكد)\s*(?:الخصم|الكود|القسيمة)/gi,'الكود متاح للتجربة')
+    .replace(/(?:بالتأكيد|مما لا شك فيه|في عالمنا اليوم|في عصرنا الحالي|دعنا نتعمق|في الختام،؟ يمكن القول|سواء كنت مبتدئًا أو محترفًا)/gi,'عمليًا');
   if(out!==beforePromo)added.push('unsupported-promo-sanitized');
 
   if(!/<article\b/i.test(out)&&!/<html\b/i.test(out)){
@@ -60,7 +62,7 @@ export function ensureRuntimeArticleQuality(html,{slug='',coupon='',country='SA'
     added.push('atomic-answers');
   }
 
-  if(!/(?:methodology|accountability|منهجية التحقق|طريقة التحقق)/i.test(out)){
+  if(!/<section\b[^>]*class=["'][^"']*(?:methodology|accountability)/i.test(out)){
     const method=`<section class="methodology accountability legacy-quality-method"><h2>منهجية التحقق والمراجعة</h2><p>نفصل بين اختيار المنتج وبين نتيجة القسيمة. نثبت السلة أولًا، ثم نغيّر عاملًا واحدًا فقط عند الاختبار، ونعتبر شروط نون الحالية والإجمالي النهائي المرجع لأي أهلية أو سعر متغير.</p><p>السوق هنا هو نون ${market}، والعملة المرجعية هي ${currency}. لا نعد بنسبة خصم أو أهلية ثابتة من دون دليل رسمي.</p></section>`;
     out=/<\/article>/i.test(out)?out.replace(/<\/article>/i,method+'</article>'):out+method;
     added.push('methodology');
@@ -78,6 +80,28 @@ export function ensureRuntimeArticleQuality(html,{slug='',coupon='',country='SA'
     added.push('faq');
   }
 
+  if(!/data-copy-code=/i.test(out)){
+    const cta=`<section class="coupon-copy legacy-quality-copy"><h2>جرّب الكود داخل السلة</h2><p>انسخ <strong>${esc(safeCoupon)}</strong> ثم طبّقه في سلة نون ${market}. لا تفترض نسبة توفير ثابتة؛ راجع الإجمالي النهائي قبل الدفع.</p><button type="button" class="copy-code" data-copy-code="${esc(safeCoupon)}" aria-describedby="legacy-copy-status">نسخ الكود ${esc(safeCoupon)}</button><span id="legacy-copy-status" class="sr-only" aria-live="polite">جاهز لنسخ الكود</span></section>`;
+    out=/<\/article>/i.test(out)?out.replace(/<\/article>/i,cta+'</article>'):out+cta;
+    added.push('copy-code-cta');
+  }else if(!/aria-live=["']polite/i.test(out)){
+    const live='<span class="sr-only legacy-copy-status" aria-live="polite">حالة نسخ الكود</span>';
+    out=/<\/article>/i.test(out)?out.replace(/<\/article>/i,live+'</article>'):out+live;
+    added.push('copy-status');
+  }
+
+  if(count(out,/<(?:ul|ol)\b/gi)<2){
+    const lists=`<section class="legacy-quality-checklists"><h2>قائمتا تحقق قبل إتمام الطلب</h2><h3>قبل تجربة الكود</h3><ul><li>ثبّت المنتج والكمية والبائع.</li><li>راجع الشحن والإرجاع للسوق الحالي.</li><li>سجّل الإجمالي قبل القسيمة.</li></ul><h3>بعد تجربة الكود</h3><ul><li>راجع الإجمالي النهائي بعملة ${currency}.</li><li>تأكد أن المنتج والبائع لم يتغيرا.</li><li>اعتمد نتيجة نون الحالية ولا تعمم أهلية حساب واحد.</li></ul></section>`;
+    out=/<\/article>/i.test(out)?out.replace(/<\/article>/i,lists+'</article>'):out+lists;
+    added.push('decision-lists');
+  }
+
+  if(!/<table\b/i.test(out)){
+    const table=`<section class="legacy-quality-comparison"><h2>مقارنة عملية قبل وبعد تجربة الكود</h2><div class="table-wrap"><table><thead><tr><th>العنصر</th><th>قبل التجربة</th><th>بعد التجربة</th></tr></thead><tbody><tr><td>المنتج والبائع</td><td>ثابتان</td><td>يجب أن يظلا ثابتين</td></tr><tr><td>الشحن</td><td>سجّل التكلفة</td><td>راجع أي تغير</td></tr><tr><td>الإجمالي</td><td>بالـ ${esc(currency)}</td><td>اعتمد الرقم النهائي داخل نون</td></tr></tbody></table></div></section>`;
+    out=/<\/article>/i.test(out)?out.replace(/<\/article>/i,table+'</article>'):out+table;
+    added.push('comparison-table');
+  }
+
   const currentImgs=count(out,/<img\b/gi);
   const needed=Math.max(0,3-currentImgs); // Hero image is added by the page renderer, so 3 body images => 4 live images.
   if(needed){
@@ -89,4 +113,4 @@ export function ensureRuntimeArticleQuality(html,{slug='',coupon='',country='SA'
   return {html:out,changed:added.length>0,added};
 }
 
-export const RUNTIME_ARTICLE_QUALITY_INFO={version:1,mode:'fill-missing-only',guarantees:['article-wrapper','direct-answer','two-atomic-answers','methodology','sources','faq-4','three-body-images-plus-hero','currency-localization','unsupported-promo-sanitizer'],destructive:false};
+export const RUNTIME_ARTICLE_QUALITY_INFO={version:2,mode:'fill-missing-only',guarantees:['article-wrapper','direct-answer','two-atomic-answers','methodology','sources','faq-4','copy-code-cta','aria-live-copy-status','two-decision-lists','comparison-table','three-body-images-plus-hero','currency-localization','unsupported-promo-sanitizer','generic-ai-phrase-sanitizer'],destructive:false};
