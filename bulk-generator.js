@@ -8,6 +8,7 @@ import {evaluateIndexation,INDEXATION_GATE_INFO} from './indexation-gate.js';
 import {injectEditorialTrust,EDITORIAL_TRUST_INFO} from './editorial-trust-layer.js';
 import {submitIndexNow,INDEXNOW_INFO} from './indexnow.js';
 import {applyCommerceTarget,decorateArticleCommerce,commerceRecordFields,COMMERCE_GENERATOR_INFO,commerceCoverageTarget} from './commerce-generator-taxonomy.js';
+import {publicationBlockedByArticleAudit} from './article-audit-lock.js';
 
 const now=()=>new Date().toISOString();
 const enc=s=>encodeURIComponent(String(s||'')).slice(0,1800);
@@ -58,6 +59,8 @@ async function writeCatalogs(env,day,countBefore,records){
 export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batchSize=3}={}){
   const startedMs=Date.now(),candidateBudgetMs=Math.max(15000,Math.min(45000,Number(env.BULK_CANDIDATE_BUDGET_MS||42000)));
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing',patch:{bulkLastError:'r2_binding_missing',bulkLastRun:now()}};
+  const auditLock=await publicationBlockedByArticleAudit(env);
+  if(auditLock)return {ok:true,skipped:'corpus_audit_in_progress',records:[],auditLock:{runId:auditLock.runId||null,expiresAt:auditLock.expiresAt||null,failClosed:Boolean(auditLock.failClosed)},patch:{bulkLastRun:now(),bulkLastError:null,bulkAuditLockRunId:auditLock.runId||null,bulkAuditLockUntil:auditLock.expiresAt||null}};
   const pauseUntil=Date.parse(status.bulkAutoPauseUntil||'');if(Number.isFinite(pauseUntil)&&pauseUntil>Date.now())return {ok:true,skipped:'bulk_auto_brake',records:[],patch:{bulkLastRun:now(),bulkLastError:null,bulkAutoPauseUntil:status.bulkAutoPauseUntil,bulkNoPassStreak:Number(status.bulkNoPassStreak||0)}};
   const day=now().slice(0,10),countBefore=String(status.bulkDay||'')===day?Math.max(0,Number(status.bulkPublishedToday||0)):0,target=Math.max(0,Math.min(MAX_DAILY_TARGET,Number(dailyTarget??2000))),batch=Math.max(1,Math.min(MAX_BATCH_SIZE,Number(batchSize||3)));
   if(target===0)return {ok:true,skipped:'bulk_paused',records:[],patch:{bulkDay:day,bulkPublishedToday:countBefore,bulkDailyTarget:0,bulkLastRun:now(),bulkLastError:null,bulkEngine:BULK_ENGINE_INFO.version,bulkKeywordStrategyVersion:KEYWORD_STRATEGY_INFO.version}};
