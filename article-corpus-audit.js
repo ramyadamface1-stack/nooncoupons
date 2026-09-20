@@ -1,4 +1,5 @@
 import {ensureRuntimeArticleQuality,RUNTIME_ARTICLE_QUALITY_INFO} from './article-quality-runtime.js';
+import {acquireArticleAuditLock,refreshArticleAuditLock,releaseArticleAuditLock,ARTICLE_AUDIT_LOCK_INFO} from './article-audit-lock.js';
 const STATE_KEY='maintenance/article-corpus-audit-v4.json';
 const COUNT_SNAPSHOT_KEY='_ops/article-count.json';
 
@@ -59,7 +60,7 @@ function auditOne(key,html,md={}){
   return {counters,samples,wc,lang:arRatio>=.85?'ar':arRatio<=.15?'en':'mixed',scores,titleHash:title?fnv32(norm(title))+':'+title.length:null,contentHash:plain?fnv32(norm(plain))+':'+plain.length:null,semanticSig:plain?simhash(plain):null,size:String(html).length};
 }
 function bucket(score){return score>=95?'95_100':score>=85?'85_94':score>=70?'70_84':score>=50?'50_69':'lt50'}
-function emptyState(runId=null){return {version:4,auditModel:'rendered-live-v4',runId:runId||null,runtimeArticleQualityVersion:RUNTIME_ARTICLE_QUALITY_INFO.version,runtimeGuarantees:['meta-description','canonical','Article-schema','WebPage-schema','BreadcrumbList-schema','editorial-byline','official-source-links','freshness-date','market-navigation','hero-image','site-internal-links',...RUNTIME_ARTICLE_QUALITY_INFO.guarantees],countSnapshotKey:COUNT_SNAPSHOT_KEY,cursor:null,scanned:0,readFailures:0,bytes:0,listCalls:0,listedObjects:0,htmlObjectsListed:0,duplicateListedKeys:0,lastListedKey:null,languages:{ar:0,en:0,mixed:0},wordBands:{lt800:0,w800_999:0,w1000_1499:0,w1500_2000:0,gt2000:0},issues:{},samples:{},scoreSums:{},scoreHist:{},titleFreq:{},contentFreq:{},semanticFreq:{},duplicateTitles:{articles:0,groups:0},exactDuplicateContent:{articles:0,groups:0},semanticSignatureCollisions:{articles:0,groups:0},scanDone:false,done:false,startedAt:new Date().toISOString()}}
+function emptyState(runId=null){return {version:4,auditModel:'rendered-live-v4',runId:runId||null,auditLockKey:ARTICLE_AUDIT_LOCK_INFO.key,runtimeArticleQualityVersion:RUNTIME_ARTICLE_QUALITY_INFO.version,runtimeGuarantees:['meta-description','canonical','Article-schema','WebPage-schema','BreadcrumbList-schema','editorial-byline','official-source-links','freshness-date','market-navigation','hero-image','site-internal-links',...RUNTIME_ARTICLE_QUALITY_INFO.guarantees],countSnapshotKey:COUNT_SNAPSHOT_KEY,cursor:null,scanned:0,readFailures:0,bytes:0,listCalls:0,listedObjects:0,htmlObjectsListed:0,duplicateListedKeys:0,lastListedKey:null,languages:{ar:0,en:0,mixed:0},wordBands:{lt800:0,w800_999:0,w1000_1499:0,w1500_2000:0,gt2000:0},issues:{},samples:{},scoreSums:{},scoreHist:{},titleFreq:{},contentFreq:{},semanticFreq:{},duplicateTitles:{articles:0,groups:0},exactDuplicateContent:{articles:0,groups:0},semanticSignatureCollisions:{articles:0,groups:0},scanDone:false,done:false,startedAt:new Date().toISOString()}}
 function mergeIssue(state,row){for(const [k,v] of Object.entries(row.counters))add(state.issues,k,v);for(const [k,arr] of Object.entries(row.samples))for(const key of arr)sample(state.samples,k,key)}
 function updateFreq(freq,summary,hash){if(!hash)return;const n=Number(freq[hash]||0);freq[hash]=n+1;if(n===1){summary.groups++;summary.articles+=2}else if(n>1)summary.articles++}
 function publicState(s){const {titleFreq,contentFreq,semanticFreq,...rest}=s;return {...rest,uniqueArticles:Number(s.scanned||0),uniqueTitleHashes:Object.keys(titleFreq||{}).length,uniqueContentHashes:Object.keys(contentFreq||{}).length,uniqueSemanticSignatures:Object.keys(semanticFreq||{}).length}}
@@ -82,10 +83,11 @@ export async function runArticleCorpusAuditBatch(env,{limit=250,reset=false,runI
   if(!owner)return {ok:false,reason:'audit_run_id_required'};
   let state=emptyState(owner);
   if(!reset){const o=await retry(()=>env.CONTENT_FINAL.get(STATE_KEY));if(o){try{state={...state,...JSON.parse(await o.text())}}catch{}}}
-  if(reset){state=emptyState(owner);await save(env,state);return {ok:true,reset:true,...publicState(state)}}
+  if(reset){state=emptyState(owner);await acquireArticleAuditLock(env,owner);await save(env,state);return {ok:true,reset:true,auditLock:true,...publicState(state)}}
   if(state.runId&&state.runId!==owner)return {ok:false,reason:'audit_owned_by_other_run',runId:state.runId};
   state.runId=owner;
-  if(state.done)return {ok:true,...publicState(state)};
+  if(state.done){await releaseArticleAuditLock(env,owner);return {ok:true,...publicState(state)}}
+  await refreshArticleAuditLock(env,owner);
   const target=Math.max(1,Math.min(Number(limit)||1000,1000));
   const objs=[],seenBatchKeys=new Set();
   let cursor=state.cursor||undefined,truncated=true,pagesRead=0;
@@ -116,5 +118,6 @@ export async function runArticleCorpusAuditBatch(env,{limit=250,reset=false,runI
   state.cursor=truncated?cursor:null;state.scanDone=!truncated;state.done=state.scanDone&&state.readFailures===0;state.lastBatchAt=new Date().toISOString();if(state.scanDone)state.completedAt=new Date().toISOString();
   await saveOwned(env,state);
   if(state.done)await writeExactCountSnapshot(env,state);
-  return {ok:true,batch:{objects:objs.length,pagesRead,duplicateListedKeys:state.duplicateListedKeys},...publicState(state)};
+  if(state.scanDone)await releaseArticleAuditLock(env,owner);
+  return {ok:true,batch:{objects:objs.length,pagesRead,duplicateListedKeys:state.duplicateListedKeys},auditLockReleased:Boolean(state.scanDone),...publicState(state)};
 }
