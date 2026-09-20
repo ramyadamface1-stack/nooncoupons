@@ -81,9 +81,18 @@ function keyPages(origin){
 }
 
 function marketForPath(path){return path.startsWith('/uae/')?'AE':path.startsWith('/saudi-arabia/')?'SA':null}
+function discoveryEligible(a){
+  if(!a?.slug||a.status!=='published'||a.indexable===false||a.superseded===true||a.orphan===true||a.duplicateIntent===true)return false;
+  const quality=Number(a.quality),floor=Number(a.qualityFloor);
+  if(!Number.isFinite(quality)||quality<95)return false;
+  if(a.qualityFloor!=null&&(!Number.isFinite(floor)||floor<88))return false;
+  if(Array.isArray(a.p0)&&a.p0.length)return false;
+  if(a.indexation&&a.indexation.indexable===false)return false;
+  return true;
+}
 function discoveryHtml(path,articles){
   const market=marketForPath(path);
-  let rows=(articles||[]).filter(a=>a?.slug&&a.indexable!==false);
+  let rows=(articles||[]).filter(discoveryEligible);
   if(market)rows=rows.filter(a=>a.country===market);
   rows=rows.sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,8);
   if(!rows.length)return '';
@@ -116,12 +125,12 @@ async function injectDiscoveryLinks(req,env,res){
 async function prioritySitemap(env,origin){
   const data=await latest(env);
   const articles=(data.articles||[])
-    .filter(a=>a?.slug&&a.indexable!==false)
+    .filter(discoveryEligible)
     .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')))
     .slice(0,500)
     .map(a=>({loc:origin+'/articles/'+enc(a.slug),lastmod:a.updatedAt||a.createdAt||null}));
   let english=[];
-  try{english=(await englishCanaryRecords(env)).filter(a=>a?.slug&&a.indexable!==false)}catch{}
+  try{english=(await englishCanaryRecords(env)).filter(discoveryEligible)}catch{}
   const englishArticles=english
     .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')))
     .slice(0,200)
