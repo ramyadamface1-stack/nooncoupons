@@ -1,5 +1,12 @@
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const count=(s,re)=>(String(s||'').match(re)||[]).length;
+function sanitizeMalformedJsonLd(html){
+  let removed=0;
+  const out=String(html||'').replace(/<script\b([^>]*)type=["']application\/ld\+json["']([^>]*)>([\s\S]*?)<\/script>/gi,(whole,a,b,json)=>{
+    try{JSON.parse(json);return whole}catch{removed++;return ''}
+  });
+  return {html:out,removed};
+}
 
 function faqBlock({coupon,market}){
   const rows=[
@@ -34,14 +41,22 @@ export function ensureRuntimeArticleQuality(html,{slug='',coupon='',country='SA'
   // Strip only clearly unsupported promotional claims; never alter ordinary product prices.
   const beforePromo=out;
   out=out
-    .replace(/(?:خصم|توفير)\s*(?:حتى\s*)?\d{1,3}\s*[%٪]/gi,'خصم متغير حسب أهلية السلة')
-    .replace(/\d{1,4}\s*(?:ريال|درهم)\s*(?:خصم|توفير)/gi,'توفير متغير حسب أهلية السلة')
-    .replace(/(?:مضمون|مؤكد)\s*(?:الخصم|الكود|القسيمة)/gi,'الكود متاح للتجربة')
+    .replace(/(?:خصم|توفير)(?:\s|<[^>]+>)*(?:حتى(?:\s|<[^>]+>)*)?\d{1,3}(?:\s|<[^>]+>)*[%٪]/gi,'خصم متغير حسب أهلية السلة')
+    .replace(/\d{1,4}(?:\s|<[^>]+>)*(?:ريال|درهم)(?:\s|<[^>]+>)*(?:خصم|توفير)/gi,'توفير متغير حسب أهلية السلة')
+    .replace(/(?:مضمون|مؤكد)(?:\s|<[^>]+>)*(?:الخصم|الكود|القسيمة)/gi,'الكود متاح للتجربة')
     .replace(/(?:بالتأكيد|مما لا شك فيه|في عالمنا اليوم|في عصرنا الحالي|دعنا نتعمق|في الختام،؟ يمكن القول|سواء كنت مبتدئًا أو محترفًا)/gi,'عمليًا');
   if(out!==beforePromo)added.push('unsupported-promo-sanitized');
 
-  if(!/<article\b/i.test(out)&&!/<html\b/i.test(out)){
-    out=`<article lang="ar-${country}" dir="rtl" data-runtime-legacy-quality="v1">${out}</article>`;
+  const jsonLd=sanitizeMalformedJsonLd(out);
+  if(jsonLd.removed){out=jsonLd.html;added.push('malformed-jsonld-removed')}
+
+  if(!/<article\b/i.test(out)){
+    const open=`<article lang="ar-${country}" dir="rtl" data-runtime-legacy-quality="v2">`;
+    if(/<body\b[^>]*>/i.test(out)&&/<\/body>/i.test(out)){
+      out=out.replace(/(<body\b[^>]*>)/i,'$1'+open).replace(/<\/body>/i,'</article></body>');
+    }else{
+      out=open+out+'</article>';
+    }
     added.push('article-wrapper');
   }
 
@@ -113,4 +128,4 @@ export function ensureRuntimeArticleQuality(html,{slug='',coupon='',country='SA'
   return {html:out,changed:added.length>0,added};
 }
 
-export const RUNTIME_ARTICLE_QUALITY_INFO={version:2,mode:'fill-missing-only',guarantees:['article-wrapper','direct-answer','two-atomic-answers','methodology','sources','faq-4','copy-code-cta','aria-live-copy-status','two-decision-lists','comparison-table','three-body-images-plus-hero','currency-localization','unsupported-promo-sanitizer','generic-ai-phrase-sanitizer'],destructive:false};
+export const RUNTIME_ARTICLE_QUALITY_INFO={version:3,mode:'fill-missing-only',guarantees:['malformed-jsonld-sanitizer','article-wrapper','direct-answer','two-atomic-answers','methodology','sources','faq-4','copy-code-cta','aria-live-copy-status','two-decision-lists','comparison-table','three-body-images-plus-hero','currency-localization','unsupported-promo-sanitizer','generic-ai-phrase-sanitizer'],destructive:false};
