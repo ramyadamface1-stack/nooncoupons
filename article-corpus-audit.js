@@ -28,7 +28,7 @@ function sample(samples,k,key){if(!samples[k])samples[k]=[];if(samples[k].length
 function flag(counters,samples,k,cond,key,n=1){if(cond){add(counters,k,n);sample(samples,k,key);return 0}return 1}
 const UNSUPPORTED=/(?:خصم|توفير)\s*(?:حتى\s*)?\d{1,3}\s*[%٪]|\d{1,4}\s*(?:ريال|درهم)\s*(?:خصم|توفير)|(?:مضمون|مؤكد)\s*(?:الخصم|الكود|القسيمة)/i;
 const GENERIC_AI=/(?:بالتأكيد|مما لا شك فيه|في عالمنا اليوم|في عصرنا الحالي|دعنا نتعمق|في الختام،؟ يمكن القول|سواء كنت مبتدئًا أو محترفًا)/i;
-const COMPETITOR=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|extra|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|علي\s?اكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i;
+const COMPETITOR=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|(?:eXtra\s+(?:stores|saudi|ksa|uae))|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|علي\s?اكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i;
 const COUPON=/\b(?:OPS\d+|NOV\d+)\b/gi;
 const APPROVED=new Set(['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161']);
 
