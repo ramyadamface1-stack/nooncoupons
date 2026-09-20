@@ -2,6 +2,7 @@ import {buildBulkTopic,buildEnglishNativeCandidate,buildEnglishUsefulArticle,BUL
 import {auditEnglishSeoArticle} from './quality-audit.js';
 import {normalizeApprovedCoupon,isApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {submitIndexNow,INDEXNOW_INFO} from './indexnow.js';
+import {publicationBlockedByArticleAudit} from './article-audit-lock.js';
 
 const STATE_KEY='english-canary/state.json';
 const DEFAULT_TARGET=2;
@@ -84,6 +85,8 @@ async function findCandidate(env,state,slot){
 
 export async function runEnglishCanary(env){
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing'};
+  const auditLock=await publicationBlockedByArticleAudit(env);
+  if(auditLock)return {ok:true,skipped:'corpus_audit_in_progress',auditLock:{runId:auditLock.runId||null,expiresAt:auditLock.expiresAt||null,failClosed:Boolean(auditLock.failClosed)}};
   const canaryTarget=targetFromEnv(env),target=controlledTargetFromEnv(env);
   if(canaryTarget===0)return {ok:true,skipped:'english_canary_disabled',target:canaryTarget,controlledTarget:target};
   let state=await readState(env);
