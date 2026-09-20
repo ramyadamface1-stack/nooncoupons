@@ -7,6 +7,10 @@ const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'
 const txt=(x,cache='public,max-age=300,s-maxage=300')=>new Response(String(x),{headers:{'content-type':'text/plain; charset=utf-8','cache-control':cache}});
 const xml=(x,cache='public,max-age=300,s-maxage=300')=>new Response(String(x),{headers:{'content-type':'application/xml; charset=utf-8','cache-control':cache}});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
+function feedEligible(a){
+  const q=Number(a?.quality),f=Number(a?.qualityFloor);
+  return Boolean(a?.slug&&a.status==='published'&&a.indexable!==false&&a.superseded!==true&&a.orphan!==true&&a.duplicateIntent!==true&&Number.isFinite(q)&&q>=95&&(a.qualityFloor==null||(Number.isFinite(f)&&f>=88))&&(!Array.isArray(a.p0)||a.p0.length===0)&&(!a.indexation||a.indexation.indexable!==false));
+}
 
 async function stateViaApp(origin,env,ctx){
   const r=await app.fetch(new Request(origin+'/api/state',{headers:{accept:'application/json'}}),env,ctx);
@@ -104,7 +108,7 @@ The site is independent and is not Noon.com.
 
 async function rss(origin,env){
   const latest=await latestBulk(env);
-  const rows=(latest.articles||[]).filter(a=>a?.slug&&a?.indexable!==false).sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,50);
+  const rows=(latest.articles||[]).filter(feedEligible).sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,50);
   const items=rows.map(a=>{
     const link=origin+'/articles/'+encodeURI(a.slug),date=new Date(a.updatedAt||a.createdAt||Date.now()).toUTCString();
     return `<item><title>${esc(a.title||a.primaryKeyword||a.slug)}</title><link>${esc(link)}</link><guid isPermaLink="true">${esc(link)}</guid><pubDate>${esc(date)}</pubDate><description>${esc(a.metaDescription||'')}</description></item>`;
@@ -113,7 +117,7 @@ async function rss(origin,env){
 }
 async function rssEnglish(origin,env){
   let rows=[];try{rows=await englishCanaryRecords(env)}catch{}
-  rows=(rows||[]).filter(a=>a?.slug&&a.indexable!==false&&a.languageSource==='native-intent-v6-canary').sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,50);
+  rows=(rows||[]).filter(a=>feedEligible(a)&&a.languageSource==='native-intent-v6-canary').sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,50);
   const items=rows.map(a=>{
     const path=a.urlPath||('/en/articles/'+encodeURI(a.slug)),link=origin+path,date=new Date(a.updatedAt||a.createdAt||Date.now()).toUTCString();
     return `<item><title>${esc(a.title||a.primaryKeyword||a.slug)}</title><link>${esc(link)}</link><guid isPermaLink="true">${esc(link)}</guid><pubDate>${esc(date)}</pubDate><description>${esc(a.metaDescription||'')}</description><category>${esc(a.country==='AE'?'UAE':'Saudi Arabia')}</category></item>`;
