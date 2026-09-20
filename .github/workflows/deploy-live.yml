@@ -89,7 +89,9 @@ jobs:
           grep -Fq "ARTICLE_AUDIT_LOCK_INFO" article-audit-lock.js
           grep -Fq "acquireArticleAuditLock" article-corpus-audit.js
           grep -Fq "RUNTIME_ARTICLE_QUALITY_INFO" auto-platform.js
-          grep -Fq "RUNTIME_ARTICLE_QUALITY_INFO={version:3" article-quality-runtime.js
+          grep -Fq "normalizeRuntimeTitle" auto-platform.js
+          grep -Fq "normalizeRuntimeMeta" auto-platform.js
+          grep -Fq "RUNTIME_ARTICLE_QUALITY_INFO={version:4" article-quality-runtime.js
           grep -Fq "COUNT_SNAPSHOT_KEY='_ops/article-count.json'" article-corpus-audit.js
           grep -Fq "source:'article-corpus-audit-v4'" article-corpus-audit.js
           grep -Fq "CORPUS_AUDIT_STATE_KEY='maintenance/article-corpus-audit-v4.json'" commerce-entry.js
