@@ -1,0 +1,191 @@
+{
+  "version": 4,
+  "auditModel": "rendered-live-v4",
+  "runId": "35504093147",
+  "runtimeArticleQualityVersion": 2,
+  "runtimeGuarantees": [
+    "meta-description",
+    "canonical",
+    "Article-schema",
+    "WebPage-schema",
+    "BreadcrumbList-schema",
+    "editorial-byline",
+    "official-source-links",
+    "freshness-date",
+    "market-navigation",
+    "hero-image",
+    "site-internal-links",
+    "article-wrapper",
+    "direct-answer",
+    "two-atomic-answers",
+    "methodology",
+    "sources",
+    "faq-4",
+    "copy-code-cta",
+    "aria-live-copy-status",
+    "two-decision-lists",
+    "comparison-table",
+    "three-body-images-plus-hero",
+    "currency-localization",
+    "unsupported-promo-sanitizer",
+    "generic-ai-phrase-sanitizer"
+  ],
+  "uniqueArticles": 123659,
+  "scanned": 123659,
+  "readFailures": 0,
+  "bytes": 3512635129,
+  "listCalls": 2791,
+  "listedObjects": 123659,
+  "htmlObjectsListed": 123659,
+  "duplicateListedKeys": 0,
+  "countSnapshotKey": "_ops/article-count.json",
+  "languages": {
+    "ar": 123588,
+    "en": 71,
+    "mixed": 0
+  },
+  "wordBands": {
+    "lt800": 0,
+    "w800_999": 3,
+    "w1000_1499": 1244,
+    "w1500_2000": 122412,
+    "gt2000": 0
+  },
+  "duplicateTitles": {
+    "articles": 15557,
+    "groups": 6418
+  },
+  "exactDuplicateContent": {
+    "articles": 0,
+    "groups": 0
+  },
+  "semanticSignatureCollisions": {
+    "articles": 19805,
+    "groups": 8240
+  },
+  "scoreAverage": {
+    "aeo": 100,
+    "content": 99.9,
+    "eeat": 100,
+    "geoAI": 100,
+    "geoLocal": 100,
+    "media": 100,
+    "seo": 100,
+    "technical": 100
+  },
+  "scoreHist": {
+    "seo": {
+      "95_100": 123327,
+      "85_94": 331,
+      "70_84": 1
+    },
+    "content": {
+      "85_94": 1244,
+      "70_84": 3,
+      "95_100": 122412
+    },
+    "aeo": {
+      "95_100": 123659
+    },
+    "eeat": {
+      "95_100": 123655,
+      "70_84": 4
+    },
+    "geoLocal": {
+      "95_100": 123659
+    },
+    "technical": {
+      "70_84": 9,
+      "95_100": 123650
+    },
+    "media": {
+      "95_100": 123659
+    },
+    "geoAI": {
+      "95_100": 123659
+    }
+  },
+  "issues": {
+    "content_words_lt1500_current_ar_gate": 1247,
+    "technical_article_tag_missing": 9,
+    "fragment_jsonld_parse_error": 3,
+    "content_words_lt1000": 3,
+    "seo_title_length_out": 26,
+    "seo_meta_length_out_stored": 1,
+    "seo_meta_missing_stored": 306,
+    "trust_competitor_brand_mention": 71,
+    "eeat_unsupported_promo_claim": 4
+  },
+  "samples": {
+    "content_words_lt1500_current_ar_gate": [
+      "articles/buying-mobile-phones-noon-uae-coupon-warranty-check.html",
+      "articles/buying-mobiles-noon-saudi-coupon-multiple-sellers.html",
+      "articles/buying-mobiles-noon-saudi-coupon.html",
+      "articles/buying-mobiles-noon-uae-coupon-multi-category-cart.html",
+      "articles/buying-mobiles-noun-uae-coupon-before-payment-change.html"
+    ],
+    "technical_article_tag_missing": [
+      "articles/buying-mobile-phones-noon-uae-coupon-warranty-check.html",
+      "articles/buying-mobiles-noon-saudi-coupon-multiple-sellers.html",
+      "articles/buying-mobiles-noon-saudi-coupon.html",
+      "articles/buying-mobiles-noon-uae-coupon-multi-category-cart.html",
+      "articles/coupons-noon-uae-mobile-phones-return-review.html"
+    ],
+    "fragment_jsonld_parse_error": [
+      "articles/buying-mobile-phones-noon-uae-coupon-warranty-check.html",
+      "articles/noon-saudi-mobile-coupon-warranty-check.html",
+      "articles/noon-saudi-phone-coupon-multi-category-cart.html"
+    ],
+    "content_words_lt1000": [
+      "articles/buying-mobiles-noon-saudi-coupon-multiple-sellers.html",
+      "articles/buying-mobiles-noon-uae-coupon-multi-category-cart.html",
+      "articles/noon-saudi-mobile-coupon-return-review.html"
+    ],
+    "seo_title_length_out": [
+      "articles/buying-mobiles-noon-saudi-coupon.html",
+      "articles/buying-mobiles-noun-uae-coupon-before-payment-change.html",
+      "articles/coupons-noon-uae-mobiles-buy-more-save-more.html",
+      "articles/noon-saudi-mobile-coupon-return-review.html",
+      "articles/الامارات-الاثاث.html"
+    ],
+    "seo_meta_length_out_stored": [
+      "articles/buying-mobiles-noon-uae-coupon-multi-category-cart.html"
+    ],
+    "seo_meta_missing_stored": [
+      "articles/coupons-noon-uae-mobiles-buy-more-save-more.html",
+      "articles/أفضل-كوبون-نون-الإمارات-الجوالات-بدون-شراء-زائد.html",
+      "articles/أفضل-كوبون-نون-الإمارات-الجوالات-على-الهاتف.html",
+      "articles/أفضل-كوبون-نون-الإمارات-الجوالات-عند-شراء-أكثر-من-منتج.html",
+      "articles/أفضل-كوبون-نون-الإمارات-الجوالات-قبل-اختيار-البائع.html"
+    ],
+    "trust_competitor_brand_mention": [
+      "articles/en-best-time-to-try-a-noon-coupon-saudi-arabia-beauty-guide.html",
+      "articles/en-noon-cart-coupon-saudi-arabia-beauty-checkout-checklist.html",
+      "articles/en-noon-cart-coupon-saudi-arabia-home-and-kitchen-guide.html",
+      "articles/en-noon-cart-coupon-saudi-arabia-home-checkout-checklist.html",
+      "articles/en-noon-cart-coupon-uae-beauty-checkout-guide.html"
+    ],
+    "eeat_unsupported_promo_claim": [
+      "articles/طريقة-استخدام-كود-نون-الإمارات-عند-شراء-الجوالات-مع-فحص-الضمان.html",
+      "articles/طريقة-استخدام-كود-نون-الإمارات-عند-شراء-الجوالات-مع-مقارنة-الأسعار.html",
+      "articles/كود-خصم-نون-السعودية-الجوالات-قبل-الدفع.html",
+      "articles/مقارنة-كوبونات-نون-السعودية-الجوالات-مع-الشحن.html"
+    ]
+  },
+  "scanDone": true,
+  "done": true,
+  "startedAt": "2026-09-20T10:05:58.827Z",
+  "completedAt": "2026-09-20T10:32:38.737Z",
+  "authoritativeCount": {
+    "count": 123659,
+    "countedAt": "2026-09-20T10:32:38.737Z",
+    "source": "article-corpus-audit-v4",
+    "complete": true,
+    "auditVersion": 4,
+    "auditModel": "rendered-live-v4",
+    "runId": "35504093147",
+    "listCalls": 2791,
+    "listedObjects": 123659
+  },
+  "proofVersion": 1
+}
