@@ -1,12 +1,13 @@
 const enabled=env=>String(env?.INDEXNOW_ENABLED||'false').toLowerCase()==='true'&&Boolean(env?.INDEXNOW_KEY)&&Boolean(env?.SITE_ORIGIN);
 const STATE_KEY='_ops/indexnow-queue-v1.json';
-const MAX_QUEUE=5000,MAX_SUBMIT=1000,MIN_INTERVAL_MS=5*60*1000,BACKOFF_429_MS=15*60*1000;
+const MAX_QUEUE=5000,MAX_SUBMIT=1000,MIN_SUBMIT=50,MIN_INTERVAL_MS=5*60*1000,BACKOFF_429_MS=15*60*1000;
 const nowIso=()=>new Date().toISOString();
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const clampBatch=n=>Math.max(MIN_SUBMIT,Math.min(MAX_SUBMIT,Number(n)||MAX_SUBMIT));
 
 async function readState(env){
-  if(!env?.CONTENT_FINAL)return {pending:[],lastAttemptAt:null,lastSuccessAt:null,nextAllowedAt:null};
-  try{const o=await env.CONTENT_FINAL.get(STATE_KEY);return o?await o.json():{pending:[]}}catch{return {pending:[]}}
+  if(!env?.CONTENT_FINAL)return {pending:[],lastAttemptAt:null,lastSuccessAt:null,nextAllowedAt:null,batchSize:MAX_SUBMIT};
+  try{const o=await env.CONTENT_FINAL.get(STATE_KEY);return o?await o.json():{pending:[],batchSize:MAX_SUBMIT}}catch{return {pending:[],batchSize:MAX_SUBMIT}}
 }
 async function saveState(env,state){
   if(!env?.CONTENT_FINAL)return;
@@ -20,6 +21,13 @@ function recordUrls(origin,records=[]){
     const path=explicit.startsWith('/')?explicit:'/articles/'+encodeURI(r.slug);
     try{return new URL(path,origin.origin).toString()}catch{return null}
   }).filter(Boolean))];
+}
+function retryAfterMs(response,now){
+  const raw=String(response?.headers?.get?.('retry-after')||'').trim();
+  if(!raw)return 0;
+  if(/^\d+$/.test(raw))return Number(raw)*1000;
+  const at=Date.parse(raw);
+  return Number.isFinite(at)?Math.max(0,at-now):0;
 }
 
 export async function submitIndexNow(env,records=[]){
@@ -35,15 +43,16 @@ export async function submitIndexNow(env,records=[]){
   const now=Date.now(),lastAttempt=Date.parse(state.lastAttemptAt||''),nextAllowed=Date.parse(state.nextAllowedAt||'');
   const intervalBlocked=Number.isFinite(lastAttempt)&&now-lastAttempt<MIN_INTERVAL_MS;
   const backoffBlocked=Number.isFinite(nextAllowed)&&nextAllowed>now;
+  const batchSize=clampBatch(state.batchSize);
   if(intervalBlocked||backoffBlocked){
-    state={...state,pending,queuedAt:nowIso()};
+    state={...state,pending,batchSize,queuedAt:nowIso()};
     try{await saveState(env,state)}catch{}
-    return {enabled:true,submitted:0,queued:pending.length,deferred:true,status:202,error:null,nextAllowedAt:backoffBlocked?state.nextAllowedAt:new Date(lastAttempt+MIN_INTERVAL_MS).toISOString()};
+    return {enabled:true,submitted:0,queued:pending.length,deferred:true,status:202,error:null,batchSize,nextAllowedAt:backoffBlocked?state.nextAllowedAt:new Date(lastAttempt+MIN_INTERVAL_MS).toISOString()};
   }
 
-  const urlList=pending.slice(0,MAX_SUBMIT);
+  const urlList=pending.slice(0,batchSize);
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),4000);
-  let status=null,error=null,submitted=0,nextPending=pending,lastSuccessAt=state.lastSuccessAt||null,nextAllowedAt=null;
+  let status=null,error=null,submitted=0,nextPending=pending,lastSuccessAt=state.lastSuccessAt||null,nextAllowedAt=null,nextBatchSize=batchSize;
   try{
     const response=await fetch('https://api.indexnow.org/indexnow',{
       method:'POST',
@@ -57,9 +66,16 @@ export async function submitIndexNow(env,records=[]){
       nextPending=pending.slice(urlList.length);
       lastSuccessAt=nowIso();
       nextAllowedAt=new Date(now+MIN_INTERVAL_MS).toISOString();
+      nextBatchSize=Math.min(MAX_SUBMIT,Math.max(MIN_SUBMIT,batchSize*2));
     }else{
       error='indexnow_http_'+response.status;
-      nextAllowedAt=new Date(now+(response.status===429?BACKOFF_429_MS:MIN_INTERVAL_MS)).toISOString();
+      if(response.status===429){
+        nextBatchSize=Math.max(MIN_SUBMIT,Math.floor(Math.max(MIN_SUBMIT,urlList.length)/2));
+        const wait=Math.max(BACKOFF_429_MS,retryAfterMs(response,now));
+        nextAllowedAt=new Date(now+wait).toISOString();
+      }else{
+        nextAllowedAt=new Date(now+MIN_INTERVAL_MS).toISOString();
+      }
     }
   }catch(e){
     error=e?.name==='AbortError'?'indexnow_timeout':'indexnow_submit_failed';
@@ -67,8 +83,9 @@ export async function submitIndexNow(env,records=[]){
   }finally{clearTimeout(timer)}
 
   const nextState={
-    version:1,
+    version:2,
     pending:nextPending.slice(-MAX_QUEUE),
+    batchSize:nextBatchSize,
     lastAttemptAt:nowIso(),
     lastSuccessAt,
     lastStatus:status,
@@ -78,7 +95,7 @@ export async function submitIndexNow(env,records=[]){
     updatedAt:nowIso()
   };
   try{await saveState(env,nextState)}catch{}
-  return {enabled:true,submitted,queued:nextState.pending.length,deferred:false,status,error,nextAllowedAt};
+  return {enabled:true,submitted,queued:nextState.pending.length,deferred:false,status,error,batchSize:nextBatchSize,nextAllowedAt};
 }
 
-export const INDEXNOW_INFO={version:3,urlPathAware:true,endpoint:'https://api.indexnow.org/indexnow',queuedInR2:true,stateKey:STATE_KEY,maxQueue:MAX_QUEUE,maxSubmit:MAX_SUBMIT,minIntervalMinutes:5,backoff429Minutes:15,nonBlockingForPublication:true};
+export const INDEXNOW_INFO={version:4,urlPathAware:true,endpoint:'https://api.indexnow.org/indexnow',queuedInR2:true,stateKey:STATE_KEY,maxQueue:MAX_QUEUE,maxSubmit:MAX_SUBMIT,minSubmit:MIN_SUBMIT,minIntervalMinutes:5,backoff429Minutes:15,adaptive429Batch:true,honorsRetryAfter:true,nonBlockingForPublication:true};
