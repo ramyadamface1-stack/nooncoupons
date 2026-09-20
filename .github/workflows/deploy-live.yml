@@ -26,7 +26,7 @@ jobs:
       - name: Validate worker source
         run: |
           set -euo pipefail
-          for f in discovery-entry.js brand-runtime.js network-entry.js commerce-entry.js public-entry.js premium-entry.js auto-platform.js final-platform.js visual-platform.js platform.js seo-layer.js site.js router.js index.js commerce-pages-v2.js commerce-taxonomy.js svg-engine.js approved-coupons.js admin-page.js english-canary.js indexnow.js article-quality-runtime.js article-corpus-audit.js; do node --check "$f"; done
+          for f in discovery-entry.js brand-runtime.js network-entry.js commerce-entry.js public-entry.js premium-entry.js auto-platform.js final-platform.js visual-platform.js platform.js seo-layer.js site.js router.js index.js commerce-pages-v2.js commerce-taxonomy.js svg-engine.js approved-coupons.js admin-page.js english-canary.js indexnow.js article-quality-runtime.js article-corpus-audit.js article-audit-lock.js; do node --check "$f"; done
           grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "32000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
@@ -79,6 +79,11 @@ jobs:
           grep -Fq "filter(discoveryEligible)" discovery-entry.js
           grep -Fq "ownerIntentKey:gg.ownerIntentKey" bulk-generator.js
           grep -Fq "intentOwnerKey(a)!==owner" network-entry.js
+          grep -Fq "publicationBlockedByArticleAudit" bulk-generator.js
+          grep -Fq "publicationBlockedByArticleAudit" english-canary.js
+          grep -Fq "publicationBlockedByArticleAudit" generator-core-v2.js
+          grep -Fq "ARTICLE_AUDIT_LOCK_INFO" article-audit-lock.js
+          grep -Fq "acquireArticleAuditLock" article-corpus-audit.js
           grep -Fq "RUNTIME_ARTICLE_QUALITY_INFO" auto-platform.js
           grep -Fq "RUNTIME_ARTICLE_QUALITY_INFO={version:2" article-quality-runtime.js
           grep -Fq "COUNT_SNAPSHOT_KEY='_ops/article-count.json'" article-corpus-audit.js
