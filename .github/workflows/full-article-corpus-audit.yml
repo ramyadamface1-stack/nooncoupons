@@ -36,9 +36,9 @@ jobs:
 
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -X POST -H "$AUTH" -H 'Content-Type: application/json' \
-            --data '{"reset":true,"limit":1000}' \
+            --data "{\"reset\":true,\"limit\":1000,\"runId\":\"${GITHUB_RUN_ID}\"}" \
             "$ORIGIN/api/internal/article-corpus-audit-step?reset=${GITHUB_RUN_ID}" -o /tmp/start.json
-          jq -e '.ok==true and .reset==true and .version==3' /tmp/start.json >/dev/null
+          jq -e '.ok==true and .reset==true and .version==4 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/start.json >/dev/null
           echo "ARTICLE_AUDIT_RESET scanned=$(jq -r '.scanned // 0' /tmp/start.json) version=$(jq -r '.version' /tmp/start.json)"
 
           complete=false
@@ -47,7 +47,7 @@ jobs:
             [ "$complete" = "true" ] && break
             if ! curl -fsS --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 120 \
               -X POST -H "$AUTH" -H 'Content-Type: application/json' \
-              --data '{"limit":1000}' \
+              --data "{\"limit\":1000,\"runId\":\"${GITHUB_RUN_ID}\"}" \
               "$ORIGIN/api/internal/article-corpus-audit-step?run=${GITHUB_RUN_ID}-$i" -o /tmp/step.json; then
               transient=$((transient+1))
               echo "ARTICLE_AUDIT_TRANSIENT step=$i count=$transient"
@@ -71,9 +71,9 @@ jobs:
 
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -H "$AUTH" "$ORIGIN/api/article-corpus-audit-health?final=${GITHUB_RUN_ID}" -o /tmp/final.json
-          jq -e '.ok==true and .version==3' /tmp/final.json >/dev/null
+          jq -e '.ok==true and .version==4 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/final.json >/dev/null
           jq -c '{
-            version,auditModel,runtimeArticleQualityVersion,runtimeGuarantees,scanned,readFailures,bytes,languages,wordBands,
+            version,auditModel,runId,runtimeArticleQualityVersion,runtimeGuarantees,uniqueArticles,scanned,readFailures,bytes,listCalls,listedObjects,htmlObjectsListed,duplicateListedKeys,countSnapshotKey,languages,wordBands,
             duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,
             scoreAverage:(. as $x | reduce (.scoreSums|keys[]) as $k ({}; .[$k]=((($x.scoreSums[$k] / ($x.scanned|if .==0 then 1 else . end))*10|round)/10))),
             scoreHist,issues,samples,scanDone,done,startedAt,completedAt
@@ -81,4 +81,11 @@ jobs:
           echo "ARTICLE_CORPUS_AUDIT_FINAL=$(cat /tmp/summary.json)"
           [ "$(jq -r '.scanDone // false' /tmp/final.json)" = "true" ] || { echo 'ARTICLE_AUDIT_NOT_FULL_SCAN'; exit 1; }
           [ "$(jq -r '.readFailures // 0' /tmp/final.json)" = "0" ] || { echo 'ARTICLE_AUDIT_HAS_READ_FAILURES'; exit 1; }
+          [ "$(jq -r '.duplicateListedKeys // 0' /tmp/final.json)" = "0" ] || { echo 'ARTICLE_AUDIT_DUPLICATE_LIST_KEYS'; exit 1; }
+          [ "$(jq -r '.uniqueArticles // 0' /tmp/final.json)" = "$(jq -r '.scanned // 0' /tmp/final.json)" ] || { echo 'ARTICLE_AUDIT_UNIQUE_COUNT_MISMATCH'; exit 1; }
           [ "$complete" = "true" ] || { echo 'ARTICLE_AUDIT_NOT_COMPLETE'; exit 1; }
+
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 30 \
+            "$ORIGIN/api/article-count-health?fresh=1&audit=${GITHUB_RUN_ID}" -o /tmp/count.json
+          jq -e --argjson scanned "$(jq -r '.scanned' /tmp/final.json)" '.ok==true and .complete==true and .source=="article-corpus-audit-v4" and .auditVersion==4 and .count==$scanned' /tmp/count.json >/dev/null
+          echo "ARTICLE_COUNT_AUTHORITATIVE=$(jq -c '{count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}' /tmp/count.json)"
