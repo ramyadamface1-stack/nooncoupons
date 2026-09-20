@@ -1,5 +1,25 @@
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const count=(s,re)=>(String(s||'').match(re)||[]).length;
+const visibleWords=s=>String(s||'').replace(/<script\\b[\\s\\S]*?<\\/script>/gi,' ').replace(/<style\\b[\\s\\S]*?<\\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\\s+/g,' ').trim().split(/\\s+/).filter(Boolean).length;
+const slugSeed=s=>{let h=2166136261;for(const ch of String(s||'')){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0};
+function legacyDepthBlocks({slug,keyword,coupon,market,currency}){
+  const k=esc(keyword||'اختيار المنتج');
+  const c=esc(coupon);
+  const m=esc(market);
+  const cur=esc(currency);
+  const blocks=[
+    `<section class="legacy-depth legacy-depth-evidence"><h2>سجل تحقق عملي لـ ${k}</h2><p>قبل تجربة ${c}، دوّن اسم المنتج، البائع، الكمية، تكلفة الشحن، وموعد التسليم الظاهر. بعد إدخال الكود، راجع العناصر نفسها بالترتيب. الهدف ليس إثبات نسبة خصم ثابتة، بل معرفة ما إذا تغيّر الإجمالي مع بقاء مكونات السلة نفسها. احتفظ بالنتيجة الحالية فقط باعتبارها لقطة زمنية؛ أهلية الحساب والحملات قد تتغير لاحقًا.</p></section>`,
+    `<section class="legacy-depth legacy-depth-seller"><h2>كيف تفرّق بين أثر الكود وأثر البائع؟</h2><p>في نون ${m} قد يتوافر المنتج من أكثر من بائع، وقد تختلف رسوم الشحن أو زمن التوصيل أو سياسة الإرجاع. لذلك ثبّت البائع قبل المقارنة. إذا تغيّر البائع أثناء التجربة فلا تعتبر فرق السعر نتيجة للكوبون. قارِن إجمالي الطلب النهائي بعملة ${cur}، وراجع اسم البائع في السلة قبل وبعد إدخال ${c}.</p></section>`,
+    `<section class="legacy-depth legacy-depth-eligibility"><h2>تشخيص سبب عدم قبول ${c}</h2><p>ابدأ بالسوق الصحيح، ثم افحص المنتج والبائع والحد الأدنى للسلة إن ظهر شرط رسمي. بعد ذلك غيّر عاملًا واحدًا فقط في كل محاولة: المنتج، الكمية، البائع، أو طريقة الدفع. هذا الأسلوب يمنع الاستنتاجات الخاطئة ويجعل سبب الرفض أو القبول أوضح. لا تفترض أن نتيجة حساب واحد تنطبق على جميع المستخدمين.</p></section>`,
+    `<section class="legacy-depth legacy-depth-returns"><h2>الإرجاع والشحن جزء من قرار الشراء</h2><p>حتى إذا تغيّر الإجمالي بعد استخدام الكود، راجع تكلفة الشحن، موعد التسليم، وسياسة الإرجاع الخاصة بالمنتج والبائع. الصفقة الأفضل ليست دائمًا الأقل رقمًا في سطر الخصم؛ المهم هو التكلفة النهائية وشروط ما بعد الشراء. عند المقارنة بين خيارين، استخدم نفس السوق ونفس المواصفات ونفس الكمية حتى تكون المقارنة عادلة.</p></section>`,
+    `<section class="legacy-depth legacy-depth-variant"><h2>تحقق من المواصفات والنسخة قبل الدفع</h2><p>إذا كان ${k} له أكثر من لون أو سعة أو مقاس أو إصدار، فتأكد أن النسخة لم تتغير أثناء تجربة القسيمة. اختلاف المواصفات قد يغيّر السعر والتوافر والبائع من دون أن يكون للكود علاقة بذلك. راجع اسم النسخة، المواصفات الأساسية، والكمية في السلة، ثم طبّق ${c} وراجع الإجمالي النهائي فقط بعد تثبيت هذه العناصر.</p></section>`,
+    `<section class="legacy-depth legacy-depth-payment"><h2>طريقة الدفع والمرحلة الصحيحة للتحقق</h2><p>بعض الشروط التجارية قد تظهر في مراحل متأخرة من السلة أو الدفع. لذلك لا تعتمد على رسالة أولية وحدها. أكمل حتى المرحلة التي تعرض الإجمالي النهائي بوضوح من دون إتمام الشراء، وتأكد من أن العملة هي ${cur}. إذا ظهر اختلاف مرتبط بطريقة الدفع، سجّله كعامل مستقل ولا تنسبه تلقائيًا إلى ${c}.</p></section>`,
+    `<section class="legacy-depth legacy-depth-freshness"><h2>لماذا تحتاج النتيجة إلى مراجعة حديثة؟</h2><p>الأسعار، البائعون، المخزون، ورسوم الشحن قد تتغير خلال اليوم. لذلك تُعامل نتيجة السلة على نون ${m} كدليل وقتي وليست وعدًا دائمًا. عند العودة للمقال لاحقًا، أعد تنفيذ نفس خطوات التحقق بدل الاعتماد على نتيجة قديمة. المصدر التجاري النهائي يظل صفحة المنتج والسلة وشروط نون الحالية وقت الطلب.</p></section>`,
+    `<section class="legacy-depth legacy-depth-decision"><h2>قاعدة قرار سريعة قبل إتمام الطلب</h2><p>اختر الخيار الذي يحافظ على المواصفات المطلوبة والبائع المقبول وشروط الشحن والإرجاع المناسبة، ثم قارِن الإجمالي النهائي بعد تطبيق ${c}. إذا لم يكن الفرق واضحًا أو تغيّر أكثر من عامل في الوقت نفسه، أعد المقارنة من البداية. هذه الخطوات تقلل احتمال نسبة التوفير إلى سبب غير صحيح وتبقي القرار مبنيًا على بيانات السلة الفعلية.</p></section>`
+  ];
+  const shift=blocks.length?slugSeed(slug)%blocks.length:0;
+  return blocks.slice(shift).concat(blocks.slice(0,shift));
+}
 function sanitizeMalformedJsonLd(html){
   let removed=0;
   const out=String(html||'').replace(/<script\b([^>]*)type=["']application\/ld\+json["']([^>]*)>([\s\S]*?)<\/script>/gi,(whole,a,b,json)=>{
@@ -155,4 +175,4 @@ export function ensureRuntimeArticleQuality(html,{slug='',coupon='',country='SA'
   return {html:out,changed:added.length>0,added};
 }
 
-export const RUNTIME_ARTICLE_QUALITY_INFO={version:4,mode:'fill-missing-only',guarantees:['title-normalization','meta-normalization','malformed-jsonld-sanitizer','article-wrapper','direct-answer','two-atomic-answers','methodology','sources','faq-4','copy-code-cta','aria-live-copy-status','two-decision-lists','comparison-table','three-body-images-plus-hero','currency-localization','unsupported-promo-sanitizer','generic-ai-phrase-sanitizer'],destructive:false};
+export const RUNTIME_ARTICLE_QUALITY_INFO={version:5,mode:'fill-missing-only',guarantees:['title-normalization','meta-normalization','malformed-jsonld-sanitizer','article-wrapper','direct-answer','two-atomic-answers','methodology','sources','faq-4','copy-code-cta','aria-live-copy-status','two-decision-lists','comparison-table','three-body-images-plus-hero','currency-localization','unsupported-promo-sanitizer','generic-ai-phrase-sanitizer','legacy-depth-remediation-1500'],destructive:false};
