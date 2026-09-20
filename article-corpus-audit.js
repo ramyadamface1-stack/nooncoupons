@@ -1,5 +1,6 @@
 import {ensureRuntimeArticleQuality,RUNTIME_ARTICLE_QUALITY_INFO} from './article-quality-runtime.js';
-const STATE_KEY='maintenance/article-corpus-audit-v3.json';
+const STATE_KEY='maintenance/article-corpus-audit-v4.json';
+const COUNT_SNAPSHOT_KEY='_ops/article-count.json';
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function retry(fn,attempts=6){let last;for(let i=0;i<attempts;i++){try{return await fn()}catch(e){last=e;if(i+1<attempts)await sleep(Math.min(2500,200*(2**i)))}}throw last}
@@ -40,13 +41,13 @@ function auditOne(key,html,md={}){
   const jl=jsonLdTypes(html),codes=[...new Set((plain.match(COUPON)||[]).map(x=>x.toUpperCase()))];
   const country=(md.country||md.c||(/الإمارات|الامارات|\bUAE\b/i.test(plain)?'AE':/السعودية|\bKSA\b/i.test(plain)?'SA':''));
   const market=country==='AE'?'الإمارات':country==='SA'?'السعودية':'';
-  const wrongCountry=country==='SA'?/(?:الإمارات|الامارات|\bUAE\b|Emirates)/i:country==='AE'?/(?:السعودية|المملكة العربية السعودية|\bKSA\b|Saudi(?: Arabia)?)/i:null;
+  const wrongCountry=country==='SA'?/(?:الإمارات|الامارات|\bUAE\b|Emirates)[\s\S]{0,120}(?:الدرهم الإماراتي|الدرهم الاماراتي|\bAED\b)|(?:الدرهم الإماراتي|الدرهم الاماراتي|\bAED\b)[\s\S]{0,120}(?:الإمارات|الامارات|\bUAE\b|Emirates)/i:country==='AE'?/(?:السعودية|المملكة العربية السعودية|\bKSA\b|Saudi(?: Arabia)?)[\s\S]{0,120}(?:الريال السعودي|\bSAR\b)|(?:الريال السعودي|\bSAR\b)[\s\S]{0,120}(?:السعودية|المملكة العربية السعودية|\bKSA\b|Saudi(?: Arabia)?)/i:null;
   const issue=(k,cond,n=1)=>flag(counters,samples,k,cond,key,n);
   let seo=0,seoN=0,content=0,contentN=0,aeo=0,aeoN=0,eeat=0,eeatN=0,geo=0,geoN=0,tech=0,techN=0,media=0,mediaN=0,generative=0,generativeN=0;
   const ck=(group,pass)=>{if(group==='seo'){seo+=pass;seoN++}else if(group==='content'){content+=pass;contentN++}else if(group==='aeo'){aeo+=pass;aeoN++}else if(group==='eeat'){eeat+=pass;eeatN++}else if(group==='geo'){geo+=pass;geoN++}else if(group==='tech'){tech+=pass;techN++}else if(group==='media'){media+=pass;mediaN++}else{generative+=pass;generativeN++}};
   ck('seo',issue('seo_title_missing',!title));ck('seo',issue('seo_title_length_out',!!title&&(title.length<28||title.length>72)));ck('seo',issue('seo_meta_missing_stored',!metaDesc));ck('seo',issue('seo_meta_length_out_stored',!!metaDesc&&(metaDesc.length<105||metaDesc.length>165)));ck('seo',issue('seo_h1_not_one',h1!==1));ck('seo',issue('seo_h2_lt6',h2<6));ck('seo',issue('seo_h2_lt9_strict_gate',h2<9));ck('seo',issue('seo_h3_lt4_strict_gate',h3<4));
   ck('content',issue('content_words_lt1000',wc<1000));ck('content',issue('content_words_lt1500_current_ar_gate',wc<1500));ck('content',issue('content_words_gt2000',wc>2000));ck('content',issue('content_paragraphs_lt18',ps.count<18));ck('content',issue('content_long_paragraph_gt145',ps.max>145));ck('content',issue('content_lists_lt2',lists<2));ck('content',issue('content_table_missing',tables<1));ck('content',issue('content_generic_ai_phrase',GENERIC_AI.test(plain)));
-  ck('aeo',issue('aeo_direct_answer_missing',!/class=["'][^"']*direct-answer/i.test(html)));ck('aeo',issue('aeo_question_headings_lt4',count(html,/<h[23]\b[^>]*>[^<]*(?:كيف|هل|ماذا|متى|لماذا)/gi)<4));ck('aeo',issue('aeo_visible_faq_missing',!/class=["'][^"']*faq/i.test(html)||count(html,/<details\b/gi)<4));ck('aeo',issue('aeo_atomic_answers_lt2',count(html,/class=["'][^"']*atomic-answer/gi)<2));
+  ck('aeo',issue('aeo_direct_answer_missing',!/class=["'][^"']*direct-answer/i.test(html)));ck('aeo',issue('aeo_question_headings_lt4',count(html,/<h[23]\b[^>]*>[^<]*(?:كيف|هل|ماذا|متى|لماذا|how|what|when|why|does|do|can|is|are)/gi)<4));ck('aeo',issue('aeo_visible_faq_missing',!/class=["'][^"']*faq/i.test(html)||count(html,/<details\b/gi)<4));ck('aeo',issue('aeo_atomic_answers_lt2',count(html,/class=["'][^"']*atomic-answer/gi)<2));
   ck('eeat',issue('eeat_editorial_review_missing',false));ck('eeat',issue('eeat_methodology_missing',!/<section\b[^>]*class=["'][^"']*(?:methodology|accountability)/i.test(html)));ck('eeat',issue('eeat_sources_section_missing',false));ck('eeat',issue('eeat_last_verified_missing',false));ck('eeat',issue('eeat_official_noon_source_missing',false));ck('eeat',issue('eeat_unsupported_promo_claim',UNSUPPORTED.test(plain)));
   ck('geo',issue('geo_country_metadata_missing',!country));ck('geo',issue('geo_market_mention_missing',!!market&&!plain.includes(market)));ck('geo',issue('geo_wrong_market_mention',!!wrongCountry&&wrongCountry.test(plain)));ck('geo',issue('geo_currency_localization_missing',country==='SA'?!/(?:الريال السعودي|\bSAR\b)/i.test(plain):country==='AE'?!/(?:الدرهم الإماراتي|الدرهم الاماراتي|\bAED\b)/i.test(plain):false));ck('geo',issue('geo_market_internal_link_missing',false));ck('geo',issue('geo_arabic_localization_low',arRatio<0.9&&arRatio>=0.5));
   ck('tech',issue('technical_article_tag_missing',!/<article\b/i.test(html)));ck('tech',issue('technical_section_missing',!/<section\b/i.test(html)));ck('tech',issue('technical_internal_links_lt5',false));ck('tech',issue('technical_placeholder_links',/href=["'](?:#|javascript:)/i.test(html)));ck('tech',issue('technical_copy_cta_missing',!/data-copy-code=/i.test(html)));ck('tech',issue('technical_aria_live_missing',!/aria-live=["']polite/i.test(html)));
@@ -58,25 +59,45 @@ function auditOne(key,html,md={}){
   return {counters,samples,wc,lang:arRatio>=.85?'ar':arRatio<=.15?'en':'mixed',scores,titleHash:title?fnv32(norm(title))+':'+title.length:null,contentHash:plain?fnv32(norm(plain))+':'+plain.length:null,semanticSig:plain?simhash(plain):null,size:String(html).length};
 }
 function bucket(score){return score>=95?'95_100':score>=85?'85_94':score>=70?'70_84':score>=50?'50_69':'lt50'}
-function emptyState(){return {version:3,auditModel:'rendered-live-v3',runtimeArticleQualityVersion:RUNTIME_ARTICLE_QUALITY_INFO.version,runtimeGuarantees:['meta-description','canonical','Article-schema','WebPage-schema','BreadcrumbList-schema','editorial-byline','official-source-links','freshness-date','market-navigation','hero-image','site-internal-links',...RUNTIME_ARTICLE_QUALITY_INFO.guarantees],cursor:null,scanned:0,readFailures:0,bytes:0,languages:{ar:0,en:0,mixed:0},wordBands:{lt800:0,w800_999:0,w1000_1499:0,w1500_2000:0,gt2000:0},issues:{},samples:{},scoreSums:{},scoreHist:{},titleFreq:{},contentFreq:{},semanticFreq:{},duplicateTitles:{articles:0,groups:0},exactDuplicateContent:{articles:0,groups:0},semanticSignatureCollisions:{articles:0,groups:0},scanDone:false,done:false,startedAt:new Date().toISOString()}}
+function emptyState(runId=null){return {version:4,auditModel:'rendered-live-v4',runId:runId||null,runtimeArticleQualityVersion:RUNTIME_ARTICLE_QUALITY_INFO.version,runtimeGuarantees:['meta-description','canonical','Article-schema','WebPage-schema','BreadcrumbList-schema','editorial-byline','official-source-links','freshness-date','market-navigation','hero-image','site-internal-links',...RUNTIME_ARTICLE_QUALITY_INFO.guarantees],countSnapshotKey:COUNT_SNAPSHOT_KEY,cursor:null,scanned:0,readFailures:0,bytes:0,listCalls:0,listedObjects:0,htmlObjectsListed:0,duplicateListedKeys:0,lastListedKey:null,languages:{ar:0,en:0,mixed:0},wordBands:{lt800:0,w800_999:0,w1000_1499:0,w1500_2000:0,gt2000:0},issues:{},samples:{},scoreSums:{},scoreHist:{},titleFreq:{},contentFreq:{},semanticFreq:{},duplicateTitles:{articles:0,groups:0},exactDuplicateContent:{articles:0,groups:0},semanticSignatureCollisions:{articles:0,groups:0},scanDone:false,done:false,startedAt:new Date().toISOString()}}
 function mergeIssue(state,row){for(const [k,v] of Object.entries(row.counters))add(state.issues,k,v);for(const [k,arr] of Object.entries(row.samples))for(const key of arr)sample(state.samples,k,key)}
 function updateFreq(freq,summary,hash){if(!hash)return;const n=Number(freq[hash]||0);freq[hash]=n+1;if(n===1){summary.groups++;summary.articles+=2}else if(n>1)summary.articles++}
-function publicState(s){const {titleFreq,contentFreq,semanticFreq,...rest}=s;return {...rest,uniqueTitleHashes:Object.keys(titleFreq||{}).length,uniqueContentHashes:Object.keys(contentFreq||{}).length,uniqueSemanticSignatures:Object.keys(semanticFreq||{}).length}}
+function publicState(s){const {titleFreq,contentFreq,semanticFreq,...rest}=s;return {...rest,uniqueArticles:Number(s.scanned||0),uniqueTitleHashes:Object.keys(titleFreq||{}).length,uniqueContentHashes:Object.keys(contentFreq||{}).length,uniqueSemanticSignatures:Object.keys(semanticFreq||{}).length}}
 async function save(env,s){await retry(()=>env.CONTENT_FINAL.put(STATE_KEY,JSON.stringify(s),{httpMetadata:{contentType:'application/json; charset=utf-8'}}))}
+async function saveOwned(env,s){
+  const current=await retry(()=>env.CONTENT_FINAL.get(STATE_KEY));
+  if(current){try{const x=JSON.parse(await current.text());if(x?.runId&&x.runId!==s.runId)throw new Error('audit_run_superseded')}catch(e){if(String(e?.message||e)==='audit_run_superseded')throw e}}
+  await save(env,s);
+}
+async function writeExactCountSnapshot(env,s){
+  if(!s?.done||!s?.scanDone||Number(s.readFailures||0)!==0)return;
+  const countedAt=s.completedAt||new Date().toISOString();
+  const payload={count:Number(s.scanned||0),countedAt,source:'article-corpus-audit-v4',version:2,complete:true,auditVersion:4,auditModel:s.auditModel,runId:s.runId||null,readFailures:0,listCalls:Number(s.listCalls||0),listedObjects:Number(s.listedObjects||0)};
+  await retry(()=>env.CONTENT_FINAL.put(COUNT_SNAPSHOT_KEY,JSON.stringify(payload),{httpMetadata:{contentType:'application/json; charset=utf-8'}}));
+}
 export async function readArticleCorpusAuditState(env){if(!env?.CONTENT_FINAL)return {ok:false,reason:'r2_binding_missing'};const o=await retry(()=>env.CONTENT_FINAL.get(STATE_KEY));if(!o)return {ok:true,...publicState(emptyState())};try{return {ok:true,...publicState(JSON.parse(await o.text()))}}catch{return {ok:false,reason:'invalid_state'}}}
-export async function runArticleCorpusAuditBatch(env,{limit=250,reset=false}={}){
+export async function runArticleCorpusAuditBatch(env,{limit=250,reset=false,runId=''}={}){
   if(!env?.CONTENT_FINAL)return {ok:false,reason:'r2_binding_missing'};
-  let state=emptyState();
+  const owner=String(runId||'').trim();
+  if(!owner)return {ok:false,reason:'audit_run_id_required'};
+  let state=emptyState(owner);
   if(!reset){const o=await retry(()=>env.CONTENT_FINAL.get(STATE_KEY));if(o){try{state={...state,...JSON.parse(await o.text())}}catch{}}}
-  if(reset){await save(env,state);return {ok:true,reset:true,...publicState(state)}}
+  if(reset){state=emptyState(owner);await save(env,state);return {ok:true,reset:true,...publicState(state)}}
+  if(state.runId&&state.runId!==owner)return {ok:false,reason:'audit_owned_by_other_run',runId:state.runId};
+  state.runId=owner;
   if(state.done)return {ok:true,...publicState(state)};
   const target=Math.max(1,Math.min(Number(limit)||1000,1000));
-  const objs=[];
+  const objs=[],seenBatchKeys=new Set();
   let cursor=state.cursor||undefined,truncated=true,pagesRead=0;
   while(truncated&&objs.length<target&&pagesRead<30){
     const page=await retry(()=>env.CONTENT_FINAL.list({prefix:'articles/',cursor,limit:1000,include:['customMetadata']}));
-    pagesRead++;
-    for(const obj of page.objects||[])if(String(obj.key||'').endsWith('.html'))objs.push(obj);
+    pagesRead++;state.listCalls++;state.listedObjects+=Number((page.objects||[]).length);
+    for(const obj of page.objects||[]){
+      const key=String(obj.key||'');
+      if(!key.endsWith('.html'))continue;
+      if(seenBatchKeys.has(key)||key===state.lastListedKey){state.duplicateListedKeys++;continue}
+      seenBatchKeys.add(key);state.lastListedKey=key;objs.push(obj);state.htmlObjectsListed++;
+    }
     truncated=Boolean(page.truncated);
     cursor=truncated?page.cursor:undefined;
   }
@@ -93,6 +114,7 @@ export async function runArticleCorpusAuditBatch(env,{limit=250,reset=false}={})
     }
   }
   state.cursor=truncated?cursor:null;state.scanDone=!truncated;state.done=state.scanDone&&state.readFailures===0;state.lastBatchAt=new Date().toISOString();if(state.scanDone)state.completedAt=new Date().toISOString();
-  await save(env,state);
-  return {ok:true,batch:{objects:objs.length,pagesRead},...publicState(state)};
+  await saveOwned(env,state);
+  if(state.done)await writeExactCountSnapshot(env,state);
+  return {ok:true,batch:{objects:objs.length,pagesRead,duplicateListedKeys:state.duplicateListedKeys},...publicState(state)};
 }
