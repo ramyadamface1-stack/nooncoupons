@@ -1,8 +1,8 @@
 {
   "version": 4,
   "auditModel": "rendered-live-v4",
-  "runId": "35504093147",
-  "runtimeArticleQualityVersion": 2,
+  "runId": "35505711072",
+  "runtimeArticleQualityVersion": 4,
   "runtimeGuarantees": [
     "meta-description",
     "canonical",
@@ -15,6 +15,9 @@
     "market-navigation",
     "hero-image",
     "site-internal-links",
+    "title-normalization",
+    "meta-normalization",
+    "malformed-jsonld-sanitizer",
     "article-wrapper",
     "direct-answer",
     "two-atomic-answers",
@@ -30,38 +33,38 @@
     "unsupported-promo-sanitizer",
     "generic-ai-phrase-sanitizer"
   ],
-  "uniqueArticles": 123659,
-  "scanned": 123659,
+  "uniqueArticles": 124029,
+  "scanned": 124029,
   "readFailures": 0,
-  "bytes": 3512635129,
-  "listCalls": 2791,
-  "listedObjects": 123659,
-  "htmlObjectsListed": 123659,
+  "bytes": 3523362501,
+  "listCalls": 2799,
+  "listedObjects": 124029,
+  "htmlObjectsListed": 124029,
   "duplicateListedKeys": 0,
   "countSnapshotKey": "_ops/article-count.json",
   "languages": {
-    "ar": 123588,
+    "ar": 123958,
     "en": 71,
     "mixed": 0
   },
   "wordBands": {
     "lt800": 0,
     "w800_999": 3,
-    "w1000_1499": 1244,
-    "w1500_2000": 122412,
+    "w1000_1499": 1243,
+    "w1500_2000": 122783,
     "gt2000": 0
   },
   "duplicateTitles": {
-    "articles": 15557,
-    "groups": 6418
+    "articles": 15705,
+    "groups": 6474
   },
   "exactDuplicateContent": {
     "articles": 0,
     "groups": 0
   },
   "semanticSignatureCollisions": {
-    "articles": 19805,
-    "groups": 8240
+    "articles": 19881,
+    "groups": 8269
   },
   "scoreAverage": {
     "aeo": 100,
@@ -75,46 +78,37 @@
   },
   "scoreHist": {
     "seo": {
-      "95_100": 123327,
-      "85_94": 331,
-      "70_84": 1
+      "95_100": 124029
     },
     "content": {
-      "85_94": 1244,
+      "85_94": 1243,
       "70_84": 3,
-      "95_100": 122412
+      "95_100": 122783
     },
     "aeo": {
-      "95_100": 123659
+      "95_100": 124029
     },
     "eeat": {
-      "95_100": 123655,
-      "70_84": 4
+      "95_100": 124027,
+      "70_84": 2
     },
     "geoLocal": {
-      "95_100": 123659
+      "95_100": 124029
     },
     "technical": {
-      "70_84": 9,
-      "95_100": 123650
+      "95_100": 124029
     },
     "media": {
-      "95_100": 123659
+      "95_100": 124029
     },
     "geoAI": {
-      "95_100": 123659
+      "95_100": 124029
     }
   },
   "issues": {
-    "content_words_lt1500_current_ar_gate": 1247,
-    "technical_article_tag_missing": 9,
-    "fragment_jsonld_parse_error": 3,
+    "content_words_lt1500_current_ar_gate": 1246,
     "content_words_lt1000": 3,
-    "seo_title_length_out": 26,
-    "seo_meta_length_out_stored": 1,
-    "seo_meta_missing_stored": 306,
-    "trust_competitor_brand_mention": 71,
-    "eeat_unsupported_promo_claim": 4
+    "eeat_unsupported_promo_claim": 2
   },
   "samples": {
     "content_words_lt1500_current_ar_gate": [
@@ -124,68 +118,30 @@
       "articles/buying-mobiles-noon-uae-coupon-multi-category-cart.html",
       "articles/buying-mobiles-noun-uae-coupon-before-payment-change.html"
     ],
-    "technical_article_tag_missing": [
-      "articles/buying-mobile-phones-noon-uae-coupon-warranty-check.html",
-      "articles/buying-mobiles-noon-saudi-coupon-multiple-sellers.html",
-      "articles/buying-mobiles-noon-saudi-coupon.html",
-      "articles/buying-mobiles-noon-uae-coupon-multi-category-cart.html",
-      "articles/coupons-noon-uae-mobile-phones-return-review.html"
-    ],
-    "fragment_jsonld_parse_error": [
-      "articles/buying-mobile-phones-noon-uae-coupon-warranty-check.html",
-      "articles/noon-saudi-mobile-coupon-warranty-check.html",
-      "articles/noon-saudi-phone-coupon-multi-category-cart.html"
-    ],
     "content_words_lt1000": [
       "articles/buying-mobiles-noon-saudi-coupon-multiple-sellers.html",
       "articles/buying-mobiles-noon-uae-coupon-multi-category-cart.html",
       "articles/noon-saudi-mobile-coupon-return-review.html"
     ],
-    "seo_title_length_out": [
-      "articles/buying-mobiles-noon-saudi-coupon.html",
-      "articles/buying-mobiles-noun-uae-coupon-before-payment-change.html",
-      "articles/coupons-noon-uae-mobiles-buy-more-save-more.html",
-      "articles/noon-saudi-mobile-coupon-return-review.html",
-      "articles/الامارات-الاثاث.html"
-    ],
-    "seo_meta_length_out_stored": [
-      "articles/buying-mobiles-noon-uae-coupon-multi-category-cart.html"
-    ],
-    "seo_meta_missing_stored": [
-      "articles/coupons-noon-uae-mobiles-buy-more-save-more.html",
-      "articles/أفضل-كوبون-نون-الإمارات-الجوالات-بدون-شراء-زائد.html",
-      "articles/أفضل-كوبون-نون-الإمارات-الجوالات-على-الهاتف.html",
-      "articles/أفضل-كوبون-نون-الإمارات-الجوالات-عند-شراء-أكثر-من-منتج.html",
-      "articles/أفضل-كوبون-نون-الإمارات-الجوالات-قبل-اختيار-البائع.html"
-    ],
-    "trust_competitor_brand_mention": [
-      "articles/en-best-time-to-try-a-noon-coupon-saudi-arabia-beauty-guide.html",
-      "articles/en-noon-cart-coupon-saudi-arabia-beauty-checkout-checklist.html",
-      "articles/en-noon-cart-coupon-saudi-arabia-home-and-kitchen-guide.html",
-      "articles/en-noon-cart-coupon-saudi-arabia-home-checkout-checklist.html",
-      "articles/en-noon-cart-coupon-uae-beauty-checkout-guide.html"
-    ],
     "eeat_unsupported_promo_claim": [
-      "articles/طريقة-استخدام-كود-نون-الإمارات-عند-شراء-الجوالات-مع-فحص-الضمان.html",
       "articles/طريقة-استخدام-كود-نون-الإمارات-عند-شراء-الجوالات-مع-مقارنة-الأسعار.html",
-      "articles/كود-خصم-نون-السعودية-الجوالات-قبل-الدفع.html",
       "articles/مقارنة-كوبونات-نون-السعودية-الجوالات-مع-الشحن.html"
     ]
   },
   "scanDone": true,
   "done": true,
-  "startedAt": "2026-09-20T10:05:58.827Z",
-  "completedAt": "2026-09-20T10:32:38.737Z",
+  "startedAt": "2026-09-20T10:40:15.048Z",
+  "completedAt": "2026-09-20T11:37:41.783Z",
   "authoritativeCount": {
-    "count": 123659,
-    "countedAt": "2026-09-20T10:32:38.737Z",
+    "count": 124029,
+    "countedAt": "2026-09-20T11:37:41.783Z",
     "source": "article-corpus-audit-v4",
     "complete": true,
     "auditVersion": 4,
     "auditModel": "rendered-live-v4",
-    "runId": "35504093147",
-    "listCalls": 2791,
-    "listedObjects": 123659
+    "runId": "35505711072",
+    "listCalls": 2799,
+    "listedObjects": 124029
   },
   "proofVersion": 1
 }
