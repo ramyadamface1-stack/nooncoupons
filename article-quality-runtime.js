@@ -172,6 +172,18 @@ export function ensureRuntimeArticleQuality(html,{slug='',coupon='',country='SA'
     added.push('media');
   }
 
+  // Legacy depth remediation: only under-length rendered articles receive extra decision-support sections.
+  // Sections are market-localized and rotated by slug; stop immediately once the live page reaches the 1500-word gate.
+  if(visibleWords(out)<1500){
+    let depthAdded=0;
+    for(const block of legacyDepthBlocks({slug,keyword:safeKeyword,coupon:safeCoupon,market,currency})){
+      if(visibleWords(out)>=1500)break;
+      out=/<\/article>/i.test(out)?out.replace(/<\/article>/i,block+'</article>'):out+block;
+      depthAdded++;
+    }
+    if(depthAdded)added.push('legacy-depth-remediation');
+  }
+
   return {html:out,changed:added.length>0,added};
 }
 
