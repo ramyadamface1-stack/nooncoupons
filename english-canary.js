@@ -155,7 +155,7 @@ export async function serveEnglishCanaryArticle(req,env){
 }
 
 export async function englishCanarySitemap(env,origin){
-  const state=await readState(env),rows=(state.records||[]).filter(r=>r.indexable!==false&&r.languageSource==='native-intent-v6-canary');
+  const state=await readState(env),rows=(state.records||[]).filter(r=>r?.slug&&r.status==='published'&&r.indexable!==false&&r.languageSource==='native-intent-v6-canary'&&Number(r.quality)>=95&&Number(r.qualityFloor)>=88&&r.superseded!==true&&r.orphan!==true&&r.duplicateIntent!==true);
   const urls=rows.map(r=>`<url><loc>${xmlEsc(origin+r.urlPath)}</loc><lastmod>${xmlEsc(r.updatedAt||r.createdAt)}</lastmod></url>`).join('');
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
