@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "479f99d105ab426bcb0f17eb72c102945e7e285a",
-  "verifiedAt": "2026-09-20T10:40:03.022906+00:00",
+  "sourceSha": "489ea46a3903fc83cf4f0077bc283e7237afde0e",
+  "verifiedAt": "2026-09-20T18:26:17.148202+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -101,17 +101,17 @@
     "persistedGeneratorConfigFloor1500Verified": true
   },
   "content": {
-    "r2HtmlObjects": 123659,
-    "trackedPublished": 56055,
-    "arabic": 55984,
-    "english": 71,
-    "lastSlug": "مراجعة-الإرجاع-الديكور-نون-الإمارات-مراجعة-الدفع-سهولة-الصيانة",
+    "r2HtmlObjects": 124029,
+    "trackedPublished": 58968,
+    "arabic": 58890,
+    "english": 78,
+    "lastSlug": "شراء-عدة-منتجات-أجهزة-الألعاب-نون-السعودية-حساب-سعر-الوحدة-الذاكرة",
     "lastQuality": 100,
-    "lastWordCount": 1729
+    "lastWordCount": 1739
   },
   "catchup30k": {
     "target": 30000,
-    "current": 55984,
+    "current": 58890,
     "remaining": 0,
     "requiredPerMinute": 0,
     "effectiveBatchSize": 16,
@@ -122,45 +122,45 @@
     "minCatchupBatchSize": 32,
     "lastBatchPublished": 6,
     "lastBatchTries": 288,
-    "lastBatchDurationMs": 22243,
+    "lastBatchDurationMs": 34924,
     "lastBatchYieldPct": 2.08,
     "lastBatchStageMs": {
-      "candidateLoop": 18660,
-      "articleWrites": 507,
-      "clusterFlush": 623,
-      "freshness": 670,
-      "catalogs": 2848,
-      "indexNow": 871,
-      "postParallel": 2848
+      "candidateLoop": 29613,
+      "articleWrites": 865,
+      "clusterFlush": 1149,
+      "freshness": 1555,
+      "catalogs": 3940,
+      "indexNow": 1389,
+      "postParallel": 3940
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": false,
-    "executionRatePerMinute": 16.18,
+    "executionRatePerMinute": 10.31,
     "cronCadenceMinutes": 1,
     "observedRatePerMinute": 6,
     "observedMeetsRequiredRate": true,
     "estimatedHoursAtObservedRate": 0.0,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 108907,
-    "preflightRejectedTotal": 290825,
-    "preflightRecentRejectedTotal": 2362,
-    "preflightClusterRejectedTotal": 286992,
+    "semanticPreAuditRejectedTotal": 141659,
+    "preflightRejectedTotal": 366363,
+    "preflightRecentRejectedTotal": 6264,
+    "preflightClusterRejectedTotal": 358628,
     "lastPreflightRejectReasons": {
-      "global_intent_owner_collision": 116,
-      "global_keyword_cannibalization": 137,
-      "global_duplicate_slug": 57,
-      "global_duplicate_keyword": 57
+      "global_intent_owner_collision": 138,
+      "global_keyword_cannibalization": 97,
+      "global_duplicate_slug": 29,
+      "global_duplicate_keyword": 29
     }
   },
   "englishControlled": {
     "target": 200,
-    "published": 71,
-    "remaining": 129,
-    "publishedToday": 13,
+    "published": 78,
+    "remaining": 122,
+    "publishedToday": 20,
     "dailyTarget": 24,
     "minIntervalMinutes": 60,
-    "nextEligibleAt": "2026-09-20T10:54:46.213Z"
+    "nextEligibleAt": "2026-09-20T18:41:46.877Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -172,6 +172,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-20T10:39:12.872Z"
+    "completedAt": "2026-09-20T18:25:05.546Z"
   }
 }
