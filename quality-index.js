@@ -110,7 +110,8 @@ export function preflightGlobalGate(topic,cluster){
     if(!e)continue;
     if(slug&&String(e.slug||'')===slug)exactSlug=true;
     if(kw&&norm(e.primaryKeyword||'')===kw)exactKeyword=true;
-    if(e.intentKey&&e.intentKey===ik)intentCollision=true;\n    if((e.ownerIntentKey||intentOwnerKey(e))===owner)ownerCollision=true;
+    if(e.intentKey&&e.intentKey===ik)intentCollision=true;
+    if((e.ownerIntentKey||intentOwnerKey(e))===owner)ownerCollision=true;
     const sameContext=(!e.country||e.country===topic?.country)&&(!e.category||e.category===topic?.category);
     if(sameContext&&(!e.intent||e.intent===topic?.intent)){
       const s=keywordSimilarity(topic?.kw||'',e.primaryKeyword||'');
@@ -120,7 +121,8 @@ export function preflightGlobalGate(topic,cluster){
   const cannibalization=maxKeywordSimilarity>=0.78,reasons=[];
   if(exactSlug)reasons.push('global_duplicate_slug');
   if(exactKeyword)reasons.push('global_duplicate_keyword');
-  if(intentCollision)reasons.push('global_duplicate_intent');\n  if(ownerCollision)reasons.push('global_intent_owner_collision');
+  if(intentCollision)reasons.push('global_duplicate_intent');
+  if(ownerCollision)reasons.push('global_intent_owner_collision');
   if(cannibalization)reasons.push('global_keyword_cannibalization');
   return {pass:reasons.length===0,reasons,maxKeywordSimilarity:Math.round(maxKeywordSimilarity*1000)/1000,nearestSlug:nearest?.slug||null,indexSize:entries.length,intentKey:ik,ownerIntentKey:owner,stage:'preflight'};
 }
@@ -132,7 +134,8 @@ export function globalGate(article,topic,audit,cluster){
     if(!e)continue;
     if(String(e.slug||'')===slug)exactSlug=true;
     if(norm(e.primaryKeyword||'')===kw)exactKeyword=true;
-    if(e.intentKey&&e.intentKey===ik)intentCollision=true;\n    if((e.ownerIntentKey||intentOwnerKey(e))===owner)ownerCollision=true;
+    if(e.intentKey&&e.intentKey===ik)intentCollision=true;
+    if((e.ownerIntentKey||intentOwnerKey(e))===owner)ownerCollision=true;
     const sameContext=(!e.country||e.country===topic?.country)&&(!e.category||e.category===topic?.category);
     if(sameContext&&(!e.intent||e.intent===topic?.intent)){const s=keywordSimilarity(article?.primaryKeyword||topic?.kw,e.primaryKeyword||'');if(s>maxKeywordSimilarity){maxKeywordSimilarity=s;nearest=e}}
     if(sameContext&&(!e.intent||e.intent===topic?.intent)&&e.signature&&audit?.signature){const d=signatureDistance(audit.signature,e.signature);if(d<minDistance){minDistance=d;nearest=e}}
@@ -142,7 +145,8 @@ export function globalGate(article,topic,audit,cluster){
   const reasons=[];
   if(exactSlug)reasons.push('global_duplicate_slug');
   if(exactKeyword)reasons.push('global_duplicate_keyword');
-  if(intentCollision)reasons.push('global_duplicate_intent');\n  if(ownerCollision)reasons.push('global_intent_owner_collision');
+  if(intentCollision)reasons.push('global_duplicate_intent');
+  if(ownerCollision)reasons.push('global_intent_owner_collision');
   if(semanticCollision)reasons.push('global_semantic_collision');
   if(cannibalization)reasons.push('global_keyword_cannibalization');
   return {pass:reasons.length===0,reasons,minDistance,maxKeywordSimilarity:Math.round(maxKeywordSimilarity*1000)/1000,nearestSlug:nearest?.slug||null,indexSize:entries.length,intentKey:ik,ownerIntentKey:owner};
