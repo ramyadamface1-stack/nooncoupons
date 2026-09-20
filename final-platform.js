@@ -9,7 +9,7 @@ const xml=(x,cache='public,max-age=300,s-maxage=300')=>new Response(String(x),{h
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 function feedEligible(a){
   const q=Number(a?.quality),f=Number(a?.qualityFloor);
-  return Boolean(a?.slug&&a.status==='published'&&a.indexable!==false&&a.superseded!==true&&a.orphan!==true&&a.duplicateIntent!==true&&Number.isFinite(q)&&q>=95&&(a.qualityFloor==null||(Number.isFinite(f)&&f>=88))&&(!Array.isArray(a.p0)||a.p0.length===0)&&(!a.indexation||a.indexation.indexable!==false));
+  const minWords=a?.languageSource==='native-intent-v6-canary'?900:1500;return Boolean(a?.slug&&a.status==='published'&&a.indexable!==false&&a.superseded!==true&&a.orphan!==true&&a.duplicateIntent!==true&&Number.isFinite(q)&&q>=95&&(a.qualityFloor==null||(Number.isFinite(f)&&f>=88))&&(a.wordCount==null||Number(a.wordCount)>=minWords)&&(!Array.isArray(a.p0)||a.p0.length===0)&&(!a.indexation||a.indexation.indexable!==false));
 }
 
 async function stateViaApp(origin,env,ctx){
