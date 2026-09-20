@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "489ea46a3903fc83cf4f0077bc283e7237afde0e",
-  "verifiedAt": "2026-09-20T18:26:17.148202+00:00",
+  "sourceSha": "b02c9fcefde06595dd80ca4cca8a97ee81d49ea1",
+  "verifiedAt": "2026-09-20T18:44:20.068640+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -102,16 +102,16 @@
   },
   "content": {
     "r2HtmlObjects": 124029,
-    "trackedPublished": 58968,
-    "arabic": 58890,
+    "trackedPublished": 58973,
+    "arabic": 58895,
     "english": 78,
-    "lastSlug": "شراء-عدة-منتجات-أجهزة-الألعاب-نون-السعودية-حساب-سعر-الوحدة-الذاكرة",
+    "lastSlug": "دليل-شراء-razer-laptops-نون-السعودية-مراجعة-وقت-التوصيل-الذاكرة",
     "lastQuality": 100,
-    "lastWordCount": 1739
+    "lastWordCount": 1712
   },
   "catchup30k": {
     "target": 30000,
-    "current": 58890,
+    "current": 58895,
     "remaining": 0,
     "requiredPerMinute": 0,
     "effectiveBatchSize": 16,
@@ -120,37 +120,37 @@
     "adaptiveReason": "catchup_complete",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 6,
+    "lastBatchPublished": 5,
     "lastBatchTries": 288,
-    "lastBatchDurationMs": 34924,
-    "lastBatchYieldPct": 2.08,
+    "lastBatchDurationMs": 35786,
+    "lastBatchYieldPct": 1.74,
     "lastBatchStageMs": {
-      "candidateLoop": 29613,
-      "articleWrites": 865,
-      "clusterFlush": 1149,
-      "freshness": 1555,
-      "catalogs": 3940,
-      "indexNow": 1389,
-      "postParallel": 3940
+      "candidateLoop": 31024,
+      "articleWrites": 1028,
+      "clusterFlush": 1009,
+      "freshness": 1052,
+      "catalogs": 3310,
+      "indexNow": 1298,
+      "postParallel": 3310
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": false,
-    "executionRatePerMinute": 10.31,
+    "executionRatePerMinute": 8.38,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 6,
+    "observedRatePerMinute": 5,
     "observedMeetsRequiredRate": true,
     "estimatedHoursAtObservedRate": 0.0,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 141659,
-    "preflightRejectedTotal": 366363,
-    "preflightRecentRejectedTotal": 6264,
-    "preflightClusterRejectedTotal": 358628,
+    "semanticPreAuditRejectedTotal": 141734,
+    "preflightRejectedTotal": 366565,
+    "preflightRecentRejectedTotal": 6268,
+    "preflightClusterRejectedTotal": 358826,
     "lastPreflightRejectReasons": {
-      "global_intent_owner_collision": 138,
-      "global_keyword_cannibalization": 97,
-      "global_duplicate_slug": 29,
-      "global_duplicate_keyword": 29
+      "global_keyword_cannibalization": 101,
+      "global_intent_owner_collision": 140,
+      "global_duplicate_slug": 35,
+      "global_duplicate_keyword": 35
     }
   },
   "englishControlled": {
@@ -172,6 +172,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-20T18:25:05.546Z"
+    "completedAt": "2026-09-20T18:43:21.433Z"
   }
 }
