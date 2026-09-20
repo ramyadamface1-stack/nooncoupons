@@ -38,7 +38,7 @@ jobs:
             -X POST -H "$AUTH" -H 'Content-Type: application/json' \
             --data '{"reset":true,"limit":1000}' \
             "$ORIGIN/api/internal/article-corpus-audit-step?reset=${GITHUB_RUN_ID}" -o /tmp/start.json
-          jq -e '.ok==true and .reset==true and .version==2' /tmp/start.json >/dev/null
+          jq -e '.ok==true and .reset==true and .version==3' /tmp/start.json >/dev/null
           echo "ARTICLE_AUDIT_RESET scanned=$(jq -r '.scanned // 0' /tmp/start.json) version=$(jq -r '.version' /tmp/start.json)"
 
           complete=false
@@ -71,9 +71,9 @@ jobs:
 
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -H "$AUTH" "$ORIGIN/api/article-corpus-audit-health?final=${GITHUB_RUN_ID}" -o /tmp/final.json
-          jq -e '.ok==true and .version==2' /tmp/final.json >/dev/null
+          jq -e '.ok==true and .version==3' /tmp/final.json >/dev/null
           jq -c '{
-            version,auditModel,runtimeGuarantees,scanned,readFailures,bytes,languages,wordBands,
+            version,auditModel,runtimeArticleQualityVersion,runtimeGuarantees,scanned,readFailures,bytes,languages,wordBands,
             duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,
             scoreAverage:(. as $x | reduce (.scoreSums|keys[]) as $k ({}; .[$k]=((($x.scoreSums[$k] / ($x.scanned|if .==0 then 1 else . end))*10|round)/10))),
             scoreHist,issues,samples,scanDone,done,startedAt,completedAt
