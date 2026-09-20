@@ -18,6 +18,15 @@ const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dec=s=>{try{return decodeURIComponent(String(s||''))}catch{return String(s||'')}};
 const xml=s=>new Response(s,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public,max-age=300,s-maxage=300'}});
+function sitemapEligible(a){
+  if(!a?.slug||a.status!=='published'||a.indexable===false||a.superseded===true||a.orphan===true||a.duplicateIntent===true)return false;
+  const quality=Number(a.quality),floor=Number(a.qualityFloor);
+  if(!Number.isFinite(quality)||quality<95)return false;
+  if(a.qualityFloor!=null&&(!Number.isFinite(floor)||floor<88))return false;
+  if(Array.isArray(a.p0)&&a.p0.length)return false;
+  if(a.indexation&&a.indexation.indexable===false)return false;
+  return true;
+}
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
 
 function normalizeArticleHeadingDensity(html,maxH2=12){
@@ -139,7 +148,7 @@ async function sitemapIndex(env,origin){
 async function articleSitemap(path,env,origin){
   const m=path.match(/^\/sitemap-articles-(\d{4}-\d{2}-\d{2})-(\d+)\.xml$/);if(!m)return null;
   const day=m[1],shard=Number(m[2]),d=await r2json(env,`bulk/day/${day}/${shard}.json`,null);if(!d)return xml('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
-  const urls=(d.articles||[]).map(a=>`<url><loc>${esc(origin+'/articles/'+encodeURI(a.slug))}</loc><lastmod>${esc(a.updatedAt||a.createdAt||day)}</lastmod></url>`).join('');
+  const urls=(d.articles||[]).filter(sitemapEligible).map(a=>`<url><loc>${esc(origin+'/articles/'+encodeURI(a.slug))}</loc><lastmod>${esc(a.updatedAt||a.createdAt||day)}</lastmod></url>`).join('');
   return xml(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
