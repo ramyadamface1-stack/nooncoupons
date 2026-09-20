@@ -188,9 +188,9 @@ export default{
     }
     if(req.method==='POST'&&u.pathname==='/api/internal/article-corpus-audit-step'){
       if(!await verifyMaintenanceToken(req))return new Response(JSON.stringify({ok:false,reason:'unauthorized'}),{status:401,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
-      let limit=1000,reset=false;
-      try{const body=await req.json();limit=Math.max(1,Math.min(Number(body?.limit)||1000,1000));reset=body?.reset===true;}catch{}
-      const state=await runArticleCorpusAuditBatch(env,{limit,reset});
+      let limit=1000,reset=false,runId='';
+      try{const body=await req.json();limit=Math.max(1,Math.min(Number(body?.limit)||1000,1000));reset=body?.reset===true;runId=String(body?.runId||'').trim();}catch{}
+      const state=await runArticleCorpusAuditBatch(env,{limit,reset,runId});
       return new Response(JSON.stringify(state),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     if(req.method==='POST'&&u.pathname==='/api/internal/coupon-migration-step'){
