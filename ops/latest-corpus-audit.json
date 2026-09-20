@@ -1,8 +1,8 @@
 {
   "version": 4,
   "auditModel": "rendered-live-v4",
-  "runId": "35505711072",
-  "runtimeArticleQualityVersion": 4,
+  "runId": "35530032566",
+  "runtimeArticleQualityVersion": 5,
   "runtimeGuarantees": [
     "meta-description",
     "canonical",
@@ -31,44 +31,45 @@
     "three-body-images-plus-hero",
     "currency-localization",
     "unsupported-promo-sanitizer",
-    "generic-ai-phrase-sanitizer"
+    "generic-ai-phrase-sanitizer",
+    "legacy-depth-remediation-1500"
   ],
-  "uniqueArticles": 124029,
-  "scanned": 124029,
+  "uniqueArticles": 129641,
+  "scanned": 129641,
   "readFailures": 0,
-  "bytes": 3523362501,
-  "listCalls": 2799,
-  "listedObjects": 124029,
-  "htmlObjectsListed": 124029,
+  "bytes": 3685376745,
+  "listCalls": 2925,
+  "listedObjects": 129641,
+  "htmlObjectsListed": 129641,
   "duplicateListedKeys": 0,
   "countSnapshotKey": "_ops/article-count.json",
   "languages": {
-    "ar": 123958,
-    "en": 71,
+    "ar": 129563,
+    "en": 78,
     "mixed": 0
   },
   "wordBands": {
     "lt800": 0,
-    "w800_999": 3,
-    "w1000_1499": 1243,
-    "w1500_2000": 122783,
+    "w800_999": 0,
+    "w1000_1499": 6,
+    "w1500_2000": 129635,
     "gt2000": 0
   },
   "duplicateTitles": {
-    "articles": 15705,
-    "groups": 6474
+    "articles": 16987,
+    "groups": 6938
   },
   "exactDuplicateContent": {
     "articles": 0,
     "groups": 0
   },
   "semanticSignatureCollisions": {
-    "articles": 19881,
-    "groups": 8269
+    "articles": 20842,
+    "groups": 8677
   },
   "scoreAverage": {
     "aeo": 100,
-    "content": 99.9,
+    "content": 100,
     "eeat": 100,
     "geoAI": 100,
     "geoLocal": 100,
@@ -78,49 +79,42 @@
   },
   "scoreHist": {
     "seo": {
-      "95_100": 124029
+      "95_100": 129641
     },
     "content": {
-      "85_94": 1243,
-      "70_84": 3,
-      "95_100": 122783
+      "95_100": 129635,
+      "85_94": 6
     },
     "aeo": {
-      "95_100": 124029
+      "95_100": 129641
     },
     "eeat": {
-      "95_100": 124027,
+      "95_100": 129639,
       "70_84": 2
     },
     "geoLocal": {
-      "95_100": 124029
+      "95_100": 129641
     },
     "technical": {
-      "95_100": 124029
+      "95_100": 129641
     },
     "media": {
-      "95_100": 124029
+      "95_100": 129641
     },
     "geoAI": {
-      "95_100": 124029
+      "95_100": 129641
     }
   },
   "issues": {
-    "content_words_lt1500_current_ar_gate": 1246,
-    "content_words_lt1000": 3,
+    "content_words_lt1500_current_ar_gate": 6,
     "eeat_unsupported_promo_claim": 2
   },
   "samples": {
     "content_words_lt1500_current_ar_gate": [
-      "articles/buying-mobile-phones-noon-uae-coupon-warranty-check.html",
-      "articles/buying-mobiles-noon-saudi-coupon-multiple-sellers.html",
-      "articles/buying-mobiles-noon-saudi-coupon.html",
-      "articles/buying-mobiles-noon-uae-coupon-multi-category-cart.html",
-      "articles/buying-mobiles-noun-uae-coupon-before-payment-change.html"
-    ],
-    "content_words_lt1000": [
       "articles/buying-mobiles-noon-saudi-coupon-multiple-sellers.html",
       "articles/buying-mobiles-noon-uae-coupon-multi-category-cart.html",
+      "articles/buying-mobiles-noun-uae-coupon-before-payment-change.html",
+      "articles/noon-saudi-coupon-nov170-mobiles-guide.html",
       "articles/noon-saudi-mobile-coupon-return-review.html"
     ],
     "eeat_unsupported_promo_claim": [
@@ -130,18 +124,365 @@
   },
   "scanDone": true,
   "done": true,
-  "startedAt": "2026-09-20T10:40:15.048Z",
-  "completedAt": "2026-09-20T11:37:41.783Z",
+  "startedAt": "2026-09-20T18:44:32.465Z",
+  "completedAt": "2026-09-20T20:06:09.634Z",
   "authoritativeCount": {
-    "count": 124029,
-    "countedAt": "2026-09-20T11:37:41.783Z",
+    "count": 129641,
+    "countedAt": "2026-09-20T20:06:09.634Z",
     "source": "article-corpus-audit-v4",
     "complete": true,
     "auditVersion": 4,
     "auditModel": "rendered-live-v4",
-    "runId": "35505711072",
-    "listCalls": 2799,
-    "listedObjects": 124029
+    "runId": "35530032566",
+    "listCalls": 2925,
+    "listedObjects": 129641
   },
-  "proofVersion": 1
+  "collisionOwnerAnalysis": {
+    "version": 2,
+    "runId": "35530032566",
+    "sourceAuditRunId": "35530032566",
+    "sourceAuditVersion": 4,
+    "scanned": 130073,
+    "readFailures": 0,
+    "titleTargets": 6938,
+    "semanticTargets": 8677,
+    "title": {
+      "groupsResolved": 6938,
+      "clearOwners": 0,
+      "actionableOwners": 0,
+      "blockedByIntentOwnership": 0,
+      "missingOwnerMetadata": 6938,
+      "crossIntentOwners": 0,
+      "ambiguousOwners": 6938,
+      "samples": [
+        {
+          "hash": "53e4e8f7:66",
+          "count": 2,
+          "owner": {
+            "key": "articles/إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-الإمارات-بعد-رسوم-الشحن-التنقل-الشاشة.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1769,
+            "updatedAt": "2026-09-20T06:37:05.669Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "runnerUp": {
+            "key": "articles/إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-الإمارات-بعد-رسوم-الشحن-تكلفة-التوصيل.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1765,
+            "updatedAt": "2026-09-20T03:55:03.819Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "margin": 0,
+          "clearOwner": false,
+          "ownerIntentKey": null,
+          "ownerMetadataComplete": false,
+          "intentOwnerConsistent": true,
+          "sameIntentOwner": false,
+          "actionableOwner": false
+        },
+        {
+          "hash": "bffc9efb:56",
+          "count": 2,
+          "owner": {
+            "key": "articles/إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-الإمارات-وقت-العروض-تقييم-الاستخدام.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1758,
+            "updatedAt": "2026-09-19T02:47:02.730Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "runnerUp": {
+            "key": "articles/إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-الإمارات-وقت-العروض-ترتيب-الأولويات.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1763,
+            "updatedAt": "2026-09-18T21:08:53.520Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "margin": 0,
+          "clearOwner": false,
+          "ownerIntentKey": null,
+          "ownerMetadataComplete": false,
+          "intentOwnerConsistent": true,
+          "sameIntentOwner": false,
+          "actionableOwner": false
+        },
+        {
+          "hash": "f65043a0:68",
+          "count": 3,
+          "owner": {
+            "key": "articles/إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-السعودية-بعد-رسوم-الشحن-تقييم-القيمة.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1767,
+            "updatedAt": "2026-09-18T15:00:44.234Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "runnerUp": {
+            "key": "articles/إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-السعودية-بعد-رسوم-الشحن-مراجعة-التوصيل.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1777,
+            "updatedAt": "2026-09-18T03:54:51.393Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "margin": 0,
+          "clearOwner": false,
+          "ownerIntentKey": null,
+          "ownerMetadataComplete": false,
+          "intentOwnerConsistent": true,
+          "sameIntentOwner": false,
+          "actionableOwner": false
+        },
+        {
+          "hash": "5cdffb33:64",
+          "count": 3,
+          "owner": {
+            "key": "articles/إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-السعودية-عند-شراء-عدة-قطع-تقييم-القيمة.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1775,
+            "updatedAt": "2026-09-20T09:09:18.500Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "runnerUp": {
+            "key": "articles/إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-السعودية-عند-شراء-عدة-قطع-التنقل.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1777,
+            "updatedAt": "2026-09-19T10:05:55.317Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "margin": 0,
+          "clearOwner": false,
+          "ownerIntentKey": null,
+          "ownerMetadataComplete": false,
+          "intentOwnerConsistent": true,
+          "sameIntentOwner": false,
+          "actionableOwner": false
+        },
+        {
+          "hash": "9f0e2f76:60",
+          "count": 2,
+          "owner": {
+            "key": "articles/إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-السعودية-مع-سلة-كبيرة-فحص-المواصفات.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1763,
+            "updatedAt": "2026-09-18T14:40:15.017Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "runnerUp": {
+            "key": "articles/إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-السعودية-مع-سلة-كبيرة-مراجعة-الكمية.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1761,
+            "updatedAt": "2026-09-18T12:58:24.148Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "margin": 0,
+          "clearOwner": false,
+          "ownerIntentKey": null,
+          "ownerMetadataComplete": false,
+          "intentOwnerConsistent": true,
+          "sameIntentOwner": false,
+          "actionableOwner": false
+        }
+      ]
+    },
+    "semantic": {
+      "groupsResolved": 8677,
+      "clearOwners": 2,
+      "actionableOwners": 0,
+      "blockedByIntentOwnership": 2,
+      "missingOwnerMetadata": 8677,
+      "crossIntentOwners": 0,
+      "ambiguousOwners": 8675,
+      "samples": [
+        {
+          "hash": "46f73986",
+          "count": 2,
+          "owner": {
+            "key": "articles/en-smart-buying-on-noon-saudi-arabia-laptops-and-computing-guide.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1538,
+            "updatedAt": "2026-09-20T16:40:46.949Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "runnerUp": {
+            "key": "articles/en-smart-buying-on-noon-saudi-arabia-beauty-checkout-checklist.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1513,
+            "updatedAt": "2026-09-18T06:04:59.294Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "margin": 0,
+          "clearOwner": false,
+          "ownerIntentKey": null,
+          "ownerMetadataComplete": false,
+          "intentOwnerConsistent": true,
+          "sameIntentOwner": false,
+          "actionableOwner": false
+        },
+        {
+          "hash": "ab30a597",
+          "count": 2,
+          "owner": {
+            "key": "articles/إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-السعودية-بعد-رسوم-الشحن-مراجعة-التوصيل.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1777,
+            "updatedAt": "2026-09-18T03:54:51.393Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "runnerUp": {
+            "key": "articles/هل-كود-نون-يعمل-على-samsung-galaxy-s-في-السعودية-قبل-تغيير-الدفع-تفاصيل-البائع.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1762,
+            "updatedAt": "2026-09-18T03:08:50.763Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "margin": 0,
+          "clearOwner": false,
+          "ownerIntentKey": null,
+          "ownerMetadataComplete": false,
+          "intentOwnerConsistent": true,
+          "sameIntentOwner": false,
+          "actionableOwner": false
+        },
+        {
+          "hash": "aa3bb5d7",
+          "count": 2,
+          "owner": {
+            "key": "articles/إرجاع-acer-predator-وكوبون-نون-الإمارات-عند-رفض-الكود-قرار-الاستبدال.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1718,
+            "updatedAt": "2026-09-18T05:50:40.906Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "runnerUp": {
+            "key": "articles/سعر-مستلزمات-الحيوانات-الأليفة-النهائي-على-نون-الإمارات-عند-تغير-السعر-سفر.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1733,
+            "updatedAt": "2026-09-18T02:39:04.871Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "margin": 0,
+          "clearOwner": false,
+          "ownerIntentKey": null,
+          "ownerMetadataComplete": false,
+          "intentOwnerConsistent": true,
+          "sameIntentOwner": false,
+          "actionableOwner": false
+        },
+        {
+          "hash": "aa3bb577",
+          "count": 2,
+          "owner": {
+            "key": "articles/إرجاع-acer-predator-وكوبون-نون-الإمارات-مع-عدة-بائعين-الكمية-المناسبة.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1717,
+            "updatedAt": "2026-09-18T06:08:50.380Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "runnerUp": {
+            "key": "articles/شراء-sony-headphones-من-نون-الإمارات-بذكاء-قبل-اختيار-البائع-الكمية-المناسبة.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1710,
+            "updatedAt": "2026-09-18T02:34:06.171Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "margin": 0,
+          "clearOwner": false,
+          "ownerIntentKey": null,
+          "ownerMetadataComplete": false,
+          "intentOwnerConsistent": true,
+          "sameIntentOwner": false,
+          "actionableOwner": false
+        },
+        {
+          "hash": "ea3bb5d7",
+          "count": 5,
+          "owner": {
+            "key": "articles/متى-تستخدم-كود-نون-مع-lenovo-legion-في-الإمارات-عند-رفض-الكود-الضمان.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1743,
+            "updatedAt": "2026-09-19T13:27:25.715Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "runnerUp": {
+            "key": "articles/شراء-عدة-منتجات-nike-running-نون-الإمارات-مراجعة-الضمان-اللون.html",
+            "score": 90,
+            "quality": 100,
+            "qualityFloor": 100,
+            "wordCount": 1713,
+            "updatedAt": "2026-09-19T12:18:16.581Z",
+            "status": "published",
+            "ownerIntentKey": null
+          },
+          "margin": 0,
+          "clearOwner": false,
+          "ownerIntentKey": null,
+          "ownerMetadataComplete": false,
+          "intentOwnerConsistent": true,
+          "sameIntentOwner": false,
+          "actionableOwner": false
+        }
+      ]
+    },
+    "scanDone": true,
+    "done": true,
+    "startedAt": "2026-09-20T20:06:15.263Z",
+    "completedAt": "2026-09-20T21:13:41.557Z",
+    "stateKey": "maintenance/article-collision-owner-v2.json"
+  },
+  "proofVersion": 2
 }
