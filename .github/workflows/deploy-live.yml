@@ -132,7 +132,8 @@ jobs:
           grep -Fq 'preflightGate:true' quality-index.js
           grep -Fq 'postBuildChecks:['"'"'duplicate-title'"'"','"'"'semantic-collision'"'"']' quality-index.js
           grep -Fq "reasons.push('global_duplicate_title')" quality-index.js
-          grep -Fq "const VERSION=3" quality-index.js
+          grep -Fq "const VERSION=2" quality-index.js
+          grep -Fq 'gateRevision:3' quality-index.js
           grep -Fq "runArticleCollisionOwnerBatch" article-corpus-audit.js
           grep -Fq "/api/internal/article-collision-owner-step" discovery-entry.js
           grep -Fq "collisionOwnerAnalysis" .github/workflows/full-article-corpus-audit.yml
