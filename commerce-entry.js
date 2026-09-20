@@ -12,48 +12,54 @@ export {ControlPlane,GeneratorControl} from './public-entry.js';
 
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
 const R2_COUNT_SNAPSHOT_KEY='_ops/article-count.json';
+const CORPUS_AUDIT_STATE_KEY='maintenance/article-corpus-audit-v4.json';
 const R2_COUNT_TTL_MS=300000;
-let r2CountCache={count:null,countedAt:null,at:0};
+let r2CountCache={snapshot:null,at:0};
 async function readR2CountSnapshot(env){
   try{
     const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(R2_COUNT_SNAPSHOT_KEY):null;
     if(!o)return null;
     const x=await o.json(),count=Number(x?.count),countedAt=String(x?.countedAt||'');
     if(!Number.isFinite(count)||count<0||!countedAt)return null;
-    return {count,countedAt};
+    return {count,countedAt,source:String(x?.source||'legacy-snapshot'),version:Number(x?.version||1),complete:x?.complete===true,auditVersion:Number(x?.auditVersion||0)||null,auditModel:x?.auditModel||null,runId:x?.runId||null,readFailures:Number(x?.readFailures||0),listCalls:Number(x?.listCalls||0)||null,listedObjects:Number(x?.listedObjects||0)||null};
   }catch{return null}
 }
-async function writeR2CountSnapshot(env,count,countedAt){
+async function writeR2CountSnapshot(env,snapshot){
   try{
-    if(env.CONTENT_FINAL)await env.CONTENT_FINAL.put(R2_COUNT_SNAPSHOT_KEY,JSON.stringify({count,countedAt,source:'r2-list',version:1}),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+    if(env.CONTENT_FINAL)await env.CONTENT_FINAL.put(R2_COUNT_SNAPSHOT_KEY,JSON.stringify(snapshot),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
   }catch{}
 }
+async function completedAuditSnapshot(env){
+  try{
+    const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(CORPUS_AUDIT_STATE_KEY):null;
+    if(!o)return null;
+    const x=await o.json();
+    if(x?.done!==true||x?.scanDone!==true||Number(x?.readFailures||0)!==0||!Number.isFinite(Number(x?.scanned)))return null;
+    const countedAt=String(x.completedAt||x.lastBatchAt||new Date().toISOString());
+    return {count:Number(x.scanned),countedAt,source:'article-corpus-audit-v4',version:2,complete:true,auditVersion:4,auditModel:x.auditModel||'rendered-live-v4',runId:x.runId||null,readFailures:0,listCalls:Number(x.listCalls||0)||null,listedObjects:Number(x.listedObjects||0)||null};
+  }catch{return null}
+}
 async function countR2ArticleHtml(env,{fresh=false}={}){
-  if(!env.CONTENT_FINAL)return {count:null,countedAt:null,cached:false,ageSeconds:null};
+  if(!env.CONTENT_FINAL)return {count:null,countedAt:null,cached:false,ageSeconds:null,complete:false,source:null,stale:true,reason:'r2_binding_missing'};
   const now=Date.now();
-  if(!fresh&&Number.isFinite(r2CountCache.count)&&now-r2CountCache.at<R2_COUNT_TTL_MS){
-    return {count:r2CountCache.count,countedAt:r2CountCache.countedAt,cached:true,ageSeconds:Math.max(0,Math.floor((now-r2CountCache.at)/1000))};
+  if(!fresh&&r2CountCache.snapshot&&now-r2CountCache.at<R2_COUNT_TTL_MS){
+    const snap=r2CountCache.snapshot,snapAt=Date.parse(snap.countedAt||'');
+    return {...snap,cached:true,ageSeconds:Number.isFinite(snapAt)?Math.max(0,Math.floor((now-snapAt)/1000)):null,stale:Number.isFinite(snapAt)?now-snapAt>R2_COUNT_TTL_MS:true};
   }
-  if(!fresh){
-    const snap=await readR2CountSnapshot(env);
-    const snapAt=Date.parse(snap?.countedAt||'');
-    if(snap&&Number.isFinite(snapAt)&&now-snapAt<R2_COUNT_TTL_MS){
-      r2CountCache={count:snap.count,countedAt:snap.countedAt,at:snapAt};
-      return {count:snap.count,countedAt:snap.countedAt,cached:true,ageSeconds:Math.max(0,Math.floor((now-snapAt)/1000))};
+  let snap=await readR2CountSnapshot(env);
+  if(fresh){
+    const audit=await completedAuditSnapshot(env);
+    if(audit&&(!snap||Date.parse(audit.countedAt||'')>=Date.parse(snap.countedAt||''))){
+      snap=audit;
+      await writeR2CountSnapshot(env,audit);
     }
   }
-  let cursor=null,count=0,pages=0;
-  do{
-    const page=await env.CONTENT_FINAL.list({prefix:'articles/',limit:1000,...(cursor?{cursor}:{})});
-    count+=(page.objects||[]).filter(o=>String(o.key||'').endsWith('.html')).length;
-    pages++;
-    if(!page.truncated)break;
-    cursor=page.cursor||null;
-  }while(cursor&&pages<100);
-  const countedAt=new Date().toISOString();
-  r2CountCache={count,countedAt,at:Date.parse(countedAt)};
-  await writeR2CountSnapshot(env,count,countedAt);
-  return {count,countedAt,cached:false,ageSeconds:0,pages};
+  if(snap){
+    const snapAt=Date.parse(snap.countedAt||'');
+    r2CountCache={snapshot:snap,at:now};
+    return {...snap,cached:true,ageSeconds:Number.isFinite(snapAt)?Math.max(0,Math.floor((now-snapAt)/1000)):null,stale:Number.isFinite(snapAt)?now-snapAt>R2_COUNT_TTL_MS:true};
+  }
+  return {count:null,countedAt:null,cached:false,ageSeconds:null,complete:false,source:null,stale:true,reason:'count_snapshot_missing_run_full_corpus_audit'};
 }
 const dec=s=>{try{return decodeURIComponent(String(s||''))}catch{return String(s||'')}};
 const xmlEsc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;').replace(/'/g,'&apos;');
@@ -83,7 +89,7 @@ async function contentStats(req,env,ctx){
   const bulk=generator?.bulk||{};
   const controlled=english?.controlled||{};
   const arabic=Number(bulk.publishedTotal||0);
-  const englishTotal=Number(controlled.published||0),trackedPublished=arabic+englishTotal,untrackedEstimate=Number.isFinite(Number(r2Uploaded))?Math.max(0,Number(r2Uploaded)-trackedPublished):null;
+  const englishTotal=Number(controlled.published||0),trackedPublished=arabic+englishTotal,untrackedEstimate=r2Count.complete&&Number.isFinite(Number(r2Uploaded))?Math.max(0,Number(r2Uploaded)-trackedPublished):null;
   return {
     ok:true,total:trackedPublished,r2Uploaded,arabic,english:englishTotal,
     englishByCountry:{SA:Number(controlled.sa||0),AE:Number(controlled.ae||0)},
@@ -92,8 +98,8 @@ async function contentStats(req,env,ctx){
     englishControlled:{target:Number(controlled.target||0),complete:Boolean(controlled.complete),remaining:Number(controlled.remaining||0),publishedToday:Number(controlled.publishedToday||0),dailyTarget:Number(controlled.dailyTarget||0),minIntervalMinutes:Number(controlled.minIntervalMinutes||0),nextEligibleAt:controlled.nextEligibleAt||null},
     source:'live-runtime',generatedAt:new Date().toISOString(),health:generator,
     couponMigration:{ok:Boolean(couponMigration?.ok),done:Boolean(couponMigration?.done),scanned:Number(couponMigration?.scanned||0),updated:Number(couponMigration?.updated||0),replaced:Number(couponMigration?.replaced||0),lastBatchAt:couponMigration?.lastBatchAt||null,completedAt:couponMigration?.completedAt||null},
-    storageAudit:{trackedPublished,r2HtmlObjects:r2Uploaded,untrackedEstimate,autoDelete:false,note:'Estimate only; no automatic deletion. Audit references before cleanup.'},
-    r2Count:{count:r2Uploaded,countedAt:r2Count.countedAt,cached:Boolean(r2Count.cached),ageSeconds:r2Count.ageSeconds??null,pages:r2Count.pages??null,snapshotKey:R2_COUNT_SNAPSHOT_KEY,ttlSeconds:R2_COUNT_TTL_MS/1000}
+    storageAudit:{trackedPublished,r2HtmlObjects:r2Uploaded,r2CountComplete:Boolean(r2Count.complete),untrackedEstimate,autoDelete:false,note:r2Count.complete?'Complete HTML-object count from the authoritative corpus audit; no automatic deletion.':'Legacy/incomplete count snapshot; do not use it for cleanup or corpus totals.'},
+    r2Count:{count:r2Uploaded,countedAt:r2Count.countedAt,cached:Boolean(r2Count.cached),ageSeconds:r2Count.ageSeconds??null,complete:Boolean(r2Count.complete),source:r2Count.source||null,version:r2Count.version||null,auditVersion:r2Count.auditVersion||null,auditModel:r2Count.auditModel||null,runId:r2Count.runId||null,stale:Boolean(r2Count.stale),reason:r2Count.reason||null,listCalls:r2Count.listCalls??null,listedObjects:r2Count.listedObjects??null,snapshotKey:R2_COUNT_SNAPSHOT_KEY,ttlSeconds:R2_COUNT_TTL_MS/1000}
   };
 }
 
