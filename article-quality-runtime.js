@@ -1,6 +1,6 @@
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const count=(s,re)=>(String(s||'').match(re)||[]).length;
-const visibleWords=s=>String(s||'').replace(/<script\\b[\\s\\S]*?<\\/script>/gi,' ').replace(/<style\\b[\\s\\S]*?<\\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\\s+/g,' ').trim().split(/\\s+/).filter(Boolean).length;
+const visibleWords=s=>String(s||'').replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim().split(/\s+/).filter(Boolean).length;
 const slugSeed=s=>{let h=2166136261;for(const ch of String(s||'')){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)}return h>>>0};
 function legacyDepthBlocks({slug,keyword,coupon,market,currency}){
   const k=esc(keyword||'اختيار المنتج');
@@ -88,9 +88,9 @@ export function ensureRuntimeArticleQuality(html,{slug='',coupon='',country='SA'
   // Strip only clearly unsupported promotional claims; never alter ordinary product prices.
   const beforePromo=out;
   out=out
-    .replace(/(?:خصم|توفير)(?:\s|<[^>]+>)*(?:حتى(?:\s|<[^>]+>)*)?\d{1,3}(?:\s|<[^>]+>)*[%٪]/gi,'خصم متغير حسب أهلية السلة')
-    .replace(/\d{1,4}(?:\s|<[^>]+>)*(?:ريال|درهم)(?:\s|<[^>]+>)*(?:خصم|توفير)/gi,'توفير متغير حسب أهلية السلة')
-    .replace(/(?:مضمون|مؤكد)(?:\s|<[^>]+>)*(?:الخصم|الكود|القسيمة)/gi,'الكود متاح للتجربة')
+    .replace(/(?:خصم|توفير)(?:\s|<[^>]+>|[:،-])*(?:حتى(?:\s|<[^>]+>|[:،-])*)?\d{1,3}(?:\s|<[^>]+>|[:،-])*[%٪]/gi,'خصم متغير حسب أهلية السلة')
+    .replace(/\d{1,4}(?:\s|<[^>]+>|[:،-])*(?:ريال|درهم)(?:\s|<[^>]+>|[:،-])*(?:خصم|توفير)/gi,'توفير متغير حسب أهلية السلة')
+    .replace(/(?:مضمون|مؤكد)(?:\s|<[^>]+>|[:،-])*(?:الخصم|الكود|القسيمة)/gi,'الكود متاح للتجربة')
     .replace(/(?:بالتأكيد|مما لا شك فيه|في عالمنا اليوم|في عصرنا الحالي|دعنا نتعمق|في الختام،؟ يمكن القول|سواء كنت مبتدئًا أو محترفًا)/gi,'عمليًا');
   if(out!==beforePromo)added.push('unsupported-promo-sanitized');
 
