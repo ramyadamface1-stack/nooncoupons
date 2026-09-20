@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "a6e7389c523cdf64e9d06dcdc055d53aaea90668",
-  "verifiedAt": "2026-09-20T09:53:14.120057+00:00",
+  "sourceSha": "9ae344e945ef108f583cd68840f2623b5128acdd",
+  "verifiedAt": "2026-09-20T10:00:03.634697+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -102,16 +102,16 @@
   },
   "content": {
     "r2HtmlObjects": 122298,
-    "trackedPublished": 55917,
-    "arabic": 55847,
-    "english": 70,
-    "lastSlug": "توقيت-كود-نون-مع-السماعات-والصوتيات-في-الإمارات-مقارنة-حالة-المنتج",
+    "trackedPublished": 55967,
+    "arabic": 55896,
+    "english": 71,
+    "lastSlug": "استخدام-كود-السماعات-والصوتيات-نون-السعودية-أهلية-المنتج-الراحة",
     "lastQuality": 100,
-    "lastWordCount": 1730
+    "lastWordCount": 1709
   },
   "catchup30k": {
     "target": 30000,
-    "current": 55847,
+    "current": 55896,
     "remaining": 0,
     "requiredPerMinute": 0,
     "effectiveBatchSize": 16,
@@ -120,48 +120,48 @@
     "adaptiveReason": "catchup_complete",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 7,
+    "lastBatchPublished": 5,
     "lastBatchTries": 288,
-    "lastBatchDurationMs": 19398,
-    "lastBatchYieldPct": 2.43,
+    "lastBatchDurationMs": 19380,
+    "lastBatchYieldPct": 1.74,
     "lastBatchStageMs": {
-      "candidateLoop": 16750,
-      "articleWrites": 667,
-      "clusterFlush": 728,
-      "freshness": 691,
-      "catalogs": 1794,
-      "indexNow": 928,
-      "postParallel": 1794
+      "candidateLoop": 16687,
+      "articleWrites": 436,
+      "clusterFlush": 436,
+      "freshness": 516,
+      "catalogs": 2070,
+      "indexNow": 815,
+      "postParallel": 2070
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": false,
-    "executionRatePerMinute": 21.65,
+    "executionRatePerMinute": 15.48,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 7,
+    "observedRatePerMinute": 5,
     "observedMeetsRequiredRate": true,
     "estimatedHoursAtObservedRate": 0.0,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 107161,
-    "preflightRejectedTotal": 287081,
-    "preflightRecentRejectedTotal": 2278,
-    "preflightClusterRejectedTotal": 283332,
+    "semanticPreAuditRejectedTotal": 107758,
+    "preflightRejectedTotal": 288409,
+    "preflightRecentRejectedTotal": 2312,
+    "preflightClusterRejectedTotal": 284626,
     "lastPreflightRejectReasons": {
-      "global_intent_owner_collision": 116,
-      "global_keyword_cannibalization": 117,
-      "global_duplicate_slug": 42,
-      "global_duplicate_keyword": 42,
+      "global_intent_owner_collision": 119,
+      "global_duplicate_slug": 59,
+      "global_duplicate_keyword": 59,
+      "global_keyword_cannibalization": 121,
       "global_duplicate_intent": 1
     }
   },
   "englishControlled": {
     "target": 200,
-    "published": 70,
-    "remaining": 130,
-    "publishedToday": 12,
+    "published": 71,
+    "remaining": 129,
+    "publishedToday": 13,
     "dailyTarget": 24,
     "minIntervalMinutes": 60,
-    "nextEligibleAt": "2026-09-20T09:53:46.334Z"
+    "nextEligibleAt": "2026-09-20T10:54:46.213Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -173,6 +173,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-20T09:52:26.745Z"
+    "completedAt": "2026-09-20T09:59:19.843Z"
   }
 }
