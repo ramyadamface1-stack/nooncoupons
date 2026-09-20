@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: full-article-corpus-audit
@@ -19,6 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
       - name: Audit every R2 article
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
@@ -89,3 +93,23 @@ jobs:
             "$ORIGIN/api/article-count-health?fresh=1&audit=${GITHUB_RUN_ID}" -o /tmp/count.json
           jq -e --argjson scanned "$(jq -r '.scanned' /tmp/final.json)" '.ok==true and .complete==true and .source=="article-corpus-audit-v4" and .auditVersion==4 and .count==$scanned' /tmp/count.json >/dev/null
           echo "ARTICLE_COUNT_AUTHORITATIVE=$(jq -c '{count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}' /tmp/count.json)"
+
+          jq -s '.[0] + {authoritativeCount: (.[1] | {count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}), proofVersion:1}' /tmp/summary.json /tmp/count.json > /tmp/proof.json
+
+      - name: Persist authoritative corpus audit proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ops
+          cp /tmp/proof.json ops/latest-corpus-audit.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --ff-only origin main
+          git add ops/latest-corpus-audit.json
+          if git diff --cached --quiet; then
+            echo "CORPUS_AUDIT_PROOF_ALREADY_CURRENT=1"
+            exit 0
+          fi
+          git commit -m "Record authoritative corpus audit proof [skip ci]"
+          git push origin HEAD:main
+          echo "CORPUS_AUDIT_PROOF_RECORDED=1"
