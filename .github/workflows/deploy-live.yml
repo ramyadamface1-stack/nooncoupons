@@ -26,7 +26,7 @@ jobs:
       - name: Validate worker source
         run: |
           set -euo pipefail
-          for f in discovery-entry.js brand-runtime.js network-entry.js commerce-entry.js public-entry.js premium-entry.js auto-platform.js final-platform.js visual-platform.js platform.js seo-layer.js site.js router.js index.js commerce-pages-v2.js commerce-taxonomy.js svg-engine.js approved-coupons.js admin-page.js english-canary.js indexnow.js; do node --check "$f"; done
+          for f in discovery-entry.js brand-runtime.js network-entry.js commerce-entry.js public-entry.js premium-entry.js auto-platform.js final-platform.js visual-platform.js platform.js seo-layer.js site.js router.js index.js commerce-pages-v2.js commerce-taxonomy.js svg-engine.js approved-coupons.js admin-page.js english-canary.js indexnow.js article-quality-runtime.js article-corpus-audit.js; do node --check "$f"; done
           grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "32000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
@@ -71,6 +71,9 @@ jobs:
           grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
           grep -Fq '"INDEXNOW_KEY": "' wrangler.jsonc
           grep -Fq "urlPathAware:true" indexnow.js
+          grep -Fq "queuedInR2:true" indexnow.js
+          grep -Fq "backoff429Minutes:15" indexnow.js
+          grep -Fq "RUNTIME_ARTICLE_QUALITY_INFO" auto-platform.js
           grep -Fq "indexNowOnPublish:true" english-canary.js
           grep -Fq "richArticleSchema:true" english-canary.js
           grep -Fq "visibleEditorialByline:true" english-canary.js
@@ -102,8 +105,8 @@ jobs:
           grep -Fq 'intentOwnerVersion:1' quality-index.js
           grep -Fq 'semanticDistanceMin:6' quality-index.js
           grep -Fq 'cannibalizationSimilarityMax:0.78' quality-index.js
-          grep -Fq "maintenance/article-corpus-audit-v2.json" article-corpus-audit.js
-          grep -Fq "auditModel:'rendered-live-v2'" article-corpus-audit.js
+          grep -Fq "maintenance/article-corpus-audit-v3.json" article-corpus-audit.js
+          grep -Fq "auditModel:'rendered-live-v3'" article-corpus-audit.js
           grep -Fq 'preflightGate:true' quality-index.js
           grep -Fq 'preflightGlobalGate' bulk-generator.js
           grep -Fq 'twoStagePreflight:true' bulk-generator.js
