@@ -1,5 +1,6 @@
 import {applyCommerceTarget,decorateArticleCommerce,commerceRecordFields} from './commerce-generator-taxonomy.js';
 import {APPROVED_COUPON_CODES,isApprovedCoupon,normalizeApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
+import {publicationBlockedByArticleAudit} from './article-audit-lock.js';
 
 const CODES=APPROVED_COUPON_CODES;
 const COUNTRIES=['SA','SA','SA','AE'];
@@ -67,6 +68,8 @@ export function auditGenerated(a,t,cfg){
 export async function generateArticle(){throw new Error('legacy_external_generator_disabled_use_generateWithWorkersAI')}
 
 export async function publishGenerated(env,article,topic,audit,provider){
+  const auditLock=await publicationBlockedByArticleAudit(env);
+  if(auditLock)throw new Error('corpus_audit_in_progress');
   const approvedCode=normalizeApprovedCoupon(topic.code),targeted={...applyCommerceTarget({...topic,code:approvedCode},topic.topicIndex),code:approvedCode},decorated=decorateArticleCommerce(article,targeted),st=await readState(env);
   decorated.html=replaceUnapprovedCouponTokens(decorated.html||'',approvedCode);
   const finalCodes=[...new Set((String(decorated.html||'').match(/\b(?:OPS|NOV)\d+\b/gi)||[]).map(x=>x.toUpperCase()))];
