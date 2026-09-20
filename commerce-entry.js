@@ -137,6 +137,9 @@ export default{
   if(!adminRes.ok)return adminRes;
   const admin=await adminRes.json(),stats=await contentStats(req,env,ctx);
   return new Response(JSON.stringify({ok:true,admin,health:stats.health||{},contentStats:stats},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+}if(req.method==='GET'&&path==='/api/article-count-health'){
+  const fresh=new URL(req.url).searchParams.get('fresh')==='1',count=await countR2ArticleHtml(env,{fresh});
+  return new Response(JSON.stringify({ok:true,...count,snapshotKey:R2_COUNT_SNAPSHOT_KEY,auditStateKey:CORPUS_AUDIT_STATE_KEY,ttlSeconds:R2_COUNT_TTL_MS/1000},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 }if(req.method==='GET'&&path==='/api/content-stats')return new Response(JSON.stringify(await contentStats(req,env,ctx),null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});if(req.method==='GET'&&path==='/api/commerce-health')return new Response(JSON.stringify(await health(env),null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});if(req.method==='GET'){let landing=await commerceLanding(path,origin,env);if(landing){landing=await enhanceLandingPage(path,origin,landing,env);landing=await enhanceSpecialtyLanding(path,origin,landing);return hardened(landing)}}let res=await app.fetch(req,env,ctx);if(req.method==='GET'&&path.startsWith('/articles/'))res=await appendArticleCommerce(req,env,res);res=await appendHomeCommerce(req,res);res=await augmentSitemapResponse(req,env,res);return hardened(res)},
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
