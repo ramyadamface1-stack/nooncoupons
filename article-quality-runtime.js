@@ -8,6 +8,33 @@ function sanitizeMalformedJsonLd(html){
   return {html:out,removed};
 }
 
+function cleanText(s){return String(s??'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()}
+function truncateWordBoundary(s,max=72){
+  const x=cleanText(s);if(x.length<=max)return x;
+  const cut=x.slice(0,max+1),i=cut.lastIndexOf(' ');
+  return (i>=Math.max(28,max-18)?cut.slice(0,i):x.slice(0,max)).trim();
+}
+export function normalizeRuntimeTitle(raw,{keyword='',market=''}={}){
+  let t=cleanText(raw||keyword);
+  if(t.length>=28&&t.length<=72)return t;
+  if(t.length<28)t=cleanText((t||keyword)+' | دليل نون '+market+' قبل الدفع');
+  if(t.length<28)t=cleanText(t+' واستخدام الكوبون');
+  return truncateWordBoundary(t,72);
+}
+export function normalizeRuntimeMeta(raw,{keyword='',market='',coupon='',plain=''}={}){
+  let m=cleanText(raw);
+  if(m.length>=105&&m.length<=165)return m;
+  const base=cleanText(keyword)+' في نون '+market+': تحقق من كود '+cleanText(coupon)+'، والبائع والشحن والإجمالي النهائي قبل الدفع، مع توضيح الأهلية بدون افتراض خصم ثابت.';
+  m=cleanText(base);
+  if(m.length<105)m=cleanText(m+' راجع شروط السلة الحالية ونتيجة نون النهائية قبل إتمام الطلب.');
+  if(m.length>165)m=truncateWordBoundary(m,165);
+  if(m.length<105){
+    const fallback=cleanText(plain);
+    if(fallback.length>=105)m=truncateWordBoundary(fallback,165);
+  }
+  return m;
+}
+
 function faqBlock({coupon,market}){
   const rows=[
     [`كيف أتحقق من كود ${coupon} على نون ${market}؟`,`ثبّت المنتج والبائع والكمية، أدخل ${coupon} في السلة، ثم راجع الإجمالي النهائي قبل الدفع.`],
@@ -128,4 +155,4 @@ export function ensureRuntimeArticleQuality(html,{slug='',coupon='',country='SA'
   return {html:out,changed:added.length>0,added};
 }
 
-export const RUNTIME_ARTICLE_QUALITY_INFO={version:3,mode:'fill-missing-only',guarantees:['malformed-jsonld-sanitizer','article-wrapper','direct-answer','two-atomic-answers','methodology','sources','faq-4','copy-code-cta','aria-live-copy-status','two-decision-lists','comparison-table','three-body-images-plus-hero','currency-localization','unsupported-promo-sanitizer','generic-ai-phrase-sanitizer'],destructive:false};
+export const RUNTIME_ARTICLE_QUALITY_INFO={version:4,mode:'fill-missing-only',guarantees:['title-normalization','meta-normalization','malformed-jsonld-sanitizer','article-wrapper','direct-answer','two-atomic-answers','methodology','sources','faq-4','copy-code-cta','aria-live-copy-status','two-decision-lists','comparison-table','three-body-images-plus-hero','currency-localization','unsupported-promo-sanitizer','generic-ai-phrase-sanitizer'],destructive:false};
