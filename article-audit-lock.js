@@ -1,5 +1,5 @@
 const KEY='maintenance/article-corpus-audit-lock-v1.json';
-const DEFAULT_TTL_MS=2*60*60*1000;
+const DEFAULT_TTL_MS=20*60*1000;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 async function retry(fn,attempts=4){
