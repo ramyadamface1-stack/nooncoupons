@@ -96,7 +96,40 @@ jobs:
           jq -e --argjson scanned "$(jq -r '.scanned' /tmp/final.json)" '.ok==true and .complete==true and .source=="article-corpus-audit-v4" and .auditVersion==4 and .count==$scanned' /tmp/count.json >/dev/null
           echo "ARTICLE_COUNT_AUTHORITATIVE=$(jq -c '{count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}' /tmp/count.json)"
 
-          jq -s '.[0] + {authoritativeCount: (.[1] | {count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}), proofVersion:1}' /tmp/summary.json /tmp/count.json > /tmp/proof.json
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
+            -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+            --data "{\"reset\":true,\"limit\":1000,\"runId\":\"${GITHUB_RUN_ID}\"}" \
+            "$ORIGIN/api/internal/article-collision-owner-step?reset=${GITHUB_RUN_ID}" -o /tmp/owner-start.json
+          jq -e '.ok==true and .reset==true and .runId=="'${GITHUB_RUN_ID}'"' /tmp/owner-start.json >/dev/null
+          echo "COLLISION_OWNER_RESET titleTargets=$(jq -r '.titleTargets // 0' /tmp/owner-start.json) semanticTargets=$(jq -r '.semanticTargets // 0' /tmp/owner-start.json)"
+
+          owner_complete=false
+          for i in $(seq 1 300); do
+            [ "$owner_complete" = "true" ] && break
+            curl -fsS --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 120 \
+              -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+              --data "{\"limit\":1000,\"runId\":\"${GITHUB_RUN_ID}\"}" \
+              "$ORIGIN/api/internal/article-collision-owner-step?run=${GITHUB_RUN_ID}-$i" -o /tmp/owner-step.json
+            jq -e '.ok==true' /tmp/owner-step.json >/dev/null
+            owner_done=$(jq -r '.done // false' /tmp/owner-step.json)
+            owner_scanned=$(jq -r '.scanned // 0' /tmp/owner-step.json)
+            owner_failures=$(jq -r '.readFailures // 0' /tmp/owner-step.json)
+            echo "COLLISION_OWNER_PROGRESS step=$i scanned=$owner_scanned readFailures=$owner_failures done=$owner_done"
+            if [ "$owner_done" = "true" ]; then owner_complete=true; break; fi
+            sleep 1
+          done
+
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
+            -H "$AUTH" "$ORIGIN/api/article-collision-owner-health?final=${GITHUB_RUN_ID}" -o /tmp/owner.json
+          jq -e '.ok==true and .done==true and .scanDone==true and .readFailures==0 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/owner.json >/dev/null
+          [ "$owner_complete" = "true" ] || { echo 'COLLISION_OWNER_ANALYSIS_NOT_COMPLETE'; exit 1; }
+          echo "COLLISION_OWNER_FINAL=$(jq -c '{version,runId,sourceAuditRunId,scanned,readFailures,titleTargets,semanticTargets,title,semantic,done,completedAt}' /tmp/owner.json)"
+
+          jq -s '.[0] + {
+            authoritativeCount: (.[1] | {count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}),
+            collisionOwnerAnalysis: (.[2] | {version,runId,sourceAuditRunId,sourceAuditVersion,scanned,readFailures,titleTargets,semanticTargets,title,semantic,scanDone,done,startedAt,completedAt,stateKey}),
+            proofVersion:2
+          }' /tmp/summary.json /tmp/count.json /tmp/owner.json > /tmp/proof.json
 
       - name: Persist authoritative corpus audit proof
         shell: bash
