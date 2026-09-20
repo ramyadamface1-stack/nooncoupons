@@ -124,7 +124,7 @@ export async function runArticleCorpusAuditBatch(env,{limit=250,reset=false,runI
 }
 
 
-const OWNER_STATE_KEY='maintenance/article-collision-owner-v1.json';
+const OWNER_STATE_KEY='maintenance/article-collision-owner-v2.json';
 function ownerCandidate(key,a,md={},uploaded=null){
   const scoreValues=Object.values(a?.scores||{}).map(Number).filter(Number.isFinite);
   const renderedQuality=scoreValues.length?scoreValues.reduce((x,y)=>x+y,0)/scoreValues.length:0;
@@ -133,6 +133,7 @@ function ownerCandidate(key,a,md={},uploaded=null){
   const floor=metadataFloor>0?metadataFloor:(scoreValues.length?Math.min(...scoreValues):0);
   const wc=Number(a?.wc||0),storedTitle=dec(md.t||md.title||''),storedMeta=dec(md.m||md.metaDescription||'');
   const updatedAt=String(md.ua||md.updatedAt||md.at||md.createdAt||uploaded||'');
+  const ownerIntentKey=dec(md.io||md.ownerIntentKey||'').trim();
   let score=0;
   if(!md.status||md.status==='published')score+=10;
   if(quality>=95)score+=30;else score+=Math.max(0,quality)/5;
@@ -140,7 +141,7 @@ function ownerCandidate(key,a,md={},uploaded=null){
   if(wc>=1500&&wc<=2000)score+=25;else if(wc>=1000)score+=10;
   if(storedTitle.length>=28&&storedTitle.length<=72)score+=5;
   if(storedMeta.length>=105&&storedMeta.length<=165)score+=5;
-  return {key,score:Math.round(score*10)/10,quality:Math.round(quality*10)/10,qualityFloor:Math.round(floor*10)/10,wordCount:wc,updatedAt:updatedAt||null,status:md.status||null};
+  return {key,score:Math.round(score*10)/10,quality:Math.round(quality*10)/10,qualityFloor:Math.round(floor*10)/10,wordCount:wc,updatedAt:updatedAt||null,status:md.status||null,ownerIntentKey:ownerIntentKey||null};
 }
 function candidateCmp(a,b){
   if(Number(b.score)!==Number(a.score))return Number(b.score)-Number(a.score);
@@ -152,7 +153,13 @@ function candidateCmp(a,b){
 }
 function addOwnerCandidate(groups,hash,candidate){
   if(!hash)return;
-  const g=groups[hash]||{count:0,owner:null,runnerUp:null,margin:null,clearOwner:false};
+  const g=groups[hash]||{count:0,owner:null,runnerUp:null,margin:null,clearOwner:false,ownerIntentKey:null,ownerMetadataComplete:true,intentOwnerConsistent:true,sameIntentOwner:false,actionableOwner:false};
+  const candidateOwner=String(candidate?.ownerIntentKey||'').trim();
+  if(!candidateOwner)g.ownerMetadataComplete=false;
+  if(candidateOwner){
+    if(!g.ownerIntentKey)g.ownerIntentKey=candidateOwner;
+    else if(g.ownerIntentKey!==candidateOwner)g.intentOwnerConsistent=false;
+  }
   g.count++;
   const byKey=new Map();
   for(const x of [g.owner,g.runnerUp,candidate].filter(Boolean))byKey.set(x.key,x);
@@ -160,14 +167,28 @@ function addOwnerCandidate(groups,hash,candidate){
   g.owner=ranked[0]||null;g.runnerUp=ranked[1]||null;
   g.margin=g.owner&&g.runnerUp?Math.round((Number(g.owner.score)-Number(g.runnerUp.score))*10)/10:null;
   g.clearOwner=Boolean(g.count>=2&&g.owner&&(g.runnerUp==null||Number(g.margin)>=5));
+  g.sameIntentOwner=Boolean(g.ownerMetadataComplete&&g.intentOwnerConsistent&&g.ownerIntentKey);
+  g.actionableOwner=Boolean(g.clearOwner&&g.sameIntentOwner);
   groups[hash]=g;
 }
 function ownerPublicState(s){
   const summarize=groups=>{
     const rows=Object.entries(groups||{}).filter(([,g])=>Number(g?.count||0)>=2);
     const clear=rows.filter(([,g])=>g.clearOwner);
+    const actionable=rows.filter(([,g])=>g.actionableOwner);
+    const missing=rows.filter(([,g])=>g.ownerMetadataComplete===false);
+    const crossIntent=rows.filter(([,g])=>g.intentOwnerConsistent===false);
     const ambiguous=rows.length-clear.length;
-    return {groupsResolved:rows.length,clearOwners:clear.length,ambiguousOwners:ambiguous,samples:rows.slice(0,5).map(([hash,g])=>({hash,count:g.count,owner:g.owner,runnerUp:g.runnerUp||null,margin:g.margin,clearOwner:g.clearOwner}))};
+    return {
+      groupsResolved:rows.length,
+      clearOwners:clear.length,
+      actionableOwners:actionable.length,
+      blockedByIntentOwnership:Math.max(0,clear.length-actionable.length),
+      missingOwnerMetadata:missing.length,
+      crossIntentOwners:crossIntent.length,
+      ambiguousOwners:ambiguous,
+      samples:rows.slice(0,5).map(([hash,g])=>({hash,count:g.count,owner:g.owner,runnerUp:g.runnerUp||null,margin:g.margin,clearOwner:g.clearOwner,ownerIntentKey:g.ownerIntentKey||null,ownerMetadataComplete:Boolean(g.ownerMetadataComplete),intentOwnerConsistent:Boolean(g.intentOwnerConsistent),sameIntentOwner:Boolean(g.sameIntentOwner),actionableOwner:Boolean(g.actionableOwner)}))
+    };
   };
   return {version:s.version,runId:s.runId,sourceAuditRunId:s.sourceAuditRunId,sourceAuditVersion:s.sourceAuditVersion,scanned:s.scanned,readFailures:s.readFailures,listCalls:s.listCalls,listedObjects:s.listedObjects,scanDone:s.scanDone,done:s.done,startedAt:s.startedAt,completedAt:s.completedAt,titleTargets:Number((s.titleTargets||[]).length),semanticTargets:Number((s.semanticTargets||[]).length),title:summarize(s.titleGroups),semantic:summarize(s.semanticGroups),stateKey:OWNER_STATE_KEY};
 }
@@ -175,7 +196,7 @@ async function saveOwnerState(env,s){await retry(()=>env.CONTENT_FINAL.put(OWNER
 export async function readArticleCollisionOwnerState(env){
   if(!env?.CONTENT_FINAL)return {ok:false,reason:'r2_binding_missing'};
   const o=await retry(()=>env.CONTENT_FINAL.get(OWNER_STATE_KEY));
-  if(!o)return {ok:true,...ownerPublicState({version:1,runId:null,sourceAuditRunId:null,sourceAuditVersion:4,scanned:0,readFailures:0,listCalls:0,listedObjects:0,scanDone:false,done:false,titleTargets:[],semanticTargets:[],titleGroups:{},semanticGroups:{}})};
+  if(!o)return {ok:true,...ownerPublicState({version:2,runId:null,sourceAuditRunId:null,sourceAuditVersion:4,scanned:0,readFailures:0,listCalls:0,listedObjects:0,scanDone:false,done:false,titleTargets:[],semanticTargets:[],titleGroups:{},semanticGroups:{}})};
   try{return {ok:true,...ownerPublicState(JSON.parse(await o.text()))}}catch{return {ok:false,reason:'invalid_owner_state'}}
 }
 export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,runId=''}={}){
@@ -187,7 +208,7 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
     if(!audit?.done||!audit?.scanDone||Number(audit.readFailures||0)!==0)return {ok:false,reason:'corpus_audit_not_authoritative'};
     const titleTargets=Object.entries(audit.titleFreq||{}).filter(([,n])=>Number(n)>1).map(([h])=>h);
     const semanticTargets=Object.entries(audit.semanticFreq||{}).filter(([,n])=>Number(n)>1).map(([h])=>h);
-    const state={version:1,runId:owner,sourceAuditRunId:audit.runId||null,sourceAuditVersion:audit.version||4,cursor:null,scanned:0,readFailures:0,listCalls:0,listedObjects:0,titleTargets,semanticTargets,titleGroups:{},semanticGroups:{},scanDone:false,done:false,startedAt:new Date().toISOString()};
+    const state={version:2,runId:owner,sourceAuditRunId:audit.runId||null,sourceAuditVersion:audit.version||4,cursor:null,scanned:0,readFailures:0,listCalls:0,listedObjects:0,titleTargets,semanticTargets,titleGroups:{},semanticGroups:{},scanDone:false,done:false,startedAt:new Date().toISOString()};
     await acquireArticleAuditLock(env,'collision-'+owner);await saveOwnerState(env,state);
     return {ok:true,reset:true,auditLock:true,...ownerPublicState(state)};
   }
