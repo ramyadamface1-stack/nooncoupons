@@ -137,6 +137,9 @@ jobs:
           grep -Fq "const VERSION=2" quality-index.js
           grep -Fq 'gateRevision:3' quality-index.js
           grep -Fq "runArticleCollisionOwnerBatch" article-corpus-audit.js
+          grep -Fq "maintenance/article-collision-owner-v2.json" article-corpus-audit.js
+          grep -Fq "actionableOwners" article-corpus-audit.js
+          grep -Fq "ownerIntentKey:ownerIntentKey||null" article-corpus-audit.js
           grep -Fq "/api/internal/article-collision-owner-step" discovery-entry.js
           grep -Fq "collisionOwnerAnalysis" .github/workflows/full-article-corpus-audit.yml
           grep -Fq 'preflightGlobalGate' bulk-generator.js
