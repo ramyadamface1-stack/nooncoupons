@@ -23,6 +23,7 @@ function sitemapEligible(a){
   const quality=Number(a.quality),floor=Number(a.qualityFloor);
   if(!Number.isFinite(quality)||quality<95)return false;
   if(a.qualityFloor!=null&&(!Number.isFinite(floor)||floor<88))return false;
+  if(a.wordCount!=null&&Number(a.wordCount)<1500)return false;
   if(Array.isArray(a.p0)&&a.p0.length)return false;
   if(a.indexation&&a.indexation.indexable===false)return false;
   return true;
