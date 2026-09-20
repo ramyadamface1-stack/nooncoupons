@@ -76,7 +76,11 @@ jobs:
           grep -Fq "adaptive429Batch:true" indexnow.js
           grep -Fq "honorsRetryAfter:true" indexnow.js
           grep -Fq "filter(sitemapEligible)" auto-platform.js
+          grep -Fq "Number(a.wordCount)<1500" auto-platform.js
           grep -Fq "filter(discoveryEligible)" discovery-entry.js
+          grep -Fq "minWords=a.languageSource==='native-intent-v6-canary'?900:1500" discovery-entry.js
+          grep -Fq "minWords=a?.languageSource==='native-intent-v6-canary'?900:1500" final-platform.js
+          grep -Fq "Number(a.wordCount)>=1500" network-entry.js
           grep -Fq "ownerIntentKey:gg.ownerIntentKey" bulk-generator.js
           grep -Fq "intentOwnerKey(a)!==owner" network-entry.js
           grep -Fq "publicationBlockedByArticleAudit" bulk-generator.js
