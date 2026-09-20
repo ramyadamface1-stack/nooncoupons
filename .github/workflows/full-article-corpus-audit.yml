@@ -1,9 +1,6 @@
 name: Full Article Corpus Audit
 
 on:
-  push:
-    branches: [main]
-    paths: [".github/workflows/full-article-corpus-audit.yml"]
   workflow_run:
     workflows: ["Deploy Live Worker"]
     types: [completed]
@@ -12,9 +9,13 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: full-article-corpus-audit
+  cancel-in-progress: true
+
 jobs:
   audit:
-    if: ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -34,20 +35,19 @@ jobs:
           [ "$code" = "200" ] && [ "$(jq -r '.success // false' /tmp/cf-check.json)" = "true" ] || { cat /tmp/cf-check.json; exit 10; }
 
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
-            -H "$AUTH" "$ORIGIN/api/article-corpus-audit-health?resume=${GITHUB_RUN_ID}" -o /tmp/start.json
-          jq -e '.ok==true' /tmp/start.json >/dev/null
-          start_scanned=$(jq -r '.scanned // 0' /tmp/start.json)
-          start_done=$(jq -r '.done // false' /tmp/start.json)
-          echo "ARTICLE_AUDIT_RESUME scanned=$start_scanned done=$start_done"
+            -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+            --data '{"reset":true,"limit":1000}' \
+            "$ORIGIN/api/internal/article-corpus-audit-step?reset=${GITHUB_RUN_ID}" -o /tmp/start.json
+          jq -e '.ok==true and .reset==true and .version==2' /tmp/start.json >/dev/null
+          echo "ARTICLE_AUDIT_RESET scanned=$(jq -r '.scanned // 0' /tmp/start.json) version=$(jq -r '.version' /tmp/start.json)"
 
           complete=false
-          [ "$start_done" = "true" ] && complete=true
           transient=0
-          for i in $(seq 1 1200); do
+          for i in $(seq 1 300); do
             [ "$complete" = "true" ] && break
             if ! curl -fsS --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 120 \
               -X POST -H "$AUTH" -H 'Content-Type: application/json' \
-              --data '{"limit":500}' \
+              --data '{"limit":1000}' \
               "$ORIGIN/api/internal/article-corpus-audit-step?run=${GITHUB_RUN_ID}-$i" -o /tmp/step.json; then
               transient=$((transient+1))
               echo "ARTICLE_AUDIT_TRANSIENT step=$i count=$transient"
@@ -71,9 +71,9 @@ jobs:
 
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -H "$AUTH" "$ORIGIN/api/article-corpus-audit-health?final=${GITHUB_RUN_ID}" -o /tmp/final.json
-          jq -e '.ok==true' /tmp/final.json >/dev/null
+          jq -e '.ok==true and .version==2' /tmp/final.json >/dev/null
           jq -c '{
-            scanned,readFailures,bytes,languages,wordBands,
+            version,auditModel,runtimeGuarantees,scanned,readFailures,bytes,languages,wordBands,
             duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,
             scoreAverage:(. as $x | reduce (.scoreSums|keys[]) as $k ({}; .[$k]=((($x.scoreSums[$k] / ($x.scanned|if .==0 then 1 else . end))*10|round)/10))),
             scoreHist,issues,samples,scanDone,done,startedAt,completedAt
