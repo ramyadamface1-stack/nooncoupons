@@ -5,7 +5,8 @@ async function retry(fn,attempts=6){let last;for(let i=0;i<attempts;i++){try{ret
 const strip=s=>String(s||'').replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
 const words=s=>strip(s).split(/\s+/).filter(Boolean);
 const count=(s,re)=>(String(s||'').match(re)||[]).length;
-const norm=s=>String(s||'').toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[إأآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').replace(/\s+/g,' ').trim();\nconst dec=s=>{try{return decodeURIComponent(String(s||''))}catch{return String(s||'')}};
+const norm=s=>String(s||'').toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[إأآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').replace(/\s+/g,' ').trim();
+const dec=s=>{try{return decodeURIComponent(String(s||''))}catch{return String(s||'')}};
 function fnv32(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193)}return (h>>>0).toString(16).padStart(8,'0')}
 function simhash(text){const t=norm(text).split(' ').filter(x=>x.length>1);if(t.length<4)return fnv32(t.join(' '));const v=new Int32Array(32);for(let i=0;i<=t.length-4;i++){const h=parseInt(fnv32(t.slice(i,i+4).join(' ')),16)>>>0;for(let b=0;b<32;b++)v[b]+=((h>>>b)&1)?1:-1}let out=0;for(let b=0;b<32;b++)if(v[b]>=0)out=(out|(1<<b))>>>0;return (out>>>0).toString(16).padStart(8,'0')}
 function meta(html,name){const re1=new RegExp('<meta\\b[^>]*name=["\\\']'+name+'["\\\'][^>]*content=["\\\']([^"\\\']*)','i');const re2=new RegExp('<meta\\b[^>]*content=["\\\']([^"\\\']*)["\\\'][^>]*name=["\\\']'+name+'["\\\']','i');return (html.match(re1)||html.match(re2)||[])[1]||''}
@@ -29,7 +30,8 @@ const COUPON=/\b(?:OPS\d+|NOV\d+)\b/gi;
 const APPROVED=new Set(['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161']);
 
 function auditOne(key,html,md={}){
-  const storedTitle=dec(md.title||md.t||''),storedMeta=dec(md.metaDescription||md.m||'');\n  const counters={},samples={},plain=strip(html),wc=words(plain).length,title=String(storedTitle||titleOf(html)||h1Of(html)||''),metaDesc=meta(html,'description')||storedMeta,canon=canonicalOf(html),h1=count(html,/<h1\b/gi),h2=count(html,/<h2\b/gi),h3=count(html,/<h3\b/gi),ps=paragraphStats(html);
+  const storedTitle=dec(md.title||md.t||''),storedMeta=dec(md.metaDescription||md.m||'');
+  const counters={},samples={},plain=strip(html),wc=words(plain).length,title=String(storedTitle||titleOf(html)||h1Of(html)||''),metaDesc=meta(html,'description')||storedMeta,canon=canonicalOf(html),h1=count(html,/<h1\b/gi),h2=count(html,/<h2\b/gi),h3=count(html,/<h3\b/gi),ps=paragraphStats(html);
   const imgs=[...String(html).matchAll(/<img\b[^>]*>/gi)].map(x=>x[0]),internal=count(html,/href=["']\//gi),lists=count(html,/<(?:ul|ol)\b/gi),tables=count(html,/<table\b/gi),liveImageCount=imgs.length+1,liveFigcaptions=count(html,/<figcaption\b/gi)+1;
   const ar=count(plain,/[\u0600-\u06FF]/g),latin=count(plain,/[A-Za-z]/g),arRatio=ar/Math.max(1,ar+latin);
   const jl=jsonLdTypes(html),codes=[...new Set((plain.match(COUPON)||[]).map(x=>x.toUpperCase()))];
