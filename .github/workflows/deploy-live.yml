@@ -73,6 +73,12 @@ jobs:
           grep -Fq "urlPathAware:true" indexnow.js
           grep -Fq "queuedInR2:true" indexnow.js
           grep -Fq "backoff429Minutes:15" indexnow.js
+          grep -Fq "adaptive429Batch:true" indexnow.js
+          grep -Fq "honorsRetryAfter:true" indexnow.js
+          grep -Fq "filter(sitemapEligible)" auto-platform.js
+          grep -Fq "filter(discoveryEligible)" discovery-entry.js
+          grep -Fq "ownerIntentKey:gg.ownerIntentKey" bulk-generator.js
+          grep -Fq "intentOwnerKey(a)!==owner" network-entry.js
           grep -Fq "RUNTIME_ARTICLE_QUALITY_INFO" auto-platform.js
           grep -Fq "RUNTIME_ARTICLE_QUALITY_INFO={version:2" article-quality-runtime.js
           grep -Fq "COUNT_SNAPSHOT_KEY='_ops/article-count.json'" article-corpus-audit.js
