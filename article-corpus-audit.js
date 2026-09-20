@@ -1,4 +1,5 @@
-const STATE_KEY='maintenance/article-corpus-audit-v2.json';
+import {ensureRuntimeArticleQuality,RUNTIME_ARTICLE_QUALITY_INFO} from './article-quality-runtime.js';
+const STATE_KEY='maintenance/article-corpus-audit-v3.json';
 
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function retry(fn,attempts=6){let last;for(let i=0;i<attempts;i++){try{return await fn()}catch(e){last=e;if(i+1<attempts)await sleep(Math.min(2500,200*(2**i)))}}throw last}
@@ -30,7 +31,9 @@ const COUPON=/\b(?:OPS\d+|NOV\d+)\b/gi;
 const APPROVED=new Set(['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161']);
 
 function auditOne(key,html,md={}){
-  const storedTitle=dec(md.title||md.t||''),storedMeta=dec(md.metaDescription||md.m||'');
+  const storedTitle=dec(md.title||md.t||''),storedMeta=dec(md.metaDescription||md.m||''),slug=String(key||'').replace(/^articles\//,'').replace(/\.html$/,'');
+  const inferredCountry=(md.country||md.c||(/الإمارات|الامارات|\bUAE\b/i.test(String(html))?'AE':'SA'))==='AE'?'AE':'SA',coupon=String(md.coupon||md.cp||(inferredCountry==='AE'?'NOV188':'NOV170')),keyword=dec(md.kw||md.primaryKeyword||storedTitle||'');
+  const repaired=ensureRuntimeArticleQuality(html,{slug,coupon,country:inferredCountry,keyword,title:storedTitle});html=repaired.html;
   const counters={},samples={},plain=strip(html),wc=words(plain).length,title=String(storedTitle||titleOf(html)||h1Of(html)||''),metaDesc=meta(html,'description')||storedMeta,canon=canonicalOf(html),h1=count(html,/<h1\b/gi),h2=count(html,/<h2\b/gi),h3=count(html,/<h3\b/gi),ps=paragraphStats(html);
   const imgs=[...String(html).matchAll(/<img\b[^>]*>/gi)].map(x=>x[0]),internal=count(html,/href=["']\//gi),lists=count(html,/<(?:ul|ol)\b/gi),tables=count(html,/<table\b/gi),liveImageCount=imgs.length+1,liveFigcaptions=count(html,/<figcaption\b/gi)+1;
   const ar=count(plain,/[\u0600-\u06FF]/g),latin=count(plain,/[A-Za-z]/g),arRatio=ar/Math.max(1,ar+latin);
@@ -55,7 +58,7 @@ function auditOne(key,html,md={}){
   return {counters,samples,wc,lang:arRatio>=.85?'ar':arRatio<=.15?'en':'mixed',scores,titleHash:title?fnv32(norm(title))+':'+title.length:null,contentHash:plain?fnv32(norm(plain))+':'+plain.length:null,semanticSig:plain?simhash(plain):null,size:String(html).length};
 }
 function bucket(score){return score>=95?'95_100':score>=85?'85_94':score>=70?'70_84':score>=50?'50_69':'lt50'}
-function emptyState(){return {version:2,auditModel:'rendered-live-v2',runtimeGuarantees:['meta-description','canonical','Article-schema','WebPage-schema','BreadcrumbList-schema','editorial-byline','official-source-links','freshness-date','market-navigation','hero-image','site-internal-links'],cursor:null,scanned:0,readFailures:0,bytes:0,languages:{ar:0,en:0,mixed:0},wordBands:{lt800:0,w800_999:0,w1000_1499:0,w1500_2000:0,gt2000:0},issues:{},samples:{},scoreSums:{},scoreHist:{},titleFreq:{},contentFreq:{},semanticFreq:{},duplicateTitles:{articles:0,groups:0},exactDuplicateContent:{articles:0,groups:0},semanticSignatureCollisions:{articles:0,groups:0},scanDone:false,done:false,startedAt:new Date().toISOString()}}
+function emptyState(){return {version:3,auditModel:'rendered-live-v3',runtimeArticleQualityVersion:RUNTIME_ARTICLE_QUALITY_INFO.version,runtimeGuarantees:['meta-description','canonical','Article-schema','WebPage-schema','BreadcrumbList-schema','editorial-byline','official-source-links','freshness-date','market-navigation','hero-image','site-internal-links',...RUNTIME_ARTICLE_QUALITY_INFO.guarantees],cursor:null,scanned:0,readFailures:0,bytes:0,languages:{ar:0,en:0,mixed:0},wordBands:{lt800:0,w800_999:0,w1000_1499:0,w1500_2000:0,gt2000:0},issues:{},samples:{},scoreSums:{},scoreHist:{},titleFreq:{},contentFreq:{},semanticFreq:{},duplicateTitles:{articles:0,groups:0},exactDuplicateContent:{articles:0,groups:0},semanticSignatureCollisions:{articles:0,groups:0},scanDone:false,done:false,startedAt:new Date().toISOString()}}
 function mergeIssue(state,row){for(const [k,v] of Object.entries(row.counters))add(state.issues,k,v);for(const [k,arr] of Object.entries(row.samples))for(const key of arr)sample(state.samples,k,key)}
 function updateFreq(freq,summary,hash){if(!hash)return;const n=Number(freq[hash]||0);freq[hash]=n+1;if(n===1){summary.groups++;summary.articles+=2}else if(n>1)summary.articles++}
 function publicState(s){const {titleFreq,contentFreq,semanticFreq,...rest}=s;return {...rest,uniqueTitleHashes:Object.keys(titleFreq||{}).length,uniqueContentHashes:Object.keys(contentFreq||{}).length,uniqueSemanticSignatures:Object.keys(semanticFreq||{}).length}}
