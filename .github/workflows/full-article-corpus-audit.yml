@@ -44,6 +44,8 @@ jobs:
             "$ORIGIN/api/internal/article-corpus-audit-step?reset=${GITHUB_RUN_ID}" -o /tmp/start.json
           jq -e '.ok==true and .reset==true and .version==4 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/start.json >/dev/null
           echo "ARTICLE_AUDIT_RESET scanned=$(jq -r '.scanned // 0' /tmp/start.json) version=$(jq -r '.version' /tmp/start.json)"
+          echo "ARTICLE_AUDIT_WRITER_DRAIN=2s"
+          sleep 2
 
           complete=false
           transient=0
