@@ -152,14 +152,14 @@ function candidateCmp(a,b){
 }
 function addOwnerCandidate(groups,hash,candidate){
   if(!hash)return;
-  const g=groups[hash]||{count:0,owner:null,runners:[],margin:null,clearOwner:false};
+  const g=groups[hash]||{count:0,owner:null,runnerUp:null,margin:null,clearOwner:false};
   g.count++;
   const byKey=new Map();
-  for(const x of [g.owner,...(g.runners||[]),candidate].filter(Boolean))byKey.set(x.key,x);
+  for(const x of [g.owner,g.runnerUp,candidate].filter(Boolean))byKey.set(x.key,x);
   const ranked=[...byKey.values()].sort(candidateCmp);
-  g.owner=ranked[0]||null;g.runners=ranked.slice(1,5);
-  g.margin=g.owner&&g.runners[0]?Math.round((Number(g.owner.score)-Number(g.runners[0].score))*10)/10:null;
-  g.clearOwner=Boolean(g.count>=2&&g.owner&&(g.runners.length===0||Number(g.margin)>=5));
+  g.owner=ranked[0]||null;g.runnerUp=ranked[1]||null;
+  g.margin=g.owner&&g.runnerUp?Math.round((Number(g.owner.score)-Number(g.runnerUp.score))*10)/10:null;
+  g.clearOwner=Boolean(g.count>=2&&g.owner&&(g.runnerUp==null||Number(g.margin)>=5));
   groups[hash]=g;
 }
 function ownerPublicState(s){
@@ -167,7 +167,7 @@ function ownerPublicState(s){
     const rows=Object.entries(groups||{}).filter(([,g])=>Number(g?.count||0)>=2);
     const clear=rows.filter(([,g])=>g.clearOwner);
     const ambiguous=rows.length-clear.length;
-    return {groupsResolved:rows.length,clearOwners:clear.length,ambiguousOwners:ambiguous,samples:rows.slice(0,5).map(([hash,g])=>({hash,count:g.count,owner:g.owner,runnerUp:g.runners?.[0]||null,margin:g.margin,clearOwner:g.clearOwner}))};
+    return {groupsResolved:rows.length,clearOwners:clear.length,ambiguousOwners:ambiguous,samples:rows.slice(0,5).map(([hash,g])=>({hash,count:g.count,owner:g.owner,runnerUp:g.runnerUp||null,margin:g.margin,clearOwner:g.clearOwner}))};
   };
   return {version:s.version,runId:s.runId,sourceAuditRunId:s.sourceAuditRunId,sourceAuditVersion:s.sourceAuditVersion,scanned:s.scanned,readFailures:s.readFailures,listCalls:s.listCalls,listedObjects:s.listedObjects,scanDone:s.scanDone,done:s.done,startedAt:s.startedAt,completedAt:s.completedAt,titleTargets:Number((s.titleTargets||[]).length),semanticTargets:Number((s.semanticTargets||[]).length),title:summarize(s.titleGroups),semantic:summarize(s.semanticGroups),stateKey:OWNER_STATE_KEY};
 }
