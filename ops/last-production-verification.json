@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "23862781e5e92f04f628c63868b1e7890f447b1e",
-  "verifiedAt": "2026-09-20T08:10:28.760824+00:00",
+  "sourceSha": "192c8e0c897de063aa0af86a8d0970a0364c423b",
+  "verifiedAt": "2026-09-20T09:50:45.229135+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -101,17 +101,17 @@
     "persistedGeneratorConfigFloor1500Verified": true
   },
   "content": {
-    "r2HtmlObjects": 55062,
-    "trackedPublished": 55200,
-    "arabic": 55131,
-    "english": 69,
-    "lastSlug": "هل-كود-نون-يعمل-على-sony-bravia-للطلب-الأول-في-الإمارات-الدقة",
+    "r2HtmlObjects": 122298,
+    "trackedPublished": 55902,
+    "arabic": 55832,
+    "english": 70,
+    "lastSlug": "هل-يعمل-الكود-nintendo-switch-نون-السعودية-فحص-قياسات-المنتج-الذاكرة",
     "lastQuality": 100,
-    "lastWordCount": 1786
+    "lastWordCount": 1724
   },
   "catchup30k": {
     "target": 30000,
-    "current": 55131,
+    "current": 55832,
     "remaining": 0,
     "requiredPerMinute": 0,
     "effectiveBatchSize": 16,
@@ -120,47 +120,47 @@
     "adaptiveReason": "catchup_complete",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 11,
+    "lastBatchPublished": 9,
     "lastBatchTries": 288,
-    "lastBatchDurationMs": 20835,
-    "lastBatchYieldPct": 3.82,
+    "lastBatchDurationMs": 18690,
+    "lastBatchYieldPct": 3.13,
     "lastBatchStageMs": {
-      "candidateLoop": 17898,
-      "articleWrites": 820,
-      "clusterFlush": 841,
-      "freshness": 990,
-      "catalogs": 2031,
-      "indexNow": 1061,
-      "postParallel": 2031
+      "candidateLoop": 15808,
+      "articleWrites": 732,
+      "clusterFlush": 856,
+      "freshness": 751,
+      "catalogs": 2017,
+      "indexNow": 1182,
+      "postParallel": 2017
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": false,
-    "executionRatePerMinute": 31.68,
+    "executionRatePerMinute": 28.89,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 11,
+    "observedRatePerMinute": 9,
     "observedMeetsRequiredRate": true,
     "estimatedHoursAtObservedRate": 0.0,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 97573,
-    "preflightRejectedTotal": 268637,
-    "preflightRecentRejectedTotal": 1721,
-    "preflightClusterRejectedTotal": 265445,
+    "semanticPreAuditRejectedTotal": 106899,
+    "preflightRejectedTotal": 286512,
+    "preflightRecentRejectedTotal": 2270,
+    "preflightClusterRejectedTotal": 282771,
     "lastPreflightRejectReasons": {
-      "global_duplicate_slug": 31,
-      "global_duplicate_keyword": 31,
-      "global_keyword_cannibalization": 92,
-      "global_intent_owner_collision": 103
+      "global_intent_owner_collision": 129,
+      "global_duplicate_slug": 50,
+      "global_duplicate_keyword": 50,
+      "global_keyword_cannibalization": 119
     }
   },
   "englishControlled": {
     "target": 200,
-    "published": 69,
-    "remaining": 131,
-    "publishedToday": 11,
+    "published": 70,
+    "remaining": 130,
+    "publishedToday": 12,
     "dailyTarget": 24,
     "minIntervalMinutes": 60,
-    "nextEligibleAt": "2026-09-20T08:53:46.173Z"
+    "nextEligibleAt": "2026-09-20T09:53:46.334Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -172,6 +172,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-20T08:09:39.787Z"
+    "completedAt": "2026-09-20T09:49:52.039Z"
   }
 }
