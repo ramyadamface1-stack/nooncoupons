@@ -159,7 +159,13 @@ function relatedScore(topic,entry){
 }
 
 export function pickRelated(cluster,topic,limit=MAX_RELATED){
-  return (cluster?.entries||[]).filter(e=>e?.slug&&e.primaryKeyword).map(e=>({...e,_score:relatedScore(topic,e)})).filter(e=>e._score>=5).sort((a,b)=>b._score-a._score||String(b.createdAt||'').localeCompare(String(a.createdAt||''))).slice(0,Math.max(0,limit));
+  const owner=intentOwnerKey(topic);
+  return (cluster?.entries||[])
+    .filter(e=>e?.slug&&e.primaryKeyword&&e.country===topic?.country&&(e.ownerIntentKey||intentOwnerKey(e))!==owner)
+    .map(e=>({...e,_score:relatedScore(topic,e)}))
+    .filter(e=>e._score>=5)
+    .sort((a,b)=>b._score-a._score||String(b.createdAt||'').localeCompare(String(a.createdAt||'')))
+    .slice(0,Math.max(0,limit));
 }
 
 export function injectContextualLinks(article,links=[]){
