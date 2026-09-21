@@ -32,6 +32,7 @@ jobs:
           grep -Fq "contentTarget)return false" article-corpus-audit.js
           grep -Fq "PROMO_CLAIM_MODEL='block-aware-v1'" article-corpus-audit.js
           grep -Fq "hasUnsupportedPromoClaim" article-corpus-audit.js
+          node -e "import('./article-corpus-audit.js').then(m=>{const x=m.promoClaimAuditSelftest();console.log('PROMO_AUDIT_SELFTEST_PASS='+x.pass,JSON.stringify(x));if(!x.pass)process.exit(1)})"
           grep -Fq "const t=Date.parse(a.createdAt||'')" auto-platform.js
           grep -Fq "published-ar-rendered95-unique-or-resolved-owner-v2" article-corpus-audit.js
           grep -Fq "DISCOVERY_CURRENT_KEY" article-corpus-audit.js
