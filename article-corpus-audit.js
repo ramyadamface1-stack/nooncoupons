@@ -126,7 +126,7 @@ export async function runArticleCorpusAuditBatch(env,{limit=250,reset=false,runI
 }
 
 
-const OWNER_STATE_KEY='maintenance/article-collision-owner-v3.json';
+const OWNER_STATE_KEY='maintenance/article-collision-owner-v4.json';
 const DISCOVERY_PREFIX='maintenance/article-discovery-v1/';
 const DISCOVERY_CURRENT_KEY=DISCOVERY_PREFIX+'current.json';
 const OWNER_CATALOG_PREFIX='maintenance/article-owner-catalog-v1/';
@@ -325,7 +325,7 @@ async function saveOwnerState(env,s){await retry(()=>env.CONTENT_FINAL.put(OWNER
 export async function readArticleCollisionOwnerState(env){
   if(!env?.CONTENT_FINAL)return {ok:false,reason:'r2_binding_missing'};
   const o=await retry(()=>env.CONTENT_FINAL.get(OWNER_STATE_KEY));
-  if(!o)return {ok:true,...ownerPublicState({version:3,runId:null,sourceAuditRunId:null,sourceAuditVersion:4,scanned:0,readFailures:0,listCalls:0,listedObjects:0,scanDone:false,done:false,titleTargets:[],semanticTargets:[],titleGroups:{},semanticGroups:{}})};
+  if(!o)return {ok:true,...ownerPublicState({version:4,runId:null,sourceAuditRunId:null,sourceAuditVersion:4,scanned:0,readFailures:0,listCalls:0,listedObjects:0,scanDone:false,done:false,titleTargets:[],semanticTargets:[],titleGroups:{},semanticGroups:{}})};
   try{return {ok:true,...ownerPublicState(JSON.parse(await o.text()))}}catch{return {ok:false,reason:'invalid_owner_state'}}
 }
 export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,runId=''}={}){
@@ -338,7 +338,7 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
     const titleTargets=Object.entries(audit.titleFreq||{}).filter(([,n])=>Number(n)>1).map(([h])=>h);
     const contentTargets=Object.entries(audit.contentFreq||{}).filter(([,n])=>Number(n)>1).map(([h])=>h);
     const semanticTargets=Object.entries(audit.semanticFreq||{}).filter(([,n])=>Number(n)>1).map(([h])=>h);
-    const state={version:3,runId:owner,sourceAuditRunId:audit.runId||null,sourceAuditVersion:audit.version||4,sourceAuditScanned:Number(audit.scanned||0),cursor:null,scanned:0,readFailures:0,listCalls:0,listedObjects:0,titleTargets,contentTargets,semanticTargets,titleGroups:{},semanticGroups:{},discoveryArticles:0,discoveryShards:0,scanDone:false,done:false,startedAt:new Date().toISOString()};
+    const state={version:4,runId:owner,sourceAuditRunId:audit.runId||null,sourceAuditVersion:audit.version||4,sourceAuditScanned:Number(audit.scanned||0),cursor:null,scanned:0,readFailures:0,listCalls:0,listedObjects:0,titleTargets,contentTargets,semanticTargets,titleGroups:{},semanticGroups:{},discoveryArticles:0,discoveryShards:0,scanDone:false,done:false,startedAt:new Date().toISOString()};
     await refreshArticleAuditLock(env,owner);await saveOwnerState(env,state);
     return {ok:true,reset:true,auditLock:true,...ownerPublicState(state)};
   }
