@@ -44,6 +44,16 @@ function hasUnsupportedPromoClaim(html){
   return segmented.split(/\n+/).some(part=>UNSUPPORTED.test(String(part||'').replace(/\s+/g,' ').trim()));
 }
 
+export function promoClaimAuditSelftest(){
+  const table='<table><tr><td>145 درهم</td><td>توفير متغير حسب أهلية السلة</td></tr></table>';
+  const direct='<p>145 درهم توفير مؤكد</p>';
+  const inline='<p>خصم <strong>20%</strong> على الطلب</p>';
+  const tableBoundaryFalsePositive=!hasUnsupportedPromoClaim(table);
+  const directAmountClaimDetected=hasUnsupportedPromoClaim(direct);
+  const inlinePercentDetected=hasUnsupportedPromoClaim(inline);
+  return {pass:tableBoundaryFalsePositive&&directAmountClaimDetected&&inlinePercentDetected,tableBoundaryFalsePositive,directAmountClaimDetected,inlinePercentDetected,model:PROMO_CLAIM_MODEL};
+}
+
 function auditOne(key,html,md={}){
   const storedHtml=String(html||''),corePlain=strip(storedHtml);
   const storedTitle=dec(md.title||md.t||''),storedMeta=dec(md.metaDescription||md.m||''),slug=String(key||'').replace(/^articles\//,'').replace(/\.html$/,'');
