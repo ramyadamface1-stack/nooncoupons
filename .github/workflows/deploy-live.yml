@@ -26,7 +26,7 @@ jobs:
       - name: Validate worker source
         run: |
           set -euo pipefail
-          for f in discovery-entry.js brand-runtime.js network-entry.js commerce-entry.js public-entry.js premium-entry.js auto-platform.js final-platform.js visual-platform.js platform.js seo-layer.js site.js router.js index.js commerce-pages-v2.js commerce-taxonomy.js svg-engine.js approved-coupons.js admin-page.js english-canary.js indexnow.js article-quality-runtime.js article-corpus-audit.js article-audit-lock.js; do node --check "$f"; done
+          for f in discovery-entry.js brand-runtime.js network-entry.js commerce-entry.js public-entry.js premium-entry.js auto-platform.js final-platform.js visual-platform.js platform.js seo-layer.js site.js router.js index.js commerce-pages-v2.js commerce-taxonomy.js svg-engine.js approved-coupons.js admin-page.js english-canary.js indexnow.js article-quality-runtime.js article-corpus-audit.js article-audit-lock.js coupon-r2-migration.js; do node --check "$f"; done
           grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "32000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
@@ -42,6 +42,9 @@ jobs:
           grep -Fq "capacityMeetsEightHourGoal" auto-platform.js
           grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
           node scripts/coupon-code-gate.mjs
+          grep -Fq "mode:'independent-full-r2-read-v1'" coupon-r2-migration.js
+          grep -Fq "source:'r2-direct-read'" coupon-r2-migration.js
+          if grep -Fq "full-repair-scan-proof" coupon-r2-migration.js; then echo 'R2_AUDIT_SHORTCUT_PRESENT=1'; exit 1; fi
           grep -Fq "const CODES=APPROVED_COUPON_CODES" router.js
           grep -Fq "const CODES=APPROVED_COUPON_CODES" site.js
           grep -Fq "const CODES=APPROVED_COUPON_CODES" seo-layer.js
@@ -385,9 +388,14 @@ jobs:
           audit_done=false
           transient_failures=0
           for i in $(seq 1 320); do
+            if [ "$i" = "1" ]; then
+              audit_payload="$(jq -cn --arg run "$GITHUB_SHA" '{limit:500,reset:true,runId:$run}')"
+            else
+              audit_payload="$(jq -cn --arg run "$GITHUB_SHA" '{limit:500,runId:$run}')"
+            fi
             if ! curl -fsS --connect-timeout 10 --max-time 120 --retry 2 --retry-all-errors --retry-delay 2 \
               -X POST -H "$AUTH" -H 'Content-Type: application/json' \
-              --data '{"limit":500}' \
+              --data "$audit_payload" \
               "$ORIGIN/api/internal/coupon-r2-audit-step?run=$GITHUB_SHA-$i" -o /tmp/r2-audit-step.json; then
               transient_failures=$((transient_failures+1))
               echo "R2_COUPON_AUDIT_TRANSIENT_FAILURE step=$i count=$transient_failures"
@@ -411,9 +419,9 @@ jobs:
           curl -fsS "$ORIGIN/api/coupon-migration-health?verify=$GITHUB_SHA" -o /tmp/migration-final.json
           curl -fsS "$ORIGIN/api/coupon-r2-audit-health?verify=$GITHUB_SHA" -o /tmp/r2-audit-final.json
           jq -e '.ok==true and .done==true' /tmp/migration-final.json >/dev/null
-          jq -e '.ok==true and .done==true and (.invalidFiles|tonumber)==0 and (.invalidTokens|tonumber)==0' /tmp/r2-audit-final.json >/dev/null
+          jq -e --arg run "$GITHUB_SHA" '.ok==true and .version==5 and .mode=="independent-full-r2-read-v1" and .source=="r2-direct-read" and .runId==$run and .done==true and .scanDone==true and ((.failedKeys//[])|length)==0 and (.invalidFiles|tonumber)==0 and (.invalidTokens|tonumber)==0 and (.scanned|tonumber)>0' /tmp/r2-audit-final.json >/dev/null
           echo "R2_COUPON_MIGRATION_FINAL=$(jq -c '{scanned,updated,replaced,done,completedAt}' /tmp/migration-final.json)"
-          echo "R2_COUPON_AUDIT_FINAL=$(jq -c '{scanned,invalidFiles,invalidTokens,done,completedAt}' /tmp/r2-audit-final.json)"
+          echo "R2_COUPON_AUDIT_FINAL=$(jq -c '{version,mode,source,runId,scanned,invalidFiles,invalidTokens,failedKeys,done,completedAt}' /tmp/r2-audit-final.json)"
       - name: Verify deployed runtime and SEO layer
         shell: bash
         run: |
