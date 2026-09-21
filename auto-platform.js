@@ -13,6 +13,7 @@ import {ensureRuntimeArticleQuality,normalizeRuntimeTitle,normalizeRuntimeMeta,R
 const VERSION='generator-5.0-quality-first';
 const PLATFORM_VERSION='platform-1.6-quality-first';
 const STATIC_SITEMAPS=['pages','guides','coupons','coupons-saudi','coupons-uae'];
+const AUDIT_DISCOVERY_CURRENT_KEY='maintenance/article-discovery-v1/current.json';
 const now=()=>new Date().toISOString();
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -139,11 +140,27 @@ async function bulkBlogPage(req,env,ctx){
 }
 
 async function sitemapIndex(env,origin){
-  const days=await r2json(env,'bulk/days.json',{days:[]});
   const items=[];
-  for(const d of days.days||[])for(let i=Number(d.shards||0)-1;i>=0;i--)items.push({loc:`${origin}/sitemap-articles-${d.day}-${i}.xml`,lastmod:d.updatedAt||`${d.day}T23:59:59.000Z`});
+  const discovery=await r2json(env,AUDIT_DISCOVERY_CURRENT_KEY,null);
+  const discoveryReady=Boolean(discovery?.complete&&Number(discovery?.version)===1&&Number(discovery?.shards)>=0&&discovery?.runId&&discovery?.sourceAuditRunId);
+  if(discoveryReady){
+    for(let i=0;i<Number(discovery.shards||0);i++)items.push({loc:`${origin}/sitemap-audit-articles-${i}.xml`,lastmod:discovery.generatedAt||null});
+  }else{
+    const days=await r2json(env,'bulk/days.json',{days:[]});
+    for(const d of days.days||[])for(let i=Number(d.shards||0)-1;i>=0;i--)items.push({loc:`${origin}/sitemap-articles-${d.day}-${i}.xml`,lastmod:d.updatedAt||`${d.day}T23:59:59.000Z`});
+  }
   for(const n of STATIC_SITEMAPS)items.push({loc:`${origin}/sitemap-${n}.xml`,lastmod:null});
   return `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${items.map(x=>`<sitemap><loc>${esc(x.loc)}</loc>${x.lastmod?`<lastmod>${esc(x.lastmod)}</lastmod>`:''}</sitemap>`).join('')}</sitemapindex>`;
+}
+
+async function auditArticleSitemap(path,env,origin){
+  const m=path.match(/^\/sitemap-audit-articles-(\d+)\.xml$/);if(!m)return null;
+  const index=Number(m[1]),discovery=await r2json(env,AUDIT_DISCOVERY_CURRENT_KEY,null);
+  if(!discovery?.complete||Number(discovery?.version)!==1||!discovery?.runId||index<0||index>=Number(discovery?.shards||0))return xml('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+  const shard=await r2json(env,`maintenance/article-discovery-v1/${discovery.runId}/${index}.json`,null);
+  if(!shard||String(shard.runId)!==String(discovery.runId)||String(shard.sourceAuditRunId)!==String(discovery.sourceAuditRunId))return xml('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+  const urls=(shard.articles||[]).map(a=>`<url><loc>${esc(origin+'/articles/'+encodeURI(a.slug))}</loc>${a.lastmod?`<lastmod>${esc(a.lastmod)}</lastmod>`:''}</url>`).join('');
+  return xml(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
 async function articleSitemap(path,env,origin){
@@ -206,7 +223,8 @@ export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
     if(u.pathname==='/sitemap.xml')return xml(await sitemapIndex(env,origin));
-    if(u.pathname.startsWith('/sitemap-articles-')){const r=await articleSitemap(u.pathname,env,origin);if(r)return r}
+    if(u.pathname.startsWith('/sitemap-audit-articles-')){const r=await auditArticleSitemap(u.pathname,env,origin);if(r)return r}
+     if(u.pathname.startsWith('/sitemap-articles-')){const r=await articleSitemap(u.pathname,env,origin);if(r)return r}
     if(u.pathname==='/blog'){const r=await bulkBlogPage(req,env,ctx);if(r)return r}
     if(u.pathname.startsWith('/articles/')){const r=await bulkArticlePage(u,env);if(r)return r}
     if(u.pathname==='/api/ai/generate')return json({error:'legacy_external_generation_disabled',version:VERSION,provider:'workers-ai',externalProviders:false,use:'/api/admin/generate-now'},410);
