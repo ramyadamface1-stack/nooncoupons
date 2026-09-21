@@ -79,7 +79,7 @@ jobs:
             -H "$AUTH" "$ORIGIN/api/article-corpus-audit-health?final=${GITHUB_RUN_ID}" -o /tmp/final.json
           jq -e '.ok==true and .version==4 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/final.json >/dev/null
           jq -c '{
-            version,auditModel,runId,runtimeArticleQualityVersion,runtimeGuarantees,uniqueArticles,scanned,readFailures,bytes,listCalls,listedObjects,htmlObjectsListed,duplicateListedKeys,countSnapshotKey,languages,wordBands,
+            version,auditModel,uniquenessModel,runId,runtimeArticleQualityVersion,runtimeGuarantees,uniqueArticles,scanned,readFailures,bytes,listCalls,listedObjects,htmlObjectsListed,duplicateListedKeys,countSnapshotKey,languages,wordBands,
             duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,
             scoreAverage:(. as $x | reduce (.scoreSums|keys[]) as $k ({}; .[$k]=((($x.scoreSums[$k] / ($x.scanned|if .==0 then 1 else . end))*10|round)/10))),
             scoreHist,issues,samples,scanDone,done,startedAt,completedAt
@@ -130,7 +130,7 @@ jobs:
           jq -s '.[0] + {
             authoritativeCount: (.[1] | {count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}),
             collisionOwnerAnalysis: (.[2] | {version,runId,sourceAuditRunId,sourceAuditVersion,scanned,readFailures,titleTargets,semanticTargets,title,semantic,scanDone,done,startedAt,completedAt,stateKey}),
-            proofVersion:3
+            proofVersion:4
           }' /tmp/summary.json /tmp/count.json /tmp/owner.json > /tmp/proof.json
 
       - name: Persist authoritative corpus audit proof
