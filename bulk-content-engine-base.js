@@ -59,7 +59,32 @@ const BLUEPRINTS=[
 ['factors','coupon','scenario','seller','market','eligibility','trouble','savings','matrix'],['scenario','factors','market','coupon','matrix','seller','savings','eligibility','trouble'],['coupon','factors','seller','scenario','eligibility','market','matrix','trouble','savings'],['factors','matrix','scenario','coupon','market','seller','trouble','eligibility','savings'],['market','scenario','factors','seller','coupon','eligibility','matrix','savings','trouble'],['seller','factors','coupon','market','scenario','trouble','matrix','eligibility','savings'],['scenario','coupon','factors','eligibility','seller','market','savings','trouble','matrix'],['factors','scenario','matrix','seller','market','coupon','trouble','savings','eligibility'],['coupon','scenario','market','factors','seller','matrix','eligibility','trouble','savings'],['matrix','factors','scenario','coupon','seller','market','savings','eligibility','trouble'],['market','factors','coupon','scenario','matrix','seller','trouble','savings','eligibility'],['scenario','seller','factors','coupon','market','matrix','eligibility','savings','trouble']
 ];
 
-function titleFromKeyword(kw,topic){if(kw.length<=70)return kw;const base=`${topic.intentLabel} ${topic.category} نون ${topic.market} ${topic.scenario}`;return base.length<=70?base.slice(0,70):`${topic.category} على نون ${topic.market}: ${topic.scenario}`.slice(0,70)}
+function compactTitlePart(value,max){
+  const text=String(value||'').replace(/\s+/g,' ').trim();
+  if(text.length<=max)return text;
+  const words=text.split(' ');let out='';
+  for(const w of words){const next=(out?out+' ':'')+w;if(next.length>max)break;out=next}
+  return out||text.slice(0,max).trim();
+}
+function titleFromKeyword(kw,topic){
+  const clean=String(kw||'').replace(/\s+/g,' ').trim();
+  if(clean.length<=70)return clean;
+  const differentiator=String(topic.queryModifier||topic.factor||topic.useCase||topic.scenario||'قرار الشراء').replace(/\s+/g,' ').trim();
+  const tail=compactTitlePart(differentiator,24);
+  const prefix=`${topic.intentLabel||'دليل'} ${topic.category} نون ${topic.market}`;
+  const room=Math.max(28,70-tail.length-3);
+  const head=compactTitlePart(prefix,room);
+  const candidate=`${head} — ${tail}`.replace(/\s+/g,' ').trim();
+  return candidate.length<=70?candidate:candidate.slice(0,70).trim();
+}
+export function bulkTitleCollisionSelftest(){
+  const base={intentLabel:'مراجعة الإرجاع',category:'acer nitro للطلب الأول',market:'السعودية',scenario:'بعد إضافة رسوم الشحن',factor:'الضمان',useCase:'التنقل'};
+  const a=titleFromKeyword('إرجاع acer nitro للطلب الأول وكوبون نون السعودية بعد رسوم الشحن التنقل الضمان',{...base,queryModifier:'تكلفة التوصيل'});
+  const b=titleFromKeyword('إرجاع acer nitro للطلب الأول وكوبون نون السعودية بعد رسوم الشحن التنقل الشاشة',{...base,queryModifier:'فحص الشاشة'});
+  const c=titleFromKeyword('إرجاع acer nitro للطلب الأول وكوبون نون السعودية بعد رسوم الشحن التنقل التخزين',{...base,queryModifier:'مراجعة التخزين'});
+  const rows=[a,b,c],pass=new Set(rows).size===rows.length&&rows.every(x=>x.length>=28&&x.length<=70);
+  return {pass,rows,lengths:rows.map(x=>x.length),version:'title-differentiator-v1'};
+}
 function metaFor(t){let s=`${t.kw}: دليل عملي في نون ${t.market} يوضح فحص ${t.factor}، تجربة ${t.code}، مقارنة البائع والسعر النهائي، وما يجب مراجعته قبل الدفع.`;if(s.length<110)s+=' مع خطوات واضحة للمقارنة واتخاذ قرار شراء مناسب.';return s.slice(0,160)}
 function image(t,v,role){const src=`/assets/coupon-svg/${encodeURIComponent(t.slug)}/${v}.svg?v=9&coupon=${encodeURIComponent(t.code)}&country=${t.country}`;return `<figure class="article-visual visual-${v}"><img src="${src}" alt="${esc(t.kw)} — ${esc(role)} — ${t.code}" title="${esc(t.category)}: ${esc(role)}" width="1200" height="760" loading="lazy" decoding="async"><figcaption>${esc(role)} لـ${esc(t.category)} في نون ${esc(t.market)} عند تجربة ${t.code}</figcaption></figure>`}
 
@@ -263,4 +288,4 @@ export function buildUsefulArticle(topic,cursor=0){
   const fq=faqSection(t);body+=exampleSection(t)+finalSection(t)+methodologySection(t)+sourcesSection(t)+fq.html+'</article>';return {slug:t.slug,title:t.title,metaDescription:metaFor(t),country:t.country,coupon:t.code,primaryKeyword:t.kw,blueprint,faq:fq.faq,sources:['https://www.noon.com/'],claims:[],html:body};
 }
 
-export const BULK_ENGINE_INFO={englishNativeInventory:1,englishArticleBuilder:6,version:'programmatic-cloudflare:v2-helpful',topicSpace:1036800,blueprints:BLUEPRINTS.length,codes:CODES.length,countries:Object.keys(MARKETS),qualityFirst:true};
+export const BULK_ENGINE_INFO={englishNativeInventory:1,englishArticleBuilder:6,titleDifferentiatorVersion:1,version:'programmatic-cloudflare:v2-helpful',topicSpace:1036800,blueprints:BLUEPRINTS.length,codes:CODES.length,countries:Object.keys(MARKETS),qualityFirst:true};
