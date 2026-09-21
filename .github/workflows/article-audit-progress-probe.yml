@@ -31,7 +31,7 @@ jobs:
           curl -fsS --connect-timeout 10 --max-time 30 -H "$AUTH" "$ORIGIN/api/article-discovery-health" -o /tmp/discovery.json
           echo "DISCOVERY_HEALTH=$(jq -c '{ok,version,complete,runId,sourceAuditRunId,sourceAuditScanned,articles,shards,policy,generatedAt,key}' /tmp/discovery.json)"
           curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/sitemap.xml" -o /tmp/sitemap.xml
-          audit_refs=$((grep -o 'sitemap-audit-articles-' /tmp/sitemap.xml || true) | wc -l | tr -d ' ')
-          fresh_refs=$((grep -o 'sitemap-fresh-articles-' /tmp/sitemap.xml || true) | wc -l | tr -d ' ')
-          bulk_refs=$((grep -o 'sitemap-articles-' /tmp/sitemap.xml || true) | wc -l | tr -d ' ')
+          audit_refs=$( (grep -o 'sitemap-audit-articles-' /tmp/sitemap.xml || true) | wc -l | tr -d ' ')
+          fresh_refs=$( (grep -o 'sitemap-fresh-articles-' /tmp/sitemap.xml || true) | wc -l | tr -d ' ')
+          bulk_refs=$( (grep -o 'sitemap-articles-' /tmp/sitemap.xml || true) | wc -l | tr -d ' ')
           echo "SITEMAP_MODE audit=$audit_refs fresh=$fresh_refs bulk=$bulk_refs"
