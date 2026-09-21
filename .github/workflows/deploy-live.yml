@@ -139,6 +139,9 @@ jobs:
           grep -Fq "PROMO_CLAIM_MODEL='block-aware-v1'" article-corpus-audit.js
           grep -Fq "promoClaimModel" .github/workflows/full-article-corpus-audit.yml
           node -e "import('./article-corpus-audit.js').then(m=>{const x=m.promoClaimAuditSelftest();console.log('PROMO_AUDIT_SELFTEST_PASS='+x.pass,JSON.stringify(x));if(!x.pass)process.exit(1)})"
+          node -e "import('./article-corpus-audit.js').then(m=>{const x=m.ownerSnapshotCutoffSelftest();console.log('OWNER_SNAPSHOT_CUTOFF_SELFTEST_PASS='+x.pass,JSON.stringify(x));if(!x.pass)process.exit(1)})"
+          grep -Fq "owner_source_snapshot_mismatch" article-corpus-audit.js
+          grep -Fq "r2-uploaded-cutoff-v1" article-corpus-audit.js
           grep -Fq 'preflightGate:true' quality-index.js
           grep -Fq 'postBuildChecks:['"'"'duplicate-title'"'"','"'"'semantic-collision'"'"']' quality-index.js
           grep -Fq "reasons.push('global_duplicate_title')" quality-index.js
