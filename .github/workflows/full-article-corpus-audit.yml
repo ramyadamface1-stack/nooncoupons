@@ -79,7 +79,7 @@ jobs:
             -H "$AUTH" "$ORIGIN/api/article-corpus-audit-health?final=${GITHUB_RUN_ID}" -o /tmp/final.json
           jq -e '.ok==true and .version==4 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/final.json >/dev/null
           jq -c '{
-            version,auditModel,uniquenessModel,runId,runtimeArticleQualityVersion,runtimeGuarantees,uniqueArticles,scanned,readFailures,bytes,listCalls,listedObjects,htmlObjectsListed,duplicateListedKeys,countSnapshotKey,languages,wordBands,
+            version,auditModel,promoClaimModel,uniquenessModel,runId,runtimeArticleQualityVersion,runtimeGuarantees,uniqueArticles,scanned,readFailures,bytes,listCalls,listedObjects,htmlObjectsListed,duplicateListedKeys,countSnapshotKey,languages,wordBands,
             duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,
             scoreAverage:(. as $x | reduce (.scoreSums|keys[]) as $k ({}; .[$k]=((($x.scoreSums[$k] / ($x.scanned|if .==0 then 1 else . end))*10|round)/10))),
             scoreHist,issues,samples,scanDone,done,startedAt,completedAt
