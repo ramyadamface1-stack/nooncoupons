@@ -175,10 +175,11 @@ async function bulkBlogPage(req,env,ctx){
 async function sitemapIndex(env,origin){
   const items=[];
   const discovery=await r2json(env,AUDIT_DISCOVERY_CURRENT_KEY,null);
-  const discoveryReady=Boolean(discovery?.complete&&Number(discovery?.version)===1&&Number(discovery?.shards)>=0&&discovery?.runId&&discovery?.sourceAuditRunId);
+  const discoveryCutoff=Date.parse(discovery?.sourceAuditCutoff||'');
+  const discoveryReady=Boolean(discovery?.complete&&Number(discovery?.version)===1&&Number(discovery?.shards)>=0&&discovery?.runId&&discovery?.sourceAuditRunId&&Number.isFinite(discoveryCutoff));
   if(discoveryReady){
     for(let i=0;i<Number(discovery.shards||0);i++)items.push({loc:`${origin}/sitemap-audit-articles-${i}.xml`,lastmod:discovery.generatedAt||null});
-    const days=await r2json(env,'bulk/days.json',{days:[]}),cut=Date.parse(discovery.generatedAt||'');
+    const days=await r2json(env,'bulk/days.json',{days:[]}),cut=discoveryCutoff;
     for(const d of days.days||[]){
       const updated=Date.parse(d.updatedAt||'');
       if(!Number.isFinite(cut)||!Number.isFinite(updated)||updated<=cut)continue;
@@ -205,8 +206,8 @@ async function auditArticleSitemap(path,env,origin){
 async function freshArticleSitemap(path,env,origin){
   const m=path.match(/^\/sitemap-fresh-articles-(\d{4}-\d{2}-\d{2})-(\d+)\.xml$/);if(!m)return null;
   const discovery=await r2json(env,AUDIT_DISCOVERY_CURRENT_KEY,null);
-  if(!discovery?.complete||!discovery?.generatedAt)return xml('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
-  const cut=Date.parse(discovery.generatedAt),day=m[1],shard=Number(m[2]),d=await r2json(env,`bulk/day/${day}/${shard}.json`,null);
+  if(!discovery?.complete||!discovery?.sourceAuditCutoff)return xml('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+  const cut=Date.parse(discovery.sourceAuditCutoff),day=m[1],shard=Number(m[2]),d=await r2json(env,`bulk/day/${day}/${shard}.json`,null);
   if(!d||!Number.isFinite(cut))return xml('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
   const rows=(d.articles||[]).filter(a=>{
     const t=Date.parse(a.createdAt||'');
