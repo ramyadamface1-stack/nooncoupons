@@ -135,6 +135,7 @@ jobs:
           grep -Fq "uniquenessModel:'stored-core-before-runtime-v1'" article-corpus-audit.js
           grep -Fq "PROMO_CLAIM_MODEL='block-aware-v1'" article-corpus-audit.js
           grep -Fq "promoClaimModel" .github/workflows/full-article-corpus-audit.yml
+          node -e "import('./article-corpus-audit.js').then(m=>{const x=m.promoClaimAuditSelftest();console.log('PROMO_AUDIT_SELFTEST_PASS='+x.pass,JSON.stringify(x));if(!x.pass)process.exit(1)})"
           grep -Fq 'preflightGate:true' quality-index.js
           grep -Fq 'postBuildChecks:['"'"'duplicate-title'"'"','"'"'semantic-collision'"'"']' quality-index.js
           grep -Fq "reasons.push('global_duplicate_title')" quality-index.js
