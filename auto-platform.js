@@ -145,6 +145,12 @@ async function sitemapIndex(env,origin){
   const discoveryReady=Boolean(discovery?.complete&&Number(discovery?.version)===1&&Number(discovery?.shards)>=0&&discovery?.runId&&discovery?.sourceAuditRunId);
   if(discoveryReady){
     for(let i=0;i<Number(discovery.shards||0);i++)items.push({loc:`${origin}/sitemap-audit-articles-${i}.xml`,lastmod:discovery.generatedAt||null});
+    const days=await r2json(env,'bulk/days.json',{days:[]}),cut=Date.parse(discovery.generatedAt||'');
+    for(const d of days.days||[]){
+      const updated=Date.parse(d.updatedAt||'');
+      if(!Number.isFinite(cut)||!Number.isFinite(updated)||updated<=cut)continue;
+      for(let i=Number(d.shards||0)-1;i>=0;i--)items.push({loc:`${origin}/sitemap-fresh-articles-${d.day}-${i}.xml`,lastmod:d.updatedAt||null});
+    }
   }else{
     const days=await r2json(env,'bulk/days.json',{days:[]});
     for(const d of days.days||[])for(let i=Number(d.shards||0)-1;i>=0;i--)items.push({loc:`${origin}/sitemap-articles-${d.day}-${i}.xml`,lastmod:d.updatedAt||`${d.day}T23:59:59.000Z`});
@@ -160,6 +166,20 @@ async function auditArticleSitemap(path,env,origin){
   const shard=await r2json(env,`maintenance/article-discovery-v1/${discovery.runId}/${index}.json`,null);
   if(!shard||String(shard.runId)!==String(discovery.runId)||String(shard.sourceAuditRunId)!==String(discovery.sourceAuditRunId))return xml('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
   const urls=(shard.articles||[]).map(a=>`<url><loc>${esc(origin+'/articles/'+encodeURI(a.slug))}</loc>${a.lastmod?`<lastmod>${esc(a.lastmod)}</lastmod>`:''}</url>`).join('');
+  return xml(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
+}
+
+async function freshArticleSitemap(path,env,origin){
+  const m=path.match(/^\/sitemap-fresh-articles-(\d{4}-\d{2}-\d{2})-(\d+)\.xml$/);if(!m)return null;
+  const discovery=await r2json(env,AUDIT_DISCOVERY_CURRENT_KEY,null);
+  if(!discovery?.complete||!discovery?.generatedAt)return xml('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+  const cut=Date.parse(discovery.generatedAt),day=m[1],shard=Number(m[2]),d=await r2json(env,`bulk/day/${day}/${shard}.json`,null);
+  if(!d||!Number.isFinite(cut))return xml('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
+  const rows=(d.articles||[]).filter(a=>{
+    const t=Date.parse(a.updatedAt||a.createdAt||'');
+    return Number.isFinite(t)&&t>cut&&sitemapEligible(a);
+  });
+  const urls=rows.map(a=>`<url><loc>${esc(origin+'/articles/'+encodeURI(a.slug))}</loc><lastmod>${esc(a.updatedAt||a.createdAt||day)}</lastmod></url>`).join('');
   return xml(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
@@ -224,6 +244,7 @@ export default{
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
     if(u.pathname==='/sitemap.xml')return xml(await sitemapIndex(env,origin));
     if(u.pathname.startsWith('/sitemap-audit-articles-')){const r=await auditArticleSitemap(u.pathname,env,origin);if(r)return r}
+     if(u.pathname.startsWith('/sitemap-fresh-articles-')){const r=await freshArticleSitemap(u.pathname,env,origin);if(r)return r}
      if(u.pathname.startsWith('/sitemap-articles-')){const r=await articleSitemap(u.pathname,env,origin);if(r)return r}
     if(u.pathname==='/blog'){const r=await bulkBlogPage(req,env,ctx);if(r)return r}
     if(u.pathname.startsWith('/articles/')){const r=await bulkArticlePage(u,env);if(r)return r}
