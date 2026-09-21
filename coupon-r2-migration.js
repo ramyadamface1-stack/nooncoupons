@@ -1,7 +1,7 @@
 import {APPROVED_COUPON_CODES,isApprovedCoupon,normalizeApprovedCoupon} from './approved-coupons.js';
 
 const STATE_KEY='maintenance/coupon-code-migration-v1.json';
-const AUDIT_STATE_KEY='maintenance/coupon-code-audit-v2.json';
+const AUDIT_STATE_KEY='maintenance/coupon-code-audit-v3-independent.json';
 const TOKEN_RE=/\b(?:OPS\d+|NOV\d+)\b/gi;
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -191,38 +191,32 @@ async function processAuditKeys(env,keys,concurrency=20){
   return {invalidFiles,invalidTokens,samples,failedKeys:uniqueKeys(failed)};
 }
 
-export async function runCouponR2AuditBatch(env,{limit=100}={}){
+export async function runCouponR2AuditBatch(env,{limit=100,reset=false,runId=''}={}){
   if(!env?.CONTENT_FINAL)return {ok:false,reason:'r2_binding_missing'};
 
-  // The migration is itself a full read/repair pass over every articles/*.html object.
-  // Once that pass has completed with zero failed keys, every scanned object was either
-  // already clean or successfully rewritten from an in-memory allowlist-clean version.
-  // Persist that full-pass proof instead of rereading the same entire bucket a second time.
-  const migration=await readCouponR2MigrationState(env);
-  if(migration?.ok===true&&migration?.done===true&&Array.isArray(migration.failedKeys)&&migration.failedKeys.length===0){
-    const proof={
-      ok:true,version:4,mode:'full-repair-scan-proof',
-      scanned:Number(migration.scanned||0),
-      invalidFiles:0,invalidTokens:0,samples:[],failedKeys:[],
-      scanDone:true,done:true,
-      migrationUpdated:Number(migration.updated||0),
-      migrationReplaced:Number(migration.replaced||0),
-      migrationCompletedAt:migration.completedAt||null,
-      completedAt:new Date().toISOString()
-    };
-    await saveJson(env,AUDIT_STATE_KEY,proof);
-    return proof;
-  }
-
+  const requestedRunId=String(runId||'').trim();
   const initial={
-    version:3,cursor:null,scanned:0,invalidFiles:0,invalidTokens:0,samples:[],
+    version:5,mode:'independent-full-r2-read-v1',source:'r2-direct-read',
+    runId:requestedRunId||null,cursor:null,scanned:0,invalidFiles:0,invalidTokens:0,samples:[],
     failedKeys:[],scanDone:false,done:false,startedAt:new Date().toISOString()
   };
   let state={...initial};
   const prev=await r2Retry(()=>env.CONTENT_FINAL.get(AUDIT_STATE_KEY));
-  if(prev){
+  if(prev&&!reset){
     try{state={...initial,...JSON.parse(await prev.text())};}catch{}
   }
+
+  const runChanged=Boolean(requestedRunId&&state.runId!==requestedRunId);
+  if(reset||runChanged){
+    state={...initial,runId:requestedRunId||null,resetReason:reset?'explicit-reset':'deployment-run-changed'};
+    await saveJson(env,AUDIT_STATE_KEY,state);
+  }else{
+    state.version=5;
+    state.mode='independent-full-r2-read-v1';
+    state.source='r2-direct-read';
+    if(requestedRunId)state.runId=requestedRunId;
+  }
+
   state.failedKeys=uniqueKeys(state.failedKeys);
   if(state.done)return {ok:true,...state};
 
@@ -281,6 +275,6 @@ export async function runCouponR2AuditBatch(env,{limit=100}={}){
 export async function readCouponR2AuditState(env){
   if(!env?.CONTENT_FINAL)return {ok:false,reason:'r2_binding_missing'};
   const obj=await r2Retry(()=>env.CONTENT_FINAL.get(AUDIT_STATE_KEY));
-  if(!obj)return {ok:true,version:3,scanned:0,invalidFiles:0,invalidTokens:0,samples:[],failedKeys:[],scanDone:false,done:false};
+  if(!obj)return {ok:true,version:5,mode:'independent-full-r2-read-v1',source:'r2-direct-read',runId:null,scanned:0,invalidFiles:0,invalidTokens:0,samples:[],failedKeys:[],scanDone:false,done:false};
   try{return {ok:true,...JSON.parse(await obj.text())};}catch{return {ok:false,reason:'invalid_audit_state'};}
 }
