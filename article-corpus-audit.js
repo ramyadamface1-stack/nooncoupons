@@ -60,7 +60,7 @@ function auditOne(key,html,md={}){
   issue('trust_competitor_brand_mention',COMPETITOR.test(plain));issue('trust_invalid_coupon_token',codes.some(x=>!APPROVED.has(x)));issue('storage_status_metadata_missing',!md.status);issue('storage_status_not_published',!!md.status&&md.status!=='published');
   issue('fragment_jsonld_parse_error',jl.parseErrors>0,jl.parseErrors);issue('faq_schema_missing_when_visible',/class=["'][^"']*faq/i.test(html)&&!jl.types.has('FAQPage'));
   const scores={seo:Math.round(100*seo/seoN),content:Math.round(100*content/contentN),aeo:Math.round(100*aeo/aeoN),eeat:Math.round(100*eeat/eeatN),geoLocal:Math.round(100*geo/geoN),technical:Math.round(100*tech/techN),media:Math.round(100*media/mediaN),geoAI:Math.round(100*generative/generativeN)};
-  return {counters,samples,wc,lang:arRatio>=.85?'ar':arRatio<=.15?'en':'mixed',scores,titleHash:title?fnv32(norm(title))+':'+title.length:null,contentHash:corePlain?fnv32(norm(corePlain))+':'+corePlain.length:null,semanticSig:corePlain?simhash(corePlain):null,renderedSemanticSig:plain?simhash(plain):null,size:String(html).length};
+  return {counters,samples,wc,lang:arRatio>=.85?'ar':arRatio<=.15?'en':'mixed',scores,titleHash:title?fnv32(norm(title))+':'+title.length:null,titleNorm:norm(title),keywordNorm:norm(keyword),contentHash:corePlain?fnv32(norm(corePlain))+':'+corePlain.length:null,semanticSig:corePlain?simhash(corePlain):null,renderedSemanticSig:plain?simhash(plain):null,size:String(html).length};
 }
 function bucket(score){return score>=95?'95_100':score>=85?'85_94':score>=70?'70_84':score>=50?'50_69':'lt50'}
 function emptyState(runId=null){return {version:4,auditModel:'rendered-live-v4',uniquenessModel:'stored-core-before-runtime-v1',runId:runId||null,auditLockKey:ARTICLE_AUDIT_LOCK_INFO.key,runtimeArticleQualityVersion:RUNTIME_ARTICLE_QUALITY_INFO.version,runtimeGuarantees:['meta-description','canonical','Article-schema','WebPage-schema','BreadcrumbList-schema','editorial-byline','official-source-links','freshness-date','market-navigation','hero-image','site-internal-links',...RUNTIME_ARTICLE_QUALITY_INFO.guarantees],countSnapshotKey:COUNT_SNAPSHOT_KEY,cursor:null,scanned:0,readFailures:0,bytes:0,listCalls:0,listedObjects:0,htmlObjectsListed:0,duplicateListedKeys:0,lastListedKey:null,languages:{ar:0,en:0,mixed:0},wordBands:{lt800:0,w800_999:0,w1000_1499:0,w1500_2000:0,gt2000:0},issues:{},samples:{},scoreSums:{},scoreHist:{},titleFreq:{},contentFreq:{},semanticFreq:{},duplicateTitles:{articles:0,groups:0},exactDuplicateContent:{articles:0,groups:0},semanticSignatureCollisions:{articles:0,groups:0},scanDone:false,done:false,startedAt:new Date().toISOString()}}
@@ -195,6 +195,12 @@ async function resolveOwnerIntentEvidence(env,key,md,cache){
   const owner=String(lookup.get(slug)||'').trim();
   return owner?{ownerIntentKey:owner,ownerIntentSource:'bulk-day-catalog'}:{ownerIntentKey:null,ownerIntentSource:null};
 }
+function ownerTextSimilarity(a,b){
+  const A=new Set(norm(a).split(' ').filter(x=>x.length>1)),B=new Set(norm(b).split(' ').filter(x=>x.length>1));
+  if(!A.size||!B.size)return 0;
+  let hit=0;for(const x of A)if(B.has(x))hit++;
+  return hit/Math.max(A.size,B.size);
+}
 function ownerCandidate(key,a,md={},uploaded=null,resolvedOwner={}){
   const scoreValues=Object.values(a?.scores||{}).map(Number).filter(Number.isFinite);
   const renderedQuality=scoreValues.length?scoreValues.reduce((x,y)=>x+y,0)/scoreValues.length:0;
@@ -202,7 +208,7 @@ function ownerCandidate(key,a,md={},uploaded=null,resolvedOwner={}){
   const quality=metadataQuality>0?metadataQuality:renderedQuality;
   const floor=metadataFloor>0?metadataFloor:(scoreValues.length?Math.min(...scoreValues):0);
   const wc=Number(a?.wc||0),storedTitle=dec(md.t||md.title||''),storedMeta=dec(md.m||md.metaDescription||'');
-  const updatedAt=String(md.ua||md.updatedAt||md.at||md.createdAt||uploaded||'');
+  const createdAt=String(md.at||md.createdAt||uploaded||''),updatedAt=String(md.ua||md.updatedAt||createdAt||uploaded||'');
   const ownerIntentKey=String(resolvedOwner?.ownerIntentKey||dec(md.io||md.ownerIntentKey||'')).trim();
   const ownerIntentSource=resolvedOwner?.ownerIntentSource||(ownerIntentKey?'metadata':null);
   let score=0;
@@ -212,24 +218,40 @@ function ownerCandidate(key,a,md={},uploaded=null,resolvedOwner={}){
   if(wc>=1500&&wc<=2000)score+=25;else if(wc>=1000)score+=10;
   if(storedTitle.length>=28&&storedTitle.length<=72)score+=5;
   if(storedMeta.length>=105&&storedMeta.length<=165)score+=5;
-  return {key,score:Math.round(score*10)/10,quality:Math.round(quality*10)/10,qualityFloor:Math.round(floor*10)/10,wordCount:wc,updatedAt:updatedAt||null,status:md.status||null,ownerIntentKey:ownerIntentKey||null,ownerIntentSource:ownerIntentSource||null};
+  return {key,score:Math.round(score*10)/10,quality:Math.round(quality*10)/10,qualityFloor:Math.round(floor*10)/10,wordCount:wc,createdAt:createdAt||null,updatedAt:updatedAt||null,status:md.status||null,ownerIntentKey:ownerIntentKey||null,ownerIntentSource:ownerIntentSource||null,titleNorm:a?.titleNorm||norm(storedTitle),keywordNorm:a?.keywordNorm||norm(dec(md.kw||md.primaryKeyword||storedTitle))};
 }
 function candidateCmp(a,b){
   if(Number(b.score)!==Number(a.score))return Number(b.score)-Number(a.score);
   if(Number(b.quality)!==Number(a.quality))return Number(b.quality)-Number(a.quality);
   if(Number(b.qualityFloor)!==Number(a.qualityFloor))return Number(b.qualityFloor)-Number(a.qualityFloor);
+  const ac=Date.parse(a.createdAt||''),bc=Date.parse(b.createdAt||'');
+  if(Number.isFinite(ac)&&Number.isFinite(bc)&&ac!==bc)return ac-bc;
   const ad=Date.parse(a.updatedAt||''),bd=Date.parse(b.updatedAt||'');
-  if(Number.isFinite(ad)&&Number.isFinite(bd)&&bd!==ad)return bd-ad;
+  if(Number.isFinite(ad)&&Number.isFinite(bd)&&bd!==ad)return ad-bd;
   return String(a.key||'').localeCompare(String(b.key||''));
 }
-function addOwnerCandidate(groups,hash,candidate){
+function addOwnerCandidate(groups,hash,candidate,kind='semantic'){
   if(!hash)return;
-  const g=groups[hash]||{count:0,owner:null,runnerUp:null,margin:null,clearOwner:false,ownerIntentKey:null,ownerMetadataComplete:true,intentOwnerConsistent:true,sameIntentOwner:false,actionableOwner:false};
+  const g=groups[hash]||{
+    kind,count:0,owner:null,runnerUp:null,margin:null,clearOwner:false,ownerIntentKey:null,
+    ownerMetadataComplete:true,intentOwnerConsistent:true,sameIntentOwner:false,actionableOwner:false,
+    keywordBasis:null,titleBasis:null,keywordFamilyConsistent:true,titleFamilyConsistent:true,
+    policy:kind==='title'?'same-intent-exact-title-stable-owner-v1':'same-intent-semantic-family-stable-owner-v1'
+  };
   const candidateOwner=String(candidate?.ownerIntentKey||'').trim();
   if(!candidateOwner)g.ownerMetadataComplete=false;
   if(candidateOwner){
     if(!g.ownerIntentKey)g.ownerIntentKey=candidateOwner;
     else if(g.ownerIntentKey!==candidateOwner)g.intentOwnerConsistent=false;
+  }
+  const kw=String(candidate?.keywordNorm||'').trim(),tt=String(candidate?.titleNorm||'').trim();
+  if(kind==='semantic'){
+    if(!kw)g.keywordFamilyConsistent=false;
+    else if(!g.keywordBasis)g.keywordBasis=kw;
+    else if(ownerTextSimilarity(g.keywordBasis,kw)<0.82)g.keywordFamilyConsistent=false;
+    if(!tt)g.titleFamilyConsistent=false;
+    else if(!g.titleBasis)g.titleBasis=tt;
+    else if(ownerTextSimilarity(g.titleBasis,tt)<0.62)g.titleFamilyConsistent=false;
   }
   g.count++;
   const byKey=new Map();
@@ -237,9 +259,10 @@ function addOwnerCandidate(groups,hash,candidate){
   const ranked=[...byKey.values()].sort(candidateCmp);
   g.owner=ranked[0]||null;g.runnerUp=ranked[1]||null;
   g.margin=g.owner&&g.runnerUp?Math.round((Number(g.owner.score)-Number(g.runnerUp.score))*10)/10:null;
-  g.clearOwner=Boolean(g.count>=2&&g.owner&&(g.runnerUp==null||Number(g.margin)>=5));
   g.sameIntentOwner=Boolean(g.ownerMetadataComplete&&g.intentOwnerConsistent&&g.ownerIntentKey);
-  g.actionableOwner=Boolean(g.clearOwner&&g.sameIntentOwner);
+  const semanticEvidence=Boolean(g.keywordFamilyConsistent&&g.titleFamilyConsistent);
+  g.clearOwner=Boolean(g.count>=2&&g.owner&&g.sameIntentOwner&&(kind==='title'||semanticEvidence));
+  g.actionableOwner=Boolean(g.clearOwner);
   groups[hash]=g;
 }
 function ownerPublicState(s){
@@ -258,7 +281,7 @@ function ownerPublicState(s){
       missingOwnerMetadata:missing.length,
       crossIntentOwners:crossIntent.length,
       ambiguousOwners:ambiguous,
-      samples:rows.slice(0,5).map(([hash,g])=>({hash,count:g.count,owner:g.owner,runnerUp:g.runnerUp||null,margin:g.margin,clearOwner:g.clearOwner,ownerIntentKey:g.ownerIntentKey||null,ownerIntentSource:g.owner?.ownerIntentSource||null,ownerMetadataComplete:Boolean(g.ownerMetadataComplete),intentOwnerConsistent:Boolean(g.intentOwnerConsistent),sameIntentOwner:Boolean(g.sameIntentOwner),actionableOwner:Boolean(g.actionableOwner)}))
+      samples:rows.slice(0,5).map(([hash,g])=>({hash,count:g.count,owner:g.owner,runnerUp:g.runnerUp||null,margin:g.margin,clearOwner:g.clearOwner,ownerIntentKey:g.ownerIntentKey||null,ownerIntentSource:g.owner?.ownerIntentSource||null,ownerMetadataComplete:Boolean(g.ownerMetadataComplete),intentOwnerConsistent:Boolean(g.intentOwnerConsistent),sameIntentOwner:Boolean(g.sameIntentOwner),keywordFamilyConsistent:Boolean(g.keywordFamilyConsistent),titleFamilyConsistent:Boolean(g.titleFamilyConsistent),policy:g.policy||null,actionableOwner:Boolean(g.actionableOwner)}))
     };
   };
   return {version:s.version,runId:s.runId,sourceAuditRunId:s.sourceAuditRunId,sourceAuditVersion:s.sourceAuditVersion,scanned:s.scanned,readFailures:s.readFailures,listCalls:s.listCalls,listedObjects:s.listedObjects,scanDone:s.scanDone,done:s.done,startedAt:s.startedAt,completedAt:s.completedAt,titleTargets:Number((s.titleTargets||[]).length),semanticTargets:Number((s.semanticTargets||[]).length),title:summarize(s.titleGroups),semantic:summarize(s.semanticGroups),stateKey:OWNER_STATE_KEY};
@@ -304,8 +327,8 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
       if(row.failed){state.readFailures++;continue}
       if(!titleTargets.has(row.a.titleHash)&&!semanticTargets.has(row.a.semanticSig))continue;
       const candidate=ownerCandidate(row.key,row.a,row.md,row.uploaded,row.ownerEvidence);
-      if(titleTargets.has(row.a.titleHash))addOwnerCandidate(state.titleGroups,row.a.titleHash,candidate);
-      if(semanticTargets.has(row.a.semanticSig))addOwnerCandidate(state.semanticGroups,row.a.semanticSig,candidate);
+      if(titleTargets.has(row.a.titleHash))addOwnerCandidate(state.titleGroups,row.a.titleHash,candidate,'title');
+      if(semanticTargets.has(row.a.semanticSig))addOwnerCandidate(state.semanticGroups,row.a.semanticSig,candidate,'semantic');
     }
   }
   state.cursor=truncated?cursor:null;state.scanDone=!truncated;state.done=state.scanDone&&state.readFailures===0;state.lastBatchAt=new Date().toISOString();if(state.scanDone)state.completedAt=new Date().toISOString();
