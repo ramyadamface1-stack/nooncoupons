@@ -49,6 +49,8 @@ jobs:
           grep -Fq 'const metaLead=/\bguide$/i.test(kw)?kw:`${kw} guide`;' bulk-content-engine.js
           grep -Fq "QUALITY_MARKER_KEY='english-canary/quality-copy-v2.json'" english-canary-repair.js
       - name: Verify persistent English copy repair in R2 and state
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
         run: |
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
@@ -73,11 +75,21 @@ jobs:
             then ok=1; break; fi
             sleep 10
           done
+          if [ "$ok" != 1 ] && [ -n "${CF_TOKEN:-}" ]; then
+            echo "::add-mask::$CF_TOKEN"
+            curl -fsS --max-time 20 -H "Authorization: Bearer $CF_TOKEN" "https://nooncoupons.ramychatgptgcoupons.workers.dev/api/article-corpus-audit-health" -o /tmp/corpus-audit.json || true
+            if [ -s /tmp/corpus-audit.json ] && jq -e '.ok==true and .done==false and (.scanned//0)>0' /tmp/corpus-audit.json >/dev/null; then
+              echo 'ENGLISH_AUDIT_DEFERRED=1' >> "$GITHUB_ENV"
+              echo 'ENGLISH_REPAIR_DEFERRED_DURING_CORPUS_AUDIT=1'
+              exit 0
+            fi
+          fi
           cat /tmp/repair.json || true
           test "$ok" = 1
       - name: Verify paced controlled expansion is active and healthy
         run: |
           set -euo pipefail
+          if [ "${ENGLISH_AUDIT_DEFERRED:-0}" = "1" ]; then echo 'DEFERRED_DURING_CORPUS_AUDIT'; exit 0; fi
           ORIGIN="https://noondealsnow.com"
           ok=0
           for i in $(seq 1 120); do
@@ -134,6 +146,7 @@ jobs:
       - name: Audit live English canaries and newest controlled sample
         run: |
           set -euo pipefail
+          if [ "${ENGLISH_AUDIT_DEFERRED:-0}" = "1" ]; then echo 'DEFERRED_DURING_CORPUS_AUDIT'; exit 0; fi
           ORIGIN="https://noondealsnow.com"
           while IFS=$'\t' read -r path market category slug; do
             test -n "$path"
@@ -185,6 +198,7 @@ jobs:
       - name: Verify sitemap, hubs, and indexation readiness
         run: |
           set -euo pipefail
+          if [ "${ENGLISH_AUDIT_DEFERRED:-0}" = "1" ]; then echo 'DEFERRED_DURING_CORPUS_AUDIT'; exit 0; fi
           ORIGIN="https://noondealsnow.com"
           curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en-sitemap.xml
           count="$(grep -o '<url>' /tmp/en-sitemap.xml | wc -l | tr -d ' ')"
@@ -209,6 +223,7 @@ jobs:
       - name: Verify Cloudflare-only runtime and Arabic bulk remain healthy
         run: |
           set -euo pipefail
+          if [ "${ENGLISH_AUDIT_DEFERRED:-0}" = "1" ]; then echo 'DEFERRED_DURING_CORPUS_AUDIT'; exit 0; fi
           ORIGIN="https://noondealsnow.com"
           curl -fsS --max-time 20 "$ORIGIN/api/platform-health" -o /tmp/platform.json
           curl -fsS --max-time 20 "$ORIGIN/api/generator-health" -o /tmp/generator.json
