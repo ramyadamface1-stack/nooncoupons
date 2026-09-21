@@ -1,0 +1,32 @@
+name: Intent Owner Policy Branch QA
+
+on:
+  push:
+    branches: [intent-owner-policy-v4]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate branch-only corpus and sitemap changes
+        run: |
+          set -euo pipefail
+          node --check article-corpus-audit.js
+          node --check auto-platform.js
+          grep -Fq "same-intent-exact-title-stable-owner-v1" article-corpus-audit.js
+          grep -Fq "same-intent-semantic-family-stable-owner-v1" article-corpus-audit.js
+          grep -Fq "published-ar-rendered95-unique-title-content-semantic-v1" article-corpus-audit.js
+          grep -Fq "DISCOVERY_CURRENT_KEY" article-corpus-audit.js
+          grep -Fq "AUDIT_DISCOVERY_CURRENT_KEY" auto-platform.js
+          grep -Fq "sitemap-audit-articles-" auto-platform.js
+          grep -Fq "discovery_source_snapshot_mismatch" article-corpus-audit.js
+          echo "BRANCH_QA=PASS"
