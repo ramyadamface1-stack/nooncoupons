@@ -132,6 +132,7 @@ jobs:
           grep -Fq 'cannibalizationSimilarityMax:0.78' quality-index.js
           grep -Fq "maintenance/article-corpus-audit-v4.json" article-corpus-audit.js
           grep -Fq "auditModel:'rendered-live-v4'" article-corpus-audit.js
+          grep -Fq "uniquenessModel:'stored-core-before-runtime-v1'" article-corpus-audit.js
           grep -Fq 'preflightGate:true' quality-index.js
           grep -Fq 'postBuildChecks:['"'"'duplicate-title'"'"','"'"'semantic-collision'"'"']' quality-index.js
           grep -Fq "reasons.push('global_duplicate_title')" quality-index.js
@@ -144,7 +145,7 @@ jobs:
           grep -Fq "bulk-day-catalog" article-corpus-audit.js
           grep -Fq "auditLockHeldForOwnerAnalysis" article-corpus-audit.js
           grep -Fq "COLLISION_OWNER_SOURCE_SNAPSHOT_MISMATCH" .github/workflows/full-article-corpus-audit.yml
-          grep -Fq "proofVersion:3" .github/workflows/full-article-corpus-audit.yml
+          grep -Fq "proofVersion:4" .github/workflows/full-article-corpus-audit.yml
           grep -Fq "/api/internal/article-collision-owner-step" discovery-entry.js
           grep -Fq "collisionOwnerAnalysis" .github/workflows/full-article-corpus-audit.yml
           grep -Fq 'preflightGlobalGate' bulk-generator.js
