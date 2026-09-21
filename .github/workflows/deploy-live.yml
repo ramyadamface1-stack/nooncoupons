@@ -91,8 +91,9 @@ jobs:
           grep -Fq "RUNTIME_ARTICLE_QUALITY_INFO" auto-platform.js
           grep -Fq "normalizeRuntimeTitle" auto-platform.js
           grep -Fq "normalizeRuntimeMeta" auto-platform.js
-          grep -Fq "RUNTIME_ARTICLE_QUALITY_INFO={version:5" article-quality-runtime.js
+          grep -Fq "RUNTIME_ARTICLE_QUALITY_INFO={version:6" article-quality-runtime.js
           grep -Fq "legacy-depth-remediation-1500" article-quality-runtime.js
+          grep -Fq "legacy-depth-remediation-1500-v2" article-quality-runtime.js
           grep -Fq "visibleWords(out)<1500" article-quality-runtime.js
           grep -Fq "COUNT_SNAPSHOT_KEY='_ops/article-count.json'" article-corpus-audit.js
           grep -Fq "source:'article-corpus-audit-v4'" article-corpus-audit.js
