@@ -184,7 +184,7 @@ jobs:
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -H "$AUTH" "$ORIGIN/api/article-discovery-health?final=${GITHUB_RUN_ID}" -o /tmp/discovery.json
           jq -e --arg owner "${GITHUB_RUN_ID}" --arg source "$CORPUS_RUN_ID" --argjson scanned "$(jq -r '.scanned' /tmp/final.json)" '
-            .ok==true and .version==1 and .complete==true and .runId==$owner and .sourceAuditRunId==$source and .sourceAuditScanned==$scanned and (.sourceAuditCutoff|type=="string") and (.sourceAuditCutoff|length)>0 and .ownerSnapshotModel=="r2-uploaded-cutoff-v1" and .articles>=0 and .shards>=0
+            .ok==true and .version==1 and .complete==true and .runId==$owner and .sourceAuditRunId==$source and .sourceAuditScanned==$scanned and ((.sourceAuditCutoff|type)=="string") and ((.sourceAuditCutoff|length)>0) and .ownerSnapshotModel=="r2-uploaded-cutoff-v1" and .articles>=0 and .shards>=0
           ' /tmp/discovery.json >/dev/null
           echo "ARTICLE_DISCOVERY_FINAL=$(jq -c '{version,complete,runId,sourceAuditRunId,sourceAuditScanned,sourceAuditCutoff,ownerSnapshotModel,articles,shards,policy,generatedAt}' /tmp/discovery.json)"
 
