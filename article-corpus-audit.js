@@ -446,11 +446,10 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
   while(truncated&&objs.length<target&&pagesRead<30){
     const page=await retry(()=>env.CONTENT_FINAL.list({prefix:'articles/',cursor,limit:1000,include:['customMetadata']}));
     pagesRead++;state.listCalls++;state.listedObjects+=Number((page.objects||[]).length);
-    const cutoffMs=Date.parse(state.sourceAuditCutoff||'');
     for(const obj of page.objects||[]){
       if(!String(obj.key||'').endsWith('.html'))continue;
-      const uploadedMs=obj.uploaded?new Date(obj.uploaded).getTime():NaN;
-      if(Number.isFinite(cutoffMs)&&Number.isFinite(uploadedMs)&&uploadedMs>cutoffMs){
+      if(!obj.uploaded){state.skippedMissingUploaded=Number(state.skippedMissingUploaded||0)+1;continue}
+      if(!ownerObjectWithinAuditCutoff(obj.uploaded,state.sourceAuditCutoff)){
         state.skippedAfterCutoff=Number(state.skippedAfterCutoff||0)+1;
         continue;
       }
