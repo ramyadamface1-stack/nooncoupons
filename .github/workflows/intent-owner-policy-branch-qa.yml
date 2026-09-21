@@ -52,7 +52,7 @@ jobs:
           grep -Fq "/blog/archive" auto-platform.js
           grep -Fq "metricQualified" admin-page.js
           grep -Fq "auditQualified" commerce-entry.js
-          grep -Fq "t>cut&&sitemapEligible(a)" auto-platform.js
+          grep -Fq "freshAfterAuditCutoff(a.createdAt,discovery.sourceAuditCutoff)&&sitemapEligible(a)" auto-platform.js
           grep -Fq "discovery_source_snapshot_mismatch" article-corpus-audit.js
           grep -Fq "proofVersion:5" .github/workflows/full-article-corpus-audit.yml
           grep -Fq "CORPUS_AUDIT_REUSED=1" .github/workflows/full-article-corpus-audit.yml
