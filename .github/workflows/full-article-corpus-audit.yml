@@ -73,6 +73,20 @@ jobs:
           code=$(curl -sS -o /tmp/cf-check.json -w '%{http_code}' -H "$AUTH" -H 'Content-Type: application/json' "https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/workers/services/nooncoupons" || true)
           [ "$code" = "200" ] && [ "$(jq -r '.success // false' /tmp/cf-check.json)" = "true" ] || { cat /tmp/cf-check.json; exit 10; }
 
+          reuse_corpus=false
+          complete=false
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ]; then
+            if curl -fsS --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
+              -H "$AUTH" "$ORIGIN/api/article-corpus-audit-health?reuse=1" -o /tmp/existing-final.json; then
+              if jq -e '.ok==true and .version==4 and .auditModel=="rendered-live-v4" and .promoClaimModel=="block-aware-v1" and .runtimeArticleQualityVersion==6 and .done==true and .scanDone==true and .readFailures==0 and .duplicateListedKeys==0 and (.scanned//0)>0 and .uniqueArticles==.scanned' /tmp/existing-final.json >/dev/null; then
+                cp /tmp/existing-final.json /tmp/final.json
+                reuse_corpus=true
+                complete=true
+                echo "ARTICLE_CORPUS_REUSE runId=$(jq -r '.runId' /tmp/final.json) scanned=$(jq -r '.scanned' /tmp/final.json)"
+              fi
+            fi
+          fi
+          if [ "$reuse_corpus" != "true" ]; then
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -X POST -H "$AUTH" -H 'Content-Type: application/json' \
             --data "{\"reset\":true,\"limit\":1000,\"runId\":\"${GITHUB_RUN_ID}\"}" \
@@ -110,9 +124,13 @@ jobs:
             sleep 1
           done
 
+          fi
+
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -H "$AUTH" "$ORIGIN/api/article-corpus-audit-health?final=${GITHUB_RUN_ID}" -o /tmp/final.json
-          jq -e '.ok==true and .version==4 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/final.json >/dev/null
+          jq -e '.ok==true and .version==4 and .auditModel=="rendered-live-v4" and .promoClaimModel=="block-aware-v1" and .runtimeArticleQualityVersion==6' /tmp/final.json >/dev/null
+          CORPUS_RUN_ID="$(jq -r '.runId // ""' /tmp/final.json)"
+          [ -n "$CORPUS_RUN_ID" ] || { echo 'CORPUS_RUN_ID_MISSING'; exit 1; }
           jq -c '{
             version,auditModel,promoClaimModel,uniquenessModel,runId,runtimeArticleQualityVersion,runtimeGuarantees,uniqueArticles,scanned,readFailures,bytes,listCalls,listedObjects,htmlObjectsListed,duplicateListedKeys,countSnapshotKey,languages,wordBands,
             duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,
@@ -127,7 +145,7 @@ jobs:
           [ "$complete" = "true" ] || { echo 'ARTICLE_AUDIT_NOT_COMPLETE'; exit 1; }
 
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 30 \
-            "$ORIGIN/api/article-count-health?fresh=1&audit=${GITHUB_RUN_ID}" -o /tmp/count.json
+            "$ORIGIN/api/article-count-health?fresh=1&audit=${CORPUS_RUN_ID}" -o /tmp/count.json
           jq -e --argjson scanned "$(jq -r '.scanned' /tmp/final.json)" '.ok==true and .complete==true and .source=="article-corpus-audit-v4" and .auditVersion==4 and .count==$scanned' /tmp/count.json >/dev/null
           echo "ARTICLE_COUNT_AUTHORITATIVE=$(jq -c '{count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}' /tmp/count.json)"
 
@@ -156,24 +174,24 @@ jobs:
 
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -H "$AUTH" "$ORIGIN/api/article-collision-owner-health?final=${GITHUB_RUN_ID}" -o /tmp/owner.json
-          jq -e '.ok==true and .version==4 and .done==true and .scanDone==true and .readFailures==0 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/owner.json >/dev/null
+          jq -e --arg owner "${GITHUB_RUN_ID}" --arg source "$CORPUS_RUN_ID" '.ok==true and .version==4 and .done==true and .scanDone==true and .readFailures==0 and .runId==$owner and .sourceAuditRunId==$source and .ownerSnapshotModel=="r2-uploaded-cutoff-v1" and (.skippedMissingUploaded//0)==0' /tmp/owner.json >/dev/null
           [ "$owner_complete" = "true" ] || { echo 'COLLISION_OWNER_ANALYSIS_NOT_COMPLETE'; exit 1; }
           [ "$(jq -r '.scanned // 0' /tmp/owner.json)" = "$(jq -r '.scanned // 0' /tmp/final.json)" ] || { echo 'COLLISION_OWNER_SOURCE_SNAPSHOT_MISMATCH'; exit 1; }
           [ "$(jq -r '.sourceAuditRunId // ""' /tmp/owner.json)" = "$(jq -r '.runId // ""' /tmp/final.json)" ] || { echo 'COLLISION_OWNER_SOURCE_RUN_MISMATCH'; exit 1; }
-          echo "COLLISION_OWNER_FINAL=$(jq -c '{version,runId,sourceAuditRunId,sourceAuditScanned,scanned,readFailures,titleTargets,contentTargets,semanticTargets,discoveryArticles,discoveryShards,discoveryPolicy,title,semantic,done,completedAt}' /tmp/owner.json)"
+          echo "COLLISION_OWNER_FINAL=$(jq -c '{version,runId,sourceAuditRunId,sourceAuditScanned,sourceAuditCutoff,ownerSnapshotModel,scanned,readFailures,listedObjects,skippedAfterCutoff,skippedMissingUploaded,titleTargets,contentTargets,semanticTargets,discoveryArticles,discoveryShards,discoveryPolicy,title,semantic,done,completedAt}' /tmp/owner.json)"
 
 
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -H "$AUTH" "$ORIGIN/api/article-discovery-health?final=${GITHUB_RUN_ID}" -o /tmp/discovery.json
-          jq -e --arg run "${GITHUB_RUN_ID}" --argjson scanned "$(jq -r '.scanned' /tmp/final.json)" '
-            .ok==true and .version==1 and .complete==true and .runId==$run and .sourceAuditRunId==$run and .sourceAuditScanned==$scanned and .articles>=0 and .shards>=0
+          jq -e --arg owner "${GITHUB_RUN_ID}" --arg source "$CORPUS_RUN_ID" --argjson scanned "$(jq -r '.scanned' /tmp/final.json)" '
+            .ok==true and .version==1 and .complete==true and .runId==$owner and .sourceAuditRunId==$source and .sourceAuditScanned==$scanned and .articles>=0 and .shards>=0
           ' /tmp/discovery.json >/dev/null
           echo "ARTICLE_DISCOVERY_FINAL=$(jq -c '{version,complete,runId,sourceAuditRunId,sourceAuditScanned,articles,shards,policy,generatedAt}' /tmp/discovery.json)"
 
           jq -s --arg auditInputHash "$AUDIT_INPUT_HASH" '.[0] + {
             auditInputHash: $auditInputHash,
             authoritativeCount: (.[1] | {count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}),
-            collisionOwnerAnalysis: (.[2] | {version,runId,sourceAuditRunId,sourceAuditVersion,sourceAuditScanned,scanned,readFailures,titleTargets,contentTargets,semanticTargets,discoveryArticles,discoveryShards,discoveryPolicy,title,semantic,scanDone,done,startedAt,completedAt,stateKey}),
+            collisionOwnerAnalysis: (.[2] | {version,runId,sourceAuditRunId,sourceAuditVersion,sourceAuditScanned,sourceAuditCutoff,ownerSnapshotModel,scanned,readFailures,listCalls,listedObjects,skippedAfterCutoff,skippedMissingUploaded,titleTargets,contentTargets,semanticTargets,discoveryArticles,discoveryShards,discoveryPolicy,title,semantic,scanDone,done,startedAt,completedAt,stateKey}),
             discoveryManifest: (.[3] | {version,complete,runId,sourceAuditRunId,sourceAuditScanned,articles,shards,policy,generatedAt,key}),
             proofVersion:5
           }' /tmp/summary.json /tmp/count.json /tmp/owner.json /tmp/discovery.json > /tmp/proof.json
