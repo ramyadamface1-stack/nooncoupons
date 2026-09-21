@@ -23,8 +23,49 @@ jobs:
         with:
           ref: main
 
+      - name: Decide authoritative corpus audit impact
+        id: impact
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            article-corpus-audit.js
+            article-quality-runtime.js
+            quality-index.js
+            article-audit-lock.js
+            bulk-content-engine.js
+            bulk-content-engine-base.js
+            bulk-generator.js
+            generator-core-v2.js
+            quality-audit.js
+            approved-coupons.js
+          )
+          for f in "${files[@]}"; do test -f "$f" || { echo "MISSING_AUDIT_INPUT=$f"; exit 1; }; done
+          current_hash="$(for f in "${files[@]}"; do printf '%s  ' "$f"; sha256sum "$f" | awk '{print $1}'; done | sha256sum | awk '{print $1}')"
+          previous_hash="$(jq -r '.auditInputHash // ""' ops/latest-corpus-audit.json 2>/dev/null || true)"
+          previous_ok="$(jq -r '((.proofVersion // 0) >= 5) and ((.readFailures // 1) == 0) and (.collisionOwnerAnalysis.done == true) and (.discoveryManifest.complete == true)' ops/latest-corpus-audit.json 2>/dev/null || echo false)"
+          run_audit=1
+          reason='audit-input-changed-or-proof-missing'
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            reason='manual-authoritative-audit'
+          elif [ "$previous_ok" = "true" ] && [ -n "$previous_hash" ] && [ "$previous_hash" = "$current_hash" ]; then
+            run_audit=0
+            reason='authoritative-proof-current'
+          fi
+          echo "run_audit=$run_audit" >> "$GITHUB_OUTPUT"
+          echo "audit_input_hash=$current_hash" >> "$GITHUB_OUTPUT"
+          echo "AUDIT_IMPACT run=$run_audit reason=$reason current=$current_hash previous=$previous_hash proof_ok=$previous_ok"
+
+      - name: Reuse current authoritative corpus proof
+        if: steps.impact.outputs.run_audit == '0'
+        run: |
+          echo "CORPUS_AUDIT_REUSED=1"
+          jq -c '{proofVersion,auditInputHash,runId,scanned,readFailures,collisionOwnerAnalysis:{done:.collisionOwnerAnalysis.done,scanned:.collisionOwnerAnalysis.scanned},discoveryManifest:{complete:.discoveryManifest.complete,articles:.discoveryManifest.articles,shards:.discoveryManifest.shards}}' ops/latest-corpus-audit.json
+
       - name: Audit every R2 article
+        if: steps.impact.outputs.run_audit == '1'
         env:
+          AUDIT_INPUT_HASH: ${{ steps.impact.outputs.audit_input_hash }}
           CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
           ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
         shell: bash
@@ -135,7 +176,8 @@ jobs:
           ' /tmp/discovery.json >/dev/null
           echo "ARTICLE_DISCOVERY_FINAL=$(jq -c '{version,complete,runId,sourceAuditRunId,sourceAuditScanned,articles,shards,policy,generatedAt}' /tmp/discovery.json)"
 
-          jq -s '.[0] + {
+          jq -s --arg auditInputHash "$AUDIT_INPUT_HASH" '.[0] + {
+            auditInputHash: $auditInputHash,
             authoritativeCount: (.[1] | {count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}),
             collisionOwnerAnalysis: (.[2] | {version,runId,sourceAuditRunId,sourceAuditVersion,sourceAuditScanned,scanned,readFailures,titleTargets,contentTargets,semanticTargets,discoveryArticles,discoveryShards,discoveryPolicy,title,semantic,scanDone,done,startedAt,completedAt,stateKey}),
             discoveryManifest: (.[3] | {version,complete,runId,sourceAuditRunId,sourceAuditScanned,articles,shards,policy,generatedAt,key}),
@@ -143,6 +185,7 @@ jobs:
           }' /tmp/summary.json /tmp/count.json /tmp/owner.json /tmp/discovery.json > /tmp/proof.json
 
       - name: Persist authoritative corpus audit proof
+        if: steps.impact.outputs.run_audit == '1'
         shell: bash
         run: |
           set -euo pipefail
