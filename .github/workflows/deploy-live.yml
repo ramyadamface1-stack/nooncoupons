@@ -133,6 +133,8 @@ jobs:
           grep -Fq "maintenance/article-corpus-audit-v4.json" article-corpus-audit.js
           grep -Fq "auditModel:'rendered-live-v4'" article-corpus-audit.js
           grep -Fq "uniquenessModel:'stored-core-before-runtime-v1'" article-corpus-audit.js
+          grep -Fq "PROMO_CLAIM_MODEL='block-aware-v1'" article-corpus-audit.js
+          grep -Fq "promoClaimModel" .github/workflows/full-article-corpus-audit.yml
           grep -Fq 'preflightGate:true' quality-index.js
           grep -Fq 'postBuildChecks:['"'"'duplicate-title'"'"','"'"'semantic-collision'"'"']' quality-index.js
           grep -Fq "reasons.push('global_duplicate_title')" quality-index.js
