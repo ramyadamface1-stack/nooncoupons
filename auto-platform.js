@@ -176,7 +176,7 @@ async function freshArticleSitemap(path,env,origin){
   const cut=Date.parse(discovery.generatedAt),day=m[1],shard=Number(m[2]),d=await r2json(env,`bulk/day/${day}/${shard}.json`,null);
   if(!d||!Number.isFinite(cut))return xml('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
   const rows=(d.articles||[]).filter(a=>{
-    const t=Date.parse(a.updatedAt||a.createdAt||'');
+    const t=Date.parse(a.createdAt||'');
     return Number.isFinite(t)&&t>cut&&sitemapEligible(a);
   });
   const urls=rows.map(a=>`<url><loc>${esc(origin+'/articles/'+encodeURI(a.slug))}</loc><lastmod>${esc(a.updatedAt||a.createdAt||day)}</lastmod></url>`).join('');
