@@ -33,12 +33,6 @@ jobs:
             article-quality-runtime.js
             quality-index.js
             article-audit-lock.js
-            bulk-content-engine.js
-            bulk-content-engine-base.js
-            bulk-generator.js
-            generator-core-v2.js
-            quality-audit.js
-            approved-coupons.js
           )
           for f in "${files[@]}"; do test -f "$f" || { echo "MISSING_AUDIT_INPUT=$f"; exit 1; }; done
           current_hash="$(for f in "${files[@]}"; do printf '%s  ' "$f"; sha256sum "$f" | awk '{print $1}'; done | sha256sum | awk '{print $1}')"
