@@ -22,6 +22,7 @@ jobs:
           set -euo pipefail
           node --check article-corpus-audit.js
           node --check auto-platform.js
+          node --check discovery-entry.js
           grep -Fq "same-intent-exact-title-stable-owner-v1" article-corpus-audit.js
           grep -Fq "article-collision-owner-v4.json" article-corpus-audit.js
           grep -Fq "same-intent-semantic-family-stable-owner-v1" article-corpus-audit.js
@@ -32,4 +33,7 @@ jobs:
           grep -Fq "sitemap-fresh-articles-" auto-platform.js
           grep -Fq "t>cut&&sitemapEligible(a)" auto-platform.js
           grep -Fq "discovery_source_snapshot_mismatch" article-corpus-audit.js
+          grep -Fq "proofVersion:5" .github/workflows/full-article-corpus-audit.yml
+          grep -Fq "ARTICLE_DISCOVERY_FINAL=" .github/workflows/full-article-corpus-audit.yml
+          grep -Fq "/api/article-discovery-health" discovery-entry.js
           echo "BRANCH_QA=PASS"
