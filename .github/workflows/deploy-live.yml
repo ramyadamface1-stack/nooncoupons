@@ -139,15 +139,23 @@ jobs:
           grep -Fq "const VERSION=2" quality-index.js
           grep -Fq 'gateRevision:3' quality-index.js
           grep -Fq "runArticleCollisionOwnerBatch" article-corpus-audit.js
-          grep -Fq "maintenance/article-collision-owner-v3.json" article-corpus-audit.js
+          grep -Fq "maintenance/article-collision-owner-v4.json" article-corpus-audit.js
           grep -Fq "actionableOwners" article-corpus-audit.js
           grep -Fq "ownerIntentKey:ownerIntentKey||null" article-corpus-audit.js
           grep -Fq "bulk-day-catalog" article-corpus-audit.js
           grep -Fq "auditLockHeldForOwnerAnalysis" article-corpus-audit.js
           grep -Fq "COLLISION_OWNER_SOURCE_SNAPSHOT_MISMATCH" .github/workflows/full-article-corpus-audit.yml
-          grep -Fq "proofVersion:4" .github/workflows/full-article-corpus-audit.yml
+          grep -Fq "proofVersion:5" .github/workflows/full-article-corpus-audit.yml
           grep -Fq "/api/internal/article-collision-owner-step" discovery-entry.js
           grep -Fq "collisionOwnerAnalysis" .github/workflows/full-article-corpus-audit.yml
+          grep -Fq "ARTICLE_DISCOVERY_FINAL=" .github/workflows/full-article-corpus-audit.yml
+          grep -Fq "discoveryManifest" .github/workflows/full-article-corpus-audit.yml
+          grep -Fq "readArticleDiscoveryState" article-corpus-audit.js
+          grep -Fq "/api/article-discovery-health" discovery-entry.js
+          grep -Fq "published-ar-rendered95-unique-title-content-semantic-v1" article-corpus-audit.js
+          grep -Fq "AUDIT_DISCOVERY_CURRENT_KEY" auto-platform.js
+          grep -Fq "sitemap-audit-articles-" auto-platform.js
+          grep -Fq "sitemap-fresh-articles-" auto-platform.js
           grep -Fq 'preflightGlobalGate' bulk-generator.js
           grep -Fq 'twoStagePreflight:true' bulk-generator.js
           grep -Fq 'reusesCandidatePool:true' bulk-generator.js
