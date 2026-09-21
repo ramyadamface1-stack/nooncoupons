@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "ccc60034af964f1130eb5ebbf1888b9b777d35e8",
-  "verifiedAt": "2026-09-21T08:19:44.671490+00:00",
+  "sourceSha": "785f787d07ee86cd5e7078ac07f177aa018ac9db",
+  "verifiedAt": "2026-09-21T11:26:29.741132+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -101,10 +101,10 @@
     "persistedGeneratorConfigFloor1500Verified": true
   },
   "content": {
-    "r2HtmlObjects": 129641,
-    "trackedPublished": 58983,
+    "r2HtmlObjects": 133746,
+    "trackedPublished": 58984,
     "arabic": 58895,
-    "english": 88,
+    "english": 89,
     "lastSlug": "دليل-شراء-razer-laptops-نون-السعودية-مراجعة-وقت-التوصيل-الذاكرة",
     "lastQuality": 100,
     "lastWordCount": 1712
@@ -155,12 +155,12 @@
   },
   "englishControlled": {
     "target": 200,
-    "published": 88,
-    "remaining": 112,
-    "publishedToday": 10,
+    "published": 89,
+    "remaining": 111,
+    "publishedToday": 11,
     "dailyTarget": 24,
     "minIntervalMinutes": 60,
-    "nextEligibleAt": "2026-09-21T07:21:54.316Z"
+    "nextEligibleAt": "2026-09-21T11:32:23.094Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -172,6 +172,6 @@
     "scanned": 48759,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-21T08:18:45.901Z"
+    "completedAt": "2026-09-21T11:25:24.053Z"
   }
 }
