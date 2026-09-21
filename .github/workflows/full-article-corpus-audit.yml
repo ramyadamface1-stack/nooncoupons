@@ -121,17 +121,26 @@ jobs:
 
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -H "$AUTH" "$ORIGIN/api/article-collision-owner-health?final=${GITHUB_RUN_ID}" -o /tmp/owner.json
-          jq -e '.ok==true and .version==3 and .done==true and .scanDone==true and .readFailures==0 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/owner.json >/dev/null
+          jq -e '.ok==true and .version==4 and .done==true and .scanDone==true and .readFailures==0 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/owner.json >/dev/null
           [ "$owner_complete" = "true" ] || { echo 'COLLISION_OWNER_ANALYSIS_NOT_COMPLETE'; exit 1; }
           [ "$(jq -r '.scanned // 0' /tmp/owner.json)" = "$(jq -r '.scanned // 0' /tmp/final.json)" ] || { echo 'COLLISION_OWNER_SOURCE_SNAPSHOT_MISMATCH'; exit 1; }
           [ "$(jq -r '.sourceAuditRunId // ""' /tmp/owner.json)" = "$(jq -r '.runId // ""' /tmp/final.json)" ] || { echo 'COLLISION_OWNER_SOURCE_RUN_MISMATCH'; exit 1; }
-          echo "COLLISION_OWNER_FINAL=$(jq -c '{version,runId,sourceAuditRunId,scanned,readFailures,titleTargets,semanticTargets,title,semantic,done,completedAt}' /tmp/owner.json)"
+          echo "COLLISION_OWNER_FINAL=$(jq -c '{version,runId,sourceAuditRunId,sourceAuditScanned,scanned,readFailures,titleTargets,contentTargets,semanticTargets,discoveryArticles,discoveryShards,discoveryPolicy,title,semantic,done,completedAt}' /tmp/owner.json)"
+
+
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
+            -H "$AUTH" "$ORIGIN/api/article-discovery-health?final=${GITHUB_RUN_ID}" -o /tmp/discovery.json
+          jq -e --arg run "${GITHUB_RUN_ID}" --argjson scanned "$(jq -r '.scanned' /tmp/final.json)" '
+            .ok==true and .version==1 and .complete==true and .runId==$run and .sourceAuditRunId==$run and .sourceAuditScanned==$scanned and .articles>=0 and .shards>=0
+          ' /tmp/discovery.json >/dev/null
+          echo "ARTICLE_DISCOVERY_FINAL=$(jq -c '{version,complete,runId,sourceAuditRunId,sourceAuditScanned,articles,shards,policy,generatedAt}' /tmp/discovery.json)"
 
           jq -s '.[0] + {
             authoritativeCount: (.[1] | {count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}),
-            collisionOwnerAnalysis: (.[2] | {version,runId,sourceAuditRunId,sourceAuditVersion,scanned,readFailures,titleTargets,semanticTargets,title,semantic,scanDone,done,startedAt,completedAt,stateKey}),
-            proofVersion:4
-          }' /tmp/summary.json /tmp/count.json /tmp/owner.json > /tmp/proof.json
+            collisionOwnerAnalysis: (.[2] | {version,runId,sourceAuditRunId,sourceAuditVersion,sourceAuditScanned,scanned,readFailures,titleTargets,contentTargets,semanticTargets,discoveryArticles,discoveryShards,discoveryPolicy,title,semantic,scanDone,done,startedAt,completedAt,stateKey}),
+            discoveryManifest: (.[3] | {version,complete,runId,sourceAuditRunId,sourceAuditScanned,articles,shards,policy,generatedAt,key}),
+            proofVersion:5
+          }' /tmp/summary.json /tmp/count.json /tmp/owner.json /tmp/discovery.json > /tmp/proof.json
 
       - name: Persist authoritative corpus audit proof
         shell: bash
