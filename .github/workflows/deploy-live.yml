@@ -27,6 +27,9 @@ jobs:
         run: |
           set -euo pipefail
           for f in discovery-entry.js brand-runtime.js network-entry.js commerce-entry.js public-entry.js premium-entry.js auto-platform.js final-platform.js visual-platform.js platform.js seo-layer.js site.js router.js index.js commerce-pages-v2.js commerce-taxonomy.js svg-engine.js approved-coupons.js admin-page.js english-canary.js indexnow.js article-quality-runtime.js article-corpus-audit.js article-audit-lock.js; do node --check "$f"; done
+          node --check bulk-content-engine-base.js
+          node -e "import('./bulk-content-engine-base.js').then(m=>{const x=m.bulkTitleCollisionSelftest();console.log('BULK_TITLE_SELFTEST_PASS='+x.pass,JSON.stringify(x));if(!x.pass)process.exit(1)})"
+          node -e "Promise.all([import('./bulk-content-engine-base.js'),import('./article-quality-runtime.js')]).then(([b,r])=>{const x=b.bulkTitleCollisionSelftest();const rows=x.rows.map(t=>r.normalizeRuntimeTitle(t,{keyword:t,market:'السعودية'}));const pass=x.pass&&new Set(rows).size===rows.length&&rows.every(t=>t.length>=28&&t.length<=72);console.log('RUNTIME_TITLE_DIFFERENTIATION_PASS='+pass,JSON.stringify(rows));if(!pass)process.exit(1)})"
           grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "32000"' wrangler.jsonc
           grep -Fq '"BULK_BATCH_SIZE": "16"' wrangler.jsonc
