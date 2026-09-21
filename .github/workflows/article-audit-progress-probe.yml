@@ -35,3 +35,21 @@ jobs:
           fresh_refs=$( (grep -o 'sitemap-fresh-articles-' /tmp/sitemap.xml || true) | wc -l | tr -d ' ')
           bulk_refs=$( (grep -o 'sitemap-articles-' /tmp/sitemap.xml || true) | wc -l | tr -d ' ')
           echo "SITEMAP_MODE audit=$audit_refs fresh=$fresh_refs bulk=$bulk_refs"
+          TARGET=$(python - <<'PY'
+import urllib.parse
+print(urllib.parse.quote('/articles/طريقة-استخدام-كود-نون-الإمارات-عند-شراء-الجوالات-مع-مقارنة-الأسعار.html',safe='/'))
+PY
+)
+          curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN$TARGET" -o /tmp/claim-page.html || true
+          python - <<'PY'
+import re,html
+try:
+    s=open('/tmp/claim-page.html',encoding='utf-8').read()
+except Exception:
+    s=''
+plain=re.sub(r'<[^>]+>',' ',s)
+plain=html.unescape(re.sub(r'\s+',' ',plain))
+pat=re.compile(r'(?:خصم|توفير)\s*(?:حتى\s*)?\d{1,3}\s*[%٪]|\d{1,4}\s*(?:ريال|درهم)\s*(?:خصم|توفير)|(?:مضمون|مؤكد)\s*(?:الخصم|الكود|القسيمة)',re.I)
+m=pat.search(plain)
+print('UNSUPPORTED_CLAIM_PROBE='+((plain[max(0,m.start()-80):m.end()+80] if m else 'NONE').replace('\n',' ')))
+PY
