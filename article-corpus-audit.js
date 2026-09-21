@@ -227,7 +227,7 @@ function ownerCandidate(key,a,md={},uploaded=null,resolvedOwner={}){
     country:String(md.c||md.country||'SA')==='AE'?'AE':'SA',
     ownerIntentKey:ownerIntentKey||null,ownerIntentSource:ownerIntentSource||null,
     titleNorm:a?.titleNorm||norm(storedTitle),keywordNorm:a?.keywordNorm||norm(dec(md.kw||md.primaryKeyword||storedTitle)),
-    titleHash:a?.titleHash||null,semanticSig:a?.semanticSig||null,
+    titleHash:a?.titleHash||null,contentHash:a?.contentHash||null,semanticSig:a?.semanticSig||null,
     discoveryEligible:auditDiscoveryEligible(a,md)
   };
 }
@@ -291,7 +291,9 @@ function auditDiscoveryEligible(a,md={}){
 function globallyActionableOwner(state,candidate){
   if(!candidate?.discoveryEligible||!candidate?.key)return false;
   const titleTarget=Boolean(candidate.titleHash&&(state.titleTargets||[]).includes(candidate.titleHash));
+  const contentTarget=Boolean(candidate.contentHash&&(state.contentTargets||[]).includes(candidate.contentHash));
   const semanticTarget=Boolean(candidate.semanticSig&&(state.semanticTargets||[]).includes(candidate.semanticSig));
+  if(contentTarget)return false;
   const tg=titleTarget?state.titleGroups?.[candidate.titleHash]:null;
   const sg=semanticTarget?state.semanticGroups?.[candidate.semanticSig]:null;
   if(titleTarget&&(!tg?.actionableOwner||tg?.owner?.key!==candidate.key))return false;
