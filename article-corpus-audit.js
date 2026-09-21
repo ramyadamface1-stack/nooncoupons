@@ -371,6 +371,7 @@ async function publishDiscoveryPointer(env,state){
   const payload={
     version:1,complete:true,runId:state.runId,sourceAuditRunId:state.sourceAuditRunId,
     sourceAuditVersion:state.sourceAuditVersion,sourceAuditScanned:Number(state.sourceAuditScanned||0),
+    sourceAuditCutoff:state.sourceAuditCutoff||null,ownerSnapshotModel:state.ownerSnapshotModel||null,
     articles:Number(state.discoveryArticles||0),shards:Number(state.discoveryShards||0),
     policy:'published-ar-rendered95-unique-or-resolved-owner-v2',resolvedOwners:Number(state.discoveryResolvedOwners||0),generatedAt:state.completedAt||new Date().toISOString()
   };
