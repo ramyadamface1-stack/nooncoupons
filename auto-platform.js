@@ -115,7 +115,9 @@ async function auditBlogArchivePage(req,env){
     return new Response(null,{status:302,headers:{location:'/blog','cache-control':'no-store'}});
   }
   const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin,totalPages=Math.max(1,Number(discovery.shards||0));
-  const requested=Math.max(1,Number.parseInt(u.searchParams.get('page')||'1',10)||1),page=Math.min(requested,totalPages),index=page-1;
+  const rawPage=u.searchParams.get('page'),requested=Math.max(1,Number.parseInt(rawPage||'1',10)||1),page=Math.min(requested,totalPages),index=page-1;
+  if(rawPage==='1')return new Response(null,{status:301,headers:{location:'/blog/archive','cache-control':'public,max-age=3600'}});
+  if(requested>totalPages)return new Response(null,{status:302,headers:{location:totalPages===1?'/blog/archive':'/blog/archive?page='+totalPages,'cache-control':'no-store'}});
   const shard=await r2json(env,`maintenance/article-discovery-v1/${discovery.runId}/${index}.json`,null);
   if(!shard||String(shard.runId)!==String(discovery.runId)||String(shard.sourceAuditRunId)!==String(discovery.sourceAuditRunId)){
     return new Response('Archive shard unavailable',{status:503,headers:{'content-type':'text/plain; charset=utf-8','cache-control':'no-store','x-robots-tag':'noindex,nofollow'}});
@@ -141,7 +143,10 @@ async function bulkBlogPage(req,env,ctx){
   const seen=new Set(),all=[];
   for(const a of [...(latest.articles||[]),...legacy]){if(!a?.slug||seen.has(a.slug))continue;seen.add(a.slug);all.push(a)}
   all.sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
-  const u=new URL(req.url),perPage=12,totalPages=Math.max(1,Math.ceil(all.length/perPage)),requested=Math.max(1,Number.parseInt(u.searchParams.get('page')||'1',10)||1),page=Math.min(requested,totalPages),offset=(page-1)*perPage,rows=all.slice(offset,offset+perPage);
+  const u=new URL(req.url),perPage=12,totalPages=Math.max(1,Math.ceil(all.length/perPage)),rawPage=u.searchParams.get('page'),requested=Math.max(1,Number.parseInt(rawPage||'1',10)||1),page=Math.min(requested,totalPages);
+  if(rawPage==='1')return new Response(null,{status:301,headers:{location:'/blog','cache-control':'public,max-age=3600'}});
+  if(requested>totalPages)return new Response(null,{status:302,headers:{location:totalPages===1?'/blog':'/blog?page='+totalPages,'cache-control':'no-store'}});
+  const offset=(page-1)*perPage,rows=all.slice(offset,offset+perPage);
   const cards=rows.map((a,idx)=>{const country=a.country==='AE'?'AE':'SA',market=country==='SA'?'السعودية':'الإمارات',img=`/assets/coupon-svg/${encodeURIComponent(a.slug)}/1.svg?v=9&coupon=${encodeURIComponent(a.coupon||(country==='AE'?'NOV188':'NOV170'))}&country=${country}`,date=a.updatedAt||a.createdAt||'',dateText=date?new Intl.DateTimeFormat('ar-EG',{day:'numeric',month:'short',year:'numeric',timeZone:'Africa/Cairo'}).format(new Date(date)):'';return `<article class="card${idx===0&&page===1?' leadCard':''}"><a class="thumb" href="/articles/${encodeURI(a.slug)}"><img src="${img}" alt="${esc(a.primaryKeyword||a.title)}" title="${esc(a.title||a.primaryKeyword||'')}" width="1200" height="760" loading="${idx<3?'eager':'lazy'}" fetchpriority="${idx===0?'high':'auto'}" decoding="async"></a><div class="cardBody"><div class="cardMeta"><span class="tag">${market}</span><span>${esc(dateText)}</span></div><h2><a href="/articles/${encodeURI(a.slug)}">${esc(a.title)}</a></h2><p>${esc((a.metaDescription||'').slice(0,180))}</p><div class="cardFoot"><a class="cardAuthor" href="/authors/editorial-team">فريق تحرير كوبونات نون</a><a class="read" href="/articles/${encodeURI(a.slug)}">اقرأ الدليل ←</a></div></div></article>`}).join('');
   const origin=env.SITE_ORIGIN||u.origin,canonical=page===1?`${origin}/blog`:`${origin}/blog?page=${page}`,prev=page>1?(page===2?`${origin}/blog`:`${origin}/blog?page=${page-1}`):'',next=page<totalPages?`${origin}/blog?page=${page+1}`:'';
   const pageLinks=Array.from({length:Math.min(5,totalPages)},(_,i)=>{
