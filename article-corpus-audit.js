@@ -297,7 +297,7 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
     truncated=Boolean(page.truncated);cursor=truncated?page.cursor:undefined;
   }
   for(let i=0;i<objs.length;i+=50){
-    const rows=await Promise.all(objs.slice(i,i+50).map(async obj=>{try{const o=await retry(()=>env.CONTENT_FINAL.get(obj.key));if(!o)return {failed:true,key:obj.key};const html=await o.text(),md=o.customMetadata||obj.customMetadata||{},a=auditOne(obj.key,html,md),ownerEvidence=await resolveOwnerIntentEvidence(env,obj.key,md,ownerCatalogCache);return {failed:false,key:obj.key,a,md,ownerEvidence,uploaded:obj.uploaded?new Date(obj.uploaded).toISOString():null}}catch{return {failed:true,key:obj.key}}}));
+    const rows=await Promise.all(objs.slice(i,i+50).map(async obj=>{try{const o=await retry(()=>env.CONTENT_FINAL.get(obj.key));if(!o)return {failed:true,key:obj.key};const html=await o.text(),md=o.customMetadata||obj.customMetadata||{},a=auditOne(obj.key,html,md),isTarget=titleTargets.has(a.titleHash)||semanticTargets.has(a.semanticSig),ownerEvidence=isTarget?await resolveOwnerIntentEvidence(env,obj.key,md,ownerCatalogCache):{ownerIntentKey:null,ownerIntentSource:null};return {failed:false,key:obj.key,a,md,ownerEvidence,uploaded:obj.uploaded?new Date(obj.uploaded).toISOString():null}}catch{return {failed:true,key:obj.key}}}));
     for(const row of rows){
       state.scanned++;
       if(row.failed){state.readFailures++;continue}
