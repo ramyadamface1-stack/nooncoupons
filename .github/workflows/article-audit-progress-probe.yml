@@ -23,7 +23,7 @@ jobs:
           echo "::add-mask::$CF_TOKEN"
           AUTH="Authorization: Bearer $CF_TOKEN"
           curl -fsS --connect-timeout 10 --max-time 30 -H "$AUTH" "$ORIGIN/api/article-corpus-audit-health" -o /tmp/audit.json
-          echo "AUDIT_PROGRESS=$(jq -c '{ok,version,auditModel,uniquenessModel,runId,scanned,uniqueArticles,readFailures,duplicateListedKeys,scanDone,done,wordBands,duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,lastBatchAt,startedAt,completedAt}' /tmp/audit.json)"
+          echo "AUDIT_PROGRESS=$(jq -c '{ok,version,auditModel,uniquenessModel,runId,scanned,uniqueArticles,readFailures,duplicateListedKeys,scanDone,done,wordBands,duplicateTitles,exactDuplicateContent,semanticSignatureCollisions,issues,samples,lastBatchAt,startedAt,completedAt}' /tmp/audit.json)"
           curl -fsS --connect-timeout 10 --max-time 30 -H "$AUTH" "$ORIGIN/api/article-collision-owner-health" -o /tmp/owner.json || true
           if [ -s /tmp/owner.json ]; then
             echo "OWNER_PROGRESS=$(jq -c '{ok,version,runId,sourceAuditRunId,scanned,readFailures,scanDone,done,titleTargets,semanticTargets,title,semantic,startedAt,completedAt}' /tmp/owner.json)"
