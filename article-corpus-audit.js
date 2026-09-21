@@ -220,7 +220,16 @@ function ownerCandidate(key,a,md={},uploaded=null,resolvedOwner={}){
   if(wc>=1500&&wc<=2000)score+=25;else if(wc>=1000)score+=10;
   if(storedTitle.length>=28&&storedTitle.length<=72)score+=5;
   if(storedMeta.length>=105&&storedMeta.length<=165)score+=5;
-  return {key,score:Math.round(score*10)/10,quality:Math.round(quality*10)/10,qualityFloor:Math.round(floor*10)/10,wordCount:wc,createdAt:createdAt||null,updatedAt:updatedAt||null,status:md.status||null,ownerIntentKey:ownerIntentKey||null,ownerIntentSource:ownerIntentSource||null,titleNorm:a?.titleNorm||norm(storedTitle),keywordNorm:a?.keywordNorm||norm(dec(md.kw||md.primaryKeyword||storedTitle))};
+  return {
+    key,slug:String(key||'').replace(/^articles\//,'').replace(/\.html$/,''),
+    score:Math.round(score*10)/10,quality:Math.round(quality*10)/10,qualityFloor:Math.round(floor*10)/10,wordCount:wc,
+    createdAt:createdAt||null,updatedAt:updatedAt||null,status:md.status||null,
+    country:String(md.c||md.country||'SA')==='AE'?'AE':'SA',
+    ownerIntentKey:ownerIntentKey||null,ownerIntentSource:ownerIntentSource||null,
+    titleNorm:a?.titleNorm||norm(storedTitle),keywordNorm:a?.keywordNorm||norm(dec(md.kw||md.primaryKeyword||storedTitle)),
+    titleHash:a?.titleHash||null,semanticSig:a?.semanticSig||null,
+    discoveryEligible:auditDiscoveryEligible(a,md)
+  };
 }
 function candidateCmp(a,b){
   if(Number(b.score)!==Number(a.score))return Number(b.score)-Number(a.score);
@@ -279,6 +288,40 @@ function auditDiscoveryEligible(a,md={}){
   ];
   return !blocked.some(k=>Number(a?.counters?.[k]||0)>0);
 }
+function globallyActionableOwner(state,candidate){
+  if(!candidate?.discoveryEligible||!candidate?.key)return false;
+  const titleTarget=Boolean(candidate.titleHash&&(state.titleTargets||[]).includes(candidate.titleHash));
+  const semanticTarget=Boolean(candidate.semanticSig&&(state.semanticTargets||[]).includes(candidate.semanticSig));
+  const tg=titleTarget?state.titleGroups?.[candidate.titleHash]:null;
+  const sg=semanticTarget?state.semanticGroups?.[candidate.semanticSig]:null;
+  if(titleTarget&&(!tg?.actionableOwner||tg?.owner?.key!==candidate.key))return false;
+  if(semanticTarget&&(!sg?.actionableOwner||sg?.owner?.key!==candidate.key))return false;
+  return Boolean(titleTarget||semanticTarget);
+}
+function resolvedOwnerDiscoveryRows(state){
+  const byKey=new Map();
+  for(const groups of [state.titleGroups||{},state.semanticGroups||{}]){
+    for(const g of Object.values(groups)){
+      const o=g?.owner;
+      if(g?.actionableOwner&&o?.key)byKey.set(o.key,o);
+    }
+  }
+  return [...byKey.values()].filter(x=>globallyActionableOwner(state,x)).map(x=>({
+    slug:x.slug||String(x.key||'').replace(/^articles\//,'').replace(/\.html$/,''),
+    lastmod:x.updatedAt||x.createdAt||null,
+    country:x.country==='AE'?'AE':'SA',
+    ownerResolved:true
+  }));
+}
+async function appendResolvedOwnerDiscovery(env,state){
+  const rows=resolvedOwnerDiscoveryRows(state);
+  state.discoveryResolvedOwners=0;
+  for(let i=0;i<rows.length;i+=1000){
+    const chunk=rows.slice(i,i+1000);
+    if(chunk.length){await writeDiscoveryShard(env,state,chunk);state.discoveryResolvedOwners+=chunk.length}
+  }
+  return rows.length;
+}
 async function writeDiscoveryShard(env,state,rows){
   if(!rows.length)return null;
   const index=Number(state.discoveryShards||0);
@@ -306,7 +349,7 @@ async function publishDiscoveryPointer(env,state){
     version:1,complete:true,runId:state.runId,sourceAuditRunId:state.sourceAuditRunId,
     sourceAuditVersion:state.sourceAuditVersion,sourceAuditScanned:Number(state.sourceAuditScanned||0),
     articles:Number(state.discoveryArticles||0),shards:Number(state.discoveryShards||0),
-    policy:'published-ar-rendered95-unique-title-content-semantic-v1',generatedAt:state.completedAt||new Date().toISOString()
+    policy:'published-ar-rendered95-unique-or-resolved-owner-v2',resolvedOwners:Number(state.discoveryResolvedOwners||0),generatedAt:state.completedAt||new Date().toISOString()
   };
   await retry(()=>env.CONTENT_FINAL.put(DISCOVERY_CURRENT_KEY,JSON.stringify(payload),{httpMetadata:{contentType:'application/json; charset=utf-8'}}));
   return true;
@@ -330,7 +373,7 @@ function ownerPublicState(s){
       samples:rows.slice(0,5).map(([hash,g])=>({hash,count:g.count,owner:g.owner,runnerUp:g.runnerUp||null,margin:g.margin,clearOwner:g.clearOwner,ownerIntentKey:g.ownerIntentKey||null,ownerIntentSource:g.owner?.ownerIntentSource||null,ownerMetadataComplete:Boolean(g.ownerMetadataComplete),intentOwnerConsistent:Boolean(g.intentOwnerConsistent),sameIntentOwner:Boolean(g.sameIntentOwner),keywordFamilyConsistent:Boolean(g.keywordFamilyConsistent),titleFamilyConsistent:Boolean(g.titleFamilyConsistent),policy:g.policy||null,actionableOwner:Boolean(g.actionableOwner)}))
     };
   };
-  return {version:s.version,runId:s.runId,sourceAuditRunId:s.sourceAuditRunId,sourceAuditVersion:s.sourceAuditVersion,sourceAuditScanned:Number(s.sourceAuditScanned||0),scanned:s.scanned,readFailures:s.readFailures,listCalls:s.listCalls,listedObjects:s.listedObjects,scanDone:s.scanDone,done:s.done,startedAt:s.startedAt,completedAt:s.completedAt,titleTargets:Number((s.titleTargets||[]).length),contentTargets:Number((s.contentTargets||[]).length),semanticTargets:Number((s.semanticTargets||[]).length),discoveryArticles:Number(s.discoveryArticles||0),discoveryShards:Number(s.discoveryShards||0),discoveryPolicy:'published-ar-rendered95-unique-title-content-semantic-v1',title:summarize(s.titleGroups),semantic:summarize(s.semanticGroups),stateKey:OWNER_STATE_KEY};
+  return {version:s.version,runId:s.runId,sourceAuditRunId:s.sourceAuditRunId,sourceAuditVersion:s.sourceAuditVersion,sourceAuditScanned:Number(s.sourceAuditScanned||0),scanned:s.scanned,readFailures:s.readFailures,listCalls:s.listCalls,listedObjects:s.listedObjects,scanDone:s.scanDone,done:s.done,startedAt:s.startedAt,completedAt:s.completedAt,titleTargets:Number((s.titleTargets||[]).length),contentTargets:Number((s.contentTargets||[]).length),semanticTargets:Number((s.semanticTargets||[]).length),discoveryArticles:Number(s.discoveryArticles||0),discoveryShards:Number(s.discoveryShards||0),discoveryPolicy:'published-ar-rendered95-unique-or-resolved-owner-v2',title:summarize(s.titleGroups),semantic:summarize(s.semanticGroups),stateKey:OWNER_STATE_KEY};
 }
 async function saveOwnerState(env,s){await retry(()=>env.CONTENT_FINAL.put(OWNER_STATE_KEY,JSON.stringify(s),{httpMetadata:{contentType:'application/json; charset=utf-8'}}))}
 export async function readArticleCollisionOwnerState(env){
@@ -389,6 +432,7 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
   }
   if(discoveryRows.length)await writeDiscoveryShard(env,state,discoveryRows);
   state.cursor=truncated?cursor:null;state.scanDone=!truncated;state.done=state.scanDone&&state.readFailures===0;state.lastBatchAt=new Date().toISOString();if(state.scanDone)state.completedAt=new Date().toISOString();
+  if(state.scanDone&&state.done)await appendResolvedOwnerDiscovery(env,state);
   await saveOwnerState(env,state);
   if(state.scanDone){await publishDiscoveryPointer(env,state);await releaseArticleAuditLock(env,owner);}
   return {ok:true,batch:{objects:objs.length,pagesRead},auditLockReleased:Boolean(state.scanDone),...ownerPublicState(state)};
