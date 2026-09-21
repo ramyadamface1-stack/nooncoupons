@@ -25,6 +25,8 @@ jobs:
           node --check discovery-entry.js
           node --check commerce-entry.js
           node --check admin-page.js
+          node --check bulk-content-engine-base.js
+          node -e "import('./bulk-content-engine-base.js').then(m=>{const x=m.bulkTitleCollisionSelftest();console.log('BULK_TITLE_SELFTEST_PASS='+x.pass,JSON.stringify(x));if(!x.pass)process.exit(1)})"
           grep -Fq "same-intent-exact-title-stable-owner-v1" article-corpus-audit.js
           grep -Fq "article-collision-owner-v4.json" article-corpus-audit.js
           grep -Fq "same-intent-semantic-family-stable-owner-v1" article-corpus-audit.js
