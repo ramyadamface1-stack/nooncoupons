@@ -111,8 +111,9 @@ export default{
   const adminRes=await app.fetch(new Request(au.toString(),{method:'GET',headers:req.headers}),env,ctx);
   if(!adminRes.ok)return adminRes;
   const probe=async pathname=>{try{const x=new URL(req.url);x.pathname=pathname;x.search='';const r=await app.fetch(new Request(x.toString(),{method:'GET',headers:{accept:'*/*'}}),env,ctx);const body=await r.text();return {ok:r.ok,status:r.status,contentType:r.headers.get('content-type')||'',length:body.length,body:body.slice(0,12000)}}catch(e){return {ok:false,status:0,error:String(e?.message||e)}}};
-  const [seo,robots,llms,sitemap,research,glossary,countries]=await Promise.all([
-    probe('/api/seo-health'),probe('/robots.txt'),probe('/llms.txt'),probe('/sitemap.xml'),probe('/research'),probe('/glossary'),probe('/countries')
+  const [seo,robots,llms,sitemap,research,glossary,countries,auditState,discoveryState]=await Promise.all([
+    probe('/api/seo-health'),probe('/robots.txt'),probe('/llms.txt'),probe('/sitemap.xml'),probe('/research'),probe('/glossary'),probe('/countries'),
+    r2json(env,CORPUS_AUDIT_STATE_KEY,null),r2json(env,ARTICLE_DISCOVERY_CURRENT_KEY,null)
   ]);
   const has=(x,s)=>String(x?.body||'').includes(s);
   const checks={
@@ -123,6 +124,13 @@ export default{
     researchHealthy:research.ok&&has(research,'بيانات ومنهجية كوبونات نون'),
     glossaryHealthy:glossary.ok&&has(glossary,'DefinedTerm')&&has(glossary,'قاموس مصطلحات الكوبونات'),
     countriesHealthy:countries.ok&&has(countries,'نون السعودية والإمارات'),
+    corpusAuditDone:Boolean(auditState?.done&&auditState?.scanDone&&Number(auditState?.readFailures||0)===0),
+    corpusAuditProgress:{runId:auditState?.runId||null,scanned:Number(auditState?.scanned||0),uniqueArticles:Number(auditState?.uniqueArticles||0),readFailures:Number(auditState?.readFailures||0),scanDone:Boolean(auditState?.scanDone),done:Boolean(auditState?.done),wordBands:auditState?.wordBands||null,issues:auditState?.issues||{}},
+    discoveryComplete:Boolean(discoveryState?.complete),
+    discoveryArticles:discoveryState?.complete?Number(discoveryState?.articles||0):null,
+    discoveryShards:discoveryState?.complete?Number(discoveryState?.shards||0):0,
+    discoveryPolicy:discoveryState?.policy||null,
+    auditArchiveReady:Boolean(discoveryState?.complete&&Number(discoveryState?.shards||0)>0),
     approvedCouponCount:APPROVED_COUPON_CODES.length,
     approvedCoupons:[...APPROVED_COUPON_CODES],
     indexNowEnabled:Boolean(seo.ok&&/"indexNowEnabled"\s*:\s*true/i.test(seo.body||'')),
@@ -130,7 +138,8 @@ export default{
     sitemapUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/sitemap.xml',
     researchUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/research',
     glossaryUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/glossary',
-    countriesUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/countries'
+    countriesUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/countries',
+    auditArchiveUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/blog/archive'
   };
   return new Response(JSON.stringify({ok:true,checks,probes:{seo:{ok:seo.ok,status:seo.status},robots:{ok:robots.ok,status:robots.status},llms:{ok:llms.ok,status:llms.status},sitemap:{ok:sitemap.ok,status:sitemap.status},research:{ok:research.ok,status:research.status},glossary:{ok:glossary.ok,status:glossary.status},countries:{ok:countries.ok,status:countries.status}},generatedAt:new Date().toISOString()},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 }if(req.method==='GET'&&path==='/api/admin/live-overview'){
