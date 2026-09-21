@@ -187,10 +187,10 @@ async function ownerLookupForDay(env,day,cache){
   cache.set(day,p);
   return p;
 }
-async function resolveOwnerIntentEvidence(env,key,md,cache){
+async function resolveOwnerIntentEvidence(env,key,md,uploaded,cache){
   const direct=dec(md.io||md.ownerIntentKey||'').trim();
   if(direct)return {ownerIntentKey:direct,ownerIntentSource:'metadata'};
-  const day=String(md.at||md.createdAt||'').slice(0,10);
+  const day=String(md.at||md.createdAt||uploaded||'').slice(0,10);
   if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return {ownerIntentKey:null,ownerIntentSource:null};
   const slug=String(key||'').replace(/^articles\//,'').replace(/\.html$/,'');
   const lookup=await ownerLookupForDay(env,day,cache);
@@ -369,7 +369,7 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
     truncated=Boolean(page.truncated);cursor=truncated?page.cursor:undefined;
   }
   for(let i=0;i<objs.length;i+=50){
-    const rows=await Promise.all(objs.slice(i,i+50).map(async obj=>{try{const o=await retry(()=>env.CONTENT_FINAL.get(obj.key));if(!o)return {failed:true,key:obj.key};const html=await o.text(),md=o.customMetadata||obj.customMetadata||{},a=auditOne(obj.key,html,md),isTarget=titleTargets.has(a.titleHash)||semanticTargets.has(a.semanticSig),ownerEvidence=isTarget?await resolveOwnerIntentEvidence(env,obj.key,md,ownerCatalogCache):{ownerIntentKey:null,ownerIntentSource:null};return {failed:false,key:obj.key,a,md,ownerEvidence,uploaded:obj.uploaded?new Date(obj.uploaded).toISOString():null}}catch{return {failed:true,key:obj.key}}}));
+    const rows=await Promise.all(objs.slice(i,i+50).map(async obj=>{try{const o=await retry(()=>env.CONTENT_FINAL.get(obj.key));if(!o)return {failed:true,key:obj.key};const html=await o.text(),md=o.customMetadata||obj.customMetadata||{},a=auditOne(obj.key,html,md),isTarget=titleTargets.has(a.titleHash)||semanticTargets.has(a.semanticSig),ownerEvidence=isTarget?await resolveOwnerIntentEvidence(env,obj.key,md,obj.uploaded?new Date(obj.uploaded).toISOString():null,ownerCatalogCache):{ownerIntentKey:null,ownerIntentSource:null};return {failed:false,key:obj.key,a,md,ownerEvidence,uploaded:obj.uploaded?new Date(obj.uploaded).toISOString():null}}catch{return {failed:true,key:obj.key}}}));
     for(const row of rows){
       state.scanned++;
       if(row.failed){state.readFailures++;continue}
