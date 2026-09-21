@@ -121,14 +121,16 @@ jobs:
 
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -H "$AUTH" "$ORIGIN/api/article-collision-owner-health?final=${GITHUB_RUN_ID}" -o /tmp/owner.json
-          jq -e '.ok==true and .done==true and .scanDone==true and .readFailures==0 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/owner.json >/dev/null
+          jq -e '.ok==true and .version==3 and .done==true and .scanDone==true and .readFailures==0 and .runId=="'${GITHUB_RUN_ID}'"' /tmp/owner.json >/dev/null
           [ "$owner_complete" = "true" ] || { echo 'COLLISION_OWNER_ANALYSIS_NOT_COMPLETE'; exit 1; }
+          [ "$(jq -r '.scanned // 0' /tmp/owner.json)" = "$(jq -r '.scanned // 0' /tmp/final.json)" ] || { echo 'COLLISION_OWNER_SOURCE_SNAPSHOT_MISMATCH'; exit 1; }
+          [ "$(jq -r '.sourceAuditRunId // ""' /tmp/owner.json)" = "$(jq -r '.runId // ""' /tmp/final.json)" ] || { echo 'COLLISION_OWNER_SOURCE_RUN_MISMATCH'; exit 1; }
           echo "COLLISION_OWNER_FINAL=$(jq -c '{version,runId,sourceAuditRunId,scanned,readFailures,titleTargets,semanticTargets,title,semantic,done,completedAt}' /tmp/owner.json)"
 
           jq -s '.[0] + {
             authoritativeCount: (.[1] | {count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}),
             collisionOwnerAnalysis: (.[2] | {version,runId,sourceAuditRunId,sourceAuditVersion,scanned,readFailures,titleTargets,semanticTargets,title,semantic,scanDone,done,startedAt,completedAt,stateKey}),
-            proofVersion:2
+            proofVersion:3
           }' /tmp/summary.json /tmp/count.json /tmp/owner.json > /tmp/proof.json
 
       - name: Persist authoritative corpus audit proof
