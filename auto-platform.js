@@ -203,6 +203,19 @@ async function auditArticleSitemap(path,env,origin){
   return xml(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
+function freshAfterAuditCutoff(createdAt,cutoff){
+  const created=Date.parse(String(createdAt||'')),cut=Date.parse(String(cutoff||''));
+  return Number.isFinite(created)&&Number.isFinite(cut)&&created>cut;
+}
+export function freshDeltaCutoffSelftest(){
+  const cutoff='2026-09-21T09:24:05.299Z';
+  const before=freshAfterAuditCutoff('2026-09-21T09:24:05.298Z',cutoff);
+  const equal=freshAfterAuditCutoff('2026-09-21T09:24:05.299Z',cutoff);
+  const after=freshAfterAuditCutoff('2026-09-21T09:24:05.300Z',cutoff);
+  const invalid=freshAfterAuditCutoff('',cutoff);
+  return {pass:!before&&!equal&&after&&!invalid,before,equal,after,invalid,model:'source-audit-cutoff-v1'};
+}
+
 async function freshArticleSitemap(path,env,origin){
   const m=path.match(/^\/sitemap-fresh-articles-(\d{4}-\d{2}-\d{2})-(\d+)\.xml$/);if(!m)return null;
   const discovery=await r2json(env,AUDIT_DISCOVERY_CURRENT_KEY,null);
@@ -210,8 +223,7 @@ async function freshArticleSitemap(path,env,origin){
   const cut=Date.parse(discovery.sourceAuditCutoff),day=m[1],shard=Number(m[2]),d=await r2json(env,`bulk/day/${day}/${shard}.json`,null);
   if(!d||!Number.isFinite(cut))return xml('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>');
   const rows=(d.articles||[]).filter(a=>{
-    const t=Date.parse(a.createdAt||'');
-    return Number.isFinite(t)&&t>cut&&sitemapEligible(a);
+    return freshAfterAuditCutoff(a.createdAt,discovery.sourceAuditCutoff)&&sitemapEligible(a);
   });
   const urls=rows.map(a=>`<url><loc>${esc(origin+'/articles/'+encodeURI(a.slug))}</loc><lastmod>${esc(a.updatedAt||a.createdAt||day)}</lastmod></url>`).join('');
   return xml(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
