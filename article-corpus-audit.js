@@ -127,6 +127,8 @@ export async function runArticleCorpusAuditBatch(env,{limit=250,reset=false,runI
 
 
 const OWNER_STATE_KEY='maintenance/article-collision-owner-v3.json';
+const DISCOVERY_PREFIX='maintenance/article-discovery-v1/';
+const DISCOVERY_CURRENT_KEY=DISCOVERY_PREFIX+'current.json';
 const OWNER_CATALOG_PREFIX='maintenance/article-owner-catalog-v1/';
 const BULK_DAYS_KEY='bulk/days.json';
 
@@ -265,6 +267,39 @@ function addOwnerCandidate(groups,hash,candidate,kind='semantic'){
   g.actionableOwner=Boolean(g.clearOwner);
   groups[hash]=g;
 }
+function auditDiscoveryEligible(a,md={}){
+  if(String(md.status||'')!=='published')return false;
+  if(String(md.ix||md.indexable||'1')==='0'||md.indexable===false)return false;
+  if(a?.lang!=='ar'||Number(a?.wc||0)<1500||Number(a?.wc||0)>2000)return false;
+  if(Object.values(a?.scores||{}).some(x=>Number(x)<95))return false;
+  const blocked=[
+    'trust_invalid_coupon_token','trust_competitor_brand_mention','geo_wrong_market_mention',
+    'technical_placeholder_links','eeat_unsupported_promo_claim','fragment_jsonld_parse_error',
+    'storage_status_not_published','content_generic_ai_phrase'
+  ];
+  return !blocked.some(k=>Number(a?.counters?.[k]||0)>0);
+}
+async function writeDiscoveryShard(env,state,rows){
+  if(!rows.length)return null;
+  const index=Number(state.discoveryShards||0);
+  const key=`${DISCOVERY_PREFIX}${state.runId}/${index}.json`;
+  const payload={version:1,runId:state.runId,sourceAuditRunId:state.sourceAuditRunId,sourceAuditVersion:state.sourceAuditVersion,index,articles:rows};
+  await retry(()=>env.CONTENT_FINAL.put(key,JSON.stringify(payload),{httpMetadata:{contentType:'application/json; charset=utf-8'}}));
+  state.discoveryShards=index+1;state.discoveryArticles=Number(state.discoveryArticles||0)+rows.length;
+  return key;
+}
+async function publishDiscoveryPointer(env,state){
+  if(!state?.done||!state?.scanDone||Number(state.readFailures||0)!==0)return false;
+  if(Number(state.scanned||0)!==Number(state.sourceAuditScanned||0))throw new Error('discovery_source_snapshot_mismatch');
+  const payload={
+    version:1,complete:true,runId:state.runId,sourceAuditRunId:state.sourceAuditRunId,
+    sourceAuditVersion:state.sourceAuditVersion,sourceAuditScanned:Number(state.sourceAuditScanned||0),
+    articles:Number(state.discoveryArticles||0),shards:Number(state.discoveryShards||0),
+    policy:'published-ar-rendered95-unique-title-content-semantic-v1',generatedAt:state.completedAt||new Date().toISOString()
+  };
+  await retry(()=>env.CONTENT_FINAL.put(DISCOVERY_CURRENT_KEY,JSON.stringify(payload),{httpMetadata:{contentType:'application/json; charset=utf-8'}}));
+  return true;
+}
 function ownerPublicState(s){
   const summarize=groups=>{
     const rows=Object.entries(groups||{}).filter(([,g])=>Number(g?.count||0)>=2);
@@ -284,7 +319,7 @@ function ownerPublicState(s){
       samples:rows.slice(0,5).map(([hash,g])=>({hash,count:g.count,owner:g.owner,runnerUp:g.runnerUp||null,margin:g.margin,clearOwner:g.clearOwner,ownerIntentKey:g.ownerIntentKey||null,ownerIntentSource:g.owner?.ownerIntentSource||null,ownerMetadataComplete:Boolean(g.ownerMetadataComplete),intentOwnerConsistent:Boolean(g.intentOwnerConsistent),sameIntentOwner:Boolean(g.sameIntentOwner),keywordFamilyConsistent:Boolean(g.keywordFamilyConsistent),titleFamilyConsistent:Boolean(g.titleFamilyConsistent),policy:g.policy||null,actionableOwner:Boolean(g.actionableOwner)}))
     };
   };
-  return {version:s.version,runId:s.runId,sourceAuditRunId:s.sourceAuditRunId,sourceAuditVersion:s.sourceAuditVersion,scanned:s.scanned,readFailures:s.readFailures,listCalls:s.listCalls,listedObjects:s.listedObjects,scanDone:s.scanDone,done:s.done,startedAt:s.startedAt,completedAt:s.completedAt,titleTargets:Number((s.titleTargets||[]).length),semanticTargets:Number((s.semanticTargets||[]).length),title:summarize(s.titleGroups),semantic:summarize(s.semanticGroups),stateKey:OWNER_STATE_KEY};
+  return {version:s.version,runId:s.runId,sourceAuditRunId:s.sourceAuditRunId,sourceAuditVersion:s.sourceAuditVersion,sourceAuditScanned:Number(s.sourceAuditScanned||0),scanned:s.scanned,readFailures:s.readFailures,listCalls:s.listCalls,listedObjects:s.listedObjects,scanDone:s.scanDone,done:s.done,startedAt:s.startedAt,completedAt:s.completedAt,titleTargets:Number((s.titleTargets||[]).length),contentTargets:Number((s.contentTargets||[]).length),semanticTargets:Number((s.semanticTargets||[]).length),discoveryArticles:Number(s.discoveryArticles||0),discoveryShards:Number(s.discoveryShards||0),discoveryPolicy:'published-ar-rendered95-unique-title-content-semantic-v1',title:summarize(s.titleGroups),semantic:summarize(s.semanticGroups),stateKey:OWNER_STATE_KEY};
 }
 async function saveOwnerState(env,s){await retry(()=>env.CONTENT_FINAL.put(OWNER_STATE_KEY,JSON.stringify(s),{httpMetadata:{contentType:'application/json; charset=utf-8'}}))}
 export async function readArticleCollisionOwnerState(env){
@@ -301,8 +336,9 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
     let audit;try{audit=JSON.parse(await auditObj.text())}catch{return {ok:false,reason:'corpus_audit_invalid'}}
     if(!audit?.done||!audit?.scanDone||Number(audit.readFailures||0)!==0)return {ok:false,reason:'corpus_audit_not_authoritative'};
     const titleTargets=Object.entries(audit.titleFreq||{}).filter(([,n])=>Number(n)>1).map(([h])=>h);
+    const contentTargets=Object.entries(audit.contentFreq||{}).filter(([,n])=>Number(n)>1).map(([h])=>h);
     const semanticTargets=Object.entries(audit.semanticFreq||{}).filter(([,n])=>Number(n)>1).map(([h])=>h);
-    const state={version:3,runId:owner,sourceAuditRunId:audit.runId||null,sourceAuditVersion:audit.version||4,cursor:null,scanned:0,readFailures:0,listCalls:0,listedObjects:0,titleTargets,semanticTargets,titleGroups:{},semanticGroups:{},scanDone:false,done:false,startedAt:new Date().toISOString()};
+    const state={version:3,runId:owner,sourceAuditRunId:audit.runId||null,sourceAuditVersion:audit.version||4,sourceAuditScanned:Number(audit.scanned||0),cursor:null,scanned:0,readFailures:0,listCalls:0,listedObjects:0,titleTargets,contentTargets,semanticTargets,titleGroups:{},semanticGroups:{},discoveryArticles:0,discoveryShards:0,scanDone:false,done:false,startedAt:new Date().toISOString()};
     await refreshArticleAuditLock(env,owner);await saveOwnerState(env,state);
     return {ok:true,reset:true,auditLock:true,...ownerPublicState(state)};
   }
@@ -311,8 +347,9 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
   if(state.runId!==owner)return {ok:false,reason:'owner_analysis_owned_by_other_run',runId:state.runId};
   if(state.done){await releaseArticleAuditLock(env,owner);return {ok:true,...ownerPublicState(state)}}
   await refreshArticleAuditLock(env,owner);
-  const titleTargets=new Set(state.titleTargets||[]),semanticTargets=new Set(state.semanticTargets||[]),target=Math.max(1,Math.min(Number(limit)||1000,1000));
+  const titleTargets=new Set(state.titleTargets||[]),contentTargets=new Set(state.contentTargets||[]),semanticTargets=new Set(state.semanticTargets||[]),target=Math.max(1,Math.min(Number(limit)||1000,1000));
   const ownerCatalogCache=new Map();
+  const discoveryRows=[];
   const objs=[];let cursor=state.cursor||undefined,truncated=true,pagesRead=0;
   while(truncated&&objs.length<target&&pagesRead<30){
     const page=await retry(()=>env.CONTENT_FINAL.list({prefix:'articles/',cursor,limit:1000,include:['customMetadata']}));
@@ -325,14 +362,23 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
     for(const row of rows){
       state.scanned++;
       if(row.failed){state.readFailures++;continue}
-      if(!titleTargets.has(row.a.titleHash)&&!semanticTargets.has(row.a.semanticSig))continue;
+      const isTitleCollision=titleTargets.has(row.a.titleHash),isContentCollision=contentTargets.has(row.a.contentHash),isSemanticCollision=semanticTargets.has(row.a.semanticSig);
+      if(!isTitleCollision&&!isContentCollision&&!isSemanticCollision&&auditDiscoveryEligible(row.a,row.md)){
+        discoveryRows.push({
+          slug:String(row.key||'').replace(/^articles\//,'').replace(/\.html$/,''),
+          lastmod:String(row.md?.ua||row.md?.updatedAt||row.md?.at||row.md?.createdAt||row.uploaded||''),
+          country:String(row.md?.c||row.md?.country||'SA')==='AE'?'AE':'SA'
+        });
+      }
+      if(!isTitleCollision&&!isSemanticCollision)continue;
       const candidate=ownerCandidate(row.key,row.a,row.md,row.uploaded,row.ownerEvidence);
       if(titleTargets.has(row.a.titleHash))addOwnerCandidate(state.titleGroups,row.a.titleHash,candidate,'title');
       if(semanticTargets.has(row.a.semanticSig))addOwnerCandidate(state.semanticGroups,row.a.semanticSig,candidate,'semantic');
     }
   }
+  if(discoveryRows.length)await writeDiscoveryShard(env,state,discoveryRows);
   state.cursor=truncated?cursor:null;state.scanDone=!truncated;state.done=state.scanDone&&state.readFailures===0;state.lastBatchAt=new Date().toISOString();if(state.scanDone)state.completedAt=new Date().toISOString();
   await saveOwnerState(env,state);
-  if(state.scanDone)await releaseArticleAuditLock(env,owner);
+  if(state.scanDone){await publishDiscoveryPointer(env,state);await releaseArticleAuditLock(env,owner);}
   return {ok:true,batch:{objects:objs.length,pagesRead},auditLockReleased:Boolean(state.scanDone),...ownerPublicState(state)};
 }
