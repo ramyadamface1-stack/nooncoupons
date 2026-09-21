@@ -184,15 +184,15 @@ jobs:
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 60 \
             -H "$AUTH" "$ORIGIN/api/article-discovery-health?final=${GITHUB_RUN_ID}" -o /tmp/discovery.json
           jq -e --arg owner "${GITHUB_RUN_ID}" --arg source "$CORPUS_RUN_ID" --argjson scanned "$(jq -r '.scanned' /tmp/final.json)" '
-            .ok==true and .version==1 and .complete==true and .runId==$owner and .sourceAuditRunId==$source and .sourceAuditScanned==$scanned and .articles>=0 and .shards>=0
+            .ok==true and .version==1 and .complete==true and .runId==$owner and .sourceAuditRunId==$source and .sourceAuditScanned==$scanned and (.sourceAuditCutoff|type=="string") and (.sourceAuditCutoff|length)>0 and .ownerSnapshotModel=="r2-uploaded-cutoff-v1" and .articles>=0 and .shards>=0
           ' /tmp/discovery.json >/dev/null
-          echo "ARTICLE_DISCOVERY_FINAL=$(jq -c '{version,complete,runId,sourceAuditRunId,sourceAuditScanned,articles,shards,policy,generatedAt}' /tmp/discovery.json)"
+          echo "ARTICLE_DISCOVERY_FINAL=$(jq -c '{version,complete,runId,sourceAuditRunId,sourceAuditScanned,sourceAuditCutoff,ownerSnapshotModel,articles,shards,policy,generatedAt}' /tmp/discovery.json)"
 
           jq -s --arg auditInputHash "$AUDIT_INPUT_HASH" '.[0] + {
             auditInputHash: $auditInputHash,
             authoritativeCount: (.[1] | {count,countedAt,source,complete,auditVersion,auditModel,runId,listCalls,listedObjects}),
             collisionOwnerAnalysis: (.[2] | {version,runId,sourceAuditRunId,sourceAuditVersion,sourceAuditScanned,sourceAuditCutoff,ownerSnapshotModel,scanned,readFailures,listCalls,listedObjects,skippedAfterCutoff,skippedMissingUploaded,titleTargets,contentTargets,semanticTargets,discoveryArticles,discoveryShards,discoveryPolicy,title,semantic,scanDone,done,startedAt,completedAt,stateKey}),
-            discoveryManifest: (.[3] | {version,complete,runId,sourceAuditRunId,sourceAuditScanned,articles,shards,policy,generatedAt,key}),
+            discoveryManifest: (.[3] | {version,complete,runId,sourceAuditRunId,sourceAuditScanned,sourceAuditCutoff,ownerSnapshotModel,articles,shards,policy,generatedAt,key}),
             proofVersion:5
           }' /tmp/summary.json /tmp/count.json /tmp/owner.json /tmp/discovery.json > /tmp/proof.json
 
