@@ -35,7 +35,7 @@ jobs:
           fresh_refs=$( (grep -o 'sitemap-fresh-articles-' /tmp/sitemap.xml || true) | wc -l | tr -d ' ')
           bulk_refs=$( (grep -o 'sitemap-articles-' /tmp/sitemap.xml || true) | wc -l | tr -d ' ')
           echo "SITEMAP_MODE audit=$audit_refs fresh=$fresh_refs bulk=$bulk_refs"
-          TARGET=$(python -c "import urllib.parse;print(urllib.parse.quote('/articles/طريقة-استخدام-كود-نون-الإمارات-عند-شراء-الجوالات-مع-مقارنة-الأسعار.html',safe='/'))")
+          TARGET=$(python -c "import urllib.parse;print(urllib.parse.quote('/articles/طريقة-استخدام-كود-نون-الإمارات-عند-شراء-الجوالات-مع-مقارنة-الأسعار',safe='/'))")
           for BASE in "$ORIGIN" "https://noondealsnow.com"; do
             tag=$(echo "$BASE" | sed 's#https://##;s#[^A-Za-z0-9]#_#g')
             code=$(curl -L -sS --connect-timeout 10 --max-time 30 -o "/tmp/claim-$tag.html" -w '%{http_code}' "$BASE$TARGET" || true)
