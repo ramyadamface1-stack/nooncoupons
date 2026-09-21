@@ -13,6 +13,7 @@ export {ControlPlane,GeneratorControl} from './public-entry.js';
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
 const R2_COUNT_SNAPSHOT_KEY='_ops/article-count.json';
 const CORPUS_AUDIT_STATE_KEY='maintenance/article-corpus-audit-v4.json';
+const ARTICLE_DISCOVERY_CURRENT_KEY='maintenance/article-discovery-v1/current.json';
 const R2_COUNT_TTL_MS=300000;
 let r2CountCache={snapshot:null,at:0};
 async function readR2CountSnapshot(env){
@@ -90,6 +91,7 @@ async function contentStats(req,env,ctx){
   const controlled=english?.controlled||{};
   const arabic=Number(bulk.publishedTotal||0);
   const englishTotal=Number(controlled.published||0),trackedPublished=arabic+englishTotal,untrackedEstimate=r2Count.complete&&Number.isFinite(Number(r2Uploaded))?Math.max(0,Number(r2Uploaded)-trackedPublished):null;
+  const discovery=await r2json(env,ARTICLE_DISCOVERY_CURRENT_KEY,null),auditQualified=discovery?.complete?Number(discovery.articles||0):null,auditCoverage=r2Count.complete&&auditQualified!=null&&Number(r2Uploaded)>0?Math.round(auditQualified/Number(r2Uploaded)*10000)/100:null;
   return {
     ok:true,total:trackedPublished,r2Uploaded,arabic,english:englishTotal,
     englishByCountry:{SA:Number(controlled.sa||0),AE:Number(controlled.ae||0)},
@@ -98,7 +100,7 @@ async function contentStats(req,env,ctx){
     englishControlled:{target:Number(controlled.target||0),complete:Boolean(controlled.complete),remaining:Number(controlled.remaining||0),publishedToday:Number(controlled.publishedToday||0),dailyTarget:Number(controlled.dailyTarget||0),minIntervalMinutes:Number(controlled.minIntervalMinutes||0),nextEligibleAt:controlled.nextEligibleAt||null},
     source:'live-runtime',generatedAt:new Date().toISOString(),health:generator,
     couponMigration:{ok:Boolean(couponMigration?.ok),done:Boolean(couponMigration?.done),scanned:Number(couponMigration?.scanned||0),updated:Number(couponMigration?.updated||0),replaced:Number(couponMigration?.replaced||0),lastBatchAt:couponMigration?.lastBatchAt||null,completedAt:couponMigration?.completedAt||null},
-    storageAudit:{trackedPublished,r2HtmlObjects:r2Uploaded,r2CountComplete:Boolean(r2Count.complete),untrackedEstimate,autoDelete:false,note:r2Count.complete?'Complete HTML-object count from the authoritative corpus audit; no automatic deletion.':'Legacy/incomplete count snapshot; do not use it for cleanup or corpus totals.'},
+    storageAudit:{trackedPublished,r2HtmlObjects:r2Uploaded,r2CountComplete:Boolean(r2Count.complete),untrackedEstimate,auditQualified,discoveryComplete:Boolean(discovery?.complete),discoveryShards:Number(discovery?.shards||0),discoveryPolicy:discovery?.policy||null,discoveryRunId:discovery?.runId||null,sourceAuditScanned:Number(discovery?.sourceAuditScanned||0)||null,auditCoveragePercent:auditCoverage,autoDelete:false,note:r2Count.complete?'Complete HTML-object count from the authoritative corpus audit; no automatic deletion.':'Legacy/incomplete count snapshot; do not use it for cleanup or corpus totals.'},
     r2Count:{count:r2Uploaded,countedAt:r2Count.countedAt,cached:Boolean(r2Count.cached),ageSeconds:r2Count.ageSeconds??null,complete:Boolean(r2Count.complete),source:r2Count.source||null,version:r2Count.version||null,auditVersion:r2Count.auditVersion||null,auditModel:r2Count.auditModel||null,runId:r2Count.runId||null,stale:Boolean(r2Count.stale),reason:r2Count.reason||null,listCalls:r2Count.listCalls??null,listedObjects:r2Count.listedObjects??null,snapshotKey:R2_COUNT_SNAPSHOT_KEY,ttlSeconds:R2_COUNT_TTL_MS/1000}
   };
 }
@@ -109,8 +111,9 @@ export default{
   const adminRes=await app.fetch(new Request(au.toString(),{method:'GET',headers:req.headers}),env,ctx);
   if(!adminRes.ok)return adminRes;
   const probe=async pathname=>{try{const x=new URL(req.url);x.pathname=pathname;x.search='';const r=await app.fetch(new Request(x.toString(),{method:'GET',headers:{accept:'*/*'}}),env,ctx);const body=await r.text();return {ok:r.ok,status:r.status,contentType:r.headers.get('content-type')||'',length:body.length,body:body.slice(0,12000)}}catch(e){return {ok:false,status:0,error:String(e?.message||e)}}};
-  const [seo,robots,llms,sitemap,research,glossary,countries]=await Promise.all([
-    probe('/api/seo-health'),probe('/robots.txt'),probe('/llms.txt'),probe('/sitemap.xml'),probe('/research'),probe('/glossary'),probe('/countries')
+  const [seo,robots,llms,sitemap,research,glossary,countries,auditState,discoveryState]=await Promise.all([
+    probe('/api/seo-health'),probe('/robots.txt'),probe('/llms.txt'),probe('/sitemap.xml'),probe('/research'),probe('/glossary'),probe('/countries'),
+    r2json(env,CORPUS_AUDIT_STATE_KEY,null),r2json(env,ARTICLE_DISCOVERY_CURRENT_KEY,null)
   ]);
   const has=(x,s)=>String(x?.body||'').includes(s);
   const checks={
@@ -121,6 +124,13 @@ export default{
     researchHealthy:research.ok&&has(research,'بيانات ومنهجية كوبونات نون'),
     glossaryHealthy:glossary.ok&&has(glossary,'DefinedTerm')&&has(glossary,'قاموس مصطلحات الكوبونات'),
     countriesHealthy:countries.ok&&has(countries,'نون السعودية والإمارات'),
+    corpusAuditDone:Boolean(auditState?.done&&auditState?.scanDone&&Number(auditState?.readFailures||0)===0),
+    corpusAuditProgress:{runId:auditState?.runId||null,scanned:Number(auditState?.scanned||0),uniqueArticles:Number(auditState?.uniqueArticles||0),readFailures:Number(auditState?.readFailures||0),scanDone:Boolean(auditState?.scanDone),done:Boolean(auditState?.done),wordBands:auditState?.wordBands||null,issues:auditState?.issues||{}},
+    discoveryComplete:Boolean(discoveryState?.complete),
+    discoveryArticles:discoveryState?.complete?Number(discoveryState?.articles||0):null,
+    discoveryShards:discoveryState?.complete?Number(discoveryState?.shards||0):0,
+    discoveryPolicy:discoveryState?.policy||null,
+    auditArchiveReady:Boolean(discoveryState?.complete&&Number(discoveryState?.shards||0)>0),
     approvedCouponCount:APPROVED_COUPON_CODES.length,
     approvedCoupons:[...APPROVED_COUPON_CODES],
     indexNowEnabled:Boolean(seo.ok&&/"indexNowEnabled"\s*:\s*true/i.test(seo.body||'')),
@@ -128,7 +138,8 @@ export default{
     sitemapUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/sitemap.xml',
     researchUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/research',
     glossaryUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/glossary',
-    countriesUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/countries'
+    countriesUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/countries',
+    auditArchiveUrl:(env.SITE_ORIGIN||new URL(req.url).origin)+'/blog/archive'
   };
   return new Response(JSON.stringify({ok:true,checks,probes:{seo:{ok:seo.ok,status:seo.status},robots:{ok:robots.ok,status:robots.status},llms:{ok:llms.ok,status:llms.status},sitemap:{ok:sitemap.ok,status:sitemap.status},research:{ok:research.ok,status:research.status},glossary:{ok:glossary.ok,status:glossary.status},countries:{ok:countries.ok,status:countries.status}},generatedAt:new Date().toISOString()},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 }if(req.method==='GET'&&path==='/api/admin/live-overview'){

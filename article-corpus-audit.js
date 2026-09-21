@@ -32,6 +32,27 @@ const GENERIC_AI=/(?:بالتأكيد|مما لا شك فيه|في عالمنا 
 const COMPETITOR=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|(?:eXtra\s+(?:stores|saudi|ksa|uae))|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|علي\s?اكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i;
 const COUPON=/\b(?:OPS\d+|NOV\d+)\b/gi;
 const APPROVED=new Set(['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161']);
+const PROMO_CLAIM_MODEL='block-aware-v1';
+function hasUnsupportedPromoClaim(html){
+  const segmented=String(html||'')
+    .replace(/<script\b[\s\S]*?<\/script>/gi,' ')
+    .replace(/<style\b[\s\S]*?<\/style>/gi,' ')
+    .replace(/<\/(?:p|li|td|th|tr|div|section|article|h[1-6])\s*>|<br\b[^>]*>/gi,'\n')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/&nbsp;|&#160;/gi,' ')
+    .replace(/&amp;/gi,'&');
+  return segmented.split(/\n+/).some(part=>UNSUPPORTED.test(String(part||'').replace(/\s+/g,' ').trim()));
+}
+
+export function promoClaimAuditSelftest(){
+  const table='<table><tr><td>145 درهم</td><td>توفير متغير حسب أهلية السلة</td></tr></table>';
+  const direct='<p>145 درهم توفير مؤكد</p>';
+  const inline='<p>خصم <strong>20%</strong> على الطلب</p>';
+  const tableBoundaryFalsePositive=!hasUnsupportedPromoClaim(table);
+  const directAmountClaimDetected=hasUnsupportedPromoClaim(direct);
+  const inlinePercentDetected=hasUnsupportedPromoClaim(inline);
+  return {pass:tableBoundaryFalsePositive&&directAmountClaimDetected&&inlinePercentDetected,tableBoundaryFalsePositive,directAmountClaimDetected,inlinePercentDetected,model:PROMO_CLAIM_MODEL};
+}
 
 function auditOne(key,html,md={}){
   const storedHtml=String(html||''),corePlain=strip(storedHtml);
@@ -52,7 +73,7 @@ function auditOne(key,html,md={}){
   ck('seo',issue('seo_title_missing',!title));ck('seo',issue('seo_title_length_out',!!title&&(title.length<28||title.length>72)));ck('seo',issue('seo_meta_missing_rendered',!metaDesc));ck('seo',issue('seo_meta_length_out_rendered',!!metaDesc&&(metaDesc.length<105||metaDesc.length>165)));ck('seo',issue('seo_h1_not_one',h1!==1));ck('seo',issue('seo_h2_lt6',h2<6));ck('seo',issue('seo_h2_lt9_strict_gate',h2<9));ck('seo',issue('seo_h3_lt4_strict_gate',h3<4));
   ck('content',issue('content_words_lt1000',wc<1000));ck('content',issue('content_words_lt1500_current_ar_gate',wc<1500));ck('content',issue('content_words_gt2000',wc>2000));ck('content',issue('content_paragraphs_lt18',ps.count<18));ck('content',issue('content_long_paragraph_gt145',ps.max>145));ck('content',issue('content_lists_lt2',lists<2));ck('content',issue('content_table_missing',tables<1));ck('content',issue('content_generic_ai_phrase',GENERIC_AI.test(plain)));
   ck('aeo',issue('aeo_direct_answer_missing',!/class=["'][^"']*direct-answer/i.test(html)));ck('aeo',issue('aeo_question_headings_lt4',count(html,/<h[23]\b[^>]*>[^<]*(?:كيف|هل|ماذا|متى|لماذا|how|what|when|why|does|do|can|is|are)/gi)<4));ck('aeo',issue('aeo_visible_faq_missing',!/class=["'][^"']*faq/i.test(html)||count(html,/<details\b/gi)<4));ck('aeo',issue('aeo_atomic_answers_lt2',count(html,/class=["'][^"']*atomic-answer/gi)<2));
-  ck('eeat',issue('eeat_editorial_review_missing',false));ck('eeat',issue('eeat_methodology_missing',!/<section\b[^>]*class=["'][^"']*(?:methodology|accountability)/i.test(html)));ck('eeat',issue('eeat_sources_section_missing',false));ck('eeat',issue('eeat_last_verified_missing',false));ck('eeat',issue('eeat_official_noon_source_missing',false));ck('eeat',issue('eeat_unsupported_promo_claim',UNSUPPORTED.test(plain)));
+  ck('eeat',issue('eeat_editorial_review_missing',false));ck('eeat',issue('eeat_methodology_missing',!/<section\b[^>]*class=["'][^"']*(?:methodology|accountability)/i.test(html)));ck('eeat',issue('eeat_sources_section_missing',false));ck('eeat',issue('eeat_last_verified_missing',false));ck('eeat',issue('eeat_official_noon_source_missing',false));ck('eeat',issue('eeat_unsupported_promo_claim',hasUnsupportedPromoClaim(html)));
   ck('geo',issue('geo_country_metadata_missing',!country));ck('geo',issue('geo_market_mention_missing',!!market&&!plain.includes(market)));ck('geo',issue('geo_wrong_market_mention',!!wrongCountry&&wrongCountry.test(plain)));ck('geo',issue('geo_currency_localization_missing',country==='SA'?!/(?:الريال السعودي|\bSAR\b)/i.test(plain):country==='AE'?!/(?:الدرهم الإماراتي|الدرهم الاماراتي|\bAED\b)/i.test(plain):false));ck('geo',issue('geo_market_internal_link_missing',false));ck('geo',issue('geo_arabic_localization_low',arRatio<0.9&&arRatio>=0.5));
   ck('tech',issue('technical_article_tag_missing',!/<article\b/i.test(html)));ck('tech',issue('technical_section_missing',!/<section\b/i.test(html)));ck('tech',issue('technical_internal_links_lt5',false));ck('tech',issue('technical_placeholder_links',/href=["'](?:#|javascript:)/i.test(html)));ck('tech',issue('technical_copy_cta_missing',!/data-copy-code=/i.test(html)));ck('tech',issue('technical_aria_live_missing',!/aria-live=["']polite/i.test(html)));
   ck('media',issue('media_images_lt4',liveImageCount<4));ck('media',issue('media_missing_alt',imgs.some(x=>!/alt=["'][^"']{3,}["']/i.test(x))));ck('media',issue('media_missing_dimensions',imgs.some(x=>!/width=["']?\d+/i.test(x)||!/height=["']?\d+/i.test(x))));ck('media',issue('media_lazy_lt3',imgs.filter(x=>/loading=["']lazy["']/i.test(x)).length<3));ck('media',issue('media_figcaption_lt4',liveFigcaptions<4));
@@ -63,7 +84,7 @@ function auditOne(key,html,md={}){
   return {counters,samples,wc,lang:arRatio>=.85?'ar':arRatio<=.15?'en':'mixed',scores,titleHash:title?fnv32(norm(title))+':'+title.length:null,titleNorm:norm(title),keywordNorm:norm(keyword),contentHash:corePlain?fnv32(norm(corePlain))+':'+corePlain.length:null,semanticSig:corePlain?simhash(corePlain):null,renderedSemanticSig:plain?simhash(plain):null,size:String(html).length};
 }
 function bucket(score){return score>=95?'95_100':score>=85?'85_94':score>=70?'70_84':score>=50?'50_69':'lt50'}
-function emptyState(runId=null){return {version:4,auditModel:'rendered-live-v4',uniquenessModel:'stored-core-before-runtime-v1',runId:runId||null,auditLockKey:ARTICLE_AUDIT_LOCK_INFO.key,runtimeArticleQualityVersion:RUNTIME_ARTICLE_QUALITY_INFO.version,runtimeGuarantees:['meta-description','canonical','Article-schema','WebPage-schema','BreadcrumbList-schema','editorial-byline','official-source-links','freshness-date','market-navigation','hero-image','site-internal-links',...RUNTIME_ARTICLE_QUALITY_INFO.guarantees],countSnapshotKey:COUNT_SNAPSHOT_KEY,cursor:null,scanned:0,readFailures:0,bytes:0,listCalls:0,listedObjects:0,htmlObjectsListed:0,duplicateListedKeys:0,lastListedKey:null,languages:{ar:0,en:0,mixed:0},wordBands:{lt800:0,w800_999:0,w1000_1499:0,w1500_2000:0,gt2000:0},issues:{},samples:{},scoreSums:{},scoreHist:{},titleFreq:{},contentFreq:{},semanticFreq:{},duplicateTitles:{articles:0,groups:0},exactDuplicateContent:{articles:0,groups:0},semanticSignatureCollisions:{articles:0,groups:0},scanDone:false,done:false,startedAt:new Date().toISOString()}}
+function emptyState(runId=null){return {version:4,auditModel:'rendered-live-v4',promoClaimModel:PROMO_CLAIM_MODEL,uniquenessModel:'stored-core-before-runtime-v1',runId:runId||null,auditLockKey:ARTICLE_AUDIT_LOCK_INFO.key,runtimeArticleQualityVersion:RUNTIME_ARTICLE_QUALITY_INFO.version,runtimeGuarantees:['meta-description','canonical','Article-schema','WebPage-schema','BreadcrumbList-schema','editorial-byline','official-source-links','freshness-date','market-navigation','hero-image','site-internal-links',...RUNTIME_ARTICLE_QUALITY_INFO.guarantees],countSnapshotKey:COUNT_SNAPSHOT_KEY,cursor:null,scanned:0,readFailures:0,bytes:0,listCalls:0,listedObjects:0,htmlObjectsListed:0,duplicateListedKeys:0,lastListedKey:null,languages:{ar:0,en:0,mixed:0},wordBands:{lt800:0,w800_999:0,w1000_1499:0,w1500_2000:0,gt2000:0},issues:{},samples:{},scoreSums:{},scoreHist:{},titleFreq:{},contentFreq:{},semanticFreq:{},duplicateTitles:{articles:0,groups:0},exactDuplicateContent:{articles:0,groups:0},semanticSignatureCollisions:{articles:0,groups:0},scanDone:false,done:false,startedAt:new Date().toISOString()}}
 function mergeIssue(state,row){for(const [k,v] of Object.entries(row.counters))add(state.issues,k,v);for(const [k,arr] of Object.entries(row.samples))for(const key of arr)sample(state.samples,k,key)}
 function updateFreq(freq,summary,hash){if(!hash)return;const n=Number(freq[hash]||0);freq[hash]=n+1;if(n===1){summary.groups++;summary.articles+=2}else if(n>1)summary.articles++}
 function publicState(s){const {titleFreq,contentFreq,semanticFreq,...rest}=s;return {...rest,uniqueArticles:Number(s.scanned||0),uniqueTitleHashes:Object.keys(titleFreq||{}).length,uniqueContentHashes:Object.keys(contentFreq||{}).length,uniqueSemanticSignatures:Object.keys(semanticFreq||{}).length}}
