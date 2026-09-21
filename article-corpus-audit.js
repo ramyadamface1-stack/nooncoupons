@@ -288,6 +288,17 @@ async function writeDiscoveryShard(env,state,rows){
   state.discoveryShards=index+1;state.discoveryArticles=Number(state.discoveryArticles||0)+rows.length;
   return key;
 }
+export async function readArticleDiscoveryState(env){
+  if(!env?.CONTENT_FINAL)return {ok:false,reason:'r2_binding_missing'};
+  try{
+    const o=await retry(()=>env.CONTENT_FINAL.get(DISCOVERY_CURRENT_KEY));
+    if(!o)return {ok:true,version:1,complete:false,key:DISCOVERY_CURRENT_KEY};
+    const x=await o.json();
+    return {ok:true,key:DISCOVERY_CURRENT_KEY,...x};
+  }catch(e){
+    return {ok:false,reason:'discovery_manifest_read_failed',error:String(e?.message||e).slice(0,160),key:DISCOVERY_CURRENT_KEY};
+  }
+}
 async function publishDiscoveryPointer(env,state){
   if(!state?.done||!state?.scanDone||Number(state.readFailures||0)!==0)return false;
   if(Number(state.scanned||0)!==Number(state.sourceAuditScanned||0))throw new Error('discovery_source_snapshot_mismatch');
