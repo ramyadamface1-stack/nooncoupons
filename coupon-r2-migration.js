@@ -161,7 +161,7 @@ function invalidCouponTokens(text){
 
 async function auditKey(env,key){
   try{
-    const current=await r2Retry(()=>env.CONTENT_FINAL.get(key));
+    const current=await r2Retry(()=>env.CONTENT_FINAL.get(key),4);
     if(!current)return {invalidFiles:0,invalidTokens:0,samples:[],failedKey:null};
     const bad=invalidCouponTokens(await current.text());
     if(!bad.length)return {invalidFiles:0,invalidTokens:0,samples:[],failedKey:null};
@@ -198,7 +198,7 @@ export async function runCouponR2AuditBatch(env,{limit=100,reset=false,runId=''}
   const initial={
     version:5,mode:'independent-full-r2-read-v1',source:'r2-direct-read',
     runId:requestedRunId||null,cursor:null,scanned:0,invalidFiles:0,invalidTokens:0,samples:[],
-    failedKeys:[],scanDone:false,done:false,startedAt:new Date().toISOString()
+    failedKeys:[],scanDone:false,done:false,retryRounds:0,maxRetryRounds:5,startedAt:new Date().toISOString()
   };
   let state={...initial};
   const prev=await r2Retry(()=>env.CONTENT_FINAL.get(AUDIT_STATE_KEY));
@@ -223,6 +223,21 @@ export async function runCouponR2AuditBatch(env,{limit=100,reset=false,runId=''}
   const batchLimit=Math.max(1,Math.min(Number(limit)||100,500));
 
   if(state.scanDone){
+    const retryRounds=Number(state.retryRounds||0);
+    const maxRetryRounds=Math.max(1,Number(state.maxRetryRounds||5));
+    if(state.failedKeys.length&&retryRounds>=maxRetryRounds){
+      const failedState={
+        ...state,
+        done:false,
+        retryRounds,
+        maxRetryRounds,
+        failureReason:'audit_read_failures',
+        lastBatchAt:new Date().toISOString()
+      };
+      await saveJson(env,AUDIT_STATE_KEY,failedState);
+      return {ok:false,reason:'audit_read_failures',...failedState};
+    }
+
     const retryNow=state.failedKeys.slice(0,batchLimit);
     const checked=await processAuditKeys(env,retryNow,10);
     const attempted=new Set(retryNow);
@@ -235,12 +250,14 @@ export async function runCouponR2AuditBatch(env,{limit=100,reset=false,runId=''}
       invalidTokens:Number(state.invalidTokens||0)+checked.invalidTokens,
       samples:[...(state.samples||[]),...checked.samples].slice(0,20),
       failedKeys,
+      retryRounds:retryRounds+1,
+      maxRetryRounds,
       done,
       lastBatchAt:new Date().toISOString(),
       completedAt:done?new Date().toISOString():state.completedAt||null
     };
     await saveJson(env,AUDIT_STATE_KEY,next);
-    return {ok:true,batch:{scanned:0,retried:retryNow.length,invalidFiles:checked.invalidFiles,invalidTokens:checked.invalidTokens,failed:failedKeys.length},...next};
+    return {ok:true,batch:{scanned:0,retried:retryNow.length,invalidFiles:checked.invalidFiles,invalidTokens:checked.invalidTokens,failed:failedKeys.length,retryRound:next.retryRounds,maxRetryRounds},...next};
   }
 
   const page=await r2Retry(()=>env.CONTENT_FINAL.list({
@@ -275,6 +292,6 @@ export async function runCouponR2AuditBatch(env,{limit=100,reset=false,runId=''}
 export async function readCouponR2AuditState(env){
   if(!env?.CONTENT_FINAL)return {ok:false,reason:'r2_binding_missing'};
   const obj=await r2Retry(()=>env.CONTENT_FINAL.get(AUDIT_STATE_KEY));
-  if(!obj)return {ok:true,version:5,mode:'independent-full-r2-read-v1',source:'r2-direct-read',runId:null,scanned:0,invalidFiles:0,invalidTokens:0,samples:[],failedKeys:[],scanDone:false,done:false};
+  if(!obj)return {ok:true,version:5,mode:'independent-full-r2-read-v1',source:'r2-direct-read',runId:null,scanned:0,invalidFiles:0,invalidTokens:0,samples:[],failedKeys:[],scanDone:false,done:false,retryRounds:0,maxRetryRounds:5};
   try{return {ok:true,...JSON.parse(await obj.text())};}catch{return {ok:false,reason:'invalid_audit_state'};}
 }
