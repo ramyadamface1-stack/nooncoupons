@@ -166,6 +166,17 @@ async function r2putJson(env,key,value){
   }
   throw last||new Error('r2_status_put_failed');
 }
+async function r2putGeneratorStatusMonotonic(env,value){
+  const current=await r2json(env,R2_GENERATOR_STATUS_KEY,null);
+  const next={...value,backend:'r2-v1'};
+  if(current?.backend==='r2-v1'){
+    next.bulkPublishedTotal=Math.max(Number(current.bulkPublishedTotal||0),Number(next.bulkPublishedTotal||0));
+    const sameDay=String(current.bulkDay||'')===String(next.bulkDay||'');
+    if(sameDay)next.bulkPublishedToday=Math.max(Number(current.bulkPublishedToday||0),Number(next.bulkPublishedToday||0));
+    next.bulkCursorV2=Math.max(Number(current.bulkCursorV2||0),Number(next.bulkCursorV2||0));
+  }
+  return r2putGeneratorStatusMonotonic(env,next);
+}
 function defaultGeneratorConfig(env){
   return {...GENERATOR_DEFAULTS,enabled:true,model:env.WORKERS_AI_MODEL||GENERATOR_DEFAULTS.model,provider:'workers-ai',externalProviders:false,targetWords:1700,minWords:1500,qualityThreshold:95,backend:'r2-v1',updatedAt:now()};
 }
@@ -208,14 +219,14 @@ export async function generatorUnlock(env,runId){
 export async function bulkTick(env){
   const status=await getGeneratorStatus(env),runningAt=Date.parse(status.bulkRunningAt||'');
   if(Number.isFinite(runningAt)&&Date.now()-runningAt<BULK_RUN_LOCK_MS)return {ok:true,skipped:'bulk_already_running',backend:'r2-v1',bulkPublishedToday:Number(status.bulkPublishedToday||0)};
-  const cfg=await getGeneratorConfig(env),locked={...status,bulkRunningAt:now(),backend:'r2-v1'};await r2putJson(env,R2_GENERATOR_STATUS_KEY,locked);
+  const cfg=await getGeneratorConfig(env),locked={...status,bulkRunningAt:now(),backend:'r2-v1'};await r2putGeneratorStatusMonotonic(env,locked);
   try{
     const adaptive=chooseAdaptiveBulkBatch(env,locked),effectiveBatch=adaptive.batchSize;
     const bulk=await runProgrammaticBatch(env,cfg,locked,{dailyTarget:Number(env.BULK_DAILY_TARGET||32000),batchSize:effectiveBatch});
-    const next={...locked,...(bulk.patch||{}),bulkRunningAt:null,backend:'r2-v1',updatedAt:now()};await r2putJson(env,R2_GENERATOR_STATUS_KEY,next);
+    const next={...locked,...(bulk.patch||{}),bulkRunningAt:null,backend:'r2-v1',updatedAt:now()};await r2putGeneratorStatusMonotonic(env,next);
     return {ok:true,backend:'r2-v1',adaptiveBatch:adaptive,bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0)}};
   }catch(e){
-    const next={...locked,bulkRunningAt:null,bulkLastRun:now(),bulkLastError:String(e?.message||e),backend:'r2-v1',updatedAt:now()};await r2putJson(env,R2_GENERATOR_STATUS_KEY,next);return {ok:false,backend:'r2-v1',error:next.bulkLastError};
+    const next={...locked,bulkRunningAt:null,bulkLastRun:now(),bulkLastError:String(e?.message||e),backend:'r2-v1',updatedAt:now()};await r2putGeneratorStatusMonotonic(env,next);return {ok:false,backend:'r2-v1',error:next.bulkLastError};
   }
 }
 
