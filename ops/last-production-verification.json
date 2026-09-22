@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "0c268b65b74854bd1220c2524f73318ba697dfb5",
-  "verifiedAt": "2026-09-22T03:38:57.307890+00:00",
+  "sourceSha": "b0739d720fcbbca183c9632cd1ef9d9bccff5bbc",
+  "verifiedAt": "2026-09-22T20:45:50.431430+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -169,9 +169,9 @@
     "completedAt": "2026-09-18T09:18:02.935Z"
   },
   "couponAudit": {
-    "scanned": 135661,
+    "scanned": 137031,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-22T03:37:40.032Z"
+    "completedAt": "2026-09-22T20:44:34.330Z"
   }
 }
