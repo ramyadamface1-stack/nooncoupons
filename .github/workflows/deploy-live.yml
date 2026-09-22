@@ -45,6 +45,7 @@ jobs:
           grep -Fq "mode:'independent-full-r2-read-v1'" coupon-r2-migration.js
           grep -Fq "source:'r2-direct-read'" coupon-r2-migration.js
           grep -Fq 'for i in $(seq 1 800)' .github/workflows/deploy-live.yml
+          grep -Fq "processAuditKeys(env,keys,100)" coupon-r2-migration.js
           if grep -Fq "full-repair-scan-proof" coupon-r2-migration.js; then echo 'R2_AUDIT_SHORTCUT_PRESENT=1'; exit 1; fi
           grep -Fq "const CODES=APPROVED_COUPON_CODES" router.js
           grep -Fq "const CODES=APPROVED_COUPON_CODES" site.js
@@ -390,9 +391,9 @@ jobs:
           transient_failures=0
           for i in $(seq 1 800); do
             if [ "$i" = "1" ]; then
-              audit_payload="$(jq -cn --arg run "$GITHUB_SHA" '{limit:200,reset:true,runId:$run}')"
+              audit_payload="$(jq -cn --arg run "$GITHUB_SHA" '{limit:500,reset:true,runId:$run}')"
             else
-              audit_payload="$(jq -cn --arg run "$GITHUB_SHA" '{limit:200,runId:$run}')"
+              audit_payload="$(jq -cn --arg run "$GITHUB_SHA" '{limit:500,runId:$run}')"
             fi
             if ! curl -fsS --connect-timeout 10 --max-time 60 --retry 1 --retry-all-errors --retry-delay 2 \
               -X POST -H "$AUTH" -H 'Content-Type: application/json' \
@@ -413,7 +414,7 @@ jobs:
             echo "R2_COUPON_AUDIT_PROGRESS step=$i scanned=$scanned invalidFiles=$invalid_files invalidTokens=$invalid_tokens failedKeys=$failed_keys done=$done"
             [ "$ok" = true ] || { cat /tmp/r2-audit-step.json; exit 1; }
             if [ "$done" = true ]; then audit_done=true; break; fi
-            sleep 0.25
+            sleep 0.1
           done
           [ "$audit_done" = true ] || { echo 'R2_COUPON_AUDIT_NOT_COMPLETE'; exit 1; }
 
