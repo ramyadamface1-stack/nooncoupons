@@ -268,7 +268,7 @@ export async function runCouponR2AuditBatch(env,{limit=100,reset=false,runId=''}
   const keys=(page.objects||[])
     .map(obj=>String(obj.key||''))
     .filter(key=>key.endsWith('.html'));
-  const checked=await processAuditKeys(env,keys,40);
+  const checked=await processAuditKeys(env,keys,100);
   const failedKeys=uniqueKeys([...state.failedKeys,...checked.failedKeys]);
   const scanDone=!page.truncated;
   const done=scanDone&&failedKeys.length===0;
