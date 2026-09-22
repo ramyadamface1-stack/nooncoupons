@@ -175,7 +175,7 @@ async function r2putGeneratorStatusMonotonic(env,value){
     if(sameDay)next.bulkPublishedToday=Math.max(Number(current.bulkPublishedToday||0),Number(next.bulkPublishedToday||0));
     next.bulkCursorV2=Math.max(Number(current.bulkCursorV2||0),Number(next.bulkCursorV2||0));
   }
-  return r2putGeneratorStatusMonotonic(env,next);
+  return r2putJson(env,R2_GENERATOR_STATUS_KEY,next);
 }
 function defaultGeneratorConfig(env){
   return {...GENERATOR_DEFAULTS,enabled:true,model:env.WORKERS_AI_MODEL||GENERATOR_DEFAULTS.model,provider:'workers-ai',externalProviders:false,targetWords:1700,minWords:1500,qualityThreshold:95,backend:'r2-v1',updatedAt:now()};
@@ -203,7 +203,7 @@ export async function getGeneratorStatus(env){
 export async function updateGeneratorStatus(env,patch){
   const current=await getGeneratorStatus(env),next={...current,...patch,backend:'r2-v1',updatedAt:now()};
   next.recent=[{at:now(),ok:!patch.lastError,slug:patch.lastSlug||null,error:patch.lastError||null},...(current.recent||[])].slice(0,100);
-  return r2putJson(env,R2_GENERATOR_STATUS_KEY,next);
+  return r2putGeneratorStatusMonotonic(env,next);
 }
 export async function generatorLock(env,runId){
   const lock=await r2json(env,R2_GENERATOR_LOCK_KEY,null),lockedAt=Date.parse(lock?.at||'');
