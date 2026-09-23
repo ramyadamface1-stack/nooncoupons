@@ -6,10 +6,10 @@ import {publicationBlockedByArticleAudit} from './article-audit-lock.js';
 
 const STATE_KEY='english-canary/state.json';
 const DEFAULT_TARGET=2;
-const DEFAULT_CONTROLLED_TOTAL=10000;
-const MAX_CONTROLLED_TOTAL=10000;
-const DEFAULT_DAILY_TARGET=1440;
-const MAX_DAILY_TARGET=1440;
+const DEFAULT_CONTROLLED_TOTAL=20000;
+const MAX_CONTROLLED_TOTAL=20000;
+const DEFAULT_DAILY_TARGET=2880;
+const MAX_DAILY_TARGET=2880;
 const DEFAULT_MIN_INTERVAL_MINUTES=1;
 const DIVERSITY_WINDOW=24;
 const PROFILE_DIVERSITY_SLOTS=16;
@@ -38,6 +38,7 @@ function targetFromEnv(env){return Math.max(0,Math.min(2,Number(env.ENGLISH_CANA
 function controlledTargetFromEnv(env){const base=targetFromEnv(env),requested=Number(env.ENGLISH_CONTROLLED_TOTAL||DEFAULT_CONTROLLED_TOTAL)||DEFAULT_CONTROLLED_TOTAL;return Math.max(base,Math.min(MAX_CONTROLLED_TOTAL,requested))}
 function dailyTargetFromEnv(env){const requested=Number(env.ENGLISH_DAILY_TARGET||DEFAULT_DAILY_TARGET)||DEFAULT_DAILY_TARGET;return Math.max(1,Math.min(MAX_DAILY_TARGET,requested))}
 function minIntervalMinutesFromEnv(env){const requested=Number(env.ENGLISH_MIN_INTERVAL_MINUTES||DEFAULT_MIN_INTERVAL_MINUTES)||DEFAULT_MIN_INTERVAL_MINUTES;return Math.max(1,Math.min(1440,requested))}
+function batchSizeFromEnv(env){const requested=Number(env.ENGLISH_BATCH_SIZE||2)||2;return Math.max(1,Math.min(4,requested))}
 function cairoDay(ts=Date.now()){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(ts))}
 function publishedToday(records){const day=cairoDay();return (records||[]).filter(r=>r?.createdAt&&cairoDay(r.createdAt)===day).length}
 function nextEligibleAt(state,env){const last=Date.parse(state?.lastPublishedAt||'');if(!Number.isFinite(last))return null;return new Date(last+minIntervalMinutesFromEnv(env)*60000).toISOString()}
@@ -86,7 +87,7 @@ async function findCandidate(env,state,slot){
   return null;
 }
 
-export async function runEnglishCanary(env){
+export async function runEnglishCanary(env,{ignoreInterval=false}={}){
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing'};
   const auditLock=await publicationBlockedByArticleAudit(env);
   if(auditLock)return {ok:true,skipped:'corpus_audit_in_progress',auditLock:{runId:auditLock.runId||null,expiresAt:auditLock.expiresAt||null,failClosed:Boolean(auditLock.failClosed)}};
@@ -96,7 +97,7 @@ export async function runEnglishCanary(env){
   if(state.records.length>=target){if(state.controlledStatus!=='complete')state=await writeState(env,state);return {ok:true,skipped:'english_controlled_complete',target:canaryTarget,controlledTarget:target,published:state.records.length}}
   const dailyTarget=dailyTargetFromEnv(env),todayCount=publishedToday(state.records),minInterval=minIntervalMinutesFromEnv(env),nextAt=nextEligibleAt(state,env),nowMs=Date.now();
   if(todayCount>=dailyTarget)return {ok:true,skipped:'english_daily_target_complete',published:state.records.length,publishedToday:todayCount,dailyTarget,controlledTarget:target};
-  if(nextAt&&Date.parse(nextAt)>nowMs)return {ok:true,skipped:'english_interval_wait',published:state.records.length,publishedToday:todayCount,dailyTarget,minIntervalMinutes:minInterval,nextEligibleAt:nextAt,controlledTarget:target};
+  if(!ignoreInterval&&nextAt&&Date.parse(nextAt)>nowMs)return {ok:true,skipped:'english_interval_wait',published:state.records.length,publishedToday:todayCount,dailyTarget,minIntervalMinutes:minInterval,nextEligibleAt:nextAt,controlledTarget:target};
   const slot=state.records.length;let found=null;try{found=await findCandidate(env,state,slot)}catch(e){state.lastError='candidate_scan_error:'+String(e?.message||e).slice(0,220);state.lastAttemptAt=now();state=await writeState(env,state);return {ok:false,error:state.lastError,published:state.records.length,target:canaryTarget,controlledTarget:target}}
   if(!found){state.cursor=Math.max(Number(state.cursor||START_CURSOR)+MAX_SCAN,START_CURSOR);state.lastError='no_production_ready_candidate';state.lastAttemptAt=now();state=await writeState(env,state);return {ok:false,error:'no_production_ready_candidate',published:state.records.length,target:canaryTarget,controlledTarget:target}}
   const {cursor,candidate,article,audit,categoryKey}=found,createdAt=now(),floor=qualityFloor(audit),urlPath='/en/articles/'+article.slug,isCanary=slot<canaryTarget;
@@ -117,6 +118,17 @@ export async function runEnglishCanary(env){
   return {ok:true,target:canaryTarget,controlledTarget:target,published:state.records.length,publishedToday:publishedToday(state.records),dailyTarget:dailyTargetFromEnv(env),minIntervalMinutes:minIntervalMinutesFromEnv(env),nextEligibleAt:nextEligibleAt(state,env),canaryComplete:state.status==='complete',controlledComplete:state.controlledStatus==='complete',record:publicRecord(record),indexNow,audit:{score:audit.score,wordCount:audit.wordCount,minJaccardDistance:audit.minJaccardDistance,groups:audit.groups}};
 }
 
+export async function runEnglishCanaryBatch(env){
+  const maxPerTick=batchSizeFromEnv(env),results=[];
+  for(let i=0;i<maxPerTick;i++){
+    const result=await runEnglishCanary(env,{ignoreInterval:i>0});
+    results.push(result);
+    if(result?.skipped)break;
+  }
+  const published=results.filter(r=>Boolean(r?.record)).length;
+  return {ok:results.some(r=>r?.ok!==false)||published>0,maxPerTick,published,results};
+}
+
 export async function englishCanaryRecords(env){const s=await readState(env);return (s.records||[]).map(publicRecord)}
 
 export async function englishCanaryHealth(env){
@@ -124,7 +136,7 @@ export async function englishCanaryHealth(env){
   for(const r of state.records||[]){let r2Present=false;try{r2Present=Boolean(await env.CONTENT_FINAL?.head('articles/'+r.slug+'.html'))}catch{}allRecords.push({...publicRecord(r),r2Present})}
   const canaryTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env),records=allRecords.slice(0,canaryTarget);
   const sa=allRecords.filter(r=>r.country==='SA').length,ae=allRecords.filter(r=>r.country==='AE').length,profileCount=new Set(allRecords.map(r=>r.profileKey).filter(Boolean)).size;
-  const today=publishedToday(allRecords),dailyTarget=dailyTargetFromEnv(env),minIntervalMinutes=minIntervalMinutesFromEnv(env);return {ok:true,version:4,builder:BULK_ENGINE_INFO.englishArticleBuilder,indexNow:{...INDEXNOW_INFO,last:state.lastIndexNow||null},target:canaryTarget,status:records.length>=canaryTarget?'complete':'active',published:records.length,complete:records.length>=canaryTarget,records,lastError:state.lastError||null,updatedAt:state.updatedAt,controlled:{target:controlledTarget,targetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v2',published:allRecords.length,remaining:Math.max(0,controlledTarget-allRecords.length),complete:allRecords.length>=controlledTarget,status:allRecords.length>=controlledTarget?'complete':'active',sa,ae,uniqueProfiles:profileCount,publishedToday:today,dailyTarget,minIntervalMinutes,nextEligibleAt:nextEligibleAt(state,env),records:allRecords}};
+  const today=publishedToday(allRecords),dailyTarget=dailyTargetFromEnv(env),minIntervalMinutes=minIntervalMinutesFromEnv(env),batchSize=batchSizeFromEnv(env);return {ok:true,version:5,builder:BULK_ENGINE_INFO.englishArticleBuilder,indexNow:{...INDEXNOW_INFO,last:state.lastIndexNow||null},target:canaryTarget,status:records.length>=canaryTarget?'complete':'active',published:records.length,complete:records.length>=canaryTarget,records,lastError:state.lastError||null,updatedAt:state.updatedAt,controlled:{target:controlledTarget,targetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v3-batch2',published:allRecords.length,remaining:Math.max(0,controlledTarget-allRecords.length),complete:allRecords.length>=controlledTarget,status:allRecords.length>=controlledTarget?'complete':'active',sa,ae,uniqueProfiles:profileCount,publishedToday:today,dailyTarget,minIntervalMinutes,batchSize,nextEligibleAt:nextEligibleAt(state,env),records:allRecords}};
 }
 
 export async function serveEnglishCanaryHealth(env){return jsonResponse(await englishCanaryHealth(env))}
@@ -166,4 +178,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:9,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,highDemandUaeKeywordTargeting:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v2',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:10,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:4,defaultBatchPerTick:2,highDemandUaeKeywordTargeting:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v3-batch2',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
