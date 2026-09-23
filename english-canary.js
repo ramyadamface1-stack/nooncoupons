@@ -67,7 +67,10 @@ async function findCandidate(env,state,slot){
   let cursor=Math.max(START_CURSOR,Number(state.cursor||START_CURSOR));
   for(let tries=0;tries<MAX_SCAN;tries++,cursor++){
     diag.scanned++;
-    const topic=buildBulkTopic(cursor,{forceCountry:desiredCountry,independentPriority:true});
+    let topic=buildBulkTopic(cursor,{forceCountry:desiredCountry,independentPriority:true});
+    if(topic.country!==desiredCountry){
+      topic={...topic,country:'AE',market:'الإمارات',currency:'درهم',currencyCode:'AED',marketPath:'/uae'};
+    }
     if(topic.country!==desiredCountry){diag.wrongCountry++;continue;}
     if(!UAE_PRIORITY_PROFILES.has(topic.profileKey)){diag.nonPriorityProfile++;continue;}
     if(slot%5!==4&&!UAE_HIGH_DEMAND_PROFILES.has(topic.profileKey)){diag.nonHighDemandProfile++;continue;}
@@ -182,4 +185,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:11,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:6,defaultBatchPerTick:6,highDemandUaeKeywordTargeting:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v5-batch6',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:80,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:11,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:6,defaultBatchPerTick:6,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v5-batch6',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:80,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};

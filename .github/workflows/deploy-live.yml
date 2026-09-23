@@ -91,6 +91,8 @@ jobs:
           grep -Fq "publicationBlockedByArticleAudit" bulk-generator.js
           grep -Fq "publicationBlockedByArticleAudit" english-canary.js
           grep -Fq 'const PROFILE_MAX_PER_BATCH=10;' english-canary.js
+          grep -Fq 'hardTargetMarketNormalization:true' english-canary.js
+          grep -Fq "topic={...topic,country:'AE',market:'الإمارات'" english-canary.js
           grep -Fq "howto:'how to use a Noon coupon'" bulk-content-engine-base.js
           grep -Fq "warranty:'Noon warranty check'" bulk-content-engine-base.js
           grep -Fq "publicationBlockedByArticleAudit" generator-core-v2.js
