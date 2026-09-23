@@ -966,9 +966,11 @@ jobs:
             'minIntervalMinutes':c.get('minIntervalMinutes'),
             'nextEligibleAt':c.get('nextEligibleAt')
           },separators=(',',':')))
-          assert int(c.get('target') or 0)==200
-          assert int(c.get('dailyTarget') or 0)==24
-          assert int(c.get('minIntervalMinutes') or 0)==60
+          assert int(c.get('target') or 0)==5000
+          assert int(c.get('dailyTarget') or 0)==288
+          assert int(c.get('minIntervalMinutes') or 0)==5
+          assert c.get('targetMarket')=='AE'
+          assert c.get('marketPolicy')=='uae-only-new-v1'
           idx=x.get('indexNow') or {}
           assert idx.get('urlPathAware') is True
           PY

@@ -82,10 +82,32 @@ export function buildUsefulArticle(topic,cursor=0){
   return {...article,html,diversityVersion:4,topicExpansionVersion:'query-modifier-v4',diversityKey:`${stableIndex(cursor,ARABIC_QUERY_MODIFIERS.length,17)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,101)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,138)}`};
 }
 
+const UAE_ENGLISH_QUERY_MODIFIERS=['today','Dubai','Abu Dhabi','online shopping','checkout guide','deal guide','voucher guide','discount guide','shopping guide','final price'];
+function uaeEnglishPriorityKeyword(candidate){
+  if(candidate?.country!=='AE')return null;
+  const category=String(candidate.nativeCategory||'').trim(),modifier=UAE_ENGLISH_QUERY_MODIFIERS[Math.abs(Number(candidate.topicIndex||0))%UAE_ENGLISH_QUERY_MODIFIERS.length];
+  const templates={
+    coupon:`Noon UAE coupon code ${category} ${modifier}`,
+    finalprice:`Noon UAE ${category} final price ${modifier}`,
+    value:`Noon UAE ${category} deals ${modifier}`,
+    cart:`Noon UAE promo code ${category} ${modifier}`,
+    timing:`Noon UAE coupon code today ${category} ${modifier}`,
+    smartbuy:`Noon UAE ${category} offers ${modifier}`,
+    eligibility:`Noon UAE coupon eligibility ${category} ${modifier}`
+  };
+  const keyword=String(templates[candidate.intent]||`Noon UAE deals ${category} ${modifier}`).replace(/\s+/g,' ').trim();
+  return {keyword,tier:'uae-commercial-priority-v1',cluster:`uae-${candidate.intent||'commercial'}-${String(candidate.profileKey||'general')}`};
+}
+
 function normalizeEnglishCandidate(candidate){
   if(!candidate)return candidate;
   const nativeCategory=String(candidate.nativeCategory||'').trim();
   const nativeMarket=String(candidate.nativeMarket||'').trim();
+  const priority=uaeEnglishPriorityKeyword(candidate);
+  if(priority){
+    const nativeVariant='UAE commercial search guide',nativeKeyword=priority.keyword;
+    return {...candidate,nativeVariant,nativeKeyword,nativeSlug:englishSlugify(nativeKeyword),nativeAngle:`${nativeVariant} for ${nativeCategory} shoppers in UAE`,keywordTier:priority.tier,keywordCluster:priority.cluster};
+  }
   if(candidate.intent==='timing'){
     const nativeVariant='coupon timing guide';
     const nativeKeyword=`Noon ${nativeMarket} ${nativeCategory} coupon timing guide`.replace(/\s+/g,' ').trim();

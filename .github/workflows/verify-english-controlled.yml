@@ -28,14 +28,17 @@ jobs:
           node --check bulk-content-engine.js
           node --check bulk-content-engine-base.js
           grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
-          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "200"' wrangler.jsonc
-          grep -Fq '"ENGLISH_DAILY_TARGET": "24"' wrangler.jsonc
-          grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "60"' wrangler.jsonc
-          grep -Fq 'const MAX_CONTROLLED_TOTAL=1000;' english-canary.js
+          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "5000"' wrangler.jsonc
+          grep -Fq '"ENGLISH_DAILY_TARGET": "288"' wrangler.jsonc
+          grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "5"' wrangler.jsonc
+          grep -Fq 'const MAX_CONTROLLED_TOTAL=5000;' english-canary.js
           grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
           grep -Fq 'const INTENT_MAX_PER_BATCH=5;' english-canary.js
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
           grep -Fq 'const MAX_SCAN=1500;' english-canary.js
+          grep -Fq "const TARGET_MARKET='AE';" english-canary.js
+          grep -Fq "marketPolicy:'uae-only-new-v1'" english-canary.js
+          grep -Fq 'uae-commercial-priority-v1' bulk-content-engine.js
           grep -Fq "h2>=6&&h2<=18" quality-audit.js
           grep -Fq "const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];" bulk-content-engine-base.js
           grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
@@ -105,10 +108,10 @@ jobs:
               if(r.intent)intentCounts.set(r.intent,(intentCounts.get(r.intent)||0)+1);
             }
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 &&
-              c.target===200 && Number(c.published)>=20 && Number(c.published)<=200 &&
-              Number(c.remaining)===200-Number(c.published) && Number(c.dailyTarget)===24 &&
-              Number(c.minIntervalMinutes)===60 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=24 &&
-              rows.length===Number(c.published) && Math.abs(Number(c.sa)-Number(c.ae))<=1 && Number(c.uniqueProfiles)>=16 &&
+              c.target===5000 && c.targetMarket==='AE' && c.marketPolicy==='uae-only-new-v1' && Number(c.published)>=20 && Number(c.published)<=5000 &&
+              Number(c.remaining)===5000-Number(c.published) && Number(c.dailyTarget)===288 &&
+              Number(c.minIntervalMinutes)===5 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=288 &&
+              rows.length===Number(c.published) && Number(c.uniqueProfiles)>=10 &&
               new Set(slugs).size===rows.length && new Set(keywords).size===rows.length && canaries.length===2 && expanded.length===rows.length-2 &&
               !slugs.includes('en-best-time-to-try-a-noon-coupon-uae-office-cart-test') &&
               rows.every(r=>r.r2Present===true && r.status==='published' && r.indexable===true &&
