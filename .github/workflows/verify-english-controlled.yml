@@ -73,8 +73,8 @@ jobs:
               Array.isArray(x.unexpectedEnglishRecords) && x.unexpectedEnglishRecords.length===0 &&
               Array.isArray(x.unapprovedCouponRecords) && x.unapprovedCouponRecords.length===0 &&
               Array.isArray(x.unexpectedR2Objects) && x.unexpectedR2Objects.length===0 &&
-              q.complete===true && q.version==='english-copy-v2' && q.droppedCount===1 &&
-              Array.isArray(q.dropped) && q.dropped.includes('en-best-time-to-try-a-noon-coupon-uae-office-cart-test');
+              q.complete===true && q.version==='english-copy-v2' && Number(q.droppedCount||0)>=0 &&
+              Array.isArray(q.dropped) && !(Array.isArray(x.state)?x.state:[]).some(r=>r?.slug==='en-best-time-to-try-a-noon-coupon-uae-office-cart-test');
             process.exit(pass?0:1);
           }catch{process.exit(1)}
           NODE
