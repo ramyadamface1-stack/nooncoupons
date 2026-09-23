@@ -260,10 +260,10 @@ export function buildEnglishUsefulArticle(candidate,cursor=0){
  return {slug,title,metaDescription:meta,country:t.country,coupon:t.code,primaryKeyword:kw,language:'en',languageSource:'native-intent',blueprint:'english-'+(t.intent||'commercial')+'-v6',faq,sources:['https://www.noon.com/'],claims:[],html};
 }
 
-export function buildBulkTopic(cursor=0){
+export function buildBulkTopic(cursor=0,options={}){
   const TOPIC_SPACE=1036800,raw=Math.max(0,Number(cursor)||0);let q=((raw%TOPIC_SPACE)*7919+104729)%TOPIC_SPACE;
-  const country=raw%5===0?'AE':'SA';q=Math.floor(q/2);
-  const prioritySlot=Math.floor(raw/5)%5<3,categoryPool=prioritySlot?PRIORITY_CATEGORIES:CATEGORIES;
+  const forcedCountry=String(options?.forceCountry||'').toUpperCase(),country=(forcedCountry==='AE'||forcedCountry==='SA')?forcedCountry:(raw%5===0?'AE':'SA');q=Math.floor(q/2);
+  const prioritySlot=options?.independentPriority?(Math.floor(raw/5)%5<3):(raw%5<3),categoryPool=prioritySlot?PRIORITY_CATEGORIES:CATEGORIES;
   const [category,profileKey]=categoryPool[q%categoryPool.length];q=Math.floor(q/categoryPool.length);const [intentId,intentFn]=INTENTS[q%INTENTS.length];q=Math.floor(q/INTENTS.length);const scenario=SCENARIOS[q%SCENARIOS.length];q=Math.floor(q/SCENARIOS.length);const profile=PROFILES[profileKey],factor=profile.factors[q%profile.factors.length];q=Math.floor(q/profile.factors.length);const useCase=profile.uses[q%profile.uses.length],m=MARKETS[country],code=CODES[(Math.floor(raw/7)+q)%CODES.length];
   const labels={coupon:'كود خصم',howto:'استخدام كود',compare:'مقارنة سعر',trouble:'حل رفض الكود',question:'هل يعمل الكود',seller:'اختيار بائع',decision:'دليل شراء',finalprice:'السعر النهائي',value:'التوفير',cart:'مراجعة سلة',timing:'توقيت الكوبون',smartbuy:'شراء ذكي',eligibility:'شروط الكود',checklist:'خطوات قبل الدفع',multi:'شراء عدة منتجات',returns:'مراجعة الإرجاع',warranty:'فحص الضمان',budget:'اختيار بميزانية'};
   const base={country,market:m.name,currency:m.currency,currencyCode:m.currencyCode,marketPath:m.path,category,profileKey,factors:profile.factors,checks:profile.checks,useCase,factor,scenario,code,intent:intentId,intentLabel:labels[intentId]||'دليل'};const kw=intentFn(base).replace(/\s+/g,' ').trim(),slug=slugify(kw);return {...base,kw,slug,title:titleFromKeyword(kw,base),topicIndex:raw,generationSeed:raw,baseVariantIndex:q,totalTopicSpace:TOPIC_SPACE,commercialPriority:prioritySlot?'high':'standard'};
