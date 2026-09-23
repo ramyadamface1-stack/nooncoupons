@@ -121,7 +121,6 @@ export function preflightGlobalGate(topic,cluster){
   const cannibalization=maxKeywordSimilarity>=0.78,reasons=[];
   if(exactSlug)reasons.push('global_duplicate_slug');
   if(exactKeyword)reasons.push('global_duplicate_keyword');
-  if(exactTitle)reasons.push('global_duplicate_title');
   if(intentCollision)reasons.push('global_duplicate_intent');
   if(ownerCollision)reasons.push('global_intent_owner_collision');
   if(cannibalization)reasons.push('global_keyword_cannibalization');
@@ -147,6 +146,7 @@ export function globalGate(article,topic,audit,cluster){
   const reasons=[];
   if(exactSlug)reasons.push('global_duplicate_slug');
   if(exactKeyword)reasons.push('global_duplicate_keyword');
+  if(exactTitle)reasons.push('global_duplicate_title');
   if(intentCollision)reasons.push('global_duplicate_intent');
   if(ownerCollision)reasons.push('global_intent_owner_collision');
   if(semanticCollision)reasons.push('global_semantic_collision');
