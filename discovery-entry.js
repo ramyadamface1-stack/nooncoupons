@@ -1,5 +1,5 @@
 import app from './brand-runtime.js';
-import {runEnglishCanary,englishCanaryRecords} from './english-canary.js';
+import {runEnglishCanaryBatch,englishCanaryRecords} from './english-canary.js';
 import {repairEnglishCanaryLegacyMetadata} from './english-canary-repair.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
 import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
@@ -248,7 +248,7 @@ export default{
     res=await sanitizeCouponSurface(req,res);
     return res;
   },
-  async scheduled(event,env,ctx){const base=app.scheduled?app.scheduled(event,env,ctx):null;if(base)ctx.waitUntil(Promise.resolve(base));ctx.waitUntil((async()=>{await repairEnglishCanaryLegacyMetadata(env);return runEnglishCanary(env)})());}
+  async scheduled(event,env,ctx){const base=app.scheduled?app.scheduled(event,env,ctx):null;if(base)ctx.waitUntil(Promise.resolve(base));ctx.waitUntil((async()=>{await repairEnglishCanaryLegacyMetadata(env);return runEnglishCanaryBatch(env)})());}
 };
 
-export const DISCOVERY_ENTRY_INFO={version:11,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:12,englishBatchPublishing:true,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
