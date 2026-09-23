@@ -38,7 +38,10 @@ jobs:
           grep -Fq 'const MAX_SCAN=5000;' english-canary.js
           grep -Fq "const TARGET_MARKET='AE';" english-canary.js
           grep -Fq "marketPolicy:'uae-only-new-v1'" english-canary.js
-          grep -Fq 'uae-commercial-priority-v1' bulk-content-engine.js
+          grep -Fq 'uae-commercial-priority-v2' bulk-content-engine.js
+          grep -Fq "'Noon discount code UAE'" bulk-content-engine.js
+          grep -Fq "'Noon promo code UAE'" bulk-content-engine.js
+          grep -Fq "'Noon first order coupon UAE'" bulk-content-engine.js
           grep -Fq "h2>=6&&h2<=18" quality-audit.js
           grep -Fq "const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];" bulk-content-engine-base.js
           grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
