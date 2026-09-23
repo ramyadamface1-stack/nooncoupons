@@ -63,8 +63,8 @@ function diversitySection(topic,cursor,offset=0){
   return `<section class="decision-angle" data-diversity-frame="${stableIndex(cursor,DIVERSITY_FRAMES.length,101+offset*37)}"><h2>${esc(frame.title)}: ${esc(t.queryModifier||'قرار الشراء')}</h2><p>${esc(frame.lead(t))}</p><ol>${steps}</ol><p class="atomic-answer"><strong>الخلاصة:</strong> ${esc(frame.close(t))}</p></section>`;
 }
 
-export function buildBulkTopic(cursor=0){
-  const topic=buildBulkTopicBase(cursor),queryModifier=queryModifierFor(cursor);
+export function buildBulkTopic(cursor=0,options={}){
+  const topic=buildBulkTopicBase(cursor,options),queryModifier=queryModifierFor(cursor);
   const kw=(String(topic.kw||'')+' '+queryModifier).replace(/\s+/g,' ').trim();
   const slug=arabicSlugify(kw);
   return {...topic,kw,slug,queryModifier,diversitySeed:Math.max(0,Number(cursor)||0),diversityVersion:4,topicExpansionVersion:'query-modifier-v4'};
