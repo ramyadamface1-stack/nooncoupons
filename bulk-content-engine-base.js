@@ -249,7 +249,7 @@ export function buildEnglishUsefulArticle(candidate,cursor=0){
 
 export function buildBulkTopic(cursor=0){
   const TOPIC_SPACE=1036800,raw=Math.max(0,Number(cursor)||0);let q=((raw%TOPIC_SPACE)*7919+104729)%TOPIC_SPACE;
-  const country=q%2===0?'SA':'AE';q=Math.floor(q/2);
+  const country=raw%5===0?'AE':'SA';q=Math.floor(q/2);
   const prioritySlot=raw%5<3,categoryPool=prioritySlot?PRIORITY_CATEGORIES:CATEGORIES;
   const [category,profileKey]=categoryPool[q%categoryPool.length];q=Math.floor(q/categoryPool.length);const [intentId,intentFn]=INTENTS[q%INTENTS.length];q=Math.floor(q/INTENTS.length);const scenario=SCENARIOS[q%SCENARIOS.length];q=Math.floor(q/SCENARIOS.length);const profile=PROFILES[profileKey],factor=profile.factors[q%profile.factors.length];q=Math.floor(q/profile.factors.length);const useCase=profile.uses[q%profile.uses.length],m=MARKETS[country],code=CODES[(Math.floor(raw/7)+q)%CODES.length];
   const labels={coupon:'كود خصم',howto:'استخدام كود',compare:'مقارنة سعر',trouble:'حل رفض الكود',question:'هل يعمل الكود',seller:'اختيار بائع',decision:'دليل شراء',finalprice:'السعر النهائي',value:'التوفير',cart:'مراجعة سلة',timing:'توقيت الكوبون',smartbuy:'شراء ذكي',eligibility:'شروط الكود',checklist:'خطوات قبل الدفع',multi:'شراء عدة منتجات',returns:'مراجعة الإرجاع',warranty:'فحص الضمان',budget:'اختيار بميزانية'};
@@ -263,4 +263,4 @@ export function buildUsefulArticle(topic,cursor=0){
   const fq=faqSection(t);body+=exampleSection(t)+finalSection(t)+methodologySection(t)+sourcesSection(t)+fq.html+'</article>';return {slug:t.slug,title:t.title,metaDescription:metaFor(t),country:t.country,coupon:t.code,primaryKeyword:t.kw,blueprint,faq:fq.faq,sources:['https://www.noon.com/'],claims:[],html:body};
 }
 
-export const BULK_ENGINE_INFO={englishNativeInventory:1,englishArticleBuilder:6,version:'programmatic-cloudflare:v2-helpful',topicSpace:1036800,topicSeedModel:'full-cursor-v1',blueprints:BLUEPRINTS.length,codes:CODES.length,countries:Object.keys(MARKETS),qualityFirst:true};
+export const BULK_ENGINE_INFO={englishNativeInventory:1,englishArticleBuilder:6,version:'programmatic-cloudflare:v2-helpful-sa80',topicSpace:1036800,topicSeedModel:'full-cursor-v1',marketWeighting:{SA:80,AE:20},marketWeightingReason:'commercial-evidence',blueprints:BLUEPRINTS.length,codes:CODES.length,countries:Object.keys(MARKETS),qualityFirst:true};
