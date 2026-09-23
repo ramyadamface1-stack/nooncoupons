@@ -274,20 +274,21 @@ function botLikeRequest(req){
   return !ua||/(bot|crawler|spider|slurp|googlebot|bingbot|yandex|baiduspider|duckduckbot|facebookexternalhit|twitterbot|whatsapp|telegrambot|gptbot|oai-searchbot|ccbot|claudebot|perplexitybot)/i.test(ua);
 }
 function conversionTrackingScript(){
-  return `<script id="conversion-events-v1">(function(){
-    function send(type,label){if(!type)return;var payload=JSON.stringify({type:type,path:location.pathname,label:String(label||'').slice(0,120)});try{if(navigator.sendBeacon){navigator.sendBeacon('/api/track-event',new Blob([payload],{type:'application/json'}));return}}catch(e){}fetch('/api/track-event',{method:'POST',headers:{'content-type':'application/json'},body:payload,keepalive:true}).catch(function(){})}
+  return `<script id="conversion-events-v2">(function(){
+    function dims(el,extra){var code=(el&&el.getAttribute&&(el.getAttribute('data-shop-click')||el.getAttribute('data-copy-code')||el.getAttribute('data-code')||el.getAttribute('data-copy')))||'';var market=(el&&el.getAttribute&&el.getAttribute('data-market'))||(location.pathname.startsWith('/uae')?'AE':'SA');var placement=(el&&el.getAttribute&&el.getAttribute('data-placement'))||'unspecified';return Object.assign({coupon_code:String(code||'').toUpperCase().slice(0,24),market:String(market||'UNSPECIFIED').toUpperCase().slice(0,16),placement:String(placement||'unspecified').slice(0,80)},extra||{})}
+    function send(type,label,data){if(!type)return;var payload=JSON.stringify(Object.assign({type:type,path:location.pathname,label:String(label||'').slice(0,120)},data||{}));try{if(navigator.sendBeacon){navigator.sendBeacon('/api/track-event',new Blob([payload],{type:'application/json'}));return}}catch(e){}fetch('/api/track-event',{method:'POST',headers:{'content-type':'application/json'},body:payload,keepalive:true}).catch(function(){})}
     document.addEventListener('click',function(e){
-      var el=e.target&&e.target.closest?e.target.closest('a,button,[data-copy-code],[data-code],[data-share]'):null;if(!el)return;
+      var el=e.target&&e.target.closest?e.target.closest('a,button,[data-copy-code],[data-code],[data-copy],[data-share],[data-shop-click]'):null;if(!el)return;
       var share=(el.getAttribute('data-share')||'').toLowerCase();
-      if(share==='whatsapp')return send('share_whatsapp',share);
-      if(share==='x'||share==='twitter')return send('share_x',share);
-      if(share==='facebook')return send('share_facebook',share);
-      if(share==='native')return send('web_share',share);
+      if(share==='whatsapp')return send('share_whatsapp',share,dims(el));
+      if(share==='x'||share==='twitter')return send('share_x',share,dims(el));
+      if(share==='facebook')return send('share_facebook',share,dims(el));
+      if(share==='native')return send('web_share',share,dims(el));
       var href=el.getAttribute&&el.getAttribute('href');
-      if(href){try{var u=new URL(href,location.href);if(/(^|\\.)noon\\.com$/i.test(u.hostname))return send('open_noon',u.hostname)}catch(_){}}
+      if(href){try{var u=new URL(href,location.href);if(/(^|\\.)noon\\.com$/i.test(u.hostname)){var kind=el.hasAttribute('data-shop-click')?'shop_click':'open_noon';return send(kind,u.hostname,dims(el,{destination_host:u.hostname}))}}catch(_){}}
       var code=el.getAttribute&&((el.getAttribute('data-copy-code')||el.getAttribute('data-code')||el.getAttribute('data-copy')||''));
       var txt=(el.textContent||'').trim();
-      if(code||/نسخ الكود|انسخ الكود|copy code/i.test(txt)||el.classList?.contains('coupon-copy-btn'))send('copy_code',code||txt.slice(0,40));
+      if(code||/نسخ الكود|انسخ الكود|copy code/i.test(txt)||el.classList?.contains('coupon-copy-btn'))send('copy_code',code||txt.slice(0,40),dims(el));
     },true);
   })();</script>`;
 }
@@ -296,10 +297,14 @@ async function handleConversionEvent(req,env){
   const site=(req.headers.get('sec-fetch-site')||'').toLowerCase();
   if(site&&site!=='same-origin'&&site!=='same-site')return new Response(JSON.stringify({ok:false,error:'cross_site_rejected'}),{status:403,headers:{'content-type':'application/json','cache-control':'no-store'}});
   let b;try{b=await req.json()}catch{return new Response(JSON.stringify({ok:false,error:'invalid_json'}),{status:400,headers:{'content-type':'application/json','cache-control':'no-store'}})}
-  const allowed=new Set(['copy_code','open_noon','share_whatsapp','share_x','share_facebook','web_share']),type=String(b?.type||''),path=String(b?.path||'').slice(0,500),label=String(b?.label||'').slice(0,120);
+  const allowed=new Set(['copy_code','shop_click','open_noon','share_whatsapp','share_x','share_facebook','web_share']),type=String(b?.type||''),path=String(b?.path||'').slice(0,500),label=String(b?.label||'').slice(0,120);
   if(!allowed.has(type)||!path.startsWith('/'))return new Response(JSON.stringify({ok:false,error:'invalid_event'}),{status:400,headers:{'content-type':'application/json','cache-control':'no-store'}});
-  const id=env.CONTROL.idFromName('primary'),res=await env.CONTROL.get(id).fetch('https://control.internal/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type,path,label})});
-  return new Response(null,{status:res.ok?204:503,headers:{'cache-control':'no-store','x-event-tracking':res.ok?'aggregate-v1':'failed'}});
+  const market=/^(SA|AE)$/i.test(String(b?.market||''))?String(b.market).toUpperCase():'UNSPECIFIED';
+  const coupon=/^[A-Z0-9_-]{2,24}$/.test(String(b?.coupon_code||'').toUpperCase())?String(b.coupon_code).toUpperCase():'';
+  const placement=String(b?.placement||'unspecified').replace(/[^a-z0-9_-]/gi,'_').slice(0,80)||'unspecified';
+  const destinationHost=/^(?:www\.)?noon\.com$/i.test(String(b?.destination_host||''))?String(b.destination_host).toLowerCase():'';
+  const id=env.CONTROL.idFromName('primary'),res=await env.CONTROL.get(id).fetch('https://control.internal/event',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({type,path,label,market,coupon,placement,destinationHost})});
+  return new Response(null,{status:res.ok?204:503,headers:{'cache-control':'no-store','x-event-tracking':res.ok?'aggregate-v2':'failed'}});
 }
 
 function isCountableArticleVisit(req,path){
@@ -348,7 +353,7 @@ export default{
     if(!u.pathname.startsWith('/admin')){
       html=serviceWorkerRegistration(html);
       const conversion=conversionTrackingScript();
-      if(!html.includes('id="conversion-events-v1"'))html=/<\/body>/i.test(html)?html.replace(/<\/body>/i,conversion+'</body>'):html+conversion;
+      if(!html.includes('id="conversion-events-v2"'))html=/<\/body>/i.test(html)?html.replace(/<\/body>/i,conversion+'</body>'):html+conversion;
       const analytics=analyticsBootstrap(settings);
       if(analytics)html=/<\/body>/i.test(html)?html.replace(/<\/body>/i,analytics+'</body>'):html+analytics;
     }
@@ -361,7 +366,7 @@ export default{
     h.set('x-image-count',String(imagePerf.count));
     h.set('x-service-worker-cache','static-assets-v1');
     h.set('x-analytics-settings',settings?.analyticsEnabled?'enabled-v2':'disabled-v2');
-    h.set('x-conversion-events','aggregate-v1');
+    h.set('x-conversion-events','aggregate-v2');
     h.set('x-organization-schema-count',String(repaired.state.organizations));
     h.set('x-organization-logo-fixed',String(repaired.state.fixed));
     h.set('x-organization-root-customized',String(repaired.state.rootCustomized));
@@ -377,4 +382,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:20,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:21,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
