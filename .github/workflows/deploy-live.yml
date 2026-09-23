@@ -991,11 +991,11 @@ jobs:
             'nextEligibleAt':c.get('nextEligibleAt')
           },separators=(',',':')))
           assert int(c.get('target') or 0)==50000
-          assert int(c.get('dailyTarget') or 0)==5760
+          assert int(c.get('dailyTarget') or 0)==8640
           assert int(c.get('minIntervalMinutes') or 0)==1
-          assert int(c.get('batchSize') or 0)==4
+          assert int(c.get('batchSize') or 0)==6
           assert c.get('targetMarket')=='AE'
-          assert c.get('marketPolicy')=='uae-only-new-v4-batch4'
+          assert c.get('marketPolicy')=='uae-only-new-v5-batch6'
           idx=x.get('indexNow') or {}
           assert idx.get('urlPathAware') is True
           PY
