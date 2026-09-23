@@ -82,7 +82,7 @@ export function buildUsefulArticle(topic,cursor=0){
   return {...article,html,diversityVersion:4,topicExpansionVersion:'query-modifier-v4',diversityKey:`${stableIndex(cursor,ARABIC_QUERY_MODIFIERS.length,17)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,101)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,138)}`};
 }
 
-const UAE_ENGLISH_QUERY_MODIFIERS=['today','2026','Dubai','Abu Dhabi','Sharjah','online','shopping guide','checkout guide','deal guide','voucher guide','discount guide','best deals','coupon today','sale guide','price comparison','seller guide','shipping guide','cart guide','offers guide','UAE online'];
+const UAE_ENGLISH_QUERY_MODIFIERS=['today','2026','Dubai','Abu Dhabi','Sharjah','online','UAE online','buy online UAE','best deals','best offers','deals today','offers today','sale today','coupon today','coupon 2026','promo code 2026','discount code 2026','price UAE','best price UAE','price comparison','shopping guide','checkout guide','deal guide','voucher guide','discount guide','seller guide','shipping guide','delivery guide','cart guide','offers guide','Dubai deals','Abu Dhabi deals','Sharjah deals','Dubai shopping','Abu Dhabi shopping','Sharjah shopping'];
 const UAE_QUERY_CATEGORY={
   mobile:'mobile phones',computing:'laptops',audio:'headphones',screen:'TVs',fashion:'fashion',beauty:'beauty',
   appliance:'home appliances',kitchen:'home and kitchen',home:'home',fitness:'sports and fitness'
@@ -97,23 +97,28 @@ const UAE_COMMERCIAL_HEADS={
   eligibility:['Noon first order coupon UAE','Noon coupon UAE new customer','Noon coupon UAE existing customer','Noon coupon eligibility UAE']
 };
 const UAE_POPULAR_SEARCHES={
-  mobile:['iPhone 17 Pro Max','iPhone 17','Samsung S25 Ultra','Samsung Galaxy S24 Ultra','Nothing Phone'],
-  computing:['MacBook Air','MacBook Pro','gaming laptop','PS5','Nintendo Switch'],
-  audio:['AirPods Pro','AirPods 4','JBL speaker','Sony headphones'],
-  screen:['Samsung TV','LG TV','gaming monitor'],
-  fashion:['handbags','Birkenstock','sunglasses'],
-  beauty:['perfume','Dyson','sunscreen','Vitamin C serum'],
-  appliance:['Samsung fridge','LG fridge','home appliances'],
-  kitchen:['Ninja air fryer','Philips air fryer','air fryer'],
-  home:['travel luggage','home deals'],
-  fitness:['Fitbit smartwatch','fitness tracker']
+  mobile:['iPhone 17 Pro Max','iPhone 17 Pro','iPhone 17','Samsung Galaxy S25 Ultra','Samsung Galaxy S25','Google Pixel 10 Pro','Nothing Phone','Xiaomi phone','OnePlus phone','Honor phone'],
+  computing:['MacBook Air','MacBook Pro','gaming laptop','Lenovo laptop','ASUS laptop','HP laptop','Dell laptop','iPad','PS5','Nintendo Switch'],
+  audio:['AirPods Pro','AirPods','JBL speaker','Sony headphones','Bose headphones','wireless earbuds'],
+  screen:['Samsung TV','LG TV','OLED TV','QLED TV','gaming monitor','4K TV'],
+  fashion:['handbags','sneakers','running shoes','Birkenstock','sunglasses','watches'],
+  beauty:['perfume','Dyson Airwrap','sunscreen','Vitamin C serum','skincare','makeup','hair dryer'],
+  appliance:['Samsung fridge','LG fridge','washing machine','vacuum cleaner','Dyson vacuum','home appliances'],
+  kitchen:['Ninja air fryer','Philips air fryer','air fryer','coffee machine','blender','microwave'],
+  home:['furniture','mattress','home storage','home deals','bedding'],
+  fitness:['smartwatch','fitness tracker','treadmill','dumbbells','yoga mat'],
+  grocery:['coffee','snacks','protein powder','grocery deals'],
+  kids:['LEGO','kids toys','school supplies','kids fashion'],
+  baby:['baby stroller','diapers','baby monitor','baby essentials'],
+  travel:['travel luggage','cabin bag','travel backpack','suitcase'],
+  office:['printer','keyboard','mouse','office chair','school supplies']
 };
 const UAE_INTENT_SUFFIX={coupon:'coupon code',timing:'coupon today',value:'deals',smartbuy:'offers',cart:'promo code',finalprice:'price',eligibility:'coupon eligibility'};
 function uaeEnglishPriorityKeyword(candidate){
   if(candidate?.country!=='AE')return null;
   const profile=String(candidate.profileKey||'general'),category=UAE_QUERY_CATEGORY[profile]||String(candidate.nativeCategory||'').trim();
   const seed=Math.abs(Number(candidate.topicIndex||0)),heads=UAE_COMMERCIAL_HEADS[candidate.intent]||UAE_COMMERCIAL_HEADS.coupon,demand=UAE_POPULAR_SEARCHES[profile]||[];
-  const useDemand=demand.length>0&&seed%4!==0,head=useDemand?demand[seed%demand.length]:heads[seed%heads.length],modifier=UAE_ENGLISH_QUERY_MODIFIERS[Math.floor(seed/Math.max(1,heads.length))%UAE_ENGLISH_QUERY_MODIFIERS.length],intentSuffix=UAE_INTENT_SUFFIX[candidate.intent]||'shopping guide';
+  const useDemand=demand.length>0&&seed%5!==0,head=useDemand?demand[seed%demand.length]:heads[seed%heads.length],modifier=UAE_ENGLISH_QUERY_MODIFIERS[Math.floor(seed/Math.max(1,heads.length))%UAE_ENGLISH_QUERY_MODIFIERS.length],intentSuffix=UAE_INTENT_SUFFIX[candidate.intent]||'shopping guide';
   const keyword=(useDemand?`${head} Noon UAE ${intentSuffix} ${modifier}`:`${head} ${category} ${modifier}`).replace(/\s+/g,' ').trim();
   const searchClass=String(head).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
   return {keyword,tier:useDemand?'uae-popular-search-v1':'uae-commercial-priority-v2',cluster:`uae-${candidate.intent||'commercial'}-${profile}`,searchClass,headTerm:head,demandSource:useDemand?'noon-uae-popular-searches-2026':'commercial-head'};
