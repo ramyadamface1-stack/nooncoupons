@@ -29,11 +29,11 @@ jobs:
           node --check bulk-content-engine-base.js
           grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
           grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "50000"' wrangler.jsonc
-          grep -Fq '"ENGLISH_DAILY_TARGET": "8640"' wrangler.jsonc
+          grep -Fq '"ENGLISH_DAILY_TARGET": "11520"' wrangler.jsonc
           grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "1"' wrangler.jsonc
-          grep -Fq '"ENGLISH_BATCH_SIZE": "6"' wrangler.jsonc
+          grep -Fq '"ENGLISH_BATCH_SIZE": "8"' wrangler.jsonc
           grep -Fq 'function batchSizeFromEnv(env)' english-canary.js
-          grep -Fq 'defaultBatchPerTick:6' english-canary.js
+          grep -Fq 'defaultBatchPerTick:8' english-canary.js
           grep -Fq 'const MAX_CONTROLLED_TOTAL=50000;' english-canary.js
           grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
           grep -Fq 'const PROFILE_MAX_PER_BATCH=10;' english-canary.js
@@ -41,10 +41,12 @@ jobs:
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
           grep -Fq 'const MAX_SCAN=5000;' english-canary.js
           grep -Fq "const TARGET_MARKET='AE';" english-canary.js
-          grep -Fq "marketPolicy:'uae-only-new-v5-batch6'" english-canary.js
-          grep -Fq 'uae-golden-commercial-v1' bulk-content-engine.js
+          grep -Fq "marketPolicy:'uae-only-new-v6-batch8'" english-canary.js
+          grep -Fq 'uae-golden-commercial-v2' bulk-content-engine.js
           grep -Fq 'uae-high-demand-product-v2' bulk-content-engine.js
           grep -Fq 'UAE_POPULAR_SEARCHES' bulk-content-engine.js
+          grep -Fq 'UAE_GOLDEN_COMMERCIAL_MODIFIERS' bulk-content-engine.js
+          grep -Fq 'goldenModifier=seed%5!==4' bulk-content-engine.js
           grep -Fq "'Noon discount code UAE'" bulk-content-engine.js
           grep -Fq "'Noon promo code UAE'" bulk-content-engine.js
           grep -Fq "'Noon first order coupon UAE'" bulk-content-engine.js
@@ -117,9 +119,9 @@ jobs:
               if(r.intent)intentCounts.set(r.intent,(intentCounts.get(r.intent)||0)+1);
             }
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 &&
-              c.target===50000 && c.targetMarket==='AE' && c.marketPolicy==='uae-only-new-v5-batch6' && Number(c.published)>=20 && Number(c.published)<=50000 &&
-              Number(c.remaining)===50000-Number(c.published) && Number(c.dailyTarget)===8640 &&
-              Number(c.minIntervalMinutes)===1 && Number(c.batchSize)===6 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=8640 &&
+              c.target===50000 && c.targetMarket==='AE' && c.marketPolicy==='uae-only-new-v6-batch8' && Number(c.published)>=20 && Number(c.published)<=50000 &&
+              Number(c.remaining)===50000-Number(c.published) && Number(c.dailyTarget)===11520 &&
+              Number(c.minIntervalMinutes)===1 && Number(c.batchSize)===8 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=11520 &&
               rows.length===Number(c.published) && Number(c.uniqueProfiles)>=10 &&
               new Set(slugs).size===rows.length && new Set(keywords).size===rows.length && canaries.length===2 && expanded.length===rows.length-2 &&
               !slugs.includes('en-best-time-to-try-a-noon-coupon-uae-office-cart-test') &&
