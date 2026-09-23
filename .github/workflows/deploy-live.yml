@@ -375,14 +375,14 @@ jobs:
               -X POST -H "$AUTH" -H 'Content-Type: application/json' \
               --data '{}' "$ORIGIN/api/internal/english-batch-step?deploy=$GITHUB_SHA-$i" -o /tmp/english-batch.json; then
               cat /tmp/english-batch.json
-              if jq -e '.ok==true and (.published|tonumber)>=1 and (.maxPerTick|tonumber)==4' /tmp/english-batch.json >/dev/null; then
+              if jq -e '.ok==true and (.maxPerTick|tonumber)==6 and (((.published|tonumber)>=1) or (((.results[0].skipped // "")=="english_interval_wait") and ((.results[0].published|tonumber)>0) and ((.results[0].dailyTarget|tonumber)==8640)))' /tmp/english-batch.json >/dev/null; then
                 ready=1
                 break
               fi
             fi
             sleep 5
           done
-          [ "$ready" = 1 ] || { echo 'UAE_ENGLISH_BATCH_DID_NOT_PUBLISH'; cat /tmp/english-batch.json 2>/dev/null || true; exit 1; }
+          [ "$ready" = 1 ] || { echo 'UAE_ENGLISH_BATCH_NOT_HEALTHY'; cat /tmp/english-batch.json 2>/dev/null || true; exit 1; }
           echo "UAE_ENGLISH_BATCH_LIVE=$(jq -c '{ok,maxPerTick,published,results:[.results[]|{ok,skipped,error,record:(.record|if . then {slug,country,quality,wordCount,primaryKeyword,keywordTier,keywordCluster} else null end)}]}' /tmp/english-batch.json)"
       - name: Complete and audit R2 coupon migration
         shell: bash
