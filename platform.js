@@ -176,7 +176,7 @@ export class ControlPlane{
   async fetch(req){
     try{
     const u=new URL(req.url);
-    if(u.pathname==='/ping')return json({ok:true,class:'ControlPlane',version:5,uniqueArticleVisits:true,rawIpStored:false,conversionEvents:true,eventPiiStored:false});
+    if(u.pathname==='/ping')return json({ok:true,class:'ControlPlane',version:5,uniqueArticleVisits:true,rawIpStored:false,conversionEvents:true,conversionAttributionV2:true,eventPiiStored:false});
     if(u.pathname==='/state')return json(await this.get());
     if(u.pathname==='/visit'&&req.method==='POST'){
       const b=await req.json(),path=String(b?.path||'').slice(0,500),ip=String(b?.ip||'').slice(0,100);
@@ -199,12 +199,23 @@ export class ControlPlane{
     }
     if(u.pathname==='/event'&&req.method==='POST'){
       const b=await req.json(),type=String(b?.type||''),path=String(b?.path||'/').slice(0,500),label=String(b?.label||'').replace(/[<>]/g,'').slice(0,120);
-      const allowed=new Set(['copy_code','open_noon','share_whatsapp','share_x','share_facebook','web_share']);
+      const allowed=new Set(['copy_code','shop_click','open_noon','share_whatsapp','share_x','share_facebook','web_share']);
       if(!allowed.has(type)||!path.startsWith('/'))return json({ok:false,error:'invalid_event'},400);
-      const key='conversion-events-v1',current=await this.ctx.storage.get(key)||{version:1,totals:{},paths:{},updatedAt:null};
+      const market=/^(SA|AE|UNSPECIFIED)$/i.test(String(b?.market||''))?String(b.market).toUpperCase():'UNSPECIFIED';
+      const coupon=/^[A-Z0-9_-]{2,24}$/.test(String(b?.coupon||'').toUpperCase())?String(b.coupon).toUpperCase():'';
+      const placement=String(b?.placement||'unspecified').replace(/[^a-z0-9_-]/gi,'_').slice(0,80)||'unspecified';
+      const destinationHost=/^(?:www\\.)?noon\\.com$/i.test(String(b?.destinationHost||''))?String(b.destinationHost).toLowerCase():'';
+      const key='conversion-events-v1',current=await this.ctx.storage.get(key)||{version:2,totals:{},paths:{},markets:{},coupons:{},placements:{},updatedAt:null};
+      current.version=2;current.totals=current.totals||{};current.paths=current.paths||{};current.markets=current.markets||{};current.coupons=current.coupons||{};current.placements=current.placements||{};
       current.totals[type]=Math.max(0,Number(current.totals[type]||0))+1;
-      const p=current.paths[path]||{path,total:0,events:{},lastAt:null};
-      p.total=Math.max(0,Number(p.total||0))+1;p.events[type]=Math.max(0,Number(p.events[type]||0))+1;p.lastAt=now();if(label)p.lastLabel=label;
+      current.markets[market]=Math.max(0,Number(current.markets[market]||0))+1;
+      if(coupon)current.coupons[coupon]=Math.max(0,Number(current.coupons[coupon]||0))+1;
+      current.placements[placement]=Math.max(0,Number(current.placements[placement]||0))+1;
+      const p=current.paths[path]||{path,total:0,events:{},markets:{},coupons:{},placements:{},lastAt:null};
+      p.events=p.events||{};p.markets=p.markets||{};p.coupons=p.coupons||{};p.placements=p.placements||{};
+      p.total=Math.max(0,Number(p.total||0))+1;p.events[type]=Math.max(0,Number(p.events[type]||0))+1;p.markets[market]=Math.max(0,Number(p.markets[market]||0))+1;
+      if(coupon)p.coupons[coupon]=Math.max(0,Number(p.coupons[coupon]||0))+1;
+      p.placements[placement]=Math.max(0,Number(p.placements[placement]||0))+1;p.lastAt=now();if(label)p.lastLabel=label;if(destinationHost)p.lastDestinationHost=destinationHost;
       current.paths[path]=p;current.updatedAt=now();
       const entries=Object.entries(current.paths);
       if(entries.length>250){
@@ -212,12 +223,13 @@ export class ControlPlane{
         current.paths=Object.fromEntries(entries.slice(0,250));
       }
       await this.ctx.storage.put(key,current);
-      return json({ok:true,stored:'aggregate-only',piiStored:false});
+      return json({ok:true,stored:'aggregate-only-v2',piiStored:false});
     }
     if(u.pathname==='/events-summary'&&req.method==='GET'){
-      const current=await this.ctx.storage.get('conversion-events-v1')||{version:1,totals:{},paths:{},updatedAt:null};
+      const current=await this.ctx.storage.get('conversion-events-v1')||{version:2,totals:{},paths:{},markets:{},coupons:{},placements:{},updatedAt:null};
       const topPaths=Object.values(current.paths||{}).sort((a,b)=>Number(b?.total||0)-Number(a?.total||0)).slice(0,50);
-      return json({ok:true,privacy:'aggregate-events-only',piiStored:false,totals:current.totals||{},topPaths,updatedAt:current.updatedAt||null});
+      const top=(obj,limit=30)=>Object.entries(obj||{}).sort((a,b)=>Number(b[1]||0)-Number(a[1]||0)).slice(0,limit).map(([key,count])=>({key,count}));
+      return json({ok:true,version:Number(current.version||1),privacy:'aggregate-events-only',piiStored:false,totals:current.totals||{},markets:current.markets||{},topCoupons:top(current.coupons,20),topPlacements:top(current.placements,30),topPaths,updatedAt:current.updatedAt||null});
     }
     if(u.pathname==='/article'&&req.method==='POST'){
       const rec=await req.json(),s=await this.get(),i=s.articles.findIndex(a=>a.slug===rec.slug);
