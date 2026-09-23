@@ -223,8 +223,8 @@ export async function bulkTick(env){
   try{
     const adaptive=chooseAdaptiveBulkBatch(env,locked),effectiveBatch=adaptive.batchSize;
     const bulk=await runProgrammaticBatch(env,cfg,locked,{dailyTarget:Number(env.BULK_DAILY_TARGET||32000),batchSize:effectiveBatch});
-    const next={...locked,...(bulk.patch||{}),bulkRunningAt:null,backend:'r2-v1',updatedAt:now()};await r2putGeneratorStatusMonotonic(env,next);
-    return {ok:true,backend:'r2-v1',adaptiveBatch:adaptive,bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0)}};
+    const next={...locked,...(bulk.patch||{}),bulkRunningAt:null,bulkLastSkipReason:bulk.skipped||null,bulkLastTickAt:now(),bulkLastTickPublished:Array.isArray(bulk.records)?bulk.records.length:0,backend:'r2-v1',updatedAt:now()};await r2putGeneratorStatusMonotonic(env,next);
+    return {ok:true,backend:'r2-v1',adaptiveBatch:adaptive,bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0),bulkLastSkipReason:next.bulkLastSkipReason,bulkLastTickPublished:Number(next.bulkLastTickPublished||0)}};
   }catch(e){
     const next={...locked,bulkRunningAt:null,bulkLastRun:now(),bulkLastError:String(e?.message||e),backend:'r2-v1',updatedAt:now()};await r2putGeneratorStatusMonotonic(env,next);return {ok:false,backend:'r2-v1',error:next.bulkLastError};
   }
