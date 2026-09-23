@@ -118,10 +118,10 @@ function uaeEnglishPriorityKeyword(candidate){
   if(candidate?.country!=='AE')return null;
   const profile=String(candidate.profileKey||'general'),category=UAE_QUERY_CATEGORY[profile]||String(candidate.nativeCategory||'').trim();
   const seed=Math.abs(Number(candidate.topicIndex||0)),heads=UAE_COMMERCIAL_HEADS[candidate.intent]||UAE_COMMERCIAL_HEADS.coupon,demand=UAE_POPULAR_SEARCHES[profile]||[];
-  const useDemand=demand.length>0&&seed%5!==0,head=useDemand?demand[seed%demand.length]:heads[seed%heads.length],modifier=UAE_ENGLISH_QUERY_MODIFIERS[Math.floor(seed/Math.max(1,heads.length))%UAE_ENGLISH_QUERY_MODIFIERS.length],intentSuffix=UAE_INTENT_SUFFIX[candidate.intent]||'shopping guide';
+  const useDemand=demand.length>0&&seed%4!==0,head=useDemand?demand[seed%demand.length]:heads[seed%heads.length],modifier=UAE_ENGLISH_QUERY_MODIFIERS[Math.floor(seed/Math.max(1,heads.length))%UAE_ENGLISH_QUERY_MODIFIERS.length],intentSuffix=UAE_INTENT_SUFFIX[candidate.intent]||'shopping guide';
   const keyword=(useDemand?`${head} Noon UAE ${intentSuffix} ${modifier}`:`${head} ${category} ${modifier}`).replace(/\s+/g,' ').trim();
   const searchClass=String(head).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
-  return {keyword,tier:useDemand?'uae-popular-search-v1':'uae-commercial-priority-v2',cluster:`uae-${candidate.intent||'commercial'}-${profile}`,searchClass,headTerm:head,demandSource:useDemand?'noon-uae-popular-searches-2026':'commercial-head'};
+  const golden=/coupon|promo|discount|deal|offer|price|today|2026|dubai|sharjah|abu dhabi/i.test(`${keyword} ${modifier}`);return {keyword,tier:golden?'uae-golden-commercial-v1':useDemand?'uae-high-demand-product-v2':'uae-commercial-priority-v3',cluster:`uae-${candidate.intent||'commercial'}-${profile}`,searchClass,headTerm:head,demandSource:useDemand?'noon-uae-popular-searches-2026':'commercial-head',golden};
 }
 
 function normalizeEnglishCandidate(candidate){

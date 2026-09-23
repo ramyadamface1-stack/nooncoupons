@@ -24,12 +24,12 @@ jobs:
           node --check bulk-content-engine.js
           node --check public-entry.js
           grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
-          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "20000"' wrangler.jsonc
-          grep -Fq '"ENGLISH_DAILY_TARGET": "2880"' wrangler.jsonc
+          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "50000"' wrangler.jsonc
+          grep -Fq '"ENGLISH_DAILY_TARGET": "5760"' wrangler.jsonc
           grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "1"' wrangler.jsonc
-          grep -Fq '"ENGLISH_BATCH_SIZE": "2"' wrangler.jsonc
+          grep -Fq '"ENGLISH_BATCH_SIZE": "4"' wrangler.jsonc
           grep -Fq 'defaultBatchPerTick:2' english-canary.js
-          grep -Fq 'const MAX_CONTROLLED_TOTAL=20000;' english-canary.js
+          grep -Fq 'const MAX_CONTROLLED_TOTAL=50000;' english-canary.js
           grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
           grep -Fq 'const INTENT_MAX_PER_BATCH=6;' english-canary.js
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
@@ -58,7 +58,7 @@ jobs:
             const controlled=x.controlled||{};
             const slugs=new Set(rows.map(r=>r.slug));
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 && rows.length===2 &&
-              Number(controlled.target)===20000 && controlled.targetMarket==='AE' && controlled.marketPolicy==='uae-only-new-v3-batch2' && Number(controlled.published)>=20 && Number(controlled.published)<=20000 && Number(controlled.dailyTarget)===2880 && Number(controlled.minIntervalMinutes)===1 && Number(controlled.batchSize)===2 &&
+              Number(controlled.target)===50000 && controlled.targetMarket==='AE' && controlled.marketPolicy==='uae-only-new-v4-batch4' && Number(controlled.published)>=20 && Number(controlled.published)<=50000 && Number(controlled.dailyTarget)===5760 && Number(controlled.minIntervalMinutes)===1 && Number(controlled.batchSize)===4 &&
               [...expected].every(s=>slugs.has(s)) && slugs.size===2 &&
               rows.every(r=>r.r2Present===true && r.language==='en' && r.languageIntent==='en' &&
                 r.languageSource==='native-intent-v6-canary' && r.canary===true && (!r.phase || r.phase==='canary') &&
