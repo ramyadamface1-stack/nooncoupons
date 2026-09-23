@@ -22,7 +22,7 @@ jobs:
           node --check discovery-entry.js
           node --check commerce-entry.js
           grep -Fq "englishSchedulerOwner:true" discovery-entry.js
-          grep -Fq "runEnglishCanary(env)" discovery-entry.js
+          grep -Fq "runEnglishCanaryBatch(env)" discovery-entry.js
           grep -Fq "englishSchedulerOwner:false" commerce-entry.js
           node --check english-canary-repair.js
           node --check bulk-content-engine.js
