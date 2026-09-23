@@ -82,21 +82,28 @@ export function buildUsefulArticle(topic,cursor=0){
   return {...article,html,diversityVersion:4,topicExpansionVersion:'query-modifier-v4',diversityKey:`${stableIndex(cursor,ARABIC_QUERY_MODIFIERS.length,17)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,101)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,138)}`};
 }
 
-const UAE_ENGLISH_QUERY_MODIFIERS=['today','Dubai','Abu Dhabi','online shopping','checkout guide','deal guide','voucher guide','discount guide','shopping guide','final price','best deals','coupon today','sale guide','price comparison','seller guide','shipping guide','cart guide','UAE online','deal comparison','offers guide'];
+const UAE_ENGLISH_QUERY_MODIFIERS=['today','2026','Dubai','Abu Dhabi','Sharjah','online','shopping guide','checkout guide','deal guide','voucher guide','discount guide','best deals','coupon today','sale guide','price comparison','seller guide','shipping guide','cart guide','offers guide','UAE online'];
+const UAE_QUERY_CATEGORY={
+  mobile:'mobile phones',computing:'laptops',audio:'headphones',screen:'TVs',fashion:'fashion',beauty:'beauty',
+  appliance:'home appliances',kitchen:'home and kitchen',home:'home',fitness:'sports and fitness'
+};
+const UAE_COMMERCIAL_HEADS={
+  coupon:['Noon UAE coupon code','Noon discount code UAE','Noon promo code UAE','Noon voucher code UAE','Noon coupon Dubai','Noon discount code Dubai'],
+  timing:['Noon coupon code today UAE','Noon UAE coupon today','Noon promo code UAE today','Noon discount code UAE today'],
+  value:['Noon UAE deals','Noon deals UAE','Noon UAE discounts','Noon sale UAE'],
+  smartbuy:['Noon UAE offers','Noon offers UAE','Noon UAE deals','Noon shopping offers UAE'],
+  cart:['Noon promo code UAE','Noon coupon code UAE','Noon discount code UAE'],
+  finalprice:['Noon UAE deals','Noon discount code UAE','Noon UAE offers'],
+  eligibility:['Noon first order coupon UAE','Noon coupon UAE new customer','Noon coupon UAE existing customer','Noon coupon eligibility UAE']
+};
 function uaeEnglishPriorityKeyword(candidate){
   if(candidate?.country!=='AE')return null;
-  const category=String(candidate.nativeCategory||'').trim(),modifier=UAE_ENGLISH_QUERY_MODIFIERS[Math.abs(Number(candidate.topicIndex||0))%UAE_ENGLISH_QUERY_MODIFIERS.length];
-  const templates={
-    coupon:`Noon UAE coupon code ${category} ${modifier}`,
-    finalprice:`Noon UAE ${category} final price ${modifier}`,
-    value:`Noon UAE ${category} deals ${modifier}`,
-    cart:`Noon UAE promo code ${category} ${modifier}`,
-    timing:`Noon UAE coupon code today ${category} ${modifier}`,
-    smartbuy:`Noon UAE ${category} offers ${modifier}`,
-    eligibility:`Noon UAE coupon eligibility ${category} ${modifier}`
-  };
-  const keyword=String(templates[candidate.intent]||`Noon UAE deals ${category} ${modifier}`).replace(/\s+/g,' ').trim();
-  return {keyword,tier:'uae-commercial-priority-v1',cluster:`uae-${candidate.intent||'commercial'}-${String(candidate.profileKey||'general')}`};
+  const profile=String(candidate.profileKey||'general'),category=UAE_QUERY_CATEGORY[profile]||String(candidate.nativeCategory||'').trim();
+  const seed=Math.abs(Number(candidate.topicIndex||0)),heads=UAE_COMMERCIAL_HEADS[candidate.intent]||UAE_COMMERCIAL_HEADS.coupon;
+  const head=heads[seed%heads.length],modifier=UAE_ENGLISH_QUERY_MODIFIERS[Math.floor(seed/Math.max(1,heads.length))%UAE_ENGLISH_QUERY_MODIFIERS.length];
+  const keyword=`${head} ${category} ${modifier}`.replace(/\s+/g,' ').trim();
+  const searchClass=String(head).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  return {keyword,tier:'uae-commercial-priority-v2',cluster:`uae-${candidate.intent||'commercial'}-${profile}`,searchClass,headTerm:head};
 }
 
 function normalizeEnglishCandidate(candidate){
@@ -106,7 +113,7 @@ function normalizeEnglishCandidate(candidate){
   const priority=uaeEnglishPriorityKeyword(candidate);
   if(priority){
     const nativeVariant='UAE commercial search guide',nativeKeyword=priority.keyword;
-    return {...candidate,nativeVariant,nativeKeyword,nativeSlug:englishSlugify(nativeKeyword),nativeAngle:`${nativeVariant} for ${nativeCategory} shoppers in UAE`,keywordTier:priority.tier,keywordCluster:priority.cluster};
+    return {...candidate,nativeVariant,nativeKeyword,nativeSlug:englishSlugify(nativeKeyword),nativeAngle:`${nativeVariant} for ${nativeCategory} shoppers in UAE`,keywordTier:priority.tier,keywordCluster:priority.cluster,keywordSearchClass:priority.searchClass,keywordHeadTerm:priority.headTerm};
   }
   if(candidate.intent==='timing'){
     const nativeVariant='coupon timing guide';
