@@ -13,12 +13,12 @@ const MAX_DAILY_TARGET=288;
 const DEFAULT_MIN_INTERVAL_MINUTES=5;
 const DIVERSITY_WINDOW=24;
 const PROFILE_DIVERSITY_SLOTS=16;
-const PROFILE_MAX_PER_BATCH=3;
-const INTENT_MAX_PER_BATCH=5;
+const PROFILE_MAX_PER_BATCH=4;
+const INTENT_MAX_PER_BATCH=6;
 const TARGET_MARKET='AE';
 const UAE_PRIORITY_PROFILES=new Set(['mobile','computing','audio','screen','beauty','appliance','kitchen','home','fashion','fitness']);
 const START_CURSOR=760000;
-const MAX_SCAN=1500;
+const MAX_SCAN=5000;
 const PROFILE_TO_CATEGORY={
   mobile:'mobiles',computing:'computers',audio:'audio',screen:'tvs',beauty:'beauty',
   appliance:'appliances',kitchen:'home-kitchen',home:'home-kitchen',grocery:'grocery',

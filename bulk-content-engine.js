@@ -82,7 +82,7 @@ export function buildUsefulArticle(topic,cursor=0){
   return {...article,html,diversityVersion:4,topicExpansionVersion:'query-modifier-v4',diversityKey:`${stableIndex(cursor,ARABIC_QUERY_MODIFIERS.length,17)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,101)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,138)}`};
 }
 
-const UAE_ENGLISH_QUERY_MODIFIERS=['today','Dubai','Abu Dhabi','online shopping','checkout guide','deal guide','voucher guide','discount guide','shopping guide','final price'];
+const UAE_ENGLISH_QUERY_MODIFIERS=['today','Dubai','Abu Dhabi','online shopping','checkout guide','deal guide','voucher guide','discount guide','shopping guide','final price','best deals','coupon today','sale guide','price comparison','seller guide','shipping guide','cart guide','UAE online','deal comparison','offers guide'];
 function uaeEnglishPriorityKeyword(candidate){
   if(candidate?.country!=='AE')return null;
   const category=String(candidate.nativeCategory||'').trim(),modifier=UAE_ENGLISH_QUERY_MODIFIERS[Math.abs(Number(candidate.topicIndex||0))%UAE_ENGLISH_QUERY_MODIFIERS.length];

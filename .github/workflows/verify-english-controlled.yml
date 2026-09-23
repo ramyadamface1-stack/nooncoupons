@@ -33,9 +33,9 @@ jobs:
           grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "5"' wrangler.jsonc
           grep -Fq 'const MAX_CONTROLLED_TOTAL=5000;' english-canary.js
           grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
-          grep -Fq 'const INTENT_MAX_PER_BATCH=5;' english-canary.js
+          grep -Fq 'const INTENT_MAX_PER_BATCH=6;' english-canary.js
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
-          grep -Fq 'const MAX_SCAN=1500;' english-canary.js
+          grep -Fq 'const MAX_SCAN=5000;' english-canary.js
           grep -Fq "const TARGET_MARKET='AE';" english-canary.js
           grep -Fq "marketPolicy:'uae-only-new-v1'" english-canary.js
           grep -Fq 'uae-commercial-priority-v1' bulk-content-engine.js
