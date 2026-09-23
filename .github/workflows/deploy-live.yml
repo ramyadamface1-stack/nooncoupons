@@ -230,9 +230,15 @@ jobs:
           grep -Fq 'analyticsDisabledByDefault:true' brand-runtime.js
           grep -Fq 'respectDoNotTrack:true' brand-runtime.js
           grep -Fq "id=\"seo-analytics-v2\"" brand-runtime.js
-          grep -Fq "id=\"conversion-events-v1\"" brand-runtime.js
+          grep -Fq "id=\"conversion-events-v2\"" brand-runtime.js
           grep -Fq "u.pathname==='/api/track-event'" brand-runtime.js
           grep -Fq 'privacySafeConversionEvents:true' brand-runtime.js
+          grep -Fq 'conversionAttributionDimensions:true' brand-runtime.js
+          grep -Fq "const allowed=new Set(['copy_code','shop_click','open_noon'" brand-runtime.js
+          grep -Fq 'current.markets=current.markets||{}' platform.js
+          grep -Fq 'topCoupons:top(current.coupons,20)' platform.js
+          grep -Fq 'bulkLastSkipReason:bulk.skipped||null' admin-runtime.js
+          grep -Fq 'effectiveExpires' article-audit-lock.js
           grep -Fq 'routePatternSeo:true' brand-runtime.js
           grep -Fq 'globalJsonLdSettings:true' brand-runtime.js
           grep -Fq 'safeCustomHeadSettings:true' brand-runtime.js
@@ -279,7 +285,7 @@ jobs:
           grep -Fq 'eventPiiStored:false' platform.js
           grep -Fq "u.pathname==='/event'" platform.js
           grep -Fq "u.pathname==='/events-summary'" platform.js
-          grep -Fq "stored:'aggregate-only'" platform.js
+          grep -Fq "stored:'aggregate-only-v2'" platform.js
           grep -Fq 'rawIpStored:false' platform.js
           grep -Fq "visit-pepper-v1" platform.js
           grep -Fq "visit-seen:" platform.js
