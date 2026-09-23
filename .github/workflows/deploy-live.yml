@@ -378,7 +378,7 @@ jobs:
             if curl -fsS --connect-timeout 10 --max-time 30 --retry 1 --retry-all-errors --retry-delay 2 \
               "$ORIGIN/api/english-canary-health?deploy=$GITHUB_SHA-$i" -o /tmp/english-health.json; then
               cat /tmp/english-health.json
-              if jq -e '.ok==true and (.controlled.target|tonumber)==50000 and (.controlled.published|tonumber)>0 and (.controlled.dailyTarget|tonumber)==8640 and (.controlled.minIntervalMinutes|tonumber)==1 and (.controlled.batchSize|tonumber)==6 and .controlled.targetMarket=="AE" and .controlled.marketPolicy=="uae-only-new-v5-batch6"' /tmp/english-health.json >/dev/null; then
+              if jq -e '.ok==true and (.controlled.target|tonumber)==50000 and (.controlled.published|tonumber)>0 and (.controlled.dailyTarget|tonumber)==11520 and (.controlled.minIntervalMinutes|tonumber)==1 and (.controlled.batchSize|tonumber)==8 and .controlled.targetMarket=="AE" and .controlled.marketPolicy=="uae-only-new-v6-batch8"' /tmp/english-health.json >/dev/null; then
                 ready=1
                 break
               fi
@@ -994,11 +994,11 @@ jobs:
             'nextEligibleAt':c.get('nextEligibleAt')
           },separators=(',',':')))
           assert int(c.get('target') or 0)==50000
-          assert int(c.get('dailyTarget') or 0)==8640
+          assert int(c.get('dailyTarget') or 0)==11520
           assert int(c.get('minIntervalMinutes') or 0)==1
-          assert int(c.get('batchSize') or 0)==6
+          assert int(c.get('batchSize') or 0)==8
           assert c.get('targetMarket')=='AE'
-          assert c.get('marketPolicy')=='uae-only-new-v5-batch6'
+          assert c.get('marketPolicy')=='uae-only-new-v6-batch8'
           idx=x.get('indexNow') or {}
           assert idx.get('urlPathAware') is True
           PY
