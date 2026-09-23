@@ -28,17 +28,19 @@ jobs:
           node --check bulk-content-engine.js
           node --check bulk-content-engine-base.js
           grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
-          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "5000"' wrangler.jsonc
-          grep -Fq '"ENGLISH_DAILY_TARGET": "288"' wrangler.jsonc
-          grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "5"' wrangler.jsonc
-          grep -Fq 'const MAX_CONTROLLED_TOTAL=5000;' english-canary.js
+          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "10000"' wrangler.jsonc
+          grep -Fq '"ENGLISH_DAILY_TARGET": "1440"' wrangler.jsonc
+          grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "1"' wrangler.jsonc
+          grep -Fq 'const MAX_CONTROLLED_TOTAL=10000;' english-canary.js
           grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
           grep -Fq 'const INTENT_MAX_PER_BATCH=6;' english-canary.js
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
           grep -Fq 'const MAX_SCAN=5000;' english-canary.js
           grep -Fq "const TARGET_MARKET='AE';" english-canary.js
-          grep -Fq "marketPolicy:'uae-only-new-v1'" english-canary.js
+          grep -Fq "marketPolicy:'uae-only-new-v2'" english-canary.js
           grep -Fq 'uae-commercial-priority-v2' bulk-content-engine.js
+          grep -Fq 'uae-popular-search-v1' bulk-content-engine.js
+          grep -Fq 'UAE_POPULAR_SEARCHES' bulk-content-engine.js
           grep -Fq "'Noon discount code UAE'" bulk-content-engine.js
           grep -Fq "'Noon promo code UAE'" bulk-content-engine.js
           grep -Fq "'Noon first order coupon UAE'" bulk-content-engine.js
@@ -111,9 +113,9 @@ jobs:
               if(r.intent)intentCounts.set(r.intent,(intentCounts.get(r.intent)||0)+1);
             }
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 &&
-              c.target===5000 && c.targetMarket==='AE' && c.marketPolicy==='uae-only-new-v1' && Number(c.published)>=20 && Number(c.published)<=5000 &&
-              Number(c.remaining)===5000-Number(c.published) && Number(c.dailyTarget)===288 &&
-              Number(c.minIntervalMinutes)===5 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=288 &&
+              c.target===10000 && c.targetMarket==='AE' && c.marketPolicy==='uae-only-new-v2' && Number(c.published)>=20 && Number(c.published)<=10000 &&
+              Number(c.remaining)===10000-Number(c.published) && Number(c.dailyTarget)===1440 &&
+              Number(c.minIntervalMinutes)===1 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=1440 &&
               rows.length===Number(c.published) && Number(c.uniqueProfiles)>=10 &&
               new Set(slugs).size===rows.length && new Set(keywords).size===rows.length && canaries.length===2 && expanded.length===rows.length-2 &&
               !slugs.includes('en-best-time-to-try-a-noon-coupon-uae-office-cart-test') &&
@@ -195,7 +197,7 @@ jobs:
           curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en-sitemap.xml
           count="$(grep -o '<url>' /tmp/en-sitemap.xml | wc -l | tr -d ' ')"
           test "$count" -ge "20"
-          test "$count" -le "200"
+          test "$count" -le "10000"
           ! grep -Fq 'en-best-time-to-try-a-noon-coupon-uae-office-cart-test' /tmp/en-sitemap.xml
           cut -f1 /tmp/paths.tsv | while IFS= read -r path; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done
           curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml

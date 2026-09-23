@@ -96,14 +96,27 @@ const UAE_COMMERCIAL_HEADS={
   finalprice:['Noon UAE deals','Noon discount code UAE','Noon UAE offers'],
   eligibility:['Noon first order coupon UAE','Noon coupon UAE new customer','Noon coupon UAE existing customer','Noon coupon eligibility UAE']
 };
+const UAE_POPULAR_SEARCHES={
+  mobile:['iPhone 17 Pro Max','iPhone 17','Samsung S25 Ultra','Samsung Galaxy S24 Ultra','Nothing Phone'],
+  computing:['MacBook Air','MacBook Pro','gaming laptop','PS5','Nintendo Switch'],
+  audio:['AirPods Pro','AirPods 4','JBL speaker','Sony headphones'],
+  screen:['Samsung TV','LG TV','gaming monitor'],
+  fashion:['handbags','Birkenstock','sunglasses'],
+  beauty:['perfume','Dyson','sunscreen','Vitamin C serum'],
+  appliance:['Samsung fridge','LG fridge','home appliances'],
+  kitchen:['Ninja air fryer','Philips air fryer','air fryer'],
+  home:['travel luggage','home deals'],
+  fitness:['Fitbit smartwatch','fitness tracker']
+};
+const UAE_INTENT_SUFFIX={coupon:'coupon code',timing:'coupon today',value:'deals',smartbuy:'offers',cart:'promo code',finalprice:'price',eligibility:'coupon eligibility'};
 function uaeEnglishPriorityKeyword(candidate){
   if(candidate?.country!=='AE')return null;
   const profile=String(candidate.profileKey||'general'),category=UAE_QUERY_CATEGORY[profile]||String(candidate.nativeCategory||'').trim();
-  const seed=Math.abs(Number(candidate.topicIndex||0)),heads=UAE_COMMERCIAL_HEADS[candidate.intent]||UAE_COMMERCIAL_HEADS.coupon;
-  const head=heads[seed%heads.length],modifier=UAE_ENGLISH_QUERY_MODIFIERS[Math.floor(seed/Math.max(1,heads.length))%UAE_ENGLISH_QUERY_MODIFIERS.length];
-  const keyword=`${head} ${category} ${modifier}`.replace(/\s+/g,' ').trim();
+  const seed=Math.abs(Number(candidate.topicIndex||0)),heads=UAE_COMMERCIAL_HEADS[candidate.intent]||UAE_COMMERCIAL_HEADS.coupon,demand=UAE_POPULAR_SEARCHES[profile]||[];
+  const useDemand=demand.length>0&&seed%4!==0,head=useDemand?demand[seed%demand.length]:heads[seed%heads.length],modifier=UAE_ENGLISH_QUERY_MODIFIERS[Math.floor(seed/Math.max(1,heads.length))%UAE_ENGLISH_QUERY_MODIFIERS.length],intentSuffix=UAE_INTENT_SUFFIX[candidate.intent]||'shopping guide';
+  const keyword=(useDemand?`${head} Noon UAE ${intentSuffix} ${modifier}`:`${head} ${category} ${modifier}`).replace(/\s+/g,' ').trim();
   const searchClass=String(head).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
-  return {keyword,tier:'uae-commercial-priority-v2',cluster:`uae-${candidate.intent||'commercial'}-${profile}`,searchClass,headTerm:head};
+  return {keyword,tier:useDemand?'uae-popular-search-v1':'uae-commercial-priority-v2',cluster:`uae-${candidate.intent||'commercial'}-${profile}`,searchClass,headTerm:head,demandSource:useDemand?'noon-uae-popular-searches-2026':'commercial-head'};
 }
 
 function normalizeEnglishCandidate(candidate){

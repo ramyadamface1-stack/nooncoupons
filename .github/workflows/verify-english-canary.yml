@@ -24,10 +24,10 @@ jobs:
           node --check bulk-content-engine.js
           node --check public-entry.js
           grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
-          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "5000"' wrangler.jsonc
-          grep -Fq '"ENGLISH_DAILY_TARGET": "288"' wrangler.jsonc
-          grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "5"' wrangler.jsonc
-          grep -Fq 'const MAX_CONTROLLED_TOTAL=5000;' english-canary.js
+          grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "10000"' wrangler.jsonc
+          grep -Fq '"ENGLISH_DAILY_TARGET": "1440"' wrangler.jsonc
+          grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "1"' wrangler.jsonc
+          grep -Fq 'const MAX_CONTROLLED_TOTAL=10000;' english-canary.js
           grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
           grep -Fq 'const INTENT_MAX_PER_BATCH=6;' english-canary.js
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
@@ -56,7 +56,7 @@ jobs:
             const controlled=x.controlled||{};
             const slugs=new Set(rows.map(r=>r.slug));
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 && rows.length===2 &&
-              Number(controlled.target)===5000 && controlled.targetMarket==='AE' && controlled.marketPolicy==='uae-only-new-v1' && Number(controlled.published)>=20 && Number(controlled.published)<=5000 && Number(controlled.dailyTarget)===288 && Number(controlled.minIntervalMinutes)===5 &&
+              Number(controlled.target)===10000 && controlled.targetMarket==='AE' && controlled.marketPolicy==='uae-only-new-v2' && Number(controlled.published)>=20 && Number(controlled.published)<=10000 && Number(controlled.dailyTarget)===1440 && Number(controlled.minIntervalMinutes)===1 &&
               [...expected].every(s=>slugs.has(s)) && slugs.size===2 &&
               rows.every(r=>r.r2Present===true && r.language==='en' && r.languageIntent==='en' &&
                 r.languageSource==='native-intent-v6-canary' && r.canary===true && (!r.phase || r.phase==='canary') &&
