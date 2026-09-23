@@ -33,7 +33,7 @@ jobs:
           grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "1"' wrangler.jsonc
           grep -Fq '"ENGLISH_BATCH_SIZE": "4"' wrangler.jsonc
           grep -Fq 'function batchSizeFromEnv(env)' english-canary.js
-          grep -Fq 'defaultBatchPerTick:2' english-canary.js
+          grep -Fq 'defaultBatchPerTick:4' english-canary.js
           grep -Fq 'const MAX_CONTROLLED_TOTAL=50000;' english-canary.js
           grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
           grep -Fq 'const INTENT_MAX_PER_BATCH=6;' english-canary.js
@@ -41,8 +41,8 @@ jobs:
           grep -Fq 'const MAX_SCAN=5000;' english-canary.js
           grep -Fq "const TARGET_MARKET='AE';" english-canary.js
           grep -Fq "marketPolicy:'uae-only-new-v4-batch4'" english-canary.js
-          grep -Fq 'uae-commercial-priority-v2' bulk-content-engine.js
-          grep -Fq 'uae-popular-search-v1' bulk-content-engine.js
+          grep -Fq 'uae-golden-commercial-v1' bulk-content-engine.js
+          grep -Fq 'uae-high-demand-product-v2' bulk-content-engine.js
           grep -Fq 'UAE_POPULAR_SEARCHES' bulk-content-engine.js
           grep -Fq "'Noon discount code UAE'" bulk-content-engine.js
           grep -Fq "'Noon promo code UAE'" bulk-content-engine.js
