@@ -82,6 +82,8 @@ function analyticsBootstrap(settings){
   if(!Object.values(ids).some(Boolean))return '';
   const cfg=safeJson({ids,respectDoNotTrack:settings.respectDoNotTrack!==false});
   return `<script id="seo-analytics-v2">(function(c){
+    var ua=String(navigator.userAgent||'');
+    if(navigator.webdriver||/HeadlessChrome|Chrome-Lighthouse|Lighthouse|PageSpeed|PhantomJS|bot|crawler|spider/i.test(ua))return;
     if(c.respectDoNotTrack&&(navigator.doNotTrack==='1'||window.doNotTrack==='1'||navigator.msDoNotTrack==='1'))return;
     function load(src,id){if(id&&document.getElementById(id))return;var s=document.createElement('script');s.async=true;s.src=src;if(id)s.id=id;document.head.appendChild(s)}
     function start(){
@@ -382,4 +384,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:21,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:21,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
