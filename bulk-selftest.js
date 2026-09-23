@@ -12,6 +12,13 @@ const clusters=new Map();
 let ready=0,rejected=0,minScore=100,maxScore=0,minWords=99999,maxWords=0,firstAccepted=null,minIndexation=100,eligible=0;
 const groupMins={};
 
+const seedProbeCursor=BULK_ENGINE_INFO.topicSpace+118851;
+const seedProbe=buildBulkTopic(seedProbeCursor);
+if(Number(seedProbe.topicIndex)!==seedProbeCursor)throw new Error('topic_index_not_full_cursor:'+JSON.stringify({expected:seedProbeCursor,actual:seedProbe.topicIndex}));
+if(Number(seedProbe.diversitySeed)!==seedProbeCursor)throw new Error('diversity_seed_not_full_cursor:'+JSON.stringify({expected:seedProbeCursor,actual:seedProbe.diversitySeed}));
+if(BULK_ENGINE_INFO.topicSeedModel!=='full-cursor-v1')throw new Error('topic_seed_model_missing:'+String(BULK_ENGINE_INFO.topicSeedModel||''));
+console.log('TOPIC_SEED_FULL_CURSOR_PASS='+seedProbeCursor);
+
 for(let n=0;n<40;n++){
   const cursor=500000+n;
   const topic=buildBulkTopic(cursor);
