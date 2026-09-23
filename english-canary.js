@@ -63,30 +63,32 @@ async function findCandidate(env,state,slot){
   const desiredCountry=TARGET_MARKET,recent=recentForAudit(state.records),threshold=Math.max(95,Number(env.QUALITY_PUBLISH_THRESHOLD||95));
   const history=state.records||[],recentWindow=history.slice(-DIVERSITY_WINDOW),usedProfiles=new Set(history.map(r=>r.profileKey).filter(Boolean)),profileCounts=new Map(),intentCounts=new Map(),usedSlugs=new Set(history.map(r=>r.slug).filter(Boolean)),usedKeywords=new Set(history.map(r=>String(r.primaryKeyword||'').toLowerCase()).filter(Boolean));
   for(const r of recentWindow){if(r.profileKey)profileCounts.set(r.profileKey,(profileCounts.get(r.profileKey)||0)+1);if(r.intent)intentCounts.set(r.intent,(intentCounts.get(r.intent)||0)+1)}
+  const diag={scanned:0,wrongCountry:0,nonPriorityProfile:0,nonHighDemandProfile:0,missingCategory:0,noNativeCandidate:0,invalidCoupon:0,profileCap:0,intentCap:0,noArticle:0,stateDuplicate:0,r2Duplicate:0,auditNotReady:0,jaccardTooLow:0,auditReasons:{}};
   let cursor=Math.max(START_CURSOR,Number(state.cursor||START_CURSOR));
   for(let tries=0;tries<MAX_SCAN;tries++,cursor++){
+    diag.scanned++;
     const topic=buildBulkTopic(cursor,{forceCountry:desiredCountry,independentPriority:true});
-    if(topic.country!==desiredCountry)continue;
-    if(!UAE_PRIORITY_PROFILES.has(topic.profileKey))continue;
-    if(slot%4!==3&&!UAE_HIGH_DEMAND_PROFILES.has(topic.profileKey))continue;
+    if(topic.country!==desiredCountry){diag.wrongCountry++;continue;}
+    if(!UAE_PRIORITY_PROFILES.has(topic.profileKey)){diag.nonPriorityProfile++;continue;}
+    if(slot%4!==3&&!UAE_HIGH_DEMAND_PROFILES.has(topic.profileKey)){diag.nonHighDemandProfile++;continue;}
     const categoryKey=categoryKeyFor(topic.profileKey);
-    if(!categoryKey)continue;
+    if(!categoryKey){diag.missingCategory++;continue;}
     const rawCandidate=buildEnglishNativeCandidate(topic);
-    if(!rawCandidate)continue;
+    if(!rawCandidate){diag.noNativeCandidate++;continue;}
     const fallbackCode=desiredCountry==='AE'?'NOV188':'NOV170',candidate={...rawCandidate,code:normalizeApprovedCoupon(rawCandidate.code,fallbackCode)};
-    if(!isApprovedCoupon(candidate.code))continue;
-    if(slot<PROFILE_DIVERSITY_SLOTS&&usedProfiles.has(candidate.profileKey))continue;
-    if((profileCounts.get(candidate.profileKey)||0)>=PROFILE_MAX_PER_BATCH)continue;
-    if((intentCounts.get(candidate.intent)||0)>=INTENT_MAX_PER_BATCH)continue;
+    if(!isApprovedCoupon(candidate.code)){diag.invalidCoupon++;continue;}
+    if(slot<PROFILE_DIVERSITY_SLOTS&&usedProfiles.has(candidate.profileKey)){diag.profileCap++;continue;}
+    if((profileCounts.get(candidate.profileKey)||0)>=PROFILE_MAX_PER_BATCH){diag.profileCap++;continue;}
+    if((intentCounts.get(candidate.intent)||0)>=INTENT_MAX_PER_BATCH){diag.intentCap++;continue;}
     const article=buildEnglishUsefulArticle(candidate,cursor);
-    if(!article)continue;
-    if(usedSlugs.has(article.slug)||usedKeywords.has(String(article.primaryKeyword||'').toLowerCase()))continue;
-    if(await env.CONTENT_FINAL.head('articles/'+article.slug+'.html'))continue;
+    if(!article){diag.noArticle++;continue;}
+    if(usedSlugs.has(article.slug)||usedKeywords.has(String(article.primaryKeyword||'').toLowerCase())){diag.stateDuplicate++;continue;}
+    if(await env.CONTENT_FINAL.head('articles/'+article.slug+'.html')){diag.r2Duplicate++;continue;}
     const audit=auditEnglishSeoArticle(article,candidate,{recent,threshold});
-    if(!audit.productionReady||audit.minJaccardDistance<0.18)continue;
+    if(!audit.productionReady){diag.auditNotReady++;for(const reason of audit?.reasons||audit?.issues||[]){const key=String(reason?.code||reason?.reason||reason||'unknown').slice(0,120);diag.auditReasons[key]=(diag.auditReasons[key]||0)+1}continue;}if(audit.minJaccardDistance<0.18){diag.jaccardTooLow++;continue;}
     return {cursor,candidate,article,audit,categoryKey};
   }
-  return null;
+  return {notFound:true,diagnostics:diag,nextCursor:cursor};
 }
 
 export async function runEnglishCanary(env,{ignoreInterval=false}={}){
@@ -101,7 +103,7 @@ export async function runEnglishCanary(env,{ignoreInterval=false}={}){
   if(todayCount>=dailyTarget)return {ok:true,skipped:'english_daily_target_complete',published:state.records.length,publishedToday:todayCount,dailyTarget,controlledTarget:target};
   if(!ignoreInterval&&nextAt&&Date.parse(nextAt)>nowMs)return {ok:true,skipped:'english_interval_wait',published:state.records.length,publishedToday:todayCount,dailyTarget,minIntervalMinutes:minInterval,nextEligibleAt:nextAt,controlledTarget:target};
   const slot=state.records.length;let found=null;try{found=await findCandidate(env,state,slot)}catch(e){state.lastError='candidate_scan_error:'+String(e?.message||e).slice(0,220);state.lastAttemptAt=now();state=await writeState(env,state);return {ok:false,error:state.lastError,published:state.records.length,target:canaryTarget,controlledTarget:target}}
-  if(!found){state.cursor=Math.max(Number(state.cursor||START_CURSOR)+MAX_SCAN,START_CURSOR);state.lastError='no_production_ready_candidate';state.lastAttemptAt=now();state=await writeState(env,state);return {ok:false,error:'no_production_ready_candidate',published:state.records.length,target:canaryTarget,controlledTarget:target}}
+  if(!found||found.notFound){state.cursor=Math.max(Number(found?.nextCursor||0),Number(state.cursor||START_CURSOR)+MAX_SCAN,START_CURSOR);state.lastError='no_production_ready_candidate';state.lastCandidateDiagnostics=found?.diagnostics||null;state.lastAttemptAt=now();state=await writeState(env,state);return {ok:false,error:'no_production_ready_candidate',diagnostics:state.lastCandidateDiagnostics,published:state.records.length,target:canaryTarget,controlledTarget:target}}
   const {cursor,candidate,article,audit,categoryKey}=found,createdAt=now(),floor=qualityFloor(audit),urlPath='/en/articles/'+article.slug,isCanary=slot<canaryTarget;
   const record={
     slug:article.slug,title:article.title,metaDescription:sanitizeMeta(article.metaDescription),country:candidate.country,coupon:candidate.code,
@@ -138,7 +140,7 @@ export async function englishCanaryHealth(env){
   for(const r of state.records||[]){let r2Present=false;try{r2Present=Boolean(await env.CONTENT_FINAL?.head('articles/'+r.slug+'.html'))}catch{}allRecords.push({...publicRecord(r),r2Present})}
   const canaryTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env),records=allRecords.slice(0,canaryTarget);
   const sa=allRecords.filter(r=>r.country==='SA').length,ae=allRecords.filter(r=>r.country==='AE').length,profileCount=new Set(allRecords.map(r=>r.profileKey).filter(Boolean)).size;
-  const today=publishedToday(allRecords),dailyTarget=dailyTargetFromEnv(env),minIntervalMinutes=minIntervalMinutesFromEnv(env),batchSize=batchSizeFromEnv(env);return {ok:true,version:5,builder:BULK_ENGINE_INFO.englishArticleBuilder,indexNow:{...INDEXNOW_INFO,last:state.lastIndexNow||null},target:canaryTarget,status:records.length>=canaryTarget?'complete':'active',published:records.length,complete:records.length>=canaryTarget,records,lastError:state.lastError||null,updatedAt:state.updatedAt,controlled:{target:controlledTarget,targetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v4-batch4',published:allRecords.length,remaining:Math.max(0,controlledTarget-allRecords.length),complete:allRecords.length>=controlledTarget,status:allRecords.length>=controlledTarget?'complete':'active',sa,ae,uniqueProfiles:profileCount,publishedToday:today,dailyTarget,minIntervalMinutes,batchSize,nextEligibleAt:nextEligibleAt(state,env),records:allRecords}};
+  const today=publishedToday(allRecords),dailyTarget=dailyTargetFromEnv(env),minIntervalMinutes=minIntervalMinutesFromEnv(env),batchSize=batchSizeFromEnv(env);return {ok:true,version:5,builder:BULK_ENGINE_INFO.englishArticleBuilder,indexNow:{...INDEXNOW_INFO,last:state.lastIndexNow||null},target:canaryTarget,status:records.length>=canaryTarget?'complete':'active',published:records.length,complete:records.length>=canaryTarget,records,lastError:state.lastError||null,lastCandidateDiagnostics:state.lastCandidateDiagnostics||null,updatedAt:state.updatedAt,controlled:{target:controlledTarget,targetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v4-batch4',published:allRecords.length,remaining:Math.max(0,controlledTarget-allRecords.length),complete:allRecords.length>=controlledTarget,status:allRecords.length>=controlledTarget?'complete':'active',sa,ae,uniqueProfiles:profileCount,publishedToday:today,dailyTarget,minIntervalMinutes,batchSize,nextEligibleAt:nextEligibleAt(state,env),records:allRecords}};
 }
 
 export async function serveEnglishCanaryHealth(env){return jsonResponse(await englishCanaryHealth(env))}
