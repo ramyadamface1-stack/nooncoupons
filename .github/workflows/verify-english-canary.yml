@@ -32,6 +32,7 @@ jobs:
           grep -Fq 'const MAX_CONTROLLED_TOTAL=50000;' english-canary.js
           grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
           grep -Fq 'const INTENT_MAX_PER_BATCH=6;' english-canary.js
+          grep -Fq 'const PROFILE_MAX_PER_BATCH=10;' english-canary.js
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
           grep -Fq "audit.minJaccardDistance<0.18" english-canary.js
           grep -Fq "languageSource:'arabic-primary'" bulk-generator.js

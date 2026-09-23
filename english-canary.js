@@ -13,7 +13,7 @@ const MAX_DAILY_TARGET=8640;
 const DEFAULT_MIN_INTERVAL_MINUTES=1;
 const DIVERSITY_WINDOW=24;
 const PROFILE_DIVERSITY_SLOTS=16;
-const PROFILE_MAX_PER_BATCH=6;
+const PROFILE_MAX_PER_BATCH=10;
 const INTENT_MAX_PER_BATCH=6;
 const TARGET_MARKET='AE';
 const UAE_PRIORITY_PROFILES=new Set(['mobile','computing','audio','screen','beauty','appliance','kitchen','home','fashion','fitness','grocery','kids','baby','travel','office']);
@@ -182,4 +182,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:11,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:6,defaultBatchPerTick:6,highDemandUaeKeywordTargeting:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v4-batch4',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:80,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:11,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:6,defaultBatchPerTick:6,highDemandUaeKeywordTargeting:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v5-batch6',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:80,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
