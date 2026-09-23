@@ -48,10 +48,11 @@ export async function readArticleAuditLock(env){
   try{
     const o=await retry(()=>env.CONTENT_FINAL.get(KEY));
     if(!o)return {active:false,key:KEY};
-    const x=JSON.parse(await o.text()),expires=Date.parse(x?.expiresAt||'');
+    const x=JSON.parse(await o.text()),expires=Date.parse(x?.expiresAt||''),heartbeat=Date.parse(x?.heartbeatAt||x?.startedAt||'');
     if(x?.active!==true)return {active:false,key:KEY,...x};
-    if(Number.isFinite(expires)&&expires<=Date.now())return {active:false,expired:true,key:KEY,...x};
-    return {active:true,key:KEY,...x};
+    const effectiveExpires=Number.isFinite(expires)?expires:(Number.isFinite(heartbeat)?heartbeat+DEFAULT_TTL_MS:0);
+    if(!effectiveExpires||effectiveExpires<=Date.now())return {active:false,expired:true,key:KEY,...x,effectiveExpiresAt:effectiveExpires?new Date(effectiveExpires).toISOString():null};
+    return {active:true,key:KEY,...x,effectiveExpiresAt:new Date(effectiveExpires).toISOString()};
   }catch(e){
     return {active:true,failClosed:true,key:KEY,reason:'audit_lock_read_failed',error:String(e?.message||e).slice(0,160)};
   }
