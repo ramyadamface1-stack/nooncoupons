@@ -363,27 +363,25 @@ jobs:
           echo "DEDICATED_TOKEN_VALID=1"
       - name: Deploy existing worker
         run: npx wrangler deploy
-      - name: Verify UAE English batch execution
+      - name: Verify UAE English runtime health
         shell: bash
         run: |
           set -euo pipefail
           ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
-          AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
           ready=0
-          for i in $(seq 1 8); do
-            if curl -fsS --connect-timeout 10 --max-time 60 --retry 1 --retry-all-errors --retry-delay 2 \
-              -X POST -H "$AUTH" -H 'Content-Type: application/json' \
-              --data '{}' "$ORIGIN/api/internal/english-batch-step?deploy=$GITHUB_SHA-$i" -o /tmp/english-batch.json; then
-              cat /tmp/english-batch.json
-              if jq -e '.ok==true and (.maxPerTick|tonumber)==6 and (((.published|tonumber)>=1) or (((.results[0].skipped // "")=="english_interval_wait") and ((.results[0].published|tonumber)>0) and ((.results[0].dailyTarget|tonumber)==8640)))' /tmp/english-batch.json >/dev/null; then
+          for i in $(seq 1 12); do
+            if curl -fsS --connect-timeout 10 --max-time 30 --retry 1 --retry-all-errors --retry-delay 2 \
+              "$ORIGIN/api/english-canary-health?deploy=$GITHUB_SHA-$i" -o /tmp/english-health.json; then
+              cat /tmp/english-health.json
+              if jq -e '.ok==true and (.controlled.target|tonumber)==50000 and (.controlled.published|tonumber)>0 and (.controlled.dailyTarget|tonumber)==8640 and (.controlled.minIntervalMinutes|tonumber)==1 and (.controlled.batchSize|tonumber)==6 and .controlled.targetMarket=="AE" and .controlled.marketPolicy=="uae-only-new-v5-batch6"' /tmp/english-health.json >/dev/null; then
                 ready=1
                 break
               fi
             fi
             sleep 5
           done
-          [ "$ready" = 1 ] || { echo 'UAE_ENGLISH_BATCH_NOT_HEALTHY'; cat /tmp/english-batch.json 2>/dev/null || true; exit 1; }
-          echo "UAE_ENGLISH_BATCH_LIVE=$(jq -c '{ok,maxPerTick,published,results:[.results[]|{ok,skipped,error,record:(.record|if . then {slug,country,quality,wordCount,primaryKeyword,keywordTier,keywordCluster} else null end)}]}' /tmp/english-batch.json)"
+          [ "$ready" = 1 ] || { echo 'UAE_ENGLISH_RUNTIME_NOT_HEALTHY'; cat /tmp/english-health.json 2>/dev/null || true; exit 1; }
+          echo "UAE_ENGLISH_RUNTIME_LIVE=$(jq -c '{ok,controlled:{target:.controlled.target,published:.controlled.published,remaining:.controlled.remaining,publishedToday:.controlled.publishedToday,dailyTarget:.controlled.dailyTarget,batchSize:.controlled.batchSize,targetMarket:.controlled.targetMarket,marketPolicy:.controlled.marketPolicy,sa:.controlled.sa,ae:.controlled.ae}}' /tmp/english-health.json)"
       - name: Complete and audit R2 coupon migration
         shell: bash
         run: |
