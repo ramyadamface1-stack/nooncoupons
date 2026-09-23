@@ -234,6 +234,9 @@ jobs:
           grep -Fq "u.pathname==='/api/track-event'" brand-runtime.js
           grep -Fq 'privacySafeConversionEvents:true' brand-runtime.js
           grep -Fq 'conversionAttributionDimensions:true' brand-runtime.js
+          grep -Fq 'secureEnglishBatchStep:true' discovery-entry.js
+          grep -Fq 'englishBatchRunsBeforeRepair:true' discovery-entry.js
+          grep -Fq "/api/internal/english-batch-step" discovery-entry.js
           grep -Fq "const allowed=new Set(['copy_code','shop_click','open_noon'" brand-runtime.js
           grep -Fq 'current.markets=current.markets||{}' platform.js
           grep -Fq 'topCoupons:top(current.coupons,20)' platform.js
@@ -360,6 +363,27 @@ jobs:
           echo "DEDICATED_TOKEN_VALID=1"
       - name: Deploy existing worker
         run: npx wrangler deploy
+      - name: Verify UAE English batch execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
+          AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          ready=0
+          for i in $(seq 1 8); do
+            if curl -fsS --connect-timeout 10 --max-time 60 --retry 1 --retry-all-errors --retry-delay 2 \
+              -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+              --data '{}' "$ORIGIN/api/internal/english-batch-step?deploy=$GITHUB_SHA-$i" -o /tmp/english-batch.json; then
+              cat /tmp/english-batch.json
+              if jq -e '.ok==true and (.published|tonumber)>=1 and (.maxPerTick|tonumber)==4' /tmp/english-batch.json >/dev/null; then
+                ready=1
+                break
+              fi
+            fi
+            sleep 5
+          done
+          [ "$ready" = 1 ] || { echo 'UAE_ENGLISH_BATCH_DID_NOT_PUBLISH'; cat /tmp/english-batch.json 2>/dev/null || true; exit 1; }
+          echo "UAE_ENGLISH_BATCH_LIVE=$(jq -c '{ok,maxPerTick,published,results:[.results[]|{ok,skipped,error,record:(.record|if . then {slug,country,quality,wordCount,primaryKeyword,keywordTier,keywordCluster} else null end)}]}' /tmp/english-batch.json)"
       - name: Complete and audit R2 coupon migration
         shell: bash
         run: |
