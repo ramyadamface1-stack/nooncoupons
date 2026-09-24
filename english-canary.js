@@ -59,11 +59,28 @@ function recentForAudit(records){return (records||[]).slice(-64).map(r=>({slug:r
 function qualityFloor(audit){const values=Object.values(audit?.groups||{}).map(Number).filter(Number.isFinite);return values.length?Math.min(...values):0}
 function categoryKeyFor(profileKey){return PROFILE_TO_CATEGORY[profileKey]||null}
 
+const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function r2HeadSafe(env,key,{attempts=4}={}){
+  let last=null;
+  for(let attempt=1;attempt<=attempts;attempt++){
+    try{return {ok:true,exists:Boolean(await env.CONTENT_FINAL.head(key)),rateLimited:false,attempts:attempt}}
+    catch(e){
+      last=e;
+      const msg=String(e?.message||e);
+      const limited=/10058|reduce your rate of simultaneous reads/i.test(msg);
+      if(!limited)throw e;
+      if(attempt<attempts)await sleep(Math.min(600,50*(2**(attempt-1))));
+    }
+  }
+  return {ok:false,exists:true,rateLimited:true,attempts,error:String(last?.message||last||'r2_head_rate_limited').slice(0,180)};
+}
+
 async function findCandidate(env,state,slot){
   const desiredCountry=TARGET_MARKET,recent=recentForAudit(state.records),threshold=Math.max(95,Number(env.QUALITY_PUBLISH_THRESHOLD||95));
   const history=state.records||[],recentWindow=history.slice(-DIVERSITY_WINDOW),usedProfiles=new Set(history.map(r=>r.profileKey).filter(Boolean)),profileCounts=new Map(),intentCounts=new Map(),usedSlugs=new Set(history.map(r=>r.slug).filter(Boolean)),usedKeywords=new Set(history.map(r=>String(r.primaryKeyword||'').toLowerCase()).filter(Boolean));
   for(const r of recentWindow){if(r.profileKey)profileCounts.set(r.profileKey,(profileCounts.get(r.profileKey)||0)+1);if(r.intent)intentCounts.set(r.intent,(intentCounts.get(r.intent)||0)+1)}
-  const diag={scanned:0,wrongCountry:0,nonPriorityProfile:0,nonHighDemandProfile:0,missingCategory:0,noNativeCandidate:0,invalidCoupon:0,profileCap:0,intentCap:0,noArticle:0,stateDuplicate:0,r2Duplicate:0,auditNotReady:0,jaccardTooLow:0,auditReasons:{}};
+  const diag={scanned:0,wrongCountry:0,nonPriorityProfile:0,nonHighDemandProfile:0,missingCategory:0,noNativeCandidate:0,invalidCoupon:0,profileCap:0,intentCap:0,noArticle:0,stateDuplicate:0,scanDuplicate:0,r2Duplicate:0,r2HeadRateLimited:0,r2HeadRetryAttempts:0,auditNotReady:0,jaccardTooLow:0,auditReasons:{}};
+  const seenCandidateSlugs=new Set();
   let cursor=Math.max(START_CURSOR,Number(state.cursor||START_CURSOR));
   for(let tries=0;tries<MAX_SCAN;tries++,cursor++){
     diag.scanned++;
@@ -86,7 +103,12 @@ async function findCandidate(env,state,slot){
     const article=buildEnglishUsefulArticle(candidate,cursor);
     if(!article){diag.noArticle++;continue;}
     if(usedSlugs.has(article.slug)||usedKeywords.has(String(article.primaryKeyword||'').toLowerCase())){diag.stateDuplicate++;continue;}
-    if(await env.CONTENT_FINAL.head('articles/'+article.slug+'.html')){diag.r2Duplicate++;continue;}
+    if(seenCandidateSlugs.has(article.slug)){diag.scanDuplicate++;continue;}
+    seenCandidateSlugs.add(article.slug);
+    const head=await r2HeadSafe(env,'articles/'+article.slug+'.html');
+    diag.r2HeadRetryAttempts+=Math.max(0,Number(head.attempts||1)-1);
+    if(head.rateLimited){diag.r2HeadRateLimited++;continue;}
+    if(head.exists){diag.r2Duplicate++;continue;}
     const audit=auditEnglishSeoArticle(article,candidate,{recent,threshold});
     if(!audit.productionReady){diag.auditNotReady++;for(const reason of audit?.reasons||audit?.issues||[]){const key=String(reason?.code||reason?.reason||reason||'unknown').slice(0,120);diag.auditReasons[key]=(diag.auditReasons[key]||0)+1}continue;}if(audit.minJaccardDistance<0.18){diag.jaccardTooLow++;continue;}
     return {cursor,candidate,article,audit,categoryKey};
@@ -185,4 +207,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:13,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:10,defaultBatchPerTick:10,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch10',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:65,goldenHeadShareTarget:35,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:14,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:10,defaultBatchPerTick:10,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch10',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:65,goldenHeadShareTarget:35,r2HeadRetry:true,r2HeadRateLimitFailClosed:true,perScanSlugDedup:true,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};

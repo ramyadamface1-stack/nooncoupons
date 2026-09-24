@@ -40,6 +40,10 @@ jobs:
           grep -Fq 'const INTENT_MAX_PER_BATCH=6;' english-canary.js
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
           grep -Fq 'const MAX_SCAN=5000;' english-canary.js
+          grep -Fq 'async function r2HeadSafe' english-canary.js
+          grep -Fq 'r2HeadRateLimitFailClosed:true' english-canary.js
+          grep -Fq 'perScanSlugDedup:true' english-canary.js
+          grep -Fq 'r2HeadRateLimited' english-canary.js
           grep -Fq "const TARGET_MARKET='AE';" english-canary.js
           grep -Fq "marketPolicy:'uae-only-new-v6-batch10'" english-canary.js
           grep -Fq 'uae-golden-commercial-v2' bulk-content-engine.js
