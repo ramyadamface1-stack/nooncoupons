@@ -8,8 +8,8 @@ const STATE_KEY='english-canary/state.json';
 const DEFAULT_TARGET=2;
 const DEFAULT_CONTROLLED_TOTAL=50000;
 const MAX_CONTROLLED_TOTAL=50000;
-const DEFAULT_DAILY_TARGET=11520;
-const MAX_DAILY_TARGET=11520;
+const DEFAULT_DAILY_TARGET=14400;
+const MAX_DAILY_TARGET=14400;
 const DEFAULT_MIN_INTERVAL_MINUTES=1;
 const DIVERSITY_WINDOW=24;
 const PROFILE_DIVERSITY_SLOTS=16;
@@ -39,7 +39,7 @@ function targetFromEnv(env){return Math.max(0,Math.min(2,Number(env.ENGLISH_CANA
 function controlledTargetFromEnv(env){const base=targetFromEnv(env),requested=Number(env.ENGLISH_CONTROLLED_TOTAL||DEFAULT_CONTROLLED_TOTAL)||DEFAULT_CONTROLLED_TOTAL;return Math.max(base,Math.min(MAX_CONTROLLED_TOTAL,requested))}
 function dailyTargetFromEnv(env){const requested=Number(env.ENGLISH_DAILY_TARGET||DEFAULT_DAILY_TARGET)||DEFAULT_DAILY_TARGET;return Math.max(1,Math.min(MAX_DAILY_TARGET,requested))}
 function minIntervalMinutesFromEnv(env){const requested=Number(env.ENGLISH_MIN_INTERVAL_MINUTES||DEFAULT_MIN_INTERVAL_MINUTES)||DEFAULT_MIN_INTERVAL_MINUTES;return Math.max(1,Math.min(1440,requested))}
-function batchSizeFromEnv(env){const requested=Number(env.ENGLISH_BATCH_SIZE||8)||8;return Math.max(1,Math.min(8,requested))}
+function batchSizeFromEnv(env){const requested=Number(env.ENGLISH_BATCH_SIZE||10)||10;return Math.max(1,Math.min(10,requested))}
 function cairoDay(ts=Date.now()){return new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(ts))}
 function publishedToday(records){const day=cairoDay();return (records||[]).filter(r=>r?.createdAt&&cairoDay(r.createdAt)===day).length}
 function nextEligibleAt(state,env){const last=Date.parse(state?.lastPublishedAt||'');if(!Number.isFinite(last))return null;return new Date(last+minIntervalMinutesFromEnv(env)*60000).toISOString()}
@@ -143,7 +143,7 @@ export async function englishCanaryHealth(env){
   for(const r of state.records||[]){let r2Present=false;try{r2Present=Boolean(await env.CONTENT_FINAL?.head('articles/'+r.slug+'.html'))}catch{}allRecords.push({...publicRecord(r),r2Present})}
   const canaryTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env),records=allRecords.slice(0,canaryTarget);
   const sa=allRecords.filter(r=>r.country==='SA').length,ae=allRecords.filter(r=>r.country==='AE').length,profileCount=new Set(allRecords.map(r=>r.profileKey).filter(Boolean)).size;
-  const today=publishedToday(allRecords),dailyTarget=dailyTargetFromEnv(env),minIntervalMinutes=minIntervalMinutesFromEnv(env),batchSize=batchSizeFromEnv(env);return {ok:true,version:5,builder:BULK_ENGINE_INFO.englishArticleBuilder,indexNow:{...INDEXNOW_INFO,last:state.lastIndexNow||null},target:canaryTarget,status:records.length>=canaryTarget?'complete':'active',published:records.length,complete:records.length>=canaryTarget,records,lastError:state.lastError||null,lastCandidateDiagnostics:state.lastCandidateDiagnostics||null,updatedAt:state.updatedAt,controlled:{target:controlledTarget,targetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch8',published:allRecords.length,remaining:Math.max(0,controlledTarget-allRecords.length),complete:allRecords.length>=controlledTarget,status:allRecords.length>=controlledTarget?'complete':'active',sa,ae,uniqueProfiles:profileCount,publishedToday:today,dailyTarget,minIntervalMinutes,batchSize,nextEligibleAt:nextEligibleAt(state,env),records:allRecords}};
+  const today=publishedToday(allRecords),dailyTarget=dailyTargetFromEnv(env),minIntervalMinutes=minIntervalMinutesFromEnv(env),batchSize=batchSizeFromEnv(env);return {ok:true,version:5,builder:BULK_ENGINE_INFO.englishArticleBuilder,indexNow:{...INDEXNOW_INFO,last:state.lastIndexNow||null},target:canaryTarget,status:records.length>=canaryTarget?'complete':'active',published:records.length,complete:records.length>=canaryTarget,records,lastError:state.lastError||null,lastCandidateDiagnostics:state.lastCandidateDiagnostics||null,updatedAt:state.updatedAt,controlled:{target:controlledTarget,targetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch10',published:allRecords.length,remaining:Math.max(0,controlledTarget-allRecords.length),complete:allRecords.length>=controlledTarget,status:allRecords.length>=controlledTarget?'complete':'active',sa,ae,uniqueProfiles:profileCount,publishedToday:today,dailyTarget,minIntervalMinutes,batchSize,nextEligibleAt:nextEligibleAt(state,env),records:allRecords}};
 }
 
 export async function serveEnglishCanaryHealth(env){return jsonResponse(await englishCanaryHealth(env))}
@@ -185,4 +185,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:12,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:8,defaultBatchPerTick:8,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch8',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:80,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:13,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:10,defaultBatchPerTick:10,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch10',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:65,goldenHeadShareTarget:35,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
