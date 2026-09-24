@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "b0739d720fcbbca183c9632cd1ef9d9bccff5bbc",
-  "verifiedAt": "2026-09-22T20:45:50.431430+00:00",
+  "sourceSha": "cc53168671f1d346baeccab8d04b712c2d59fe63",
+  "verifiedAt": "2026-09-24T07:50:11.507462+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -102,16 +102,16 @@
   },
   "content": {
     "r2HtmlObjects": 133746,
-    "trackedPublished": 58984,
-    "arabic": 58895,
-    "english": 89,
-    "lastSlug": "دليل-شراء-razer-laptops-نون-السعودية-مراجعة-وقت-التوصيل-الذاكرة",
+    "trackedPublished": 73986,
+    "arabic": 73825,
+    "english": 161,
+    "lastSlug": "كود-خصم-نون-السعودية-على-philips-air-fryer-شراء-أكثر-من-قطعة-منزل-جديد",
     "lastQuality": 100,
-    "lastWordCount": 1712
+    "lastWordCount": 1856
   },
   "catchup30k": {
     "target": 30000,
-    "current": 58895,
+    "current": 73825,
     "remaining": 0,
     "requiredPerMinute": 0,
     "effectiveBatchSize": 16,
@@ -120,47 +120,47 @@
     "adaptiveReason": "catchup_complete",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 32,
-    "lastBatchPublished": 5,
+    "lastBatchPublished": 11,
     "lastBatchTries": 288,
-    "lastBatchDurationMs": 35786,
-    "lastBatchYieldPct": 1.74,
+    "lastBatchDurationMs": 38680,
+    "lastBatchYieldPct": 3.82,
     "lastBatchStageMs": {
-      "candidateLoop": 31024,
-      "articleWrites": 1028,
-      "clusterFlush": 1009,
-      "freshness": 1052,
-      "catalogs": 3310,
-      "indexNow": 1298,
-      "postParallel": 3310
+      "candidateLoop": 33825,
+      "articleWrites": 1174,
+      "clusterFlush": 1782,
+      "freshness": 1782,
+      "catalogs": 3451,
+      "indexNow": 2114,
+      "postParallel": 3451
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": false,
-    "executionRatePerMinute": 8.38,
+    "executionRatePerMinute": 17.06,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 5,
+    "observedRatePerMinute": 11,
     "observedMeetsRequiredRate": true,
     "estimatedHoursAtObservedRate": 0.0,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 141734,
-    "preflightRejectedTotal": 366565,
-    "preflightRecentRejectedTotal": 6268,
-    "preflightClusterRejectedTotal": 358826,
+    "semanticPreAuditRejectedTotal": 221900,
+    "preflightRejectedTotal": 562113,
+    "preflightRecentRejectedTotal": 10985,
+    "preflightClusterRejectedTotal": 549657,
     "lastPreflightRejectReasons": {
-      "global_keyword_cannibalization": 101,
-      "global_intent_owner_collision": 140,
-      "global_duplicate_slug": 35,
-      "global_duplicate_keyword": 35
+      "global_keyword_cannibalization": 201,
+      "global_intent_owner_collision": 63,
+      "global_duplicate_slug": 78,
+      "global_duplicate_keyword": 78
     }
   },
   "englishControlled": {
-    "target": 200,
-    "published": 89,
-    "remaining": 111,
+    "target": 50000,
+    "published": 161,
+    "remaining": 49839,
     "publishedToday": 0,
-    "dailyTarget": 24,
-    "minIntervalMinutes": 60,
-    "nextEligibleAt": "2026-09-21T11:32:23.094Z"
+    "dailyTarget": 14400,
+    "minIntervalMinutes": 1,
+    "nextEligibleAt": "2026-09-23T20:14:20.617Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -169,9 +169,9 @@
     "completedAt": "2026-09-18T09:18:02.935Z"
   },
   "couponAudit": {
-    "scanned": 137031,
+    "scanned": 153352,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-22T20:44:34.330Z"
+    "completedAt": "2026-09-24T07:48:43.812Z"
   }
 }
