@@ -22,7 +22,7 @@ jobs:
           node --check discovery-entry.js
           node --check commerce-entry.js
           grep -Fq "englishSchedulerOwner:true" discovery-entry.js
-          grep -Fq "runEnglishCanaryBatch(env)" discovery-entry.js
+          grep -Fq "runEnglishCanaryBatch(env,{maxPerTick:6})" discovery-entry.js
           grep -Fq "englishSchedulerOwner:false" commerce-entry.js
           node --check english-canary-repair.js
           node --check bulk-content-engine.js
@@ -39,9 +39,13 @@ jobs:
           grep -Fq 'const PROFILE_MAX_PER_BATCH=16;' english-canary.js
           grep -Fq 'const INTENT_MAX_PER_BATCH=6;' english-canary.js
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
-          grep -Fq 'const MAX_SCAN=5000;' english-canary.js
+          grep -Fq 'const MAX_SCAN=1200;' english-canary.js
           grep -Fq 'async function r2HeadSafe' english-canary.js
           grep -Fq 'r2HeadRateLimitFailClosed:true' english-canary.js
+          grep -Fq 'r2HeadInternalError10001Retry:true' english-canary.js
+          grep -Fq 'qualityBeforeR2Head:true' english-canary.js
+          grep -Fq 'schedulerEffectiveBatchPerTick:6' english-canary.js
+          grep -Fq "englishSchedulerPriority:'uae-first-serial'" discovery-entry.js
           grep -Fq 'perScanSlugDedup:true' english-canary.js
           grep -Fq 'r2HeadRateLimited' english-canary.js
           grep -Fq "const TARGET_MARKET='AE';" english-canary.js
