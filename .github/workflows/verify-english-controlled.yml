@@ -43,6 +43,8 @@ jobs:
           grep -Fq 'async function r2HeadSafe' english-canary.js
           grep -Fq 'r2HeadRateLimitFailClosed:true' english-canary.js
           grep -Fq 'r2HeadInternalError10001Retry:true' english-canary.js
+          grep -Fq 'r2HeadHotPath:false' english-canary.js
+          grep -Fq 'conditionalCreateOnly:true' english-canary.js
           grep -Fq 'qualityBeforeR2Head:true' english-canary.js
           grep -Fq 'schedulerEffectiveBatchPerTick:24' english-canary.js
           grep -Fq "englishSchedulerPriority:'uae-first-serial'" discovery-entry.js

@@ -395,28 +395,23 @@ jobs:
         run: |
           set -euo pipefail
           ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
-          AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
           curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/api/english-canary-health?before=$GITHUB_SHA" -o /tmp/en-before.json
           before="$(jq -r '.controlled.published|tonumber' /tmp/en-before.json)"
           before_ae="$(jq -r '.controlled.ae|tonumber' /tmp/en-before.json)"
+          before_sched="$(jq -r '.scheduler.completedAt // ""' /tmp/en-before.json)"
           moved=false
-          for i in $(seq 1 4); do
-            curl -fsS --connect-timeout 10 --max-time 90 --retry 1 --retry-all-errors --retry-delay 2 \
-              -X POST -H "$AUTH" -H 'Content-Type: application/json' --data '{"limit":2}' \
-              "$ORIGIN/api/internal/english-batch-step?prove=$GITHUB_SHA-$i" -o /tmp/en-batch.json
-            cat /tmp/en-batch.json
-            published="$(jq -r '.published // 0' /tmp/en-batch.json)"
-            if [ "$published" -gt 0 ]; then moved=true; break; fi
-            sleep 3
+          for i in $(seq 1 7); do
+            sleep 30
+            curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/api/english-canary-health?movement=$GITHUB_SHA-$i" -o /tmp/en-after.json
+            after="$(jq -r '.controlled.published|tonumber' /tmp/en-after.json)"
+            after_ae="$(jq -r '.controlled.ae|tonumber' /tmp/en-after.json)"
+            after_sched="$(jq -r '.scheduler.completedAt // ""' /tmp/en-after.json)"
+            sched_published="$(jq -r '.scheduler.published // 0' /tmp/en-after.json)"
+            echo "UAE_ENGLISH_MOVEMENT step=$i before=$before after=$after beforeAE=$before_ae afterAE=$after_ae schedulerPublished=$sched_published"
+            if [ "$after" -gt "$before" ] && [ "$after_ae" -gt "$before_ae" ] && [ "$after_sched" != "$before_sched" ]; then moved=true; break; fi
           done
-          curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/api/english-canary-health?after=$GITHUB_SHA" -o /tmp/en-after.json
-          after="$(jq -r '.controlled.published|tonumber' /tmp/en-after.json)"
-          after_ae="$(jq -r '.controlled.ae|tonumber' /tmp/en-after.json)"
-          echo "UAE_ENGLISH_MOVEMENT before=$before after=$after beforeAE=$before_ae afterAE=$after_ae"
           [ "$moved" = true ]
-          [ "$after" -gt "$before" ]
-          [ "$after_ae" -gt "$before_ae" ]
-          jq -e '.lastError==null and .controlled.targetMarket=="AE"' /tmp/en-after.json >/dev/null
+          jq -e '.lastError==null and .controlled.targetMarket=="AE" and .auditLock.active==false' /tmp/en-after.json >/dev/null
       - name: Complete and audit R2 coupon migration
         shell: bash
         run: |

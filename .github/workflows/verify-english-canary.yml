@@ -38,6 +38,8 @@ jobs:
           grep -Fq 'r2HeadRateLimitFailClosed:true' english-canary.js
           grep -Fq 'perScanSlugDedup:true' english-canary.js
           grep -Fq 'r2HeadRateLimited' english-canary.js
+          grep -Fq 'r2HeadHotPath:false' english-canary.js
+          grep -Fq 'conditionalCreateOnly:true' english-canary.js
           grep -Fq "audit.minJaccardDistance<0.18" english-canary.js
           grep -Fq "languageSource:'arabic-primary'" bulk-generator.js
           grep -Fq "native-intent-v6-canary" commerce-pages-v2.js
