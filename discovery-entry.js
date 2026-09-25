@@ -243,7 +243,8 @@ export default{
     }
     if(req.method==='POST'&&u.pathname==='/api/internal/english-batch-step'){
       if(!await verifyMaintenanceToken(req))return new Response(JSON.stringify({ok:false,reason:'unauthorized'}),{status:401,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
-      const state=await runEnglishCanaryBatch(env);
+      let limit=2;try{const body=await req.json();limit=Math.max(1,Math.min(6,Number(body?.limit)||2))}catch{}
+      const state=await runEnglishCanaryBatch(env,{maxPerTick:limit});
       return new Response(JSON.stringify(state),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     let res=await app.fetch(req,env,ctx);

@@ -390,6 +390,33 @@ jobs:
           done
           [ "$ready" = 1 ] || { echo 'UAE_ENGLISH_RUNTIME_NOT_HEALTHY'; cat /tmp/english-health.json 2>/dev/null || true; exit 1; }
           echo "UAE_ENGLISH_RUNTIME_LIVE=$(jq -c '{ok,controlled:{target:.controlled.target,published:.controlled.published,remaining:.controlled.remaining,publishedToday:.controlled.publishedToday,dailyTarget:.controlled.dailyTarget,batchSize:.controlled.batchSize,targetMarket:.controlled.targetMarket,marketPolicy:.controlled.marketPolicy,sa:.controlled.sa,ae:.controlled.ae}}' /tmp/english-health.json)"
+      - name: Prove UAE English publishing moves
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
+          AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/api/english-canary-health?before=$GITHUB_SHA" -o /tmp/en-before.json
+          before="$(jq -r '.controlled.published|tonumber' /tmp/en-before.json)"
+          before_ae="$(jq -r '.controlled.ae|tonumber' /tmp/en-before.json)"
+          moved=false
+          for i in $(seq 1 4); do
+            curl -fsS --connect-timeout 10 --max-time 90 --retry 1 --retry-all-errors --retry-delay 2 \
+              -X POST -H "$AUTH" -H 'Content-Type: application/json' --data '{"limit":2}' \
+              "$ORIGIN/api/internal/english-batch-step?prove=$GITHUB_SHA-$i" -o /tmp/en-batch.json
+            cat /tmp/en-batch.json
+            published="$(jq -r '.published // 0' /tmp/en-batch.json)"
+            if [ "$published" -gt 0 ]; then moved=true; break; fi
+            sleep 3
+          done
+          curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/api/english-canary-health?after=$GITHUB_SHA" -o /tmp/en-after.json
+          after="$(jq -r '.controlled.published|tonumber' /tmp/en-after.json)"
+          after_ae="$(jq -r '.controlled.ae|tonumber' /tmp/en-after.json)"
+          echo "UAE_ENGLISH_MOVEMENT before=$before after=$after beforeAE=$before_ae afterAE=$after_ae"
+          [ "$moved" = true ]
+          [ "$after" -gt "$before" ]
+          [ "$after_ae" -gt "$before_ae" ]
+          jq -e '.lastError==null and .controlled.targetMarket=="AE"' /tmp/en-after.json >/dev/null
       - name: Complete and audit R2 coupon migration
         shell: bash
         run: |
