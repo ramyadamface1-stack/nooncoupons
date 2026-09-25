@@ -20,7 +20,7 @@ if(BULK_ENGINE_INFO.topicSeedModel!=='expanded-cycle-context-v2')throw new Error
 console.log('TOPIC_SEED_FULL_CURSOR_PASS='+seedProbeCursor);
 const expandedProbe=buildBulkTopic(1036800+118851),baseProbe=buildBulkTopic(118851);
 if(!expandedProbe.decisionContext)throw new Error('expanded_context_missing');
-if(expandedProbe.slug===baseProbe.slug||expandedProbe.primaryKeyword===baseProbe.primaryKeyword)throw new Error('expanded_context_not_unique');
+if(expandedProbe.slug===baseProbe.slug||expandedProbe.kw===baseProbe.kw)throw new Error('expanded_context_not_unique');
 if(Number(BULK_ENGINE_INFO.topicSpace)<30000000||Number(BULK_ENGINE_INFO.decisionContexts)<24)throw new Error('expanded_topic_space_too_small:'+JSON.stringify(BULK_ENGINE_INFO));
 console.log('EXPANDED_TOPIC_SPACE_PASS='+JSON.stringify({topicSpace:BULK_ENGINE_INFO.topicSpace,decisionContexts:BULK_ENGINE_INFO.decisionContexts,context:expandedProbe.decisionContext}));
 
