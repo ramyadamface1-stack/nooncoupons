@@ -320,8 +320,10 @@ export default{
     return app.fetch(req,env,ctx);
   },
   async scheduled(event,env,ctx){
+    const englishRun=runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:9000});
+    ctx.waitUntil(englishRun);
+    await Promise.race([englishRun,new Promise(resolve=>setTimeout(resolve,9000))]);
     if(app.scheduled)ctx.waitUntil(app.scheduled(event,env,ctx));
     ctx.waitUntil(bulkTick(env));
-    ctx.waitUntil(runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:9000}));
   }
 };
