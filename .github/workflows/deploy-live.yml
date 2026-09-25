@@ -245,17 +245,19 @@ jobs:
           grep -Fq 'secureEnglishBatchStep:true' discovery-entry.js
           grep -Fq 'englishBatchRunsBeforeRepair:false' discovery-entry.js
           grep -Fq "englishSchedulerPriority:'english-uae-core-cron-deadline-safe'" discovery-entry.js
-          grep -Fq 'englishSchedulerEffectiveBatch:4' discovery-entry.js
-          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:4,timeBudgetMs:30000})" auto-platform.js
+          grep -Fq 'englishSchedulerEffectiveBatch:8' discovery-entry.js
+          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:8,timeBudgetMs:45000})" auto-platform.js
           grep -Fq 'candidateScanDeadline:true' english-canary.js
           grep -Fq 'highDemandShareTarget:95' english-canary.js
           grep -Fq 'goldenHeadShareTarget:95' english-canary.js
-          grep -Fq 'schedulerEffectiveBatchPerTick:4' english-canary.js
+          grep -Fq 'schedulerFirstIntervalBypass:true' english-canary.js
+          grep -Fq "const UAE_GEO_SEARCH_MARKETS=['Dubai','Abu Dhabi','Sharjah'];" bulk-content-engine.js
+          grep -Fq 'schedulerEffectiveBatchPerTick:8' english-canary.js
           grep -Fq 'schedulerTimeBudgetMs:30000' english-canary.js
           grep -Fq 'stateCompaction:true' english-canary.js
           grep -Fq 'publishStateBeforeIndexNow:true' english-canary.js
           grep -Fq 'indexNowPostPublishBudgetMs:1500' english-canary.js
-          grep -Fq 'englishSchedulerTimeBudgetMs:30000' discovery-entry.js
+          grep -Fq 'englishSchedulerTimeBudgetMs:45000' discovery-entry.js
           grep -Fq "/api/internal/english-batch-step" discovery-entry.js
           grep -Fq "const allowed=new Set(['copy_code','shop_click','open_noon'" brand-runtime.js
           grep -Fq 'current.markets=current.markets||{}' platform.js
