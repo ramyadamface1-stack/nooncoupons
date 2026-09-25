@@ -245,8 +245,8 @@ jobs:
           grep -Fq 'secureEnglishBatchStep:true' discovery-entry.js
           grep -Fq 'englishBatchRunsBeforeRepair:false' discovery-entry.js
           grep -Fq "englishSchedulerPriority:'english-uae-core-cron-deadline-safe'" discovery-entry.js
-          grep -Fq 'englishSchedulerEffectiveBatch:8' discovery-entry.js
-          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:8,timeBudgetMs:45000})" auto-platform.js
+          grep -Fq 'englishSchedulerEffectiveBatch:12' discovery-entry.js
+          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:12,timeBudgetMs:45000})" auto-platform.js
           grep -Fq 'candidateScanDeadline:true' english-canary.js
           grep -Fq 'highDemandShareTarget:95' english-canary.js
           grep -Fq 'goldenHeadShareTarget:95' english-canary.js
@@ -254,7 +254,7 @@ jobs:
           grep -Fq "const SCHEDULER_STATE_KEY='english-canary/scheduler-status-v23.json';" english-canary.js
           grep -Fq "base={version:23,priority:'english-uae-core-cron-deadline-safe'" english-canary.js
           grep -Fq "const UAE_GEO_SEARCH_MARKETS=['Dubai','Abu Dhabi','Sharjah'];" bulk-content-engine.js
-          grep -Fq 'schedulerEffectiveBatchPerTick:8' english-canary.js
+          grep -Fq 'schedulerEffectiveBatchPerTick:12' english-canary.js
           grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
           grep -Fq 'stateCompaction:true' english-canary.js
           grep -Fq 'publishStateBeforeIndexNow:true' english-canary.js
@@ -528,7 +528,7 @@ jobs:
           for i in $(seq 1 8); do
             curl -fsS --connect-timeout 10 --max-time 30 "$RUNTIME_ORIGIN/api/generator-health?deploy=$GITHUB_SHA-$i" -o /tmp/g.json || true
             curl -fsS --connect-timeout 10 --max-time 60 "$RUNTIME_ORIGIN/api/content-stats?deploy=$GITHUB_SHA-$i" -o /tmp/s.json || true
-            if python -c "import json; g=json.load(open('/tmp/g.json')); s=json.load(open('/tmp/s.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; rc=s.get('r2Count',{}); assert int(b.get('dailyTarget') or 0)==40000; assert int(b.get('batchSize') or 0)==48; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert 48<=int(p.get('effectiveBatchSize') or 0)<=64; assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0); assert int(p.get('targetBatchDurationMs') or 0)==52000; assert int(p.get('minCatchupBatchSize') or 0)==32; assert int(p.get('windowHours') or 0)==8; assert p.get('capacityMeetsEightHourGoal') is True or int(p.get('remaining') or 0)==0; assert float(p.get('qualityThresholdFloor') or 0)>=95; assert int(p.get('minArticleWords') or 0)>=1500; assert int(s.get('dailyTargetArabic') or 0)==40000; assert s.get('r2Uploaded') is not None; assert rc.get('snapshotKey')=='_ops/article-count.json'; assert int(rc.get('ttlSeconds') or 0)==300" 2>/dev/null; then
+            if python -c "import json; g=json.load(open('/tmp/g.json')); s=json.load(open('/tmp/s.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; rc=s.get('r2Count',{}); assert int(b.get('dailyTarget') or 0)==40000; assert int(b.get('batchSize') or 0)==48; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert 48<=int(p.get('effectiveBatchSize') or 0)<=64; assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0); assert int(p.get('targetBatchDurationMs') or 0)==52000; assert int(p.get('minCatchupBatchSize') or 0)>=48; assert int(p.get('windowHours') or 0)==8; assert p.get('capacityMeetsEightHourGoal') is True or int(p.get('remaining') or 0)==0; assert float(p.get('qualityThresholdFloor') or 0)>=95; assert int(p.get('minArticleWords') or 0)>=1500; assert int(s.get('dailyTargetArabic') or 0)==40000; assert s.get('r2Uploaded') is not None; assert rc.get('snapshotKey')=='_ops/article-count.json'; assert int(rc.get('ttlSeconds') or 0)==300" 2>/dev/null; then
               ready=1
               break
             fi

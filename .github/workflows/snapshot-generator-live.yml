@@ -41,5 +41,8 @@ jobs:
           dt=datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
           age=(datetime.datetime.now(datetime.timezone.utc)-dt).total_seconds()
           assert age <= 900, f'english_scheduler_stale:{age:.0f}s'
-          assert s.get('ok') is True, s
+          if s.get('status')=='running':
+              assert age <= 180, f'english_scheduler_running_stale:{age:.0f}s'
+          else:
+              assert s.get('ok') is True, s
           PY
