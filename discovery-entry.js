@@ -254,24 +254,27 @@ export default{
     return res;
   },
   async scheduled(event,env,ctx){
-    const base=app.scheduled?app.scheduled(event,env,ctx):null;
-    if(base)ctx.waitUntil(Promise.resolve(base));
-    ctx.waitUntil((async()=>{
+    const englishTask=(async()=>{
       const startedAt=new Date().toISOString();
       let batch=null,error=null,repair=null;
       try{batch=await runEnglishCanaryBatch(env)}catch(e){error=String(e?.message||e).slice(0,240)}
-      try{
-        await env.CONTENT_FINAL?.put('english-canary/scheduler-status.json',JSON.stringify({
-          version:1,startedAt,completedAt:new Date().toISOString(),ok:!error&&Boolean(batch?.ok),error,
-          published:Number(batch?.published||0),maxPerTick:Number(batch?.maxPerTick||0),
-          skipped:(batch?.results||[]).find(x=>x?.skipped)?.skipped||null,
-          resultErrors:(batch?.results||[]).filter(x=>x?.ok===false).map(x=>String(x?.error||'error').slice(0,180)).slice(0,10)
-        }),{httpMetadata:{contentType:'application/json; charset=utf-8'}})
-      }catch{}
+      const payload={
+        version:2,priority:'english-uae-first',startedAt,completedAt:new Date().toISOString(),ok:!error&&Boolean(batch?.ok),error,
+        published:Number(batch?.published||0),maxPerTick:Number(batch?.maxPerTick||0),
+        skipped:(batch?.results||[]).find(x=>x?.skipped)?.skipped||null,
+        resultErrors:(batch?.results||[]).filter(x=>x?.ok===false).map(x=>String(x?.error||'error').slice(0,180)).slice(0,10)
+      };
+      for(let attempt=1;attempt<=3;attempt++){
+        try{await env.CONTENT_FINAL?.put('english-canary/scheduler-status.json',JSON.stringify(payload),{httpMetadata:{contentType:'application/json; charset=utf-8'}});break}
+        catch{if(attempt<3)await new Promise(resolve=>setTimeout(resolve,100*attempt))}
+      }
       try{repair=await repairEnglishCanaryLegacyMetadata(env)}catch{}
       return {batch,repair};
-    })());
+    })();
+    ctx.waitUntil(englishTask);
+    const base=app.scheduled?app.scheduled(event,env,ctx):null;
+    if(base)ctx.waitUntil(Promise.resolve(base));
   }
 };
 
-export const DISCOVERY_ENTRY_INFO={version:14,englishBatchPublishing:true,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishBatchRunsBeforeRepair:true,englishSchedulerObserved:true,englishBatchRepairSequential:true,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:14,englishBatchPublishing:true,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishBatchRunsBeforeRepair:true,englishSchedulerObserved:true,englishSchedulerPriority:'uae-first',englishSchedulerStatusRetry:true,englishBatchRepairSequential:true,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
