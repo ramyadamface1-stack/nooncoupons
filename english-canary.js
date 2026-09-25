@@ -53,8 +53,13 @@ async function writeState(env,state){
   const baseTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env),all=Array.isArray(state.records)?state.records:[],keepPlainFrom=Math.max(0,all.length-64);
   const records=all.map((r,i)=>i>=keepPlainFrom?r:(()=>{const {plain,...rest}=r||{};return rest})());
   const n=records.length,clean={...state,records,version:4,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:baseTarget,controlledTarget,status:n>=baseTarget?'complete':'active',controlledStatus:n>=controlledTarget?'complete':'active',updatedAt:now()};
-  await env.CONTENT_FINAL.put(STATE_KEY,JSON.stringify(clean),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
-  return clean;
+  const payload=JSON.stringify(clean),opts={httpMetadata:{contentType:'application/json; charset=utf-8'}};
+  let last=null;
+  for(let attempt=1;attempt<=2;attempt++){
+    try{await withDeadline(env.CONTENT_FINAL.put(STATE_KEY,payload,opts),3500,'english_state_put_timeout');return clean}
+    catch(e){last=e;if(attempt<2)await sleep(180*attempt)}
+  }
+  throw last||new Error('english_state_put_failed');
 }
 function publicRecord(r){if(!r)return r;const {plain,...safe}=r;return safe}
 function recentForAudit(records){return (records||[]).slice(-64).map(r=>({slug:r.slug,primaryKeyword:r.primaryKeyword,signature:r.signature,plain:r.plain||'',blueprint:r.blueprint}))}
@@ -62,37 +67,48 @@ function qualityFloor(audit){const values=Object.values(audit?.groups||{}).map(N
 function categoryKeyFor(profileKey){return PROFILE_TO_CATEGORY[profileKey]||null}
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-async function r2HeadSafe(env,key,{attempts=6}={}){
+function withDeadline(promise,ms,label){
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise).finally(()=>clearTimeout(timer)),
+    new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(label)),ms)})
+  ]);
+}
+async function r2HeadSafe(env,key,{attempts=2}={}){
   let last=null;
   for(let attempt=1;attempt<=attempts;attempt++){
-    try{return {ok:true,exists:Boolean(await env.CONTENT_FINAL.head(key)),rateLimited:false,transient:false,attempts:attempt}}
-    catch(e){
+    try{
+      const object=await withDeadline(env.CONTENT_FINAL.head(key),1800,'r2_head_timeout');
+      return {ok:true,exists:Boolean(object),object:object?{key:object.key,customMetadata:object.customMetadata||{},uploaded:object.uploaded||null}:null,rateLimited:false,transient:false,attempts:attempt};
+    }catch(e){
       last=e;
       const msg=String(e?.message||e);
       const transient=/10058|10001|reduce your rate of simultaneous reads|internal error|temporar|timeout|timed out|\b5\d\d\b/i.test(msg);
       if(!transient)throw e;
-      if(attempt<attempts)await sleep(Math.min(1500,100*(2**(attempt-1))));
+      if(attempt<attempts)await sleep(180*attempt);
     }
   }
-  return {ok:false,exists:true,rateLimited:true,transient:true,attempts,error:String(last?.message||last||'r2_head_transient_failure').slice(0,180)};
+  return {ok:false,exists:false,rateLimited:true,transient:true,attempts,error:String(last?.message||last||'r2_head_transient_failure').slice(0,180)};
 }
 
-async function r2PutArticleCreateOnly(env,key,value,options,{attempts=3}={}){
+async function r2PutArticleCreateOnly(env,key,value,options,{attempts=2}={}){
   let last=null;
   const onlyIf=new Headers({'If-None-Match':'*'});
   for(let attempt=1;attempt<=attempts;attempt++){
     try{
-      const stored=await env.CONTENT_FINAL.put(key,value,{...options,onlyIf});
-      return {ok:true,created:Boolean(stored),duplicate:stored===null,attempts};
+      const stored=await withDeadline(env.CONTENT_FINAL.put(key,value,{...options,onlyIf}),3200,'r2_article_put_timeout');
+      return {ok:true,created:Boolean(stored),duplicate:stored===null,attempts:attempt,recovered:false};
     }catch(e){
       last=e;
       const msg=String(e?.message||e);
       const transient=/10058|10001|internal error|temporar|timeout|timed out|\b5\d\d\b/i.test(msg);
       if(!transient)throw e;
-      if(attempt<attempts)await sleep(Math.min(1200,100*(2**(attempt-1))));
+      if(attempt<attempts)await sleep(220*attempt);
     }
   }
-  return {ok:false,created:false,duplicate:false,transient:true,error:String(last?.message||last||'r2_put_transient_failure').slice(0,180)};
+  const check=await r2HeadSafe(env,key,{attempts:2});
+  if(check.ok&&check.exists)return {ok:true,created:false,duplicate:true,recovered:true,attempts,error:null,existing:check.object||null};
+  return {ok:false,created:false,duplicate:false,transient:true,error:String(last?.message||last||check.error||'r2_put_transient_failure').slice(0,180)};
 }
 
 async function findCandidate(env,state,slot,{deadlineMs=0,maxScan=MAX_SCAN}={}){
@@ -169,6 +185,14 @@ export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=50
     return {ok:false,error:state.lastError,published:state.records.length,target:canaryTarget,controlledTarget:target};
   }
   if(write.duplicate){
+    const existingLang=String(write?.existing?.customMetadata?.lang||'').toLowerCase();
+    if(write.recovered||existingLang==='en'){
+      record.recoveredFromR2=true;
+      state.records.push(record);state.cursor=cursor+1;state.lastError=null;state.lastAttemptAt=createdAt;state.lastPublishedAt=createdAt;
+      state.lastIndexNow={enabled:false,submitted:0,queued:0,deferred:true,status:null,error:'recovered_existing_r2_object',at:createdAt,urlPath};
+      state=await writeState(env,state);
+      return {ok:true,recovered:true,target:canaryTarget,controlledTarget:target,published:state.records.length,publishedToday:publishedToday(state.records),record:publicRecord(record),indexNow:state.lastIndexNow,audit:{score:audit.score,wordCount:audit.wordCount,minJaccardDistance:audit.minJaccardDistance,groups:audit.groups}};
+    }
     state.cursor=cursor+1;state.lastError=null;state.lastAttemptAt=now();state=await writeState(env,state);
     return {ok:false,error:'r2_conditional_duplicate',duplicate:true,published:state.records.length,target:canaryTarget,controlledTarget:target};
   }
@@ -186,7 +210,7 @@ export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=50
 }
 
 export async function runEnglishCanaryBatch(env,{maxPerTick=null,timeBudgetMs=45000}={}){
-  const configured=batchSizeFromEnv(env),requested=Number(maxPerTick||configured)||configured,effective=Math.max(1,Math.min(configured,24,requested)),budget=Math.max(5000,Math.min(50000,Number(timeBudgetMs||45000)||45000)),startedAt=Date.now(),results=[],scanBudgetMs=Math.max(2000,Math.min(6000,Math.floor((budget-2500)/Math.max(1,effective))));
+  const configured=batchSizeFromEnv(env),requested=Number(maxPerTick||configured)||configured,effective=Math.max(1,Math.min(configured,24,requested)),budget=Math.max(5000,Math.min(50000,Number(timeBudgetMs||45000)||45000)),startedAt=Date.now(),results=[],scanBudgetMs=Math.max(1200,Math.min(2500,Math.floor((budget-4500)/Math.max(1,effective))));
   let stoppedByBudget=false;
   for(let i=0;i<effective;i++){
     if(i>0&&Date.now()-startedAt>=budget){stoppedByBudget=true;break}
@@ -272,4 +296,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:18,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:1,schedulerTimeBudgetMs:9000,stateCompaction:true,publishStateBeforeIndexNow:true,indexNowPostPublishBudgetMs:1500,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:90,goldenHeadShareTarget:90,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:1200,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:19,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:1,schedulerTimeBudgetMs:9000,stateCompaction:true,publishStateBeforeIndexNow:true,indexNowPostPublishBudgetMs:1500,boundedR2Ops:true,r2ArticlePutTimeoutMs:3200,r2StatePutTimeoutMs:3500,lateWriteRecovery:true,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:90,goldenHeadShareTarget:90,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:1200,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
