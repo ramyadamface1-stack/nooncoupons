@@ -99,7 +99,7 @@ const UAE_COMMERCIAL_HEADS={
 };
 const UAE_POPULAR_SEARCHES={
   mobile:['iPhone 17 Pro Max','iPhone 17 Pro','iPhone 17','Samsung Galaxy S25 Ultra','Samsung Galaxy S25','Google Pixel 10 Pro','Nothing Phone','Xiaomi phone','OnePlus phone','Honor phone'],
-  computing:['MacBook Air M5','MacBook Neo','MacBook Pro','AI laptop','gaming laptop','2-in-1 laptop','business laptop','Lenovo laptop','ASUS laptop','HP laptop','Dell laptop','iPad','PS5','Nintendo Switch'],
+  computing:['MacBook Air M5','MacBook Neo','MacBook Pro','AI laptop','gaming laptop','2-in-1 laptop','business laptop','Lenovo laptop','ASUS laptop','HP laptop','Dell laptop','iPad','PS5','PS5 Slim','PS5 Pro','DualSense controller','EA Sports FC 26','Nintendo Switch'],
   audio:['AirPods Pro','AirPods','JBL speaker','Sony headphones','Bose headphones','wireless earbuds'],
   screen:['Samsung TV','LG TV','OLED TV','QLED TV','gaming monitor','4K TV'],
   fashion:['handbags','sneakers','running shoes','Birkenstock','sunglasses','watches'],

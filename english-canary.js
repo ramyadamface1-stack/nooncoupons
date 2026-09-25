@@ -20,7 +20,7 @@ const TARGET_MARKET='AE';
 const UAE_PRIORITY_PROFILES=new Set(['mobile','computing','audio','screen','beauty','appliance','kitchen','home','fashion','fitness','grocery','kids','baby','travel','office']);
 const UAE_HIGH_DEMAND_PROFILES=new Set(['mobile','computing','audio','screen','beauty','appliance','kitchen']);
 const START_CURSOR=760000;
-const MAX_SCAN=5000;
+const MAX_SCAN=1200;
 const PROFILE_TO_CATEGORY={
   mobile:'mobiles',computing:'computers',audio:'audio',screen:'tvs',beauty:'beauty',
   appliance:'appliances',kitchen:'home-kitchen',home:'home-kitchen',grocery:'grocery',
@@ -106,12 +106,12 @@ async function findCandidate(env,state,slot){
     if(usedSlugs.has(article.slug)||usedKeywords.has(String(article.primaryKeyword||'').toLowerCase())){diag.stateDuplicate++;continue;}
     if(seenCandidateSlugs.has(article.slug)){diag.scanDuplicate++;continue;}
     seenCandidateSlugs.add(article.slug);
+    const audit=auditEnglishSeoArticle(article,candidate,{recent,threshold});
+    if(!audit.productionReady){diag.auditNotReady++;for(const reason of audit?.reasons||audit?.issues||[]){const key=String(reason?.code||reason?.reason||reason||'unknown').slice(0,120);diag.auditReasons[key]=(diag.auditReasons[key]||0)+1}continue;}if(audit.minJaccardDistance<0.18){diag.jaccardTooLow++;continue;}
     const head=await r2HeadSafe(env,'articles/'+article.slug+'.html');
     diag.r2HeadRetryAttempts+=Math.max(0,Number(head.attempts||1)-1);
     if(head.rateLimited){diag.r2HeadRateLimited++;continue;}
     if(head.exists){diag.r2Duplicate++;continue;}
-    const audit=auditEnglishSeoArticle(article,candidate,{recent,threshold});
-    if(!audit.productionReady){diag.auditNotReady++;for(const reason of audit?.reasons||audit?.issues||[]){const key=String(reason?.code||reason?.reason||reason||'unknown').slice(0,120);diag.auditReasons[key]=(diag.auditReasons[key]||0)+1}continue;}if(audit.minJaccardDistance<0.18){diag.jaccardTooLow++;continue;}
     return {cursor,candidate,article,audit,categoryKey};
   }
   return {notFound:true,diagnostics:diag,nextCursor:cursor};
@@ -148,15 +148,15 @@ export async function runEnglishCanary(env,{ignoreInterval=false}={}){
   return {ok:true,target:canaryTarget,controlledTarget:target,published:state.records.length,publishedToday:publishedToday(state.records),dailyTarget:dailyTargetFromEnv(env),minIntervalMinutes:minIntervalMinutesFromEnv(env),nextEligibleAt:nextEligibleAt(state,env),canaryComplete:state.status==='complete',controlledComplete:state.controlledStatus==='complete',record:publicRecord(record),indexNow,audit:{score:audit.score,wordCount:audit.wordCount,minJaccardDistance:audit.minJaccardDistance,groups:audit.groups}};
 }
 
-export async function runEnglishCanaryBatch(env){
-  const maxPerTick=batchSizeFromEnv(env),results=[];
-  for(let i=0;i<maxPerTick;i++){
+export async function runEnglishCanaryBatch(env,{maxPerTick=null}={}){
+  const configured=batchSizeFromEnv(env),effective=Math.max(1,Math.min(configured,Number(maxPerTick||configured)||configured)),results=[];
+  for(let i=0;i<effective;i++){
     const result=await runEnglishCanary(env,{ignoreInterval:i>0});
     results.push(result);
     if(result?.skipped)break;
   }
   const published=results.filter(r=>Boolean(r?.record)).length;
-  return {ok:results.some(r=>r?.ok!==false)||published>0,maxPerTick,published,results};
+  return {ok:results.some(r=>r?.ok!==false)||published>0,maxPerTick:effective,configuredMaxPerTick:configured,published,results};
 }
 
 export async function englishCanaryRecords(env){const s=await readState(env);return (s.records||[]).map(publicRecord)}
@@ -210,4 +210,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:15,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:16,defaultBatchPerTick:24,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch16',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:80,goldenHeadShareTarget:90,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,perScanSlugDedup:true,schedulerObservability:true,auditLockHealth:true,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:15,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:6,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch16',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:80,goldenHeadShareTarget:90,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:1200,schedulerObservability:true,auditLockHealth:true,diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};

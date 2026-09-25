@@ -257,7 +257,7 @@ export default{
     const englishTask=(async()=>{
       const startedAt=new Date().toISOString();
       let batch=null,error=null,repair=null;
-      try{batch=await runEnglishCanaryBatch(env)}catch(e){error=String(e?.message||e).slice(0,240)}
+      try{batch=await runEnglishCanaryBatch(env,{maxPerTick:6})}catch(e){error=String(e?.message||e).slice(0,240)}
       const payload={
         version:2,priority:'english-uae-first',startedAt,completedAt:new Date().toISOString(),ok:!error&&Boolean(batch?.ok),error,
         published:Number(batch?.published||0),maxPerTick:Number(batch?.maxPerTick||0),
@@ -271,10 +271,10 @@ export default{
       try{repair=await repairEnglishCanaryLegacyMetadata(env)}catch{}
       return {batch,repair};
     })();
-    ctx.waitUntil(englishTask);
+    await englishTask;
     const base=app.scheduled?app.scheduled(event,env,ctx):null;
     if(base)ctx.waitUntil(Promise.resolve(base));
   }
 };
 
-export const DISCOVERY_ENTRY_INFO={version:14,englishBatchPublishing:true,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishBatchRunsBeforeRepair:true,englishSchedulerObserved:true,englishSchedulerPriority:'uae-first',englishSchedulerStatusRetry:true,englishBatchRepairSequential:true,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:14,englishBatchPublishing:true,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishBatchRunsBeforeRepair:true,englishSchedulerObserved:true,englishSchedulerPriority:'uae-first-serial',englishSchedulerEffectiveBatch:6,englishSchedulerStatusRetry:true,englishBatchRepairSequential:true,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
