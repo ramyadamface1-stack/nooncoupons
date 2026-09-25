@@ -33,13 +33,13 @@ jobs:
           jq -e '.ok==true and (.dailyTargetArabic|tonumber)==40000 and (.total|tonumber)==(.liveTrackedPublished|tonumber)' /tmp/s.json >/dev/null
           jq -e '.ok==true and (.controlled.target|tonumber)==50000 and .controlled.targetMarket=="AE" and .controlled.marketPolicy=="uae-only-new-v6-batch24" and (.controlled.dailyTarget|tonumber)==34560 and (.controlled.minIntervalMinutes|tonumber)==1 and (.controlled.batchSize|tonumber)==24' /tmp/e.json >/dev/null
           python - <<'PY'
-import json,datetime
-x=json.load(open('/tmp/e.json'))
-s=x.get('scheduler') or {}
-ts=s.get('completedAt')
-assert ts, 'english_scheduler_missing'
-dt=datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
-age=(datetime.datetime.now(datetime.timezone.utc)-dt).total_seconds()
-assert age <= 900, f'english_scheduler_stale:{age:.0f}s'
-assert s.get('ok') is True, s
-PY
+          import json,datetime
+          x=json.load(open('/tmp/e.json'))
+          s=x.get('scheduler') or {}
+          ts=s.get('completedAt')
+          assert ts, 'english_scheduler_missing'
+          dt=datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
+          age=(datetime.datetime.now(datetime.timezone.utc)-dt).total_seconds()
+          assert age <= 900, f'english_scheduler_stale:{age:.0f}s'
+          assert s.get('ok') is True, s
+          PY
