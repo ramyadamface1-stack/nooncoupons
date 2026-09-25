@@ -322,6 +322,6 @@ export default{
   async scheduled(event,env,ctx){
     if(app.scheduled)ctx.waitUntil(app.scheduled(event,env,ctx));
     ctx.waitUntil(bulkTick(env));
-    ctx.waitUntil(runEnglishScheduledTick(env,{maxPerTick:4,timeBudgetMs:22000}));
+    ctx.waitUntil(runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:9000}));
   }
 };
