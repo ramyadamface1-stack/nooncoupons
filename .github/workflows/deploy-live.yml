@@ -253,7 +253,7 @@ jobs:
           grep -Fq 'schedulerFirstIntervalBypass:true' english-canary.js
           grep -Fq "const UAE_GEO_SEARCH_MARKETS=['Dubai','Abu Dhabi','Sharjah'];" bulk-content-engine.js
           grep -Fq 'schedulerEffectiveBatchPerTick:8' english-canary.js
-          grep -Fq 'schedulerTimeBudgetMs:30000' english-canary.js
+          grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
           grep -Fq 'stateCompaction:true' english-canary.js
           grep -Fq 'publishStateBeforeIndexNow:true' english-canary.js
           grep -Fq 'indexNowPostPublishBudgetMs:1500' english-canary.js

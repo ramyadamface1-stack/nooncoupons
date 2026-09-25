@@ -51,7 +51,7 @@ jobs:
           grep -Fq 'qualityBeforeR2Head:true' english-canary.js
           grep -Fq 'schedulerEffectiveBatchPerTick:8' english-canary.js
           grep -Fq 'stateCompaction:true' english-canary.js
-          grep -Fq 'schedulerTimeBudgetMs:30000' english-canary.js
+          grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
           grep -Fq 'highDemandShareTarget:95' english-canary.js
           grep -Fq 'goldenHeadShareTarget:95' english-canary.js
           grep -Fq 'schedulerFirstIntervalBypass:true' english-canary.js
