@@ -135,7 +135,7 @@ async function findCandidate(env,state,slot,{deadlineMs=0,maxScan=MAX_SCAN}={}){
     }
     if(topic.country!==desiredCountry){diag.wrongCountry++;continue;}
     if(!UAE_PRIORITY_PROFILES.has(topic.profileKey)){diag.nonPriorityProfile++;continue;}
-    if(slot%10!==9&&!UAE_HIGH_DEMAND_PROFILES.has(topic.profileKey)){diag.nonHighDemandProfile++;continue;}
+    if(slot%20!==19&&!UAE_HIGH_DEMAND_PROFILES.has(topic.profileKey)){diag.nonHighDemandProfile++;continue;}
     const categoryKey=categoryKeyFor(topic.profileKey);
     if(!categoryKey){diag.missingCategory++;continue;}
     const rawCandidate=buildEnglishNativeCandidate(topic);
@@ -218,12 +218,12 @@ export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=50
   return {ok:true,target:canaryTarget,controlledTarget:target,published:state.records.length,publishedToday:publishedToday(state.records),dailyTarget:dailyTargetFromEnv(env),minIntervalMinutes:minIntervalMinutesFromEnv(env),nextEligibleAt:nextEligibleAt(state,env),canaryComplete:state.status==='complete',controlledComplete:state.controlledStatus==='complete',record:publicRecord(record),indexNow,audit:{score:audit.score,wordCount:audit.wordCount,minJaccardDistance:audit.minJaccardDistance,groups:audit.groups}};
 }
 
-export async function runEnglishCanaryBatch(env,{maxPerTick=null,timeBudgetMs=45000}={}){
+export async function runEnglishCanaryBatch(env,{maxPerTick=null,timeBudgetMs=45000,ignoreIntervalFirst=false}={}){
   const configured=batchSizeFromEnv(env),requested=Number(maxPerTick||configured)||configured,effective=Math.max(1,Math.min(configured,24,requested)),budget=Math.max(5000,Math.min(50000,Number(timeBudgetMs||45000)||45000)),startedAt=Date.now(),results=[],scanBudgetMs=Math.max(1000,Math.min(2200,Math.floor((budget-3500)/Math.max(1,effective)))),maxScanChunks=Math.max(effective,Math.min(12,Math.ceil(budget/5000)));
   let stoppedByBudget=false,published=0,chunks=0;
   while(published<effective&&chunks<maxScanChunks){
     if(chunks>0&&Date.now()-startedAt>=budget-1200){stoppedByBudget=true;break}
-    const result=await runEnglishCanary(env,{ignoreInterval:chunks>0,scanBudgetMs});
+    const result=await runEnglishCanary(env,{ignoreInterval:ignoreIntervalFirst||chunks>0,scanBudgetMs});
     results.push(result);chunks++;
     if(result?.record){published++;continue}
     const scanContinuation=result?.skipped==='english_candidate_scan_continue'||result?.skipped==='english_candidate_scan_budget';
@@ -242,7 +242,7 @@ async function writeEnglishSchedulerState(env,payload){
   }
   return false;
 }
-export async function runEnglishScheduledTick(env,{maxPerTick=1,timeBudgetMs=9000}={}){
+export async function runEnglishScheduledTick(env,{maxPerTick=4,timeBudgetMs=30000}={}){
   const startedAt=now(),base={version:6,priority:'english-uae-core-cron-deadline-safe',startedAt,maxPerTick:Number(maxPerTick||1),timeBudgetMs:Number(timeBudgetMs||9000)};
   await writeEnglishSchedulerState(env,{...base,status:'running',completedAt:null,ok:null,error:null,published:0,skipped:null,resultErrors:[]});
   let batch=null,error=null;
@@ -308,4 +308,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:21,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:1,schedulerTimeBudgetMs:9000,stateCompaction:true,publishStateBeforeIndexNow:true,indexNowPostPublishBudgetMs:1500,boundedR2Ops:true,r2ArticlePutTimeoutMs:3200,r2StatePutTimeoutMs:3500,lateWriteRecovery:true,boundedStateRead:true,stateReadTimeoutMs:2200,boundedAuditLockRead:true,auditLockReadTimeoutMs:1800,multiChunkCandidateScan:true,auditFailureDiagnostics:true,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:90,goldenHeadShareTarget:90,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:1200,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:22,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:4,schedulerTimeBudgetMs:30000,stateCompaction:true,publishStateBeforeIndexNow:true,indexNowPostPublishBudgetMs:1500,boundedR2Ops:true,r2ArticlePutTimeoutMs:3200,r2StatePutTimeoutMs:3500,lateWriteRecovery:true,boundedStateRead:true,stateReadTimeoutMs:2200,boundedAuditLockRead:true,auditLockReadTimeoutMs:1800,multiChunkCandidateScan:true,auditFailureDiagnostics:true,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:95,goldenHeadShareTarget:95,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:1200,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};

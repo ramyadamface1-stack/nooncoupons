@@ -242,8 +242,8 @@ export default{
     }
     if(req.method==='POST'&&u.pathname==='/api/internal/english-batch-step'){
       if(!await verifyMaintenanceToken(req))return new Response(JSON.stringify({ok:false,reason:'unauthorized'}),{status:401,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
-      let limit=2;try{const body=await req.json();limit=Math.max(1,Math.min(6,Number(body?.limit)||2))}catch{}
-      const state=await runEnglishCanaryBatch(env,{maxPerTick:limit});
+      let limit=2,timeBudgetMs=22000,ignoreInterval=true;try{const body=await req.json();limit=Math.max(1,Math.min(8,Number(body?.limit)||2));timeBudgetMs=Math.max(5000,Math.min(30000,Number(body?.timeBudgetMs)||22000));ignoreInterval=body?.ignoreInterval!==false}catch{}
+      const state=await runEnglishCanaryBatch(env,{maxPerTick:limit,timeBudgetMs,ignoreIntervalFirst:ignoreInterval});
       return new Response(JSON.stringify(state),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     let res=await app.fetch(req,env,ctx);
@@ -258,4 +258,4 @@ export default{
   }
 };
 
-export const DISCOVERY_ENTRY_INFO={version:16,englishBatchPublishing:true,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:1,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:9000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:17,englishBatchPublishing:true,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:4,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:30000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
