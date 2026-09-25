@@ -68,7 +68,7 @@ jobs:
           grep -Fq 'uae-high-demand-product-v2' bulk-content-engine.js
           grep -Fq 'UAE_POPULAR_SEARCHES' bulk-content-engine.js
           grep -Fq 'UAE_GOLDEN_COMMERCIAL_MODIFIERS' bulk-content-engine.js
-          grep -Fq 'goldenModifier=seed%10!==9' bulk-content-engine.js
+          grep -Fq 'goldenModifier=seed%20!==19' bulk-content-engine.js
           grep -Fq "'Noon discount code UAE'" bulk-content-engine.js
           grep -Fq "'Noon promo code UAE'" bulk-content-engine.js
           grep -Fq "'Noon first order coupon UAE'" bulk-content-engine.js
