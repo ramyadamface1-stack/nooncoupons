@@ -78,6 +78,9 @@ jobs:
           grep -Fq 'goldenModifier=seed%20!==19' bulk-content-engine.js
           grep -Fq 'UAE_PROFILE_GOLDEN_MODIFIERS' bulk-content-engine.js
           grep -Fq 'queryModifier:goldenModifier?cleanModifier:null' bulk-content-engine.js
+          grep -Fq 'duplicateContinuation:true' english-canary.js
+          grep -Fq "duplicateContinuation=result?.duplicate===true||result?.error==='r2_conditional_duplicate'" english-canary.js
+          grep -Fq 'Math.min(36,effective*3)' english-canary.js
           grep -Fq "'Noon discount code UAE'" bulk-content-engine.js
           grep -Fq "'Noon promo code UAE'" bulk-content-engine.js
           grep -Fq "'Noon first order coupon UAE'" bulk-content-engine.js
