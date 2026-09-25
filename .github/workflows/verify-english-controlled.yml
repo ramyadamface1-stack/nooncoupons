@@ -50,6 +50,8 @@ jobs:
           grep -Fq 'conditionalCreateOnly:true' english-canary.js
           grep -Fq 'qualityBeforeR2Head:true' english-canary.js
           grep -Fq 'schedulerEffectiveBatchPerTick:1' english-canary.js
+          grep -Fq 'stateCompaction:true' english-canary.js
+          grep -Fq 'publishStateBeforeIndexNow:true' english-canary.js
           grep -Fq 'candidateScanDeadline:true' english-canary.js
           grep -Fq "schedulerRuntimeOwner:'auto-platform'" english-canary.js
           grep -Fq "healthSamplePolicy:'canaries-plus-latest-48'" english-canary.js

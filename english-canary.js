@@ -50,8 +50,9 @@ async function readState(env){
   catch{return emptyState(env)}
 }
 async function writeState(env,state){
-  const baseTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env),n=(state.records||[]).length;
-  const clean={...state,version:3,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:baseTarget,controlledTarget,status:n>=baseTarget?'complete':'active',controlledStatus:n>=controlledTarget?'complete':'active',updatedAt:now()};
+  const baseTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env),all=Array.isArray(state.records)?state.records:[],keepPlainFrom=Math.max(0,all.length-64);
+  const records=all.map((r,i)=>i>=keepPlainFrom?r:(()=>{const {plain,...rest}=r||{};return rest})());
+  const n=records.length,clean={...state,records,version:4,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:baseTarget,controlledTarget,status:n>=baseTarget?'complete':'active',controlledStatus:n>=controlledTarget?'complete':'active',updatedAt:now()};
   await env.CONTENT_FINAL.put(STATE_KEY,JSON.stringify(clean),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
   return clean;
 }
@@ -171,8 +172,16 @@ export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=50
     state.cursor=cursor+1;state.lastError=null;state.lastAttemptAt=now();state=await writeState(env,state);
     return {ok:false,error:'r2_conditional_duplicate',duplicate:true,published:state.records.length,target:canaryTarget,controlledTarget:target};
   }
-  const indexNow=await submitIndexNow(env,[record]);
-  state.records.push(record);state.cursor=cursor+1;state.lastError=null;state.lastAttemptAt=createdAt;state.lastPublishedAt=createdAt;state.lastIndexNow={...indexNow,at:createdAt,urlPath};state=await writeState(env,state);
+  state.records.push(record);state.cursor=cursor+1;state.lastError=null;state.lastAttemptAt=createdAt;state.lastPublishedAt=createdAt;state.lastIndexNow={enabled:String(env.INDEXNOW_ENABLED||'false').toLowerCase()==='true',submitted:0,queued:0,deferred:true,status:null,error:null,at:createdAt,urlPath};state=await writeState(env,state);
+  let indexNow=state.lastIndexNow;
+  try{
+    indexNow=await Promise.race([
+      submitIndexNow(env,[record]),
+      new Promise(resolve=>setTimeout(()=>resolve({enabled:true,submitted:0,queued:1,deferred:true,status:202,error:'indexnow_deferred_after_publish'}),1500))
+    ]);
+  }catch{indexNow={enabled:true,submitted:0,queued:1,deferred:true,status:null,error:'indexnow_deferred_after_publish'}}
+  state.lastIndexNow={...indexNow,at:createdAt,urlPath};
+  try{state=await writeState(env,state)}catch{}
   return {ok:true,target:canaryTarget,controlledTarget:target,published:state.records.length,publishedToday:publishedToday(state.records),dailyTarget:dailyTargetFromEnv(env),minIntervalMinutes:minIntervalMinutesFromEnv(env),nextEligibleAt:nextEligibleAt(state,env),canaryComplete:state.status==='complete',controlledComplete:state.controlledStatus==='complete',record:publicRecord(record),indexNow,audit:{score:audit.score,wordCount:audit.wordCount,minJaccardDistance:audit.minJaccardDistance,groups:audit.groups}};
 }
 
@@ -263,4 +272,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:17,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:1,schedulerTimeBudgetMs:9000,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:90,goldenHeadShareTarget:90,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:1200,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:18,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:1,schedulerTimeBudgetMs:9000,stateCompaction:true,publishStateBeforeIndexNow:true,indexNowPostPublishBudgetMs:1500,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:90,goldenHeadShareTarget:90,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:1200,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};

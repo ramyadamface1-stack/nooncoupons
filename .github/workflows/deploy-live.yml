@@ -248,6 +248,9 @@ jobs:
           grep -Fq 'englishSchedulerEffectiveBatch:1' discovery-entry.js
           grep -Fq "runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:9000})" auto-platform.js
           grep -Fq 'candidateScanDeadline:true' english-canary.js
+          grep -Fq 'stateCompaction:true' english-canary.js
+          grep -Fq 'publishStateBeforeIndexNow:true' english-canary.js
+          grep -Fq 'indexNowPostPublishBudgetMs:1500' english-canary.js
           grep -Fq 'englishSchedulerTimeBudgetMs:9000' discovery-entry.js
           grep -Fq "/api/internal/english-batch-step" discovery-entry.js
           grep -Fq "const allowed=new Set(['copy_code','shop_click','open_noon'" brand-runtime.js
@@ -395,6 +398,17 @@ jobs:
           done
           [ "$ready" = 1 ] || { echo 'UAE_ENGLISH_RUNTIME_NOT_HEALTHY'; cat /tmp/english-health.json 2>/dev/null || true; exit 1; }
           echo "UAE_ENGLISH_RUNTIME_LIVE=$(jq -c '{ok,controlled:{target:.controlled.target,published:.controlled.published,remaining:.controlled.remaining,publishedToday:.controlled.publishedToday,dailyTarget:.controlled.dailyTarget,batchSize:.controlled.batchSize,targetMarket:.controlled.targetMarket,marketPolicy:.controlled.marketPolicy,sa:.controlled.sa,ae:.controlled.ae}}' /tmp/english-health.json)"
+      - name: Prove direct UAE English batch can publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
+          AUTH="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+          curl -fsS --connect-timeout 10 --max-time 35 -H "$AUTH" -H 'Content-Type: application/json' -X POST --data '{"limit":1}' "$ORIGIN/api/internal/english-batch-step?direct=$GITHUB_SHA" -o /tmp/en-direct.json
+          cat /tmp/en-direct.json
+          jq -e '.ok==true and ((.published//0)|tonumber)>=1' /tmp/en-direct.json >/dev/null
+          curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/api/english-canary-health?direct=$GITHUB_SHA" -o /tmp/en-direct-health.json
+          jq -e '.ok==true and .controlled.targetMarket=="AE" and ((.controlled.ae//0)|tonumber)>=113' /tmp/en-direct-health.json >/dev/null
       - name: Prove UAE English publishing moves
         shell: bash
         run: |
