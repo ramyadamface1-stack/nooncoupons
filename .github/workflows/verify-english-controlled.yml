@@ -69,10 +69,12 @@ jobs:
           grep -Fq 'r2HeadRateLimited' english-canary.js
           grep -Fq "const TARGET_MARKET='AE';" english-canary.js
           grep -Fq "marketPolicy:'uae-only-new-v6-batch24'" english-canary.js
-          grep -Fq 'uae-golden-commercial-v2' bulk-content-engine.js
-          grep -Fq 'uae-high-demand-product-v2' bulk-content-engine.js
+          grep -Fq 'uae-golden-commercial-v3' bulk-content-engine.js
+          grep -Fq 'uae-high-demand-product-v3' bulk-content-engine.js
           grep -Fq 'UAE_POPULAR_SEARCHES' bulk-content-engine.js
           grep -Fq 'UAE_GOLDEN_COMMERCIAL_MODIFIERS' bulk-content-engine.js
+          grep -Fq 'function naturalUaeCommercialKeyword' bulk-content-engine.js
+          grep -Fq 'commercial-category-intent' bulk-content-engine.js
           grep -Fq 'goldenModifier=seed%20!==19' bulk-content-engine.js
           grep -Fq "'Noon discount code UAE'" bulk-content-engine.js
           grep -Fq "'Noon promo code UAE'" bulk-content-engine.js
