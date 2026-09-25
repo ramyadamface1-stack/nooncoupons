@@ -47,6 +47,8 @@ jobs:
           grep -Fq 'conditionalCreateOnly:true' english-canary.js
           grep -Fq 'qualityBeforeR2Head:true' english-canary.js
           grep -Fq 'schedulerEffectiveBatchPerTick:24' english-canary.js
+          grep -Fq "healthSamplePolicy:'canaries-plus-latest-48'" english-canary.js
+          grep -Fq "samplePolicy:'canaries-plus-latest-48'" english-canary.js
           grep -Fq "englishSchedulerPriority:'uae-first-serial'" discovery-entry.js
           grep -Fq 'perScanSlugDedup:true' english-canary.js
           grep -Fq 'r2HeadRateLimited' english-canary.js
@@ -132,7 +134,8 @@ jobs:
               c.target===50000 && c.targetMarket==='AE' && c.marketPolicy==='uae-only-new-v6-batch24' && Number(c.published)>=20 && Number(c.published)<=50000 &&
               Number(c.remaining)===50000-Number(c.published) && Number(c.dailyTarget)===34560 &&
               Number(c.minIntervalMinutes)===1 && Number(c.batchSize)===24 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=34560 &&
-              rows.length===Number(c.published) && Number(c.uniqueProfiles)>=10 &&
+              Number(c.recordsTotal)===Number(c.published) && rows.length===Number(c.sampleSize) && rows.length>=2 && rows.length<=50 &&
+              c.samplePolicy==='canaries-plus-latest-48' && Number(c.r2SampleChecked)===rows.length && Number(c.r2SampleMissing)===0 && Number(c.uniqueProfiles)>=10 &&
               new Set(slugs).size===rows.length && new Set(keywords).size===rows.length && canaries.length===2 && expanded.length===rows.length-2 &&
               !slugs.includes('en-best-time-to-try-a-noon-coupon-uae-office-cart-test') &&
               rows.every(r=>r.r2Present===true && r.status==='published' && r.indexable===true &&
