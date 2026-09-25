@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "dbaca653b0634c79556d2374b6b662e28ce6621e",
-  "verifiedAt": "2026-09-24T10:25:22.389422+00:00",
+  "sourceSha": "d7ad96212d9755db57f2f052ad4fb4d3faebe49e",
+  "verifiedAt": "2026-09-25T23:31:50.327382+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -51,7 +51,7 @@
     "cooperativeYieldVerified": true,
     "r2CatalogReadFailClosedVerified": true,
     "r2StatusReadRetryVerified": true,
-    "articleWriteConcurrency16Verified": true,
+    "articleWriteConcurrency32Verified": true,
     "clusterWriteConcurrency16Verified": true,
     "goldenKeywordHubVerified": true,
     "seoSettingsR2Verified": true,
@@ -102,66 +102,66 @@
   },
   "content": {
     "r2HtmlObjects": 133746,
-    "trackedPublished": 74039,
-    "arabic": 73878,
-    "english": 161,
-    "lastSlug": "كود-خصم-نون-السعودية-على-nike-training-الشحن-والتوصيل-العمل-الخامة",
+    "trackedPublished": 77871,
+    "arabic": 76103,
+    "english": 1768,
+    "lastSlug": "مقارنة-سعر-البقالة-الشراء-من-التطبيق-نون-السعودية-قيمة-الشراء-التخزين",
     "lastQuality": 100,
-    "lastWordCount": 1775
+    "lastWordCount": 1777
   },
   "catchup30k": {
     "target": 30000,
-    "current": 73878,
+    "current": 76103,
     "remaining": 0,
     "requiredPerMinute": 0,
-    "effectiveBatchSize": 24,
-    "adaptiveBatchSize": 24,
+    "effectiveBatchSize": 48,
+    "adaptiveBatchSize": 48,
     "adaptiveMode": "steady",
     "adaptiveReason": "catchup_complete",
     "targetBatchDurationMs": 52000,
-    "minCatchupBatchSize": 32,
-    "lastBatchPublished": 0,
+    "minCatchupBatchSize": 48,
+    "lastBatchPublished": 6,
     "lastBatchTries": 432,
-    "lastBatchDurationMs": 38212,
-    "lastBatchYieldPct": 0,
+    "lastBatchDurationMs": 42499,
+    "lastBatchYieldPct": 1.39,
     "lastBatchStageMs": {
-      "candidateLoop": 37924,
-      "articleWrites": 0,
-      "clusterFlush": 0,
-      "freshness": 0,
-      "catalogs": 0,
-      "indexNow": 0,
-      "postParallel": 0
+      "candidateLoop": 36087,
+      "articleWrites": 1088,
+      "clusterFlush": 1250,
+      "freshness": 1813,
+      "catalogs": 4713,
+      "indexNow": 1806,
+      "postParallel": 4713
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": false,
-    "executionRatePerMinute": null,
+    "executionRatePerMinute": 8.47,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": null,
-    "observedMeetsRequiredRate": null,
-    "estimatedHoursAtObservedRate": null,
+    "observedRatePerMinute": 6,
+    "observedMeetsRequiredRate": true,
+    "estimatedHoursAtObservedRate": 0.0,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 222474,
-    "preflightRejectedTotal": 564487,
-    "preflightRecentRejectedTotal": 11027,
-    "preflightClusterRejectedTotal": 551989,
+    "semanticPreAuditRejectedTotal": 248901,
+    "preflightRejectedTotal": 653574,
+    "preflightRecentRejectedTotal": 13502,
+    "preflightClusterRejectedTotal": 638601,
     "lastPreflightRejectReasons": {
-      "global_intent_owner_collision": 102,
-      "global_keyword_cannibalization": 316,
-      "global_duplicate_slug": 112,
-      "global_duplicate_keyword": 112,
-      "global_duplicate_intent": 1
+      "global_duplicate_slug": 92,
+      "global_duplicate_keyword": 92,
+      "global_keyword_cannibalization": 332,
+      "global_intent_owner_collision": 100,
+      "global_duplicate_intent": 2
     }
   },
   "englishControlled": {
     "target": 50000,
-    "published": 161,
-    "remaining": 49839,
-    "publishedToday": 0,
-    "dailyTarget": 23040,
+    "published": 1768,
+    "remaining": 48232,
+    "publishedToday": 867,
+    "dailyTarget": 34560,
     "minIntervalMinutes": 1,
-    "nextEligibleAt": "2026-09-23T20:14:20.617Z"
+    "nextEligibleAt": "2026-09-25T23:31:47.386Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -170,9 +170,9 @@
     "completedAt": "2026-09-18T09:18:02.935Z"
   },
   "couponAudit": {
-    "scanned": 153526,
+    "scanned": 156809,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-24T10:23:59.909Z"
+    "completedAt": "2026-09-25T23:30:53.435Z"
   }
 }
