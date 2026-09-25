@@ -45,9 +45,16 @@ function cairoDay(ts=Date.now()){return new Intl.DateTimeFormat('en-CA',{timeZon
 function publishedToday(records){const day=cairoDay();return (records||[]).filter(r=>r?.createdAt&&cairoDay(r.createdAt)===day).length}
 function nextEligibleAt(state,env){const last=Date.parse(state?.lastPublishedAt||'');if(!Number.isFinite(last))return null;return new Date(last+minIntervalMinutesFromEnv(env)*60000).toISOString()}
 function emptyState(env){return {version:3,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:targetFromEnv(env),controlledTarget:controlledTargetFromEnv(env),status:'active',controlledStatus:'active',cursor:START_CURSOR,records:[],updatedAt:now()}}
-async function readState(env){
-  try{const o=await env.CONTENT_FINAL?.get(STATE_KEY);if(!o)return emptyState(env);const s=await o.json();const records=Array.isArray(s.records)?s.records.map(r=>({...r,metaDescription:sanitizeMeta(r?.metaDescription)})):[];return {...emptyState(env),...s,version:3,target:targetFromEnv(env),controlledTarget:controlledTargetFromEnv(env),records}}
-  catch{return emptyState(env)}
+async function readState(env,{tolerant=false}={}){
+  try{
+    const o=env.CONTENT_FINAL?await withDeadline(env.CONTENT_FINAL.get(STATE_KEY),2200,'english_state_get_timeout'):null;
+    if(!o)return emptyState(env);
+    const s=await o.json(),records=Array.isArray(s.records)?s.records.map(r=>({...r,metaDescription:sanitizeMeta(r?.metaDescription)})):[];
+    return {...emptyState(env),...s,version:4,target:targetFromEnv(env),controlledTarget:controlledTargetFromEnv(env),records};
+  }catch(e){
+    if(tolerant)return emptyState(env);
+    throw new Error('english_state_read_failed:'+String(e?.message||e).slice(0,160));
+  }
 }
 async function writeState(env,state){
   const baseTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env),all=Array.isArray(state.records)?state.records:[],keepPlainFrom=Math.max(0,all.length-64);
@@ -152,7 +159,9 @@ async function findCandidate(env,state,slot,{deadlineMs=0,maxScan=MAX_SCAN}={}){
 
 export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=5000}={}){
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing'};
-  const auditLock=await publicationBlockedByArticleAudit(env);
+  let auditLock=null;
+  try{auditLock=await withDeadline(publicationBlockedByArticleAudit(env),1800,'english_audit_lock_timeout')}
+  catch(e){return {ok:true,skipped:'english_audit_lock_check_deferred',error:String(e?.message||e).slice(0,160)}}
   if(auditLock)return {ok:true,skipped:'corpus_audit_in_progress',auditLock:{runId:auditLock.runId||null,expiresAt:auditLock.expiresAt||null,failClosed:Boolean(auditLock.failClosed)}};
   const canaryTarget=targetFromEnv(env),target=controlledTargetFromEnv(env);
   if(canaryTarget===0)return {ok:true,skipped:'english_canary_disabled',target:canaryTarget,controlledTarget:target};
@@ -296,4 +305,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:19,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:1,schedulerTimeBudgetMs:9000,stateCompaction:true,publishStateBeforeIndexNow:true,indexNowPostPublishBudgetMs:1500,boundedR2Ops:true,r2ArticlePutTimeoutMs:3200,r2StatePutTimeoutMs:3500,lateWriteRecovery:true,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:90,goldenHeadShareTarget:90,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:1200,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:20,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:1,schedulerTimeBudgetMs:9000,stateCompaction:true,publishStateBeforeIndexNow:true,indexNowPostPublishBudgetMs:1500,boundedR2Ops:true,r2ArticlePutTimeoutMs:3200,r2StatePutTimeoutMs:3500,lateWriteRecovery:true,boundedStateRead:true,stateReadTimeoutMs:2200,boundedAuditLockRead:true,auditLockReadTimeoutMs:1800,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,highDemandUaeKeywordTargeting:true,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:90,goldenHeadShareTarget:90,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:1200,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
