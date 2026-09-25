@@ -15,11 +15,13 @@ jobs:
         run: |
           set -euo pipefail
           node --check commerce-pages-v2.js
-          grep -Fq 'hreflang="ar"' commerce-pages-v2.js
-          grep -Fq 'hreflang="en"' commerce-pages-v2.js
+          grep -Fq "enLang=market==='saudi'?'en-SA':'en-AE'" commerce-pages-v2.js
+          grep -Fq "arLang=market==='saudi'?'ar-SA':'ar-AE'" commerce-pages-v2.js
+          grep -Fq 'hreflang="${enLang}"' commerce-pages-v2.js
+          grep -Fq 'hreflang="${arLang}"' commerce-pages-v2.js
           grep -Fq 'hreflang="x-default"' commerce-pages-v2.js
           grep -Fq 'x-english-evidence' commerce-pages-v2.js
-          grep -Fq 'noindex,follow' commerce-pages-v2.js
+          grep -Fq 'noindex, follow' commerce-pages-v2.js
       - name: Verify deployed reciprocal language hubs
         run: |
           set -euo pipefail
@@ -27,14 +29,14 @@ jobs:
           for i in $(seq 1 18); do
             ar="$(curl -sS --max-time 20 "$ORIGIN/saudi" || true)"
             en="$(curl -sS -D /tmp/en.h --max-time 20 "$ORIGIN/en/saudi" || true)"
-            if grep -Fq 'hreflang="en"' <<<"$ar" && grep -Fq 'hreflang="ar"' <<<"$en"; then break; fi
+            if grep -Fq 'hreflang="en-SA"' <<<"$ar" && grep -Fq 'hreflang="ar-SA"' <<<"$en"; then break; fi
             sleep 5
           done
           grep -Fq '<html lang="ar" dir="rtl">' <<<"$ar"
-          grep -Fq 'hreflang="en"' <<<"$ar"
+          grep -Fq 'hreflang="en-SA"' <<<"$ar"
           grep -Fq '/en/saudi' <<<"$ar"
           grep -Fq '<html lang="en" dir="ltr">' <<<"$en"
-          grep -Fq 'hreflang="ar"' <<<"$en"
+          grep -Fq 'hreflang="ar-SA"' <<<"$en"
           grep -Fq '/saudi' <<<"$en"
           cat="$(curl -sS -D /tmp/cat.h --max-time 20 "$ORIGIN/en/saudi/category/mobiles")"
           evidence="$(awk -F': ' 'tolower($1)=="x-english-evidence"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
