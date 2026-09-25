@@ -245,7 +245,7 @@ jobs:
           grep -Fq 'secureEnglishBatchStep:true' discovery-entry.js
           grep -Fq 'englishBatchRunsBeforeRepair:false' discovery-entry.js
           grep -Fq "englishSchedulerPriority:'english-uae-core-cron-deadline-safe'" discovery-entry.js
-          grep -Fq 'englishSchedulerEffectiveBatch:4' discovery-entry.js
+          grep -Fq 'englishSchedulerEffectiveBatch:1' discovery-entry.js
           grep -Fq "runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:9000})" auto-platform.js
           grep -Fq 'candidateScanDeadline:true' english-canary.js
           grep -Fq 'englishSchedulerTimeBudgetMs:9000' discovery-entry.js
