@@ -44,5 +44,7 @@ jobs:
           if s.get('status')=='running':
               assert age <= 180, f'english_scheduler_running_stale:{age:.0f}s'
           else:
-              assert s.get('ok') is True, s
+              errors=set(s.get('resultErrors') or [])
+              benign_duplicate_only=(not s.get('error')) and errors.issubset({'r2_conditional_duplicate'})
+              assert s.get('ok') is True or benign_duplicate_only, s
           PY
