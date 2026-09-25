@@ -243,7 +243,10 @@ jobs:
           grep -Fq 'privacySafeConversionEvents:true' brand-runtime.js
           grep -Fq 'conversionAttributionDimensions:true' brand-runtime.js
           grep -Fq 'secureEnglishBatchStep:true' discovery-entry.js
-          grep -Fq 'englishBatchRunsBeforeRepair:true' discovery-entry.js
+          grep -Fq 'englishBatchRunsBeforeRepair:false' discovery-entry.js
+          grep -Fq "englishSchedulerPriority:'uae-parallel-bounded'" discovery-entry.js
+          grep -Fq 'englishSchedulerEffectiveBatch:6' discovery-entry.js
+          grep -Fq 'englishSchedulerTimeBudgetMs:25000' discovery-entry.js
           grep -Fq "/api/internal/english-batch-step" discovery-entry.js
           grep -Fq "const allowed=new Set(['copy_code','shop_click','open_noon'" brand-runtime.js
           grep -Fq 'current.markets=current.markets||{}' platform.js

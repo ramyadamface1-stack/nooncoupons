@@ -52,7 +52,7 @@ jobs:
           grep -Fq 'schedulerEffectiveBatchPerTick:6' english-canary.js
           grep -Fq "healthSamplePolicy:'canaries-plus-latest-48'" english-canary.js
           grep -Fq "samplePolicy:'canaries-plus-latest-48'" english-canary.js
-          grep -Fq "englishSchedulerPriority:'uae-first-serial'" discovery-entry.js
+          grep -Fq "englishSchedulerPriority:'uae-parallel-bounded'" discovery-entry.js
           grep -Fq 'perScanSlugDedup:true' english-canary.js
           grep -Fq 'r2HeadRateLimited' english-canary.js
           grep -Fq "const TARGET_MARKET='AE';" english-canary.js
