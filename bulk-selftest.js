@@ -16,8 +16,13 @@ const seedProbeCursor=BULK_ENGINE_INFO.topicSpace+118851;
 const seedProbe=buildBulkTopic(seedProbeCursor);
 if(Number(seedProbe.topicIndex)!==seedProbeCursor)throw new Error('topic_index_not_full_cursor:'+JSON.stringify({expected:seedProbeCursor,actual:seedProbe.topicIndex}));
 if(Number(seedProbe.diversitySeed)!==seedProbeCursor)throw new Error('diversity_seed_not_full_cursor:'+JSON.stringify({expected:seedProbeCursor,actual:seedProbe.diversitySeed}));
-if(BULK_ENGINE_INFO.topicSeedModel!=='full-cursor-v1')throw new Error('topic_seed_model_missing:'+String(BULK_ENGINE_INFO.topicSeedModel||''));
+if(BULK_ENGINE_INFO.topicSeedModel!=='expanded-cycle-context-v2')throw new Error('topic_seed_model_missing:'+String(BULK_ENGINE_INFO.topicSeedModel||''));
 console.log('TOPIC_SEED_FULL_CURSOR_PASS='+seedProbeCursor);
+const expandedProbe=buildBulkTopic(1036800+118851),baseProbe=buildBulkTopic(118851);
+if(!expandedProbe.decisionContext)throw new Error('expanded_context_missing');
+if(expandedProbe.slug===baseProbe.slug||expandedProbe.primaryKeyword===baseProbe.primaryKeyword)throw new Error('expanded_context_not_unique');
+if(Number(BULK_ENGINE_INFO.topicSpace)<30000000||Number(BULK_ENGINE_INFO.decisionContexts)<24)throw new Error('expanded_topic_space_too_small:'+JSON.stringify(BULK_ENGINE_INFO));
+console.log('EXPANDED_TOPIC_SPACE_PASS='+JSON.stringify({topicSpace:BULK_ENGINE_INFO.topicSpace,decisionContexts:BULK_ENGINE_INFO.decisionContexts,context:expandedProbe.decisionContext}));
 
 for(let n=0;n<40;n++){
   const cursor=500000+n;
@@ -76,7 +81,7 @@ const matureNoLinks=evaluateIndexation(firstAccepted.article,firstAccepted.topic
 if(matureNoLinks.indexable||!matureNoLinks.reasons.includes('weak_cluster_support'))throw new Error('mature_cluster_without_links_was_not_blocked:'+JSON.stringify(matureNoLinks));
 
 console.log(JSON.stringify({engine:BULK_ENGINE_INFO,globalIndex:GLOBAL_INDEX_INFO,couponRegistry:COUPON_REGISTRY_INFO,schemaGate:SCHEMA_GATE_INFO,indexationGate:INDEXATION_GATE_INFO,editorialTrust:EDITORIAL_TRUST_INFO,eligible,ready,rejected,minScore,maxScore,minIndexation,minWords,maxWords,groupMins,clusters:clusters.size},null,2));
-if(BULK_ENGINE_INFO.topicSpace<1000000)throw new Error('topic_space_too_small');
+if(BULK_ENGINE_INFO.topicSpace<30000000)throw new Error('topic_space_too_small');
 if(BULK_ENGINE_INFO.blueprints<10)throw new Error('blueprint_diversity_too_small');
 // Quality-first invariant: throughput may fall when stronger gates reject similar pages.
 if(eligible<20)throw new Error('coupon_eligible_sample_too_low:'+eligible);
