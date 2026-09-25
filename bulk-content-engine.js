@@ -169,6 +169,31 @@ function cleanEnglishHtml(html){
     .replace(/\bguide\s+guide\b/gi,'guide');
 }
 
+const UAE_ENGLISH_CITIES=['Dubai','Abu Dhabi','Sharjah','Ajman','Al Ain'];
+const UAE_ENGLISH_PURCHASE_MODES=['single-item checkout','mixed basket','mobile-app checkout','desktop checkout','gift purchase','replacement purchase','family purchase','sale-event comparison'];
+const UAE_ENGLISH_DECISION_FRAMES=[
+  ['Price-control check','Freeze the exact model, seller and quantity before comparing totals. Record the listed price, delivery line and payable amount, then change only one cart variable. This separates a coupon effect from a seller, stock or shipping change.','If the payable total moves, repeat the comparison with the original item state. Treat checkout as the final commercial reference and do not turn a temporary cart result into a permanent discount claim.'],
+  ['Variant-and-seller check','Confirm storage, size, colour, pack or model details before testing the code. Two similar listings can have different sellers, fulfilment paths or included accessories, so the comparison should use one exact listing.','Keep seller and variant fixed while testing the coupon. If you intentionally change seller, label that as a new comparison rather than continuing the first one.'],
+  ['Delivery-cost check','Write down the delivery promise and shipping line before applying the code. A lower item price can still produce a higher final total when delivery changes, so compare the complete payable amount rather than the product line alone.','Recheck delivery after every meaningful cart edit. For an urgent purchase, timing may matter more than a small price difference; for a flexible purchase, compare the same product again under current checkout conditions.'],
+  ['Budget-boundary check','Set a maximum payable total before comparing alternatives. Keep the product requirements fixed, then use the coupon as one input inside that budget instead of choosing a weaker product only because a code appears to work.','If the preferred item stays above budget, compare a clearly defined alternative with the same essential requirements and record what changed in specification as well as price.'],
+  ['Return-and-warranty check','Before treating the lowest total as the best option, review the seller, return context and warranty information shown for the exact listing. These details can change the practical value of two offers that look similar in search results.','Use the coupon test only after the product and seller meet your requirements. A successful code should not override a poor seller fit, unsuitable warranty context or an item that does not match the intended use.'],
+  ['Timing-and-stock check','When stock or campaign conditions change, capture the current item state and checkout total instead of relying on an older screenshot or remembered price. Re-run the same controlled comparison only when the purchase decision is still open.','If availability changes, treat the new listing as a new decision. Do not attribute the whole price movement to the coupon when stock, seller or campaign conditions also changed.']
+];
+function englishUaeDiversitySections(candidate,cursor){
+  if(candidate?.country!=='AE')return '';
+  const seed=Math.abs(Number(cursor||candidate?.topicIndex||0));
+  const kw=String(candidate?.nativeKeyword||candidate?.primaryKeyword||'Noon UAE deal');
+  const cat=String(candidate?.nativeCategory||candidate?.profileKey||'product');
+  const intent=String(candidate?.intent||'shopping');
+  const city=UAE_ENGLISH_CITIES[seed%UAE_ENGLISH_CITIES.length];
+  const mode=UAE_ENGLISH_PURCHASE_MODES[Math.floor(seed/5)%UAE_ENGLISH_PURCHASE_MODES.length];
+  const a=UAE_ENGLISH_DECISION_FRAMES[seed%UAE_ENGLISH_DECISION_FRAMES.length];
+  const b=UAE_ENGLISH_DECISION_FRAMES[(seed+3)%UAE_ENGLISH_DECISION_FRAMES.length];
+  const first=`<section class="uae-decision-frame" data-frame="${seed%UAE_ENGLISH_DECISION_FRAMES.length}"><h2>${esc(a[0])} for ${esc(cat)} in ${esc(city)}</h2><p>For the query <strong>${esc(kw)}</strong>, use a ${esc(mode)} as the controlled shopping scenario. ${esc(a[1])}</p><p>${esc(a[2])} This keeps the guide tied to the exact UAE purchase question instead of repeating a generic coupon explanation.</p></section>`;
+  const second=`<section class="uae-decision-frame" data-frame="${(seed+3)%UAE_ENGLISH_DECISION_FRAMES.length}"><h2>${esc(b[0])}: ${esc(intent)} decision</h2><p>Apply this second check specifically to ${esc(cat)} while remaining in the UAE storefront. ${esc(b[1])}</p><p>${esc(b[2])} For ${esc(city)} shoppers, the useful output is a documented final-cart comparison for this exact item state, not a universal promise about price, eligibility or savings.</p></section>`;
+  return first+second;
+}
+
 export function buildEnglishNativeCandidate(topic){
   return normalizeEnglishCandidate(buildEnglishNativeCandidateBase(topic));
 }
@@ -180,6 +205,8 @@ export function buildEnglishUsefulArticle(candidate,cursor=0){
   const kw=String(article.primaryKeyword||normalized?.nativeKeyword||'').replace(/\bcart test\b/gi,'checkout checklist').replace(/\s+/g,' ').trim();
   const title=String(article.title||kw).replace(/\bcart test\b/gi,'checkout checklist').replace(/\s+/g,' ').trim();
   const slug=String(article.slug||'').replace(/cart-test\b/gi,'checkout-checklist');
-  const html=cleanEnglishHtml(article.html);
-  return {...article,slug,title,primaryKeyword:kw,metaDescription:englishMeta(kw,normalized?.code||article.coupon||''),html};
+  const diversity=englishUaeDiversitySections(normalized,cursor);
+  const enriched=diversity?String(article.html||'').replace('</article>',diversity+'</article>'):String(article.html||'');
+  const html=cleanEnglishHtml(enriched);
+  return {...article,slug,title,primaryKeyword:kw,metaDescription:englishMeta(kw,normalized?.code||article.coupon||''),html,englishSemanticDiversityV2:Boolean(diversity)};
 }

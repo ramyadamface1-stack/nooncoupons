@@ -54,6 +54,8 @@ jobs:
           grep -Fq 'schedulerTimeBudgetMs:30000' english-canary.js
           grep -Fq 'highDemandShareTarget:95' english-canary.js
           grep -Fq 'goldenHeadShareTarget:95' english-canary.js
+          grep -Fq 'englishSemanticDiversityV2:true' english-canary.js
+          grep -Fq 'englishUaeDiversitySections' bulk-content-engine.js
           grep -Fq 'publishStateBeforeIndexNow:true' english-canary.js
           grep -Fq 'candidateScanDeadline:true' english-canary.js
           grep -Fq "schedulerRuntimeOwner:'auto-platform'" english-canary.js
