@@ -255,12 +255,14 @@ export default{
     return res;
   },
   async scheduled(event,env,ctx){
+    const base=app.scheduled?app.scheduled(event,env,ctx):null;
+    if(base)ctx.waitUntil(Promise.resolve(base));
     const englishTask=(async()=>{
       const startedAt=new Date().toISOString();
       let batch=null,error=null,repair=null;
-      try{batch=await runEnglishCanaryBatch(env,{maxPerTick:24,timeBudgetMs:45000})}catch(e){error=String(e?.message||e).slice(0,240)}
+      try{batch=await runEnglishCanaryBatch(env,{maxPerTick:6,timeBudgetMs:25000})}catch(e){error=String(e?.message||e).slice(0,240)}
       const payload={
-        version:3,priority:'english-uae-first',startedAt,completedAt:new Date().toISOString(),ok:!error&&Boolean(batch?.ok),error,
+        version:4,priority:'english-uae-parallel-bounded',startedAt,completedAt:new Date().toISOString(),ok:!error&&Boolean(batch?.ok),error,
         published:Number(batch?.published||0),maxPerTick:Number(batch?.maxPerTick||0),
         skipped:(batch?.results||[]).find(x=>x?.skipped)?.skipped||null,
         resultErrors:(batch?.results||[]).filter(x=>x?.ok===false).map(x=>String(x?.error||'error').slice(0,180)).slice(0,10)
@@ -272,10 +274,8 @@ export default{
       try{repair=await repairEnglishCanaryLegacyMetadata(env)}catch{}
       return {batch,repair};
     })();
-    await englishTask;
-    const base=app.scheduled?app.scheduled(event,env,ctx):null;
-    if(base)ctx.waitUntil(Promise.resolve(base));
+    ctx.waitUntil(englishTask);
   }
 };
 
-export const DISCOVERY_ENTRY_INFO={version:14,englishBatchPublishing:true,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishBatchRunsBeforeRepair:true,englishSchedulerObserved:true,englishSchedulerPriority:'uae-first-serial',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:45000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:true,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:15,englishBatchPublishing:true,englishPriorityDiscovery:true,englishPriorityArticleLimit:200,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'uae-parallel-bounded',englishSchedulerEffectiveBatch:6,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:25000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:true,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};

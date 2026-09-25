@@ -22,7 +22,10 @@ jobs:
           node --check discovery-entry.js
           node --check commerce-entry.js
           grep -Fq "englishSchedulerOwner:true" discovery-entry.js
-          grep -Fq "runEnglishCanaryBatch(env,{maxPerTick:24,timeBudgetMs:45000})" discovery-entry.js
+          grep -Fq "runEnglishCanaryBatch(env,{maxPerTick:6,timeBudgetMs:25000})" discovery-entry.js
+          grep -Fq "englishSchedulerPriority:'uae-parallel-bounded'" discovery-entry.js
+          grep -Fq 'englishSchedulerEffectiveBatch:6' discovery-entry.js
+          grep -Fq 'englishSchedulerTimeBudgetMs:25000' discovery-entry.js
           grep -Fq "englishSchedulerOwner:false" commerce-entry.js
           node --check english-canary-repair.js
           node --check bulk-content-engine.js
@@ -46,7 +49,7 @@ jobs:
           grep -Fq 'r2HeadHotPath:false' english-canary.js
           grep -Fq 'conditionalCreateOnly:true' english-canary.js
           grep -Fq 'qualityBeforeR2Head:true' english-canary.js
-          grep -Fq 'schedulerEffectiveBatchPerTick:24' english-canary.js
+          grep -Fq 'schedulerEffectiveBatchPerTick:6' english-canary.js
           grep -Fq "healthSamplePolicy:'canaries-plus-latest-48'" english-canary.js
           grep -Fq "samplePolicy:'canaries-plus-latest-48'" english-canary.js
           grep -Fq "englishSchedulerPriority:'uae-first-serial'" discovery-entry.js
