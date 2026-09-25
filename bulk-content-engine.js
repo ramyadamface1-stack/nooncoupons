@@ -99,11 +99,11 @@ const UAE_COMMERCIAL_HEADS={
 };
 const UAE_POPULAR_SEARCHES={
   mobile:['iPhone 17 Pro Max','iPhone 17 Pro','iPhone 17','Samsung Galaxy S25 Ultra','Samsung Galaxy S25','Google Pixel 10 Pro','Nothing Phone','Xiaomi phone','OnePlus phone','Honor phone'],
-  computing:['MacBook Air','MacBook Pro','gaming laptop','Lenovo laptop','ASUS laptop','HP laptop','Dell laptop','iPad','PS5','Nintendo Switch'],
+  computing:['MacBook Air M5','MacBook Neo','MacBook Pro','AI laptop','gaming laptop','2-in-1 laptop','business laptop','Lenovo laptop','ASUS laptop','HP laptop','Dell laptop','iPad','PS5','Nintendo Switch'],
   audio:['AirPods Pro','AirPods','JBL speaker','Sony headphones','Bose headphones','wireless earbuds'],
   screen:['Samsung TV','LG TV','OLED TV','QLED TV','gaming monitor','4K TV'],
   fashion:['handbags','sneakers','running shoes','Birkenstock','sunglasses','watches'],
-  beauty:['perfume','Dyson Airwrap','sunscreen','Vitamin C serum','skincare','makeup','hair dryer'],
+  beauty:['sunscreen','fragrance','eau de parfum','hair growth serum','face moisturizer','Korean skincare','setting spray','perfume','Dyson Airwrap','Vitamin C serum','skincare','makeup','hair dryer'],
   appliance:['Samsung fridge','LG fridge','washing machine','vacuum cleaner','Dyson vacuum','home appliances'],
   kitchen:['Ninja air fryer','Philips air fryer','air fryer','coffee machine','blender','microwave'],
   home:['furniture','mattress','home storage','home deals','bedding'],

@@ -34,7 +34,7 @@ jobs:
           grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "64"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_MIN_BATCH_SIZE": "32"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_TARGET_BATCH_MS": "52000"' wrangler.jsonc
-          grep -Fq '"BULK_CANDIDATE_BUDGET_MS": "42000"' wrangler.jsonc
+          grep -Fq '"BULK_CANDIDATE_BUDGET_MS": "45000"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_WINDOW_HOURS": "8"' wrangler.jsonc
           grep -Fq "MAX_DAILY_TARGET=40000" bulk-generator.js
           grep -Fq "MAX_BATCH_SIZE=64" bulk-generator.js
