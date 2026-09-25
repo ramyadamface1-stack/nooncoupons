@@ -9,6 +9,7 @@ import {generateWithWorkersAI,workersAiBudget,isWorkersAiFreeQuotaError} from '.
 import {BULK_ENGINE_INFO,BULK_RUNTIME_LIMITS} from './bulk-generator.js';
 import {normalizeApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {ensureRuntimeArticleQuality,normalizeRuntimeTitle,normalizeRuntimeMeta,RUNTIME_ARTICLE_QUALITY_INFO} from './article-quality-runtime.js';
+import {runEnglishScheduledTick} from './english-canary.js';
 
 const VERSION='generator-5.0-quality-first';
 const PLATFORM_VERSION='platform-1.6-quality-first';
@@ -321,5 +322,6 @@ export default{
   async scheduled(event,env,ctx){
     if(app.scheduled)ctx.waitUntil(app.scheduled(event,env,ctx));
     ctx.waitUntil(bulkTick(env));
+    ctx.waitUntil(runEnglishScheduledTick(env,{maxPerTick:4,timeBudgetMs:22000}));
   }
 };
