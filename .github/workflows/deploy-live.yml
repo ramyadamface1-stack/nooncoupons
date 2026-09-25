@@ -28,8 +28,8 @@ jobs:
           set -euo pipefail
           for f in discovery-entry.js brand-runtime.js network-entry.js commerce-entry.js public-entry.js premium-entry.js auto-platform.js final-platform.js visual-platform.js platform.js seo-layer.js site.js router.js index.js commerce-pages-v2.js commerce-taxonomy.js svg-engine.js approved-coupons.js admin-page.js english-canary.js indexnow.js article-quality-runtime.js article-corpus-audit.js article-audit-lock.js coupon-r2-migration.js; do node --check "$f"; done
           grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
-          grep -Fq '"BULK_DAILY_TARGET": "32000"' wrangler.jsonc
-          grep -Fq '"BULK_BATCH_SIZE": "24"' wrangler.jsonc
+          grep -Fq '"BULK_DAILY_TARGET": "40000"' wrangler.jsonc
+          grep -Fq '"BULK_BATCH_SIZE": "48"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_TOTAL": "30000"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "64"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_MIN_BATCH_SIZE": "32"' wrangler.jsonc
@@ -187,7 +187,10 @@ jobs:
           grep -Fq 'semanticPreAudit:true' bulk-generator.js
           grep -Fq 'cooperativeYieldEveryTries:8' bulk-generator.js
           grep -Fq 'preAuditSemanticGate' quality-audit.js
-          grep -Fq 'articleWriteConcurrency:16' bulk-generator.js
+          grep -Fq 'articleWriteConcurrency:32' bulk-generator.js
+          grep -Fq "version:'programmatic-cloudflare:v3-expanded-context-space'" bulk-content-engine-base.js
+          grep -Fq 'const TOTAL_TOPIC_SPACE=BASE_TOPIC_SPACE*DECISION_CONTEXTS.length' bulk-content-engine-base.js
+          grep -Fq 'decisionContexts:DECISION_CONTEXTS.length' bulk-content-engine-base.js
           grep -Fq 'clusterWriteConcurrency:16' quality-index.js
           grep -Fq 'GOLDEN_KEYWORD_ROUTES' keyword-pages.js
           grep -Fq 'goldenKeywordsHub' keyword-pages.js
@@ -378,7 +381,7 @@ jobs:
             if curl -fsS --connect-timeout 10 --max-time 30 --retry 1 --retry-all-errors --retry-delay 2 \
               "$ORIGIN/api/english-canary-health?deploy=$GITHUB_SHA-$i" -o /tmp/english-health.json; then
               cat /tmp/english-health.json
-              if jq -e '.ok==true and (.controlled.target|tonumber)==50000 and (.controlled.published|tonumber)>0 and (.controlled.dailyTarget|tonumber)==23040 and (.controlled.minIntervalMinutes|tonumber)==1 and (.controlled.batchSize|tonumber)==16 and .controlled.targetMarket=="AE" and .controlled.marketPolicy=="uae-only-new-v6-batch16"' /tmp/english-health.json >/dev/null; then
+              if jq -e '.ok==true and (.controlled.target|tonumber)==50000 and (.controlled.published|tonumber)>0 and (.controlled.dailyTarget|tonumber)==34560 and (.controlled.minIntervalMinutes|tonumber)==1 and (.controlled.batchSize|tonumber)==24 and .controlled.targetMarket=="AE" and .controlled.marketPolicy=="uae-only-new-v6-batch24"' /tmp/english-health.json >/dev/null; then
                 ready=1
                 break
               fi
@@ -467,7 +470,7 @@ jobs:
           for i in $(seq 1 8); do
             curl -fsS --connect-timeout 10 --max-time 30 "$RUNTIME_ORIGIN/api/generator-health?deploy=$GITHUB_SHA-$i" -o /tmp/g.json || true
             curl -fsS --connect-timeout 10 --max-time 60 "$RUNTIME_ORIGIN/api/content-stats?deploy=$GITHUB_SHA-$i" -o /tmp/s.json || true
-            if python -c "import json; g=json.load(open('/tmp/g.json')); s=json.load(open('/tmp/s.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; rc=s.get('r2Count',{}); assert int(b.get('dailyTarget') or 0)==32000; assert int(b.get('batchSize') or 0)==24; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert 24<=int(p.get('effectiveBatchSize') or 0)<=64; assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0); assert int(p.get('targetBatchDurationMs') or 0)==52000; assert int(p.get('minCatchupBatchSize') or 0)==32; assert int(p.get('windowHours') or 0)==8; assert p.get('capacityMeetsEightHourGoal') is True or int(p.get('remaining') or 0)==0; assert float(p.get('qualityThresholdFloor') or 0)>=95; assert int(p.get('minArticleWords') or 0)>=1500; assert int(s.get('dailyTargetArabic') or 0)==32000; assert s.get('r2Uploaded') is not None; assert rc.get('snapshotKey')=='_ops/article-count.json'; assert int(rc.get('ttlSeconds') or 0)==300" 2>/dev/null; then
+            if python -c "import json; g=json.load(open('/tmp/g.json')); s=json.load(open('/tmp/s.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; rc=s.get('r2Count',{}); assert int(b.get('dailyTarget') or 0)==40000; assert int(b.get('batchSize') or 0)==48; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert 48<=int(p.get('effectiveBatchSize') or 0)<=64; assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0); assert int(p.get('targetBatchDurationMs') or 0)==52000; assert int(p.get('minCatchupBatchSize') or 0)==32; assert int(p.get('windowHours') or 0)==8; assert p.get('capacityMeetsEightHourGoal') is True or int(p.get('remaining') or 0)==0; assert float(p.get('qualityThresholdFloor') or 0)>=95; assert int(p.get('minArticleWords') or 0)>=1500; assert int(s.get('dailyTargetArabic') or 0)==40000; assert s.get('r2Uploaded') is not None; assert rc.get('snapshotKey')=='_ops/article-count.json'; assert int(rc.get('ttlSeconds') or 0)==300" 2>/dev/null; then
               ready=1
               break
             fi
@@ -994,11 +997,11 @@ jobs:
             'nextEligibleAt':c.get('nextEligibleAt')
           },separators=(',',':')))
           assert int(c.get('target') or 0)==50000
-          assert int(c.get('dailyTarget') or 0)==23040
+          assert int(c.get('dailyTarget') or 0)==34560
           assert int(c.get('minIntervalMinutes') or 0)==1
-          assert int(c.get('batchSize') or 0)==16
+          assert int(c.get('batchSize') or 0)==24
           assert c.get('targetMarket')=='AE'
-          assert c.get('marketPolicy')=='uae-only-new-v6-batch16'
+          assert c.get('marketPolicy')=='uae-only-new-v6-batch24'
           idx=x.get('indexNow') or {}
           assert idx.get('urlPathAware') is True
           PY
@@ -1162,7 +1165,7 @@ jobs:
                   'cooperativeYieldVerified': True,
                   'r2CatalogReadFailClosedVerified': True,
                   'r2StatusReadRetryVerified': True,
-                  'articleWriteConcurrency16Verified': True,
+                  'articleWriteConcurrency32Verified': True,
                   'clusterWriteConcurrency16Verified': True,
                   'goldenKeywordHubVerified': True,
                   'seoSettingsR2Verified': True,
@@ -1310,7 +1313,7 @@ jobs:
           assert proof['checks']['cooperativeYieldVerified'] is True
           assert proof['checks']['r2CatalogReadFailClosedVerified'] is True
           assert proof['checks']['r2StatusReadRetryVerified'] is True
-          assert proof['checks']['articleWriteConcurrency16Verified'] is True
+          assert proof['checks']['articleWriteConcurrency32Verified'] is True
           assert proof['checks']['clusterWriteConcurrency16Verified'] is True
           assert proof['checks']['goldenKeywordHubVerified'] is True
           assert proof['checks']['seoSettingsR2Verified'] is True
