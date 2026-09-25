@@ -251,6 +251,8 @@ jobs:
           grep -Fq 'highDemandShareTarget:95' english-canary.js
           grep -Fq 'goldenHeadShareTarget:95' english-canary.js
           grep -Fq 'schedulerFirstIntervalBypass:true' english-canary.js
+          grep -Fq "const SCHEDULER_STATE_KEY='english-canary/scheduler-status-v23.json';" english-canary.js
+          grep -Fq "base={version:23,priority:'english-uae-core-cron-deadline-safe'" english-canary.js
           grep -Fq "const UAE_GEO_SEARCH_MARKETS=['Dubai','Abu Dhabi','Sharjah'];" bulk-content-engine.js
           grep -Fq 'schedulerEffectiveBatchPerTick:8' english-canary.js
           grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
