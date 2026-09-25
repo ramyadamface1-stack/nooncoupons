@@ -147,12 +147,19 @@ export function auditSeoArticle(article,topic,opts={}){
 export function auditSummary(a){return {score:a.score,scoreMode:a.scoreMode||'compliance-gated-v2',wordCount:a.wordCount,productionReady:a.productionReady,groups:a.groups,p0:a.p0,failed:a.failed,minSignatureDistance:a.minSignatureDistance,signature:a.signature,measuredChecks:a.measuredChecks,criteriaCatalogCount:a.criteriaCatalogCount}}
 
 
+const ENGLISH_SHINGLE_CACHE=new WeakMap();
 function englishShingleSet(text,n=5){const a=words(norm(text));const out=new Set();for(let i=0;i<=a.length-n;i++)out.add(a.slice(i,i+n).join(' '));return out}
-function englishJaccardDistance(a,b){const A=englishShingleSet(a),B=englishShingleSet(b);if(!A.size||!B.size)return 1;let inter=0;for(const x of A)if(B.has(x))inter++;return 1-inter/(A.size+B.size-inter)}
+function englishJaccardDistanceSets(A,B){if(!A.size||!B.size)return 1;let inter=0;for(const x of A)if(B.has(x))inter++;return 1-inter/(A.size+B.size-inter)}
+function cachedRecentEnglishShingles(record){
+  if(!record||typeof record!=='object'||!record.plain)return new Set();
+  let cached=ENGLISH_SHINGLE_CACHE.get(record);
+  if(!cached){cached=englishShingleSet(record.plain);ENGLISH_SHINGLE_CACHE.set(record,cached)}
+  return cached;
+}
 export function auditEnglishSeoArticle(article,topic,opts={}){
  const html=String(article?.html||''),plain=strip(html),wordCount=words(plain).length,keyword=String(article?.primaryKeyword||topic?.nativeKeyword||''),title=String(article?.title||''),meta=String(article?.metaDescription||''),slug=String(article?.slug||''),checks=[];
  const latin=count(plain,/[A-Za-z]/g),ar=count(plain,/[؀-ۿ]/g),englishRatio=latin/Math.max(1,latin+ar),h1=count(html,/<h1\b/gi),h2=count(html,/<h2\b/gi),pstats=paragraphStats(html),targetCode=String(topic?.code||article?.coupon||'').toUpperCase(),couponTokens=[...new Set((plain.match(/\b(?:OPS|NOV)\d+\b/gi)||[]).map(x=>x.toUpperCase()))];
- const recent=Array.isArray(opts.recent)?opts.recent:[],sig=contentSignature(plain),distances=recent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=distances.length?Math.min(...distances):32,jaccardDistances=recent.map(r=>r.plain?englishJaccardDistance(plain,r.plain):1),minJaccardDistance=jaccardDistances.length?Math.min(...jaccardDistances):1;
+ const recent=Array.isArray(opts.recent)?opts.recent:[],sig=contentSignature(plain),distances=recent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=distances.length?Math.min(...distances):32,articleShingles=englishShingleSet(plain),jaccardDistances=recent.map(r=>r.plain?englishJaccardDistanceSets(articleShingles,cachedRecentEnglishShingles(r)):1),minJaccardDistance=jaccardDistances.length?Math.min(...jaccardDistances):1;
  addCheck(checks,'seo','identity',Boolean(keyword&&title&&slug),4,{critical:true});addCheck(checks,'seo','title_alignment',overlap(title,keyword)>=.45,4,{critical:true});addCheck(checks,'seo','meta',meta.length>=105&&meta.length<=165,3);addCheck(checks,'seo','one_h1',h1===1,4,{critical:true});
  addCheck(checks,'content','word_floor',wordCount>=900&&wordCount<=1800,5,{critical:wordCount<750||wordCount>2000,note:String(wordCount)});addCheck(checks,'content','sections',h2>=6&&h2<=18,3,{critical:h2>20,note:String(h2)});addCheck(checks,'content','readability',pstats.count>=8&&pstats.max<=150,2);
  addCheck(checks,'trust','official_source',/https:\/\/www\.noon\.com\//i.test(html),5,{critical:true});addCheck(checks,'trust','approved_coupon',couponTokens.length>=1&&couponTokens.every(isApprovedCoupon)&&isApprovedCoupon(targetCode),5,{critical:true});addCheck(checks,'trust','no_fixed_unverified_discount',!/(?:save|discount)\s+(?:up to\s+)?\d{1,3}%|guaranteed coupon|guaranteed discount/i.test(plain),5,{critical:true});addCheck(checks,'trust','checkout_truth',/checkout|cart/i.test(plain)&&/source of truth|final reference|final commercial reference/i.test(plain),3);
