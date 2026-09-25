@@ -74,7 +74,7 @@ jobs:
           grep -Fq 'UAE_POPULAR_SEARCHES' bulk-content-engine.js
           grep -Fq 'UAE_GOLDEN_COMMERCIAL_MODIFIERS' bulk-content-engine.js
           grep -Fq 'function naturalUaeCommercialKeyword' bulk-content-engine.js
-          grep -Fq 'commercial-category-intent' bulk-content-engine.js
+          grep -Fq 'commercial-head-intent' bulk-content-engine.js
           grep -Fq 'goldenModifier=seed%20!==19' bulk-content-engine.js
           grep -Fq 'UAE_PROFILE_GOLDEN_MODIFIERS' bulk-content-engine.js
           grep -Fq 'queryModifier:goldenModifier?cleanModifier:null' bulk-content-engine.js
