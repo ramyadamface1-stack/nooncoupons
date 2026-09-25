@@ -225,7 +225,7 @@ jobs:
         run: |
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
-          curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en-sitemap.xml
+          curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml?verify=$GITHUB_SHA-$GITHUB_RUN_ID" -o /tmp/en-sitemap.xml
           count="$(grep -o '<url>' /tmp/en-sitemap.xml | wc -l | tr -d ' ')"
           test "$count" -ge "20"
           test "$count" -le "10000"
@@ -233,8 +233,8 @@ jobs:
           cut -f1 /tmp/paths.tsv | while IFS= read -r path; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done
           curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
           grep -Fq "$ORIGIN/sitemap-en-articles.xml" /tmp/main-sitemap.xml
-          curl -fsS --max-time 20 "$ORIGIN/en/saudi" -o /tmp/saudi.html
-          curl -fsS --max-time 20 "$ORIGIN/en/uae" -o /tmp/uae.html
+          curl -fsS --max-time 20 "$ORIGIN/en/saudi?verify=$GITHUB_SHA-$GITHUB_RUN_ID" -o /tmp/saudi.html
+          curl -fsS --max-time 20 "$ORIGIN/en/uae?verify=$GITHUB_SHA-$GITHUB_RUN_ID" -o /tmp/uae.html
           node - <<'NODE'
           const fs=require('fs');
           const x=JSON.parse(fs.readFileSync('/tmp/controlled.json','utf8'));
