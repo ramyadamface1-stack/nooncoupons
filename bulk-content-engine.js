@@ -98,9 +98,9 @@ const UAE_COMMERCIAL_HEADS={
   eligibility:['Noon first order coupon UAE','Noon coupon UAE new customer','Noon coupon UAE existing customer','Noon coupon eligibility UAE']
 };
 const UAE_POPULAR_SEARCHES={
-  mobile:['iPhone 17 Pro Max','iPhone 17 Pro','iPhone 17','Samsung Galaxy S25 Ultra','Samsung Galaxy S25','Google Pixel 10 Pro','Nothing Phone','Xiaomi phone','OnePlus phone','Honor phone'],
-  computing:['MacBook Air M5','MacBook Neo','MacBook Pro','AI laptop','gaming laptop','2-in-1 laptop','business laptop','Lenovo laptop','ASUS laptop','HP laptop','Dell laptop','iPad','PS5','PS5 Slim','PS5 Pro','DualSense controller','EA Sports FC 26','Nintendo Switch'],
-  audio:['AirPods Pro','AirPods','JBL speaker','Sony headphones','Bose headphones','wireless earbuds'],
+  mobile:['iPhone 17 Pro Max','iPhone 17 Pro','iPhone 17','Samsung Galaxy S26 Ultra','Samsung Galaxy S26','Samsung Galaxy S25 Ultra','Google Pixel 10 Pro','Nothing Phone','Xiaomi phone','OnePlus phone','Honor phone'],
+  computing:['MacBook Air M5','MacBook Neo','MacBook Pro','AI laptop','gaming laptop','2-in-1 laptop','business laptop','Lenovo laptop','ASUS laptop','HP laptop','Dell laptop','iPad','PS5','PS5 Slim','PS5 Pro','DualSense controller','EA Sports FC 26','Nintendo Switch 2','Nintendo Switch 2 Mario Kart bundle','Nintendo Switch'],
+  audio:['AirPods Pro 3','AirPods 4','AirPods Pro','AirPods','Samsung Galaxy Buds4 Pro','JBL speaker','Sony headphones','Bose headphones','wireless earbuds'],
   screen:['Samsung TV','LG TV','OLED TV','QLED TV','gaming monitor','4K TV'],
   fashion:['handbags','sneakers','running shoes','Birkenstock','sunglasses','watches'],
   beauty:['sunscreen','fragrance','eau de parfum','hair growth serum','face moisturizer','Korean skincare','setting spray','perfume','Dyson Airwrap','Vitamin C serum','skincare','makeup','hair dryer'],
