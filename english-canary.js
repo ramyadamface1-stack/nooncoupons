@@ -148,15 +148,17 @@ export async function runEnglishCanary(env,{ignoreInterval=false}={}){
   return {ok:true,target:canaryTarget,controlledTarget:target,published:state.records.length,publishedToday:publishedToday(state.records),dailyTarget:dailyTargetFromEnv(env),minIntervalMinutes:minIntervalMinutesFromEnv(env),nextEligibleAt:nextEligibleAt(state,env),canaryComplete:state.status==='complete',controlledComplete:state.controlledStatus==='complete',record:publicRecord(record),indexNow,audit:{score:audit.score,wordCount:audit.wordCount,minJaccardDistance:audit.minJaccardDistance,groups:audit.groups}};
 }
 
-export async function runEnglishCanaryBatch(env,{maxPerTick=null}={}){
-  const configured=batchSizeFromEnv(env),effective=Math.max(1,Math.min(configured,Number(maxPerTick||configured)||configured)),results=[];
+export async function runEnglishCanaryBatch(env,{maxPerTick=null,timeBudgetMs=45000}={}){
+  const configured=batchSizeFromEnv(env),requested=Number(maxPerTick||configured)||configured,effective=Math.max(1,Math.min(configured,24,requested)),budget=Math.max(5000,Math.min(50000,Number(timeBudgetMs||45000)||45000)),startedAt=Date.now(),results=[];
+  let stoppedByBudget=false;
   for(let i=0;i<effective;i++){
+    if(i>0&&Date.now()-startedAt>=budget){stoppedByBudget=true;break}
     const result=await runEnglishCanary(env,{ignoreInterval:i>0});
     results.push(result);
-    if(result?.skipped)break;
+    if(result?.skipped||result?.ok===false)break;
   }
-  const published=results.filter(r=>Boolean(r?.record)).length;
-  return {ok:results.some(r=>r?.ok!==false)||published>0,maxPerTick:effective,configuredMaxPerTick:configured,published,results};
+  const published=results.filter(r=>Boolean(r?.record)).length,durationMs=Date.now()-startedAt;
+  return {ok:results.some(r=>r?.ok!==false)||published>0,maxPerTick:effective,configuredMaxPerTick:configured,published,durationMs,timeBudgetMs:budget,stoppedByBudget,results};
 }
 
 export async function englishCanaryRecords(env){const s=await readState(env);return (s.records||[]).map(publicRecord)}
