@@ -113,7 +113,7 @@ jobs:
           grep -Fq "richArticleSchema:true" english-canary.js
           grep -Fq "visibleEditorialByline:true" english-canary.js
           grep -Fq 'data-english-author="editorial-team"' english-canary.js
-          grep -Fq "const indexNow=await submitIndexNow(env,[record])" english-canary.js
+          grep -Fq 'publishStateBeforeIndexNow:true' english-canary.js
           grep -Fq "ProfilePage" site.js
           grep -Fq 'editorial-team-profile' site.js
           grep -Fq 'Noon Deals Now Editorial Team' site.js
