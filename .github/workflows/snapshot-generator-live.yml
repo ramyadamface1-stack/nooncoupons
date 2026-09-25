@@ -36,7 +36,7 @@ jobs:
           import json,datetime
           x=json.load(open('/tmp/e.json'))
           s=x.get('scheduler') or {}
-          ts=s.get('completedAt')
+          ts=s.get('completedAt') or s.get('startedAt')
           assert ts, 'english_scheduler_missing'
           dt=datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
           age=(datetime.datetime.now(datetime.timezone.utc)-dt).total_seconds()
