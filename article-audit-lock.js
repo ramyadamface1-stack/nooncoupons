@@ -1,5 +1,6 @@
 const KEY='maintenance/article-corpus-audit-lock-v1.json';
 const DEFAULT_TTL_MS=20*60*1000;
+const STALE_HEARTBEAT_MS=6*60*1000;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 async function retry(fn,attempts=4){
@@ -50,9 +51,10 @@ export async function readArticleAuditLock(env){
     if(!o)return {active:false,key:KEY};
     const x=JSON.parse(await o.text()),expires=Date.parse(x?.expiresAt||''),heartbeat=Date.parse(x?.heartbeatAt||x?.startedAt||'');
     if(x?.active!==true)return {...x,active:false,key:KEY};
-    const effectiveExpires=Number.isFinite(expires)?expires:(Number.isFinite(heartbeat)?heartbeat+DEFAULT_TTL_MS:0);
-    if(!effectiveExpires||effectiveExpires<=Date.now())return {...x,active:false,expired:true,key:KEY,effectiveExpiresAt:effectiveExpires?new Date(effectiveExpires).toISOString():null};
-    return {...x,active:true,key:KEY,effectiveExpiresAt:new Date(effectiveExpires).toISOString()};
+    const configuredExpires=Number.isFinite(expires)?expires:0,heartbeatExpires=Number.isFinite(heartbeat)?heartbeat+STALE_HEARTBEAT_MS:0;
+    const effectiveExpires=configuredExpires&&heartbeatExpires?Math.min(configuredExpires,heartbeatExpires):(configuredExpires||heartbeatExpires);
+    if(!effectiveExpires||effectiveExpires<=Date.now())return {...x,active:false,expired:true,staleHeartbeat:Boolean(heartbeatExpires&&heartbeatExpires<=Date.now()),key:KEY,effectiveExpiresAt:effectiveExpires?new Date(effectiveExpires).toISOString():null};
+    return {...x,active:true,key:KEY,effectiveExpiresAt:new Date(effectiveExpires).toISOString(),heartbeatFreshUntil:heartbeatExpires?new Date(heartbeatExpires).toISOString():null};
   }catch(e){
     return {active:true,failClosed:true,key:KEY,reason:'audit_lock_read_failed',error:String(e?.message||e).slice(0,160)};
   }
@@ -63,4 +65,4 @@ export async function publicationBlockedByArticleAudit(env){
   return lock.active?lock:null;
 }
 
-export const ARTICLE_AUDIT_LOCK_INFO={version:1,key:KEY,ttlMinutes:DEFAULT_TTL_MS/60000,publicationFailClosed:true};
+export const ARTICLE_AUDIT_LOCK_INFO={version:1,key:KEY,ttlMinutes:DEFAULT_TTL_MS/60000,staleHeartbeatMinutes:STALE_HEARTBEAT_MS/60000,publicationFailClosed:true};

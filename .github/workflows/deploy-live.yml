@@ -423,16 +423,26 @@ jobs:
           curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/api/english-canary-health?direct-before=$GITHUB_SHA" -o /tmp/en-direct-before.json
           before_ae="$(jq -r '(.controlled.ae//0)|tonumber' /tmp/en-direct-before.json)"
           moved=0
+          deferred=0
           for i in $(seq 1 4); do
             if curl -fsS --connect-timeout 10 --max-time 32 -H "$AUTH" -H 'Content-Type: application/json' -X POST --data '{"limit":1,"timeBudgetMs":22000,"ignoreInterval":true}' "$ORIGIN/api/internal/english-batch-step?direct=$GITHUB_SHA-$i" -o /tmp/en-direct.json; then
               cat /tmp/en-direct.json
               curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/api/english-canary-health?direct=$GITHUB_SHA-$i" -o /tmp/en-direct-health.json
               after_ae="$(jq -r '(.controlled.ae//0)|tonumber' /tmp/en-direct-health.json)"
               if [ "$after_ae" -gt "$before_ae" ]; then moved=1; break; fi
+              if jq -e '[.results[]? | select(.skipped=="corpus_audit_in_progress")] | length > 0' /tmp/en-direct.json >/dev/null; then
+                deferred=1
+                echo "UAE_ENGLISH_DIRECT_BATCH_DEFERRED_BY_ACTIVE_AUDIT=1"
+                break
+              fi
             fi
             sleep 2
           done
-          [ "$moved" = 1 ] || { echo 'UAE_ENGLISH_DIRECT_BATCH_DID_NOT_MOVE'; cat /tmp/en-direct.json 2>/dev/null || true; exit 1; }
+          if [ "$moved" != 1 ] && [ "$deferred" != 1 ]; then
+            echo 'UAE_ENGLISH_DIRECT_BATCH_DID_NOT_MOVE'
+            cat /tmp/en-direct.json 2>/dev/null || true
+            exit 1
+          fi
           jq -e '.ok==true and .controlled.targetMarket=="AE"' /tmp/en-direct-health.json >/dev/null
       - name: Prove UAE English publishing moves
         shell: bash
