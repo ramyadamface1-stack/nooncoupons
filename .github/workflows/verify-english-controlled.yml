@@ -202,16 +202,17 @@ jobs:
           ORIGIN="https://noondealsnow.com"
           while IFS=$'\t' read -r path market category slug; do
             test -n "$path"
-            curl -fsS -D /tmp/page.h --max-time 20 "$ORIGIN$path" -o /tmp/page.html
-            grep -Fiq 'HTTP/2 200' /tmp/page.h || grep -Fiq 'HTTP/1.1 200' /tmp/page.h
+            code="$(curl -sS -D /tmp/page.h -o /tmp/page.html -w '%{http_code}' --max-time 20 "$ORIGIN$path")"
+            test "$code" = "200"
             grep -Fiq 'content-language: en' /tmp/page.h
             grep -Fiq 'x-english-canary: v1' /tmp/page.h
-            grep -Fq '<html lang="en" dir="ltr">' /tmp/page.html
+            if [ "$market" = "/en/uae" ]; then market_lang="en-AE"; arabic_lang="ar-AE"; arabic_path="/uae"; else market_lang="en-SA"; arabic_lang="ar-SA"; arabic_path="/saudi"; fi
+            grep -Fq "<html lang=\"$market_lang\" dir=\"ltr\">" /tmp/page.html
             grep -Fq '<meta name="robots" content="index,follow,max-image-preview:large">' /tmp/page.html
             grep -Fq "<link rel=\"canonical\" href=\"$ORIGIN$path\">" /tmp/page.html
-            grep -Fq "hreflang=\"en\" href=\"$ORIGIN$path\"" /tmp/page.html
+            grep -Fq "hreflang=\"$market_lang\" href=\"$ORIGIN$path\"" /tmp/page.html
+            grep -Fq "hreflang=\"$arabic_lang\" href=\"$ORIGIN$arabic_path\"" /tmp/page.html
             grep -Fq "hreflang=\"x-default\" href=\"$ORIGIN$path\"" /tmp/page.html
-            if grep -Eiq 'hreflang="ar([_-][A-Za-z]+)?"' /tmp/page.html; then echo "UNMAPPED_AR_HREFLANG $slug"; exit 1; fi
             grep -Fq 'data-copy-code=' /tmp/page.html
             grep -Fq 'Copy ' /tmp/page.html
             grep -Fq 'href="https://www.noon.com/' /tmp/page.html
