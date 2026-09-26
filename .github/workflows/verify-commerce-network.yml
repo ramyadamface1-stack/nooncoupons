@@ -59,7 +59,8 @@ jobs:
           echo CHECK_COMPARE; grep -Eq 'آيفون.*Samsung Galaxy|iPhone.*Galaxy|Galaxy.*iPhone' /tmp/compare.html
           echo CHECK_COLLECTION_SCHEMA; grep -Fq 'CollectionPage' /tmp/mobiles.html
           echo CHECK_BREADCRUMB; grep -Fq 'BreadcrumbList' /tmp/mobiles.html
-          echo CHECK_OPS; grep -Eq 'OPS(32|56|47|48|43|41|38|58)' /tmp/mobiles.html
+          echo CHECK_APPROVED_COUPON; grep -Eq 'NOV(170|188|174|157|177|186|163|153|195|161)' /tmp/mobiles.html
+          echo CHECK_NO_LEGACY_OPS; ! grep -Eq 'OPS[0-9]+' /tmp/mobiles.html
           echo CHECK_FAQ_SCHEMA; grep -Fq 'FAQPage' /tmp/mobiles.html
           echo CHECK_METHODOLOGY; grep -Eq 'منهجية التحرير والتحقق|منهجية التحقق|التحرير والتحقق' /tmp/mobiles.html
           echo CHECK_NOON_OFFICIAL; grep -Fq 'https://www.noon.com/saudi-ar/' /tmp/mobiles.html
