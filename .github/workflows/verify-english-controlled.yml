@@ -22,9 +22,9 @@ jobs:
           node --check discovery-entry.js
           node --check commerce-entry.js
           grep -Fq "englishSchedulerOwner:true" discovery-entry.js
-          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:18,timeBudgetMs:45000})" auto-platform.js
+          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:24,timeBudgetMs:45000})" auto-platform.js
           grep -Fq "englishSchedulerPriority:'english-uae-core-cron-deadline-safe'" discovery-entry.js
-          grep -Fq 'englishSchedulerEffectiveBatch:18' discovery-entry.js
+          grep -Fq 'englishSchedulerEffectiveBatch:24' discovery-entry.js
           grep -Fq 'englishSchedulerTimeBudgetMs:45000' discovery-entry.js
           grep -Fq "englishSchedulerOwner:false" commerce-entry.js
           node --check english-canary-repair.js
@@ -49,13 +49,15 @@ jobs:
           grep -Fq 'r2HeadHotPath:false' english-canary.js
           grep -Fq 'conditionalCreateOnly:true' english-canary.js
           grep -Fq 'qualityBeforeR2Head:true' english-canary.js
-          grep -Fq 'schedulerEffectiveBatchPerTick:18' english-canary.js
+          grep -Fq 'schedulerEffectiveBatchPerTick:24' english-canary.js
           grep -Fq 'englishRelatedArticles:6' english-canary.js
           grep -Fq 'id="english-related-network"' english-canary.js
           grep -Fq 'stateCompaction:true' english-canary.js
           grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
           grep -Fq 'highDemandShareTarget:95' english-canary.js
-          grep -Fq 'goldenHeadShareTarget:95' english-canary.js
+          grep -Fq 'goldenHeadShareTarget:50' english-canary.js
+          grep -Fq 'commercialSeedShareTarget:95' english-canary.js
+          grep -Fq 'currentUaeModelTerms:true' english-canary.js
           grep -Fq 'schedulerFirstIntervalBypass:true' english-canary.js
           grep -Fq "const SCHEDULER_STATE_KEY='english-canary/scheduler-status-v23.json';" english-canary.js
           grep -Fq "base={version:23,priority:'english-uae-core-cron-deadline-safe'" english-canary.js
