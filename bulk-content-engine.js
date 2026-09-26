@@ -115,9 +115,9 @@ const UAE_COMMERCIAL_HEADS={
   eligibility:['Noon first order coupon UAE','Noon coupon UAE new customer','Noon coupon UAE existing customer','Noon coupon eligibility UAE']
 };
 const UAE_POPULAR_SEARCHES={
-  mobile:['iPhone 17 Pro Max','iPhone 17 Pro','iPhone 17 Air','iPhone 17','Samsung Galaxy S26 Ultra','Samsung Galaxy S26','Samsung Galaxy S25 Ultra','Google Pixel 10 Pro','Nothing Phone','Xiaomi phone','OnePlus phone','Honor phone'],
+  mobile:['iPhone 18 Pro Max','iPhone 18 Pro','iPhone Duo','iPhone 17','Samsung Galaxy S26 Ultra','Samsung Galaxy S26','Galaxy Z Fold8','Galaxy Z Flip8','Google Pixel 10 Pro','Nothing Phone','Xiaomi phone','OnePlus phone','Honor phone'],
   computing:['MacBook Air M5','MacBook Neo','MacBook Pro','AI laptop','gaming laptop','2-in-1 laptop','business laptop','Lenovo laptop','ASUS laptop','HP laptop','Dell laptop','iPad','PS5','PS5 Slim','PS5 Pro','DualSense controller','EA Sports FC 26','Nintendo Switch 2','Nintendo Switch 2 Mario Kart bundle','Nintendo Switch'],
-  audio:['AirPods Pro 3','AirPods 4','AirPods Pro','AirPods','Samsung Galaxy Buds4 Pro','JBL speaker','Sony headphones','Bose headphones','wireless earbuds'],
+  audio:['AirPods 5','AirPods Pro','AirPods','Samsung Galaxy Buds4 Pro','JBL speaker','Sony headphones','Bose headphones','wireless earbuds'],
   screen:['Samsung TV','LG TV','OLED TV','QLED TV','gaming monitor','4K TV'],
   fashion:['handbags','sneakers','running shoes','Birkenstock','sunglasses','watches'],
   beauty:['sunscreen','fragrance','eau de parfum','hair growth serum','face moisturizer','Korean skincare','setting spray','perfume','Dyson Airwrap','Vitamin C serum','skincare','makeup','hair dryer'],
@@ -154,14 +154,24 @@ function uaeEnglishPriorityKeyword(candidate){
   if(candidate?.country!=='AE')return null;
   const profile=String(candidate.profileKey||'general'),category=UAE_QUERY_CATEGORY[profile]||String(candidate.nativeCategory||'').trim();
   const seed=Math.abs(Number(candidate.topicIndex||0)),heads=UAE_COMMERCIAL_HEADS[candidate.intent]||UAE_COMMERCIAL_HEADS.coupon,demand=UAE_POPULAR_SEARCHES[profile]||[];
-  const useDemand=demand.length>0&&seed%10!==0,subject=useDemand?demand[seed%demand.length]:category,head=heads[seed%heads.length],goldenModifier=seed%20!==19;
-  const profileGolden=UAE_PROFILE_GOLDEN_MODIFIERS[profile]||UAE_GOLDEN_COMMERCIAL_MODIFIERS,modifierPool=goldenModifier?profileGolden:UAE_ENGLISH_QUERY_MODIFIERS,modifier=modifierPool[Math.floor(seed/Math.max(1,heads.length))%modifierPool.length],intentSuffix=UAE_INTENT_SUFFIX[candidate.intent]||'shopping guide',geo=seed%10<7?'UAE':UAE_GEO_SEARCH_MARKETS[seed%UAE_GEO_SEARCH_MARKETS.length],cleanModifier=cleanUaeGoldenModifier(modifier);
-  const keyword=(useDemand?(goldenModifier?`${subject} Noon ${geo} ${cleanModifier}`:naturalUaeCommercialKeyword(subject,candidate.intent,geo)):head).replace(/\s+/g,' ').trim();
-  const searchClass=String(subject+'-'+(candidate.intent||'commercial')+'-'+geo+'-'+(goldenModifier?cleanModifier:'base')).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
-  const golden=useDemand?goldenModifier:true;
-  return {keyword,tier:golden?'uae-golden-commercial-v3':useDemand?'uae-high-demand-product-v3':'uae-commercial-priority-v4',cluster:`uae-${candidate.intent||'commercial'}-${profile}`,searchClass,headTerm:useDemand?subject:head,demandSource:useDemand?'noon-uae-popular-searches-2026':'commercial-head-intent',golden,goldenModifier,intentSuffix,queryModifier:goldenModifier?cleanModifier:null};
+  const useDemand=demand.length>0&&seed%10!==0,subject=useDemand?demand[seed%demand.length]:category,head=heads[seed%heads.length];
+  const geo=seed%10<7?'UAE':UAE_GEO_SEARCH_MARKETS[seed%UAE_GEO_SEARCH_MARKETS.length];
+  const keyword=(useDemand?naturalUaeCommercialKeyword(subject,candidate.intent,geo):head).replace(/\s+/g,' ').trim();
+  const searchClass=String(subject+'-'+(candidate.intent||'commercial')+'-'+geo).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+  return {
+    keyword,
+    tier:useDemand?'uae-high-demand-product-v4':'uae-golden-commercial-head-v4',
+    cluster:`uae-${candidate.intent||'commercial'}-${profile}`,
+    searchClass,
+    headTerm:useDemand?subject:head,
+    demandSource:useDemand?'noon-uae-popular-searches-2026-current':'commercial-head-intent',
+    golden:true,
+    goldenModifier:false,
+    intentSuffix:UAE_INTENT_SUFFIX[candidate.intent]||'shopping guide',
+    queryModifier:null,
+    singleSubject:true
+  };
 }
-
 function normalizeEnglishCandidate(candidate){
   if(!candidate)return candidate;
   const nativeCategory=String(candidate.nativeCategory||'').trim();
