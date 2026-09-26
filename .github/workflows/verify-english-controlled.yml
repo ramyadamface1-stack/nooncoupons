@@ -54,8 +54,8 @@ jobs:
           grep -Fq 'id="english-related-network"' english-canary.js
           grep -Fq 'stateCompaction:true' english-canary.js
           grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
-          grep -Fq 'highDemandShareTarget:95' english-canary.js
-          grep -Fq 'goldenHeadShareTarget:50' english-canary.js
+          grep -Fq 'highDemandShareTarget:100' english-canary.js
+          grep -Fq 'goldenHeadShareTarget:70' english-canary.js
           grep -Fq 'commercialSeedShareTarget:95' english-canary.js
           grep -Fq 'currentUaeModelTerms:true' english-canary.js
           grep -Fq 'schedulerFirstIntervalBypass:true' english-canary.js
