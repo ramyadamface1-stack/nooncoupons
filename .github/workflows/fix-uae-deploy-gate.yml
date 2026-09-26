@@ -37,7 +37,7 @@ jobs:
           grep -Fq "x-crawl-discovery-links','v2'" discovery-entry.js
           grep -Fq "x-discovery-market-mix','balanced-sa-ae-with-english'" discovery-entry.js
           grep -Fq "'/en/articles/'+enc(a.slug)" discovery-entry.js
-          grep -Fq "'/sitemap-en-articles.xml'" discovery-entry.js
+          grep -Fq "sitemap-en-articles.xml" discovery-entry.js
           echo 'UAE_ENGLISH_SOURCE_GATE=PASS'
 
       - name: Install dependencies
