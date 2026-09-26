@@ -101,6 +101,8 @@ jobs:
           grep -Fq "coupon timing guide" bulk-content-engine.js
           grep -Fq 'const metaLead=/\bguide$/i.test(kw)?kw:`${kw} guide`;' bulk-content-engine.js
           grep -Fq "QUALITY_MARKER_KEY='english-canary/quality-copy-v2.json'" english-canary-repair.js
+          grep -Fq "REPAIR_HEALTH_RECENT_SAMPLE=64" english-canary-repair.js
+          grep -Fq "r2SamplePolicy:'canaries-plus-latest-64'" english-canary-repair.js
       - name: Verify persistent English copy repair in R2 and state
         run: |
           set -euo pipefail
@@ -115,6 +117,7 @@ jobs:
             const q=x.qualityMarker||{};
             const pass=x.ok===true && x.version==='english-copy-v2' && Number(x.totalStateRecords)>=20 &&
               x.controlledQualityClean===true && x.stateClean===true && x.r2MetadataClean===true &&
+              x.r2SamplePolicy==='canaries-plus-latest-64' && Number(x.r2SampleSize)>=2 && Number(x.r2SampleSize)<=66 &&
               Array.isArray(x.unexpectedEnglishRecords) && x.unexpectedEnglishRecords.length===0 &&
               Array.isArray(x.unapprovedCouponRecords) && x.unapprovedCouponRecords.length===0 &&
               Array.isArray(x.unexpectedR2Objects) && x.unexpectedR2Objects.length===0 &&

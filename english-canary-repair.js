@@ -24,6 +24,8 @@ const UNINTENDED_SET=new Set(UNINTENDED_CONTROLLED_SLUGS);
 const BAD_QUALITY_SET=new Set(BAD_QUALITY_SLUGS);
 const bad=/\bguide\s+guide\b/i;
 const badVariant=/\bcart\s+test\b/i;
+const REPAIR_HEALTH_RECENT_SAMPLE=64;
+const REPAIR_HEALTH_R2_CONCURRENCY=8;
 const sanitize=s=>String(s??'').replace(/\bguide\s+guide\b/gi,'guide');
 const sanitizeHtmlCopy=s=>String(s??'').replace(/\bcart\s+test\b/gi,'checkout checklist').replace(/\bguide\s+guide\b/gi,'guide');
 const now=()=>new Date().toISOString();
@@ -240,22 +242,29 @@ export async function englishCanaryRepairHealth(env){
   for(const slug of [...UNINTENDED_CONTROLLED_SLUGS,...BAD_QUALITY_SLUGS]){try{if(await env.CONTENT_FINAL.head('articles/'+slug+'.html'))unexpectedR2.push(slug)}catch{}}
 
   const qualityState=rows.map(r=>({slug:r.slug,clean:copyQualityClean(r),metaDescription:r.metaDescription||null}));
-  const qualityR2=[];
-  for(const r of rows){
-    const a=await inspectArticle(env,r.slug);
-    qualityR2.push({slug:r.slug,present:a.present,metadataMatches:a.present&&a.meta===String(r.metaDescription||''),variantClean:a.present&&!badVariant.test([a.html,a.meta].join(' ')),guideClean:a.present&&!bad.test(a.html)});
+  const recent=rows.slice(-REPAIR_HEALTH_RECENT_SAMPLE),sampleMap=new Map();
+  for(const r of [...targetRows,...recent])if(r?.slug)sampleMap.set(r.slug,r);
+  const r2Sample=[...sampleMap.values()],qualityR2=[];
+  for(let i=0;i<r2Sample.length;i+=REPAIR_HEALTH_R2_CONCURRENCY){
+    const chunk=await Promise.all(r2Sample.slice(i,i+REPAIR_HEALTH_R2_CONCURRENCY).map(async r=>{
+      const a=await inspectArticle(env,r.slug);
+      return {slug:r.slug,present:a.present,metadataMatches:a.present&&a.meta===String(r.metaDescription||''),variantClean:a.present&&!badVariant.test([a.html,a.meta].join(' ')),guideClean:a.present&&!bad.test(a.html)};
+    }));
+    qualityR2.push(...chunk);
   }
 
+  const stateClean=qualityState.every(x=>x.clean);
+  const sampledR2Clean=qualityR2.every(x=>x.present&&x.metadataMatches&&x.variantClean&&x.guideClean);
   const baselineClean=stateChecks.every(x=>x.present&&x.clean)&&articleChecks.every(x=>x.present&&x.htmlClean&&x.metadataClean);
   const baselineReconciled=cleanupMarker?.complete===true&&cleanupMarker?.version==='two-canaries-v1';
   const htmlRepairComplete=htmlMarker?.complete===true&&htmlMarker?.version==='html-copy-v1';
   const target=Math.max(2,Number(state?.controlledTarget||2));
-  const currentQualityClean=rows.length>=2&&qualityState.every(x=>x.clean)&&qualityR2.every(x=>x.present&&x.metadataMatches&&x.variantClean&&x.guideClean)&&identityProblems.length===0&&unapprovedCouponRecords.length===0&&unexpectedR2.length===0&&htmlRepairComplete;
+  const currentQualityClean=rows.length>=2&&stateClean&&sampledR2Clean&&identityProblems.length===0&&unapprovedCouponRecords.length===0&&unexpectedR2.length===0&&htmlRepairComplete;
   const expansionComplete=rows.length>=target;
   const ok=baselineClean&&baselineReconciled&&currentQualityClean;
-  return {ok,version:'english-copy-v2',targetCount:TARGET_SLUGS.length,controlledTarget:target,totalStateRecords:rows.length,expansionComplete,remaining:Math.max(0,target-rows.length),unexpectedEnglishRecords:identityProblems,unapprovedCouponRecords,unexpectedR2Objects:unexpectedR2,stateClean:qualityState.every(x=>x.clean),r2HtmlClean:qualityR2.every(x=>x.present&&x.variantClean&&x.guideClean),r2MetadataClean:qualityR2.every(x=>x.present&&x.metadataMatches),reconciledToTwo:baselineReconciled,baselineReconciled,htmlRepairComplete,controlledQualityClean:currentQualityClean,state:stateChecks,articles:articleChecks,qualityState,qualityR2,marker,cleanupMarker,qualityMarker,htmlMarker};
+  return {ok,version:'english-copy-v2',targetCount:TARGET_SLUGS.length,controlledTarget:target,totalStateRecords:rows.length,expansionComplete,remaining:Math.max(0,target-rows.length),unexpectedEnglishRecords:identityProblems,unapprovedCouponRecords,unexpectedR2Objects:unexpectedR2,stateClean,r2HtmlClean:qualityR2.every(x=>x.present&&x.variantClean&&x.guideClean),r2MetadataClean:qualityR2.every(x=>x.present&&x.metadataMatches),r2SamplePolicy:'canaries-plus-latest-64',r2SampleSize:qualityR2.length,r2SampleTotalRows:rows.length,r2SampleConcurrency:REPAIR_HEALTH_R2_CONCURRENCY,reconciledToTwo:baselineReconciled,baselineReconciled,htmlRepairComplete,controlledQualityClean:currentQualityClean,state:stateChecks,articles:articleChecks,qualityState,qualityR2,marker,cleanupMarker,qualityMarker,htmlMarker};
 }
 
 export async function serveEnglishCanaryRepairHealth(env){const h=await englishCanaryRepairHealth(env);return json(h,h.ok?200:503)}
 
-export const ENGLISH_CANARY_REPAIR_INFO={version:'english-copy-v2',legacyVersion:'guide-guide-v1',reconciliation:'two-canaries-v1',htmlVersion:'html-copy-v1',targets:[...TARGET_SLUGS],unintended:[...UNINTENDED_CONTROLLED_SLUGS],qualityDrops:[...BAD_QUALITY_SLUGS],stateKey:STATE_KEY,markerKey:MARKER_KEY,cleanupMarkerKey:CLEANUP_MARKER_KEY,qualityMarkerKey:QUALITY_MARKER_KEY,htmlMarkerKey:HTML_MARKER_KEY};
+export const ENGLISH_CANARY_REPAIR_INFO={version:'english-copy-v2',healthR2SamplePolicy:'canaries-plus-latest-64',healthR2SampleSize:REPAIR_HEALTH_RECENT_SAMPLE,healthR2Concurrency:REPAIR_HEALTH_R2_CONCURRENCY,legacyVersion:'guide-guide-v1',reconciliation:'two-canaries-v1',htmlVersion:'html-copy-v1',targets:[...TARGET_SLUGS],unintended:[...UNINTENDED_CONTROLLED_SLUGS],qualityDrops:[...BAD_QUALITY_SLUGS],stateKey:STATE_KEY,markerKey:MARKER_KEY,cleanupMarkerKey:CLEANUP_MARKER_KEY,qualityMarkerKey:QUALITY_MARKER_KEY,htmlMarkerKey:HTML_MARKER_KEY};

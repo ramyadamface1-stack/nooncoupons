@@ -258,6 +258,8 @@ jobs:
           grep -Fq "const UAE_GEO_SEARCH_MARKETS=['Dubai','Abu Dhabi','Sharjah'];" bulk-content-engine.js
           grep -Fq 'schedulerEffectiveBatchPerTick:18' english-canary.js
           grep -Fq 'englishRelatedArticles:6' english-canary.js
+          grep -Fq "REPAIR_HEALTH_RECENT_SAMPLE=64" english-canary-repair.js
+          grep -Fq "r2SamplePolicy:'canaries-plus-latest-64'" english-canary-repair.js
           grep -Fq 'id="english-related-network"' english-canary.js
           grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
           grep -Fq 'stateCompaction:true' english-canary.js
