@@ -124,6 +124,8 @@ jobs:
           grep -Fq 'recentArticleLimit:500' discovery-entry.js
           grep -Fq 'discoveryLinks:true' discovery-entry.js
           grep -Fq 'discoveryLinkCount:8' discovery-entry.js
+          grep -Fq 'edgePageCache:true' discovery-entry.js
+          grep -Fq 'edgePageCacheSharedSeconds:120' discovery-entry.js
           grep -Fq 'robotsPrioritySitemap:true' discovery-entry.js
           grep -Fq 'robotsEnglishSitemap:true' discovery-entry.js
           grep -Fq '/sitemap-en-articles.xml' discovery-entry.js
@@ -881,6 +883,14 @@ jobs:
 
           echo "VERIFY_ROUTE=home"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/?deploy=$GITHUB_SHA" -o /tmp/home.html
+
+          echo "VERIFY_ROUTE=edge-page-cache"
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/uae/categories" -D /tmp/cache1.h -o /tmp/cache1.html
+          curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/uae/categories" -D /tmp/cache2.h -o /tmp/cache2.html
+          grep -Fqi 'x-edge-page-cache: HIT' /tmp/cache2.h
+          grep -Fqi 'cache-control: public, max-age=30, s-maxage=120, stale-while-revalidate=600' /tmp/cache2.h
+          grep -Fq 'landing-depth-v3' /tmp/cache2.html
+
           echo "VERIFY_ROUTE=coupons"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/coupons?deploy=$GITHUB_SHA" -o /tmp/coupons.html
           echo "VERIFY_ROUTE=saudi"
