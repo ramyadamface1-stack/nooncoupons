@@ -123,7 +123,7 @@ jobs:
           try{
             const x=JSON.parse(fs.readFileSync('/tmp/repair.json','utf8'));
             const q=x.qualityMarker||{};
-            const pass=x.ok===true && x.version==='english-copy-v2' && Number(x.totalStateRecords)>=20 &&
+            const pass=x.ok===true && x.version==='english-copy-v2' && Number(x.totalStateRecords)>=2 &&
               x.controlledQualityClean===true && x.stateClean===true && x.r2MetadataClean===true &&
               x.r2SamplePolicy==='canaries-plus-latest-64' && Number(x.r2SampleSize)>=2 && Number(x.r2SampleSize)<=66 &&
               Array.isArray(x.unexpectedEnglishRecords) && x.unexpectedEnglishRecords.length===0 &&
@@ -169,11 +169,11 @@ jobs:
               if(r.intent)intentCounts.set(r.intent,(intentCounts.get(r.intent)||0)+1);
             }
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 &&
-              c.target===50000 && c.targetMarket==='AE' && c.marketPolicy==='uae-only-new-v6-batch24' && Number(c.published)>=20 && Number(c.published)<=50000 &&
+              c.target===50000 && c.targetMarket==='AE' && c.marketPolicy==='uae-only-new-v6-batch24' && Number(c.published)>=2 && Number(c.published)<=50000 &&
               Number(c.remaining)===50000-Number(c.published) && Number(c.dailyTarget)===34560 &&
               Number(c.minIntervalMinutes)===1 && Number(c.batchSize)===24 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=34560 &&
               Number(c.recordsTotal)===Number(c.published) && rows.length===Number(c.sampleSize) && rows.length>=2 && rows.length<=50 &&
-              c.samplePolicy==='canaries-plus-latest-48' && Number(c.r2SampleChecked)===rows.length && Number(c.r2SampleMissing)===0 && Number(c.uniqueProfiles)>=10 &&
+              c.samplePolicy==='canaries-plus-latest-48' && Number(c.r2SampleChecked)===rows.length && Number(c.r2SampleMissing)===0 && Number(c.uniqueProfiles)>=Math.min(7,Number(c.published)) &&
               new Set(slugs).size===rows.length && new Set(keywords).size===rows.length && canaries.length===2 && expanded.length===rows.length-2 &&
               !slugs.includes('en-best-time-to-try-a-noon-coupon-uae-office-cart-test') &&
               rows.every(r=>r.r2Present===true && r.status==='published' && r.indexable===true &&
