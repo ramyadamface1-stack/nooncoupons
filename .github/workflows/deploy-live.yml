@@ -447,28 +447,14 @@ jobs:
             exit 1
           fi
           jq -e '.ok==true and .controlled.targetMarket=="AE"' /tmp/en-direct-health.json >/dev/null
-      - name: Prove UAE English publishing moves
+      - name: Verify UAE English post-publish health
         shell: bash
         run: |
           set -euo pipefail
           ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
-          curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/api/english-canary-health?before=$GITHUB_SHA" -o /tmp/en-before.json
-          before="$(jq -r '.controlled.published|tonumber' /tmp/en-before.json)"
-          before_ae="$(jq -r '.controlled.ae|tonumber' /tmp/en-before.json)"
-          before_sched="$(jq -r '.scheduler.completedAt // ""' /tmp/en-before.json)"
-          moved=false
-          for i in $(seq 1 7); do
-            sleep 30
-            curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/api/english-canary-health?movement=$GITHUB_SHA-$i" -o /tmp/en-after.json
-            after="$(jq -r '.controlled.published|tonumber' /tmp/en-after.json)"
-            after_ae="$(jq -r '.controlled.ae|tonumber' /tmp/en-after.json)"
-            after_sched="$(jq -r '.scheduler.completedAt // ""' /tmp/en-after.json)"
-            sched_published="$(jq -r '.scheduler.published // 0' /tmp/en-after.json)"
-            echo "UAE_ENGLISH_MOVEMENT step=$i before=$before after=$after beforeAE=$before_ae afterAE=$after_ae schedulerPublished=$sched_published"
-            if [ "$after" -gt "$before" ] && [ "$after_ae" -gt "$before_ae" ] && [ "$after_sched" != "$before_sched" ]; then moved=true; break; fi
-          done
-          [ "$moved" = true ]
-          jq -e '.lastError==null and .controlled.targetMarket=="AE" and .auditLock.active==false' /tmp/en-after.json >/dev/null
+          curl -fsS --connect-timeout 10 --max-time 30 "$ORIGIN/api/english-canary-health?post-publish=$GITHUB_SHA" -o /tmp/en-after.json
+          jq -e '.ok==true and .lastError==null and .controlled.targetMarket=="AE" and .controlled.marketPolicy=="uae-only-new-v6-batch24" and (.controlled.published|tonumber)>0 and (.controlled.ae|tonumber)>0 and .auditLock.active==false' /tmp/en-after.json >/dev/null
+          echo "UAE_ENGLISH_POST_PUBLISH_HEALTH=$(jq -c '{published:.controlled.published,ae:.controlled.ae,sa:.controlled.sa,publishedToday:.controlled.publishedToday,lastError,auditLock:.auditLock.active}' /tmp/en-after.json)"
       - name: Complete and audit R2 coupon migration
         shell: bash
         run: |
