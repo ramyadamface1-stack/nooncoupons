@@ -80,7 +80,11 @@ function keyPages(origin){
   ].map(path=>({loc:origin+path,lastmod:null}));
 }
 
-function marketForPath(path){return path.startsWith('/uae/')?'AE':path.startsWith('/saudi-arabia/')?'SA':null}
+function marketForPath(path){
+  if(path==='/uae'||path.startsWith('/uae/'))return 'AE';
+  if(path==='/saudi'||path.startsWith('/saudi/')||path.startsWith('/saudi-arabia/'))return 'SA';
+  return null;
+}
 function discoveryEligible(a){
   if(!a?.slug||a.status!=='published'||a.indexable===false||a.superseded===true||a.orphan===true||a.duplicateIntent===true)return false;
   const quality=Number(a.quality),floor=Number(a.qualityFloor);
@@ -91,18 +95,45 @@ function discoveryEligible(a){
   if(a.indexation&&a.indexation.indexable===false)return false;
   return true;
 }
+function articleHref(a){
+  const explicit=String(a?.urlPath||'').trim();
+  if(explicit.startsWith('/'))return explicit;
+  return a?.languageSource==='native-intent-v6-canary'?'/en/articles/'+enc(a.slug):'/articles/'+enc(a.slug);
+}
+function discoveryRows(articles,market){
+  const sorted=(articles||[])
+    .filter(discoveryEligible)
+    .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')));
+  if(market)return sorted.filter(a=>a.country===market).slice(0,8);
+  const selected=[],seen=new Set();
+  for(const country of ['SA','AE']){
+    for(const a of sorted.filter(row=>row.country===country).slice(0,4)){
+      const href=articleHref(a);
+      if(seen.has(href))continue;
+      seen.add(href);selected.push(a);
+    }
+  }
+  for(const a of sorted){
+    if(selected.length>=8)break;
+    const href=articleHref(a);
+    if(seen.has(href))continue;
+    seen.add(href);selected.push(a);
+  }
+  return selected
+    .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')))
+    .slice(0,8);
+}
 function discoveryHtml(path,articles){
   const market=marketForPath(path);
-  let rows=(articles||[]).filter(discoveryEligible);
-  if(market)rows=rows.filter(a=>a.country===market);
-  rows=rows.sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,8);
+  const rows=discoveryRows(articles,market);
   if(!rows.length)return '';
   const country=market==='AE'?'الإمارات':market==='SA'?'السعودية':'السعودية والإمارات';
   const cards=rows.map(a=>{
     const m=a.country==='AE'?'الإمارات':'السعودية';
     const title=esc(a.title||a.primaryKeyword||a.slug);
     const desc=esc((a.metaDescription||'دليل عملي قبل الشراء واستخدام الكوبون.').slice(0,115));
-    return `<article class="dl-card"><small>${m}</small><h3><a href="/articles/${enc(a.slug)}">${title}</a></h3><p>${desc}</p><a class="dl-read" href="/articles/${enc(a.slug)}">اقرأ المقال ←</a></article>`;
+    const href=articleHref(a);
+    return `<article class="dl-card"><small>${m}</small><h3><a href="${href}">${title}</a></h3><p>${desc}</p><a class="dl-read" href="${href}">اقرأ المقال ←</a></article>`;
   }).join('');
   return `<section id="crawl-discovery-links" class="latest-editorial" dir="rtl" aria-label="أحدث مقالات نون"><style>.latest-editorial{padding:42px 0;background:#fff}.dl-wrap{width:min(1180px,92%);margin:auto}.dl-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:20px}.dl-head h2{margin:0;font:900 29px Tahoma,Arial,sans-serif;color:#101828}.dl-head p{margin:7px 0 0;color:#667085;line-height:1.8}.dl-head>a{font-weight:900;color:#111827;text-decoration:none}.dl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.dl-card{border:1px solid #e7e9ee;border-radius:16px;padding:17px;background:#fff}.dl-card small{color:#7a6400;font-weight:900}.dl-card h3{font:900 17px/1.65 Tahoma,Arial,sans-serif;margin:8px 0}.dl-card h3 a,.dl-read{text-decoration:none;color:#111827}.dl-card p{color:#667085;font:13px/1.8 Tahoma,Arial,sans-serif}.dl-read{font-weight:900}@media(max-width:900px){.dl-grid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.dl-grid{grid-template-columns:1fr}.dl-head{display:block}}</style><div class="dl-wrap"><div class="dl-head"><div><small style="color:#7a6400;font-weight:900">من المدونة</small><h2>أحدث مقالات نون ${country}</h2><p>أدلة جديدة عن الكوبونات والأقسام وقرارات الشراء قبل الدفع.</p></div><a href="/blog">كل المقالات ←</a></div><div class="dl-grid">${cards}</div></div></section>`;
 }
@@ -116,10 +147,13 @@ async function injectDiscoveryLinks(req,env,res){
   if(!eligible)return res;
   let html=await res.text();
   if(html.includes('id="crawl-discovery-links"'))return res;
-  const data=await latest(env),block=discoveryHtml(path,data.articles||[]);
+  const data=await latest(env);
+  let english=[];
+  try{english=await englishCanaryRecords(env)}catch{}
+  const block=discoveryHtml(path,[...(data.articles||[]),...(english||[])]);
   if(!block)return new Response(html,{status:res.status,statusText:res.statusText,headers:res.headers});
   html=/<\/body>/i.test(html)?html.replace(/<\/body>/i,block+'</body>'):html+block;
-  const h=new Headers(res.headers);h.delete('content-length');h.set('x-crawl-discovery-links','v1');h.set('x-discovery-manifest-cache','120s-isolate');
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-crawl-discovery-links','v2');h.set('x-discovery-manifest-cache','120s-isolate');h.set('x-discovery-market-mix','balanced-sa-ae-with-english');
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
@@ -258,4 +292,4 @@ export default{
   }
 };
 
-export const DISCOVERY_ENTRY_INFO={version:18,englishBatchPublishing:true,englishPriorityDiscovery:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:45000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:12,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:19,englishBatchPublishing:true,englishPriorityDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:45000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
