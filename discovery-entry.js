@@ -230,7 +230,6 @@ async function augmentRobots(res,origin){
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
-
 function edgePageCacheKey(u){
   return new Request(u.origin+u.pathname,{method:'GET'});
 }
@@ -238,22 +237,18 @@ function edgePageCacheEligible(req,u){
   if(req.method!=='GET'||u.search||req.headers.has('authorization')||req.headers.has('cookie')||req.headers.has('range'))return false;
   const p=u.pathname.replace(/\/+$/,'')||'/';
   if(['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/en/saudi','/en/uae'].includes(p))return true;
-  if(/^\/(?:saudi|uae)\/(?:category|brand|model|compare)\/[A-Za-z0-9._~!
-export default{
-  async fetch(req,env,ctx){'()*+,;=:@%/-]+$/.test(p))return true;
-  if(/^\/en\/(?:saudi|uae)\/category\/[A-Za-z0-9._~!
-export default{
-  async fetch(req,env,ctx){'()*+,;=:@%-]+$/.test(p))return true;
+  if(/^\/(?:saudi|uae)\/(?:category|brand|model|compare)\/[^/]+(?:\/[^/]+)?$/.test(p))return true;
+  if(/^\/en\/(?:saudi|uae)\/category\/[^/]+$/.test(p))return true;
   if(/^\/(?:articles|en\/articles)\/[^/]+$/.test(p))return true;
   if(/^\/(?:saudi-arabia|uae)\/noon-coupon-code(?:-today|-2026)?$/.test(p))return true;
-  if(/^\/(?:saudi-arabia|uae)\/coupon\/[A-Za-z0-9._~-]+$/.test(p))return true;
+  if(/^\/(?:saudi-arabia|uae)\/coupon\/[^/]+$/.test(p))return true;
   return false;
 }
 async function edgePageCacheGet(req,u){
   if(!edgePageCacheEligible(req,u))return null;
   const hit=await caches.default.match(edgePageCacheKey(u));
   if(!hit)return null;
-  const h=new Headers(hit.headers);h.set('x-edge-page-cache','HIT');h.set('age',h.get('age')||'0');
+  const h=new Headers(hit.headers);h.set('x-edge-page-cache','HIT');
   return new Response(hit.body,{status:hit.status,statusText:hit.statusText,headers:h});
 }
 function edgePageCachePut(req,u,res,ctx){
@@ -265,7 +260,6 @@ function edgePageCachePut(req,u,res,ctx){
   ctx?.waitUntil?.(caches.default.put(edgePageCacheKey(u),out.clone()));
   return out;
 }
-
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
