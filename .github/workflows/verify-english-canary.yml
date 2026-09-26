@@ -82,13 +82,29 @@ jobs:
           node - <<'NODE'
           const fs=require('fs');
           const x=JSON.parse(fs.readFileSync('/tmp/canary.json','utf8'));
-          fs.writeFileSync('/tmp/paths.tsv',x.records.map(r=>[r.urlPath,r.country].join('\t')).join('\n'));
+          fs.writeFileSync('/tmp/paths.tsv',x.records.map(r=>[r.urlPath,r.country].join('|')).join('\n'));
           NODE
       - name: Verify both original English pages live
         run: |
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
-          while IFS=
+          while IFS='|' read -r path country; do
+            test -n "$path"
+            code="$(curl -sS -D /tmp/page.h -o /tmp/page.html -w '%{http_code}' --max-time 20 "$ORIGIN$path")"
+            test "$code" = "200"
+            grep -Fiq 'content-language: en' /tmp/page.h
+            grep -Fiq 'x-english-canary: v1' /tmp/page.h
+            if [ "$country" = "AE" ]; then
+              market_lang="en-AE"; arabic_lang="ar-AE"; arabic_path="/uae"
+            else
+              market_lang="en-SA"; arabic_lang="ar-SA"; arabic_path="/saudi"
+            fi
+            grep -Fq "<html lang=\"$market_lang\" dir=\"ltr\">" /tmp/page.html
+            grep -Fq "<link rel=\"canonical\" href=\"$ORIGIN$path\">" /tmp/page.html
+            grep -Fq "hreflang=\"$market_lang\" href=\"$ORIGIN$path\"" /tmp/page.html
+            grep -Fq "hreflang=\"$arabic_lang\" href=\"$ORIGIN$arabic_path\"" /tmp/page.html
+            grep -Fq "hreflang=\"x-default\" href=\"$ORIGIN$path\"" /tmp/page.html
+            grep -Fq 'data-copy-code=' /tmp/page.html
             grep -Fq 'Copy ' /tmp/page.html
             grep -Fq 'href="https://www.noon.com/' /tmp/page.html
             grep -Eiq '<meta[^>]+name="description"[^>]+content="[^"]+"' /tmp/page.html
@@ -103,142 +119,7 @@ jobs:
           count="$(grep -o '<url>' /tmp/en-sitemap.xml | wc -l | tr -d ' ')"
           test "$count" -ge 2
           test "$count" -le 50000
-          while IFS=
-          curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
-          grep -Fq "$ORIGIN/sitemap-en-articles.xml" /tmp/main-sitemap.xml
-          curl -fsS --max-time 20 "$ORIGIN/en/saudi" -o /tmp/saudi.html
-          curl -fsS --max-time 20 "$ORIGIN/en/uae" -o /tmp/uae.html
-          grep -Fq '/en/articles/en-noon-coupon-eligibility-saudi-arabia-travel-guide' /tmp/saudi.html
-          grep -Fq '/en/articles/en-smart-buying-on-noon-uae-headphones-and-audio-guide' /tmp/uae.html
-          for market in saudi uae; do
-            curl -fsS -D /tmp/cat.h --max-time 20 "$ORIGIN/en/$market/category/mobiles" -o /tmp/cat.html
-            ev="$(awk -F': ' 'tolower($1)=="x-english-evidence"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
-            rb="$(awk -F': ' 'tolower($1)=="x-robots-tag"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
-            if [ "$ev" = "insufficient" ]; then grep -Fqi 'noindex' <<<"$rb"; fi
-          done
-      - name: Verify Cloudflare-only runtime remains intact
-        run: |
-          set -euo pipefail
-          ORIGIN="https://noondealsnow.com"
-          curl -fsS --max-time 20 "$ORIGIN/api/platform-health" -o /tmp/platform.json
-          curl -fsS --max-time 20 "$ORIGIN/api/generator-health" -o /tmp/generator.json
-          node - <<'NODE'
-          const fs=require('fs');
-          const p=JSON.parse(fs.readFileSync('/tmp/platform.json','utf8'));
-          const g=JSON.parse(fs.readFileSync('/tmp/generator.json','utf8'));
-          if(!p.ok||p.ai?.provider!=='workers-ai'||p.ai?.externalProviders!==false||!p.r2) process.exit(1);
-          if(!g.ok||g.legacyProvidersRemoved!==true||g.providers?.external!==false||g.preferredProvider!=='workers-ai'||!g.r2Ready) process.exit(1);
-          NODE
-          echo ENGLISH_CANARY_BASELINE_E2E=PASS
-\t' read -r path country; do
-            test -n "$path"
-            code="$(curl -sS -D /tmp/page.h -o /tmp/page.html -w '%{http_code}' --max-time 20 "$ORIGIN$path")"
-            test "$code" = "200"
-            grep -Fiq 'content-language: en' /tmp/page.h
-            grep -Fiq 'x-english-canary: v1' /tmp/page.h
-            if [ "$country" = "AE" ]; then market_lang="en-AE"; arabic_lang="ar-AE"; arabic_path="/uae"; else market_lang="en-SA"; arabic_lang="ar-SA"; arabic_path="/saudi"; fi
-            grep -Fq "<html lang=\"$market_lang\" dir=\"ltr\">" /tmp/page.html
-            grep -Fq "<link rel=\"canonical\" href=\"$ORIGIN$path\">" /tmp/page.html
-            grep -Fq "hreflang=\"$market_lang\" href=\"$ORIGIN$path\"" /tmp/page.html
-            grep -Fq "hreflang=\"$arabic_lang\" href=\"$ORIGIN$arabic_path\"" /tmp/page.html
-            grep -Fq "hreflang=\"x-default\" href=\"$ORIGIN$path\"" /tmp/page.html
-            grep -Fq 'data-copy-code=' /tmp/page.html
-            grep -Fq 'Copy ' /tmp/page.html
-            grep -Fq 'href="https://www.noon.com/' /tmp/page.html
-            grep -Eiq '<meta[^>]+name="description"[^>]+content="[^"]+"' /tmp/page.html
-            if grep -Eiq 'guide[[:space:]]+guide' /tmp/page.html; then exit 1; fi
-            if grep -Eiq "(save|discount)[[:space:]]+(up to[[:space:]]+)?[0-9]{1,3}%" /tmp/page.html; then exit 1; fi
-          done < /tmp/paths.txt
-      - name: Verify baseline sitemap and country evidence
-        run: |
-          set -euo pipefail
-          ORIGIN="https://noondealsnow.com"
-          curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en-sitemap.xml
-          count="$(grep -o '<url>' /tmp/en-sitemap.xml | wc -l | tr -d ' ')"
-          test "$count" -ge 2
-          test "$count" -le 50000
-          while IFS= read -r path; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done < /tmp/paths.txt
-          curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
-          grep -Fq "$ORIGIN/sitemap-en-articles.xml" /tmp/main-sitemap.xml
-          curl -fsS --max-time 20 "$ORIGIN/en/saudi" -o /tmp/saudi.html
-          curl -fsS --max-time 20 "$ORIGIN/en/uae" -o /tmp/uae.html
-          grep -Fq '/en/articles/en-noon-coupon-eligibility-saudi-arabia-travel-guide' /tmp/saudi.html
-          grep -Fq '/en/articles/en-smart-buying-on-noon-uae-headphones-and-audio-guide' /tmp/uae.html
-          for market in saudi uae; do
-            curl -fsS -D /tmp/cat.h --max-time 20 "$ORIGIN/en/$market/category/mobiles" -o /tmp/cat.html
-            ev="$(awk -F': ' 'tolower($1)=="x-english-evidence"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
-            rb="$(awk -F': ' 'tolower($1)=="x-robots-tag"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
-            if [ "$ev" = "insufficient" ]; then grep -Fqi 'noindex' <<<"$rb"; fi
-          done
-      - name: Verify Cloudflare-only runtime remains intact
-        run: |
-          set -euo pipefail
-          ORIGIN="https://noondealsnow.com"
-          curl -fsS --max-time 20 "$ORIGIN/api/platform-health" -o /tmp/platform.json
-          curl -fsS --max-time 20 "$ORIGIN/api/generator-health" -o /tmp/generator.json
-          node - <<'NODE'
-          const fs=require('fs');
-          const p=JSON.parse(fs.readFileSync('/tmp/platform.json','utf8'));
-          const g=JSON.parse(fs.readFileSync('/tmp/generator.json','utf8'));
-          if(!p.ok||p.ai?.provider!=='workers-ai'||p.ai?.externalProviders!==false||!p.r2) process.exit(1);
-          if(!g.ok||g.legacyProvidersRemoved!==true||g.providers?.external!==false||g.preferredProvider!=='workers-ai'||!g.r2Ready) process.exit(1);
-          NODE
-          echo ENGLISH_CANARY_BASELINE_E2E=PASS
-\t' read -r path country; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done < /tmp/paths.tsv
-          curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
-          grep -Fq "$ORIGIN/sitemap-en-articles.xml" /tmp/main-sitemap.xml
-          curl -fsS --max-time 20 "$ORIGIN/en/saudi" -o /tmp/saudi.html
-          curl -fsS --max-time 20 "$ORIGIN/en/uae" -o /tmp/uae.html
-          grep -Fq '/en/articles/en-noon-coupon-eligibility-saudi-arabia-travel-guide' /tmp/saudi.html
-          grep -Fq '/en/articles/en-smart-buying-on-noon-uae-headphones-and-audio-guide' /tmp/uae.html
-          for market in saudi uae; do
-            curl -fsS -D /tmp/cat.h --max-time 20 "$ORIGIN/en/$market/category/mobiles" -o /tmp/cat.html
-            ev="$(awk -F': ' 'tolower($1)=="x-english-evidence"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
-            rb="$(awk -F': ' 'tolower($1)=="x-robots-tag"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
-            if [ "$ev" = "insufficient" ]; then grep -Fqi 'noindex' <<<"$rb"; fi
-          done
-      - name: Verify Cloudflare-only runtime remains intact
-        run: |
-          set -euo pipefail
-          ORIGIN="https://noondealsnow.com"
-          curl -fsS --max-time 20 "$ORIGIN/api/platform-health" -o /tmp/platform.json
-          curl -fsS --max-time 20 "$ORIGIN/api/generator-health" -o /tmp/generator.json
-          node - <<'NODE'
-          const fs=require('fs');
-          const p=JSON.parse(fs.readFileSync('/tmp/platform.json','utf8'));
-          const g=JSON.parse(fs.readFileSync('/tmp/generator.json','utf8'));
-          if(!p.ok||p.ai?.provider!=='workers-ai'||p.ai?.externalProviders!==false||!p.r2) process.exit(1);
-          if(!g.ok||g.legacyProvidersRemoved!==true||g.providers?.external!==false||g.preferredProvider!=='workers-ai'||!g.r2Ready) process.exit(1);
-          NODE
-          echo ENGLISH_CANARY_BASELINE_E2E=PASS
-\t' read -r path country; do
-            test -n "$path"
-            code="$(curl -sS -D /tmp/page.h -o /tmp/page.html -w '%{http_code}' --max-time 20 "$ORIGIN$path")"
-            test "$code" = "200"
-            grep -Fiq 'content-language: en' /tmp/page.h
-            grep -Fiq 'x-english-canary: v1' /tmp/page.h
-            if [ "$country" = "AE" ]; then market_lang="en-AE"; arabic_lang="ar-AE"; arabic_path="/uae"; else market_lang="en-SA"; arabic_lang="ar-SA"; arabic_path="/saudi"; fi
-            grep -Fq "<html lang=\"$market_lang\" dir=\"ltr\">" /tmp/page.html
-            grep -Fq "<link rel=\"canonical\" href=\"$ORIGIN$path\">" /tmp/page.html
-            grep -Fq "hreflang=\"$market_lang\" href=\"$ORIGIN$path\"" /tmp/page.html
-            grep -Fq "hreflang=\"$arabic_lang\" href=\"$ORIGIN$arabic_path\"" /tmp/page.html
-            grep -Fq "hreflang=\"x-default\" href=\"$ORIGIN$path\"" /tmp/page.html
-            grep -Fq 'data-copy-code=' /tmp/page.html
-            grep -Fq 'Copy ' /tmp/page.html
-            grep -Fq 'href="https://www.noon.com/' /tmp/page.html
-            grep -Eiq '<meta[^>]+name="description"[^>]+content="[^"]+"' /tmp/page.html
-            if grep -Eiq 'guide[[:space:]]+guide' /tmp/page.html; then exit 1; fi
-            if grep -Eiq "(save|discount)[[:space:]]+(up to[[:space:]]+)?[0-9]{1,3}%" /tmp/page.html; then exit 1; fi
-          done < /tmp/paths.txt
-      - name: Verify baseline sitemap and country evidence
-        run: |
-          set -euo pipefail
-          ORIGIN="https://noondealsnow.com"
-          curl -fsS --max-time 20 "$ORIGIN/sitemap-en-articles.xml" -o /tmp/en-sitemap.xml
-          count="$(grep -o '<url>' /tmp/en-sitemap.xml | wc -l | tr -d ' ')"
-          test "$count" -ge 2
-          test "$count" -le 50000
-          while IFS= read -r path; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done < /tmp/paths.txt
+          while IFS='|' read -r path country; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done < /tmp/paths.tsv
           curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
           grep -Fq "$ORIGIN/sitemap-en-articles.xml" /tmp/main-sitemap.xml
           curl -fsS --max-time 20 "$ORIGIN/en/saudi" -o /tmp/saudi.html
