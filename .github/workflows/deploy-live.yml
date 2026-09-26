@@ -250,7 +250,7 @@ jobs:
           grep -Fq 'candidateScanDeadline:true' english-canary.js
           grep -Fq 'highDemandShareTarget:100' english-canary.js
           grep -Fq 'goldenHeadShareTarget:70' english-canary.js
-          grep -Fq 'commercialSeedShareTarget:95' english-canary.js
+          grep -Fq 'commercialSeedShareTarget:100' english-canary.js
           grep -Fq 'currentUaeModelTerms:true' english-canary.js
           grep -Fq "'cashback offers UAE'" bulk-content-engine.js
           grep -Fq "'iPhone 17 Pro Max deals'" bulk-content-engine.js

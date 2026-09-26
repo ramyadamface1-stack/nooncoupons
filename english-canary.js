@@ -135,7 +135,7 @@ async function findCandidate(env,state,slot,{deadlineMs=0,maxScan=MAX_SCAN}={}){
     }
     if(topic.country!==desiredCountry){diag.wrongCountry++;continue;}
     if(!UAE_PRIORITY_PROFILES.has(topic.profileKey)){diag.nonPriorityProfile++;continue;}
-    if(slot%20!==19&&!UAE_HIGH_DEMAND_PROFILES.has(topic.profileKey)){diag.nonHighDemandProfile++;continue;}
+    if(!UAE_HIGH_DEMAND_PROFILES.has(topic.profileKey)){diag.nonHighDemandProfile++;continue;}
     const categoryKey=categoryKeyFor(topic.profileKey);
     if(!categoryKey){diag.missingCategory++;continue;}
     const rawCandidate=buildEnglishNativeCandidate(topic);

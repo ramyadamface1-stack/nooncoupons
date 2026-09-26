@@ -56,7 +56,7 @@ jobs:
           grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
           grep -Fq 'highDemandShareTarget:100' english-canary.js
           grep -Fq 'goldenHeadShareTarget:70' english-canary.js
-          grep -Fq 'commercialSeedShareTarget:95' english-canary.js
+          grep -Fq 'commercialSeedShareTarget:100' english-canary.js
           grep -Fq 'currentUaeModelTerms:true' english-canary.js
           grep -Fq 'schedulerFirstIntervalBypass:true' english-canary.js
           grep -Fq "const SCHEDULER_STATE_KEY='english-canary/scheduler-status-v23.json';" english-canary.js

@@ -176,7 +176,7 @@ function uaeEnglishPriorityKeyword(candidate){
   if(candidate?.country!=='AE')return null;
   const profile=String(candidate.profileKey||'general'),category=UAE_QUERY_CATEGORY[profile]||String(candidate.nativeCategory||'').trim();
   const seed=Math.abs(Number(candidate.topicIndex||0)),heads=UAE_COMMERCIAL_HEADS[candidate.intent]||UAE_COMMERCIAL_HEADS.coupon,demand=UAE_POPULAR_SEARCHES[profile]||[];
-  const useDemand=demand.length>0&&seed%10!==0,subject=useDemand?demand[seed%demand.length]:category,head=heads[seed%heads.length];
+  const goldenHead=seed%10<7,useDemand=!goldenHead&&demand.length>0,subject=useDemand?demand[seed%demand.length]:category,head=heads[seed%heads.length];
   const geo=seed%10<7?'UAE':UAE_GEO_SEARCH_MARKETS[seed%UAE_GEO_SEARCH_MARKETS.length];
   const keyword=(useDemand?naturalUaeCommercialKeyword(subject,candidate.intent,geo):head).replace(/\s+/g,' ').trim();
   const searchClass=String(subject+'-'+(candidate.intent||'commercial')+'-'+geo).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
