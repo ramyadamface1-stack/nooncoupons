@@ -566,7 +566,9 @@ jobs:
           echo "VERIFY_ROUTE=sitemap"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/sitemap.xml?deploy=$GITHUB_SHA" -D /tmp/sh -o /tmp/sitemap.xml
           grep -Fq '/sitemap-priority.xml' /tmp/sitemap.xml
-          grep -Fqi 'x-priority-sitemap-discovery: v1' /tmp/sh
+          grep -Fq '/sitemap-en-articles.xml' /tmp/sitemap.xml
+          grep -Fqi 'x-priority-sitemap-discovery: v2' /tmp/sh
+          grep -Fqi 'x-english-sitemap-discovery: v1' /tmp/sh
           echo "VERIFY_ROUTE=sitemap-priority"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/sitemap-priority.xml?deploy=$GITHUB_SHA" -D /tmp/ph -o /tmp/priority.xml
           grep -Fqi 'x-priority-sitemap: v2' /tmp/ph
