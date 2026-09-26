@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "sourceSha": "d7ad96212d9755db57f2f052ad4fb4d3faebe49e",
-  "verifiedAt": "2026-09-25T23:31:50.327382+00:00",
+  "sourceSha": "2e2e0a14723b2ec4e1498df04aa09be67b7d43e4",
+  "verifiedAt": "2026-09-26T08:27:00.640941+00:00",
   "productionOrigin": "https://noondealsnow.com",
   "workerOrigin": "https://nooncoupons.ramychatgptgcoupons.workers.dev",
   "checks": {
@@ -102,16 +102,16 @@
   },
   "content": {
     "r2HtmlObjects": 133746,
-    "trackedPublished": 77871,
-    "arabic": 76103,
-    "english": 1768,
-    "lastSlug": "مقارنة-سعر-البقالة-الشراء-من-التطبيق-نون-السعودية-قيمة-الشراء-التخزين",
+    "trackedPublished": 81225,
+    "arabic": 77764,
+    "english": 3461,
+    "lastSlug": "هل-كود-نون-يعمل-على-dyson-vacuum-الشحن-والتوصيل-في-السعودية-غرفة-صغيرة",
     "lastQuality": 100,
-    "lastWordCount": 1777
+    "lastWordCount": 1775
   },
   "catchup30k": {
     "target": 30000,
-    "current": 76103,
+    "current": 77764,
     "remaining": 0,
     "requiredPerMinute": 0,
     "effectiveBatchSize": 48,
@@ -120,48 +120,47 @@
     "adaptiveReason": "catchup_complete",
     "targetBatchDurationMs": 52000,
     "minCatchupBatchSize": 48,
-    "lastBatchPublished": 6,
+    "lastBatchPublished": 0,
     "lastBatchTries": 432,
-    "lastBatchDurationMs": 42499,
-    "lastBatchYieldPct": 1.39,
+    "lastBatchDurationMs": 18528,
+    "lastBatchYieldPct": 0,
     "lastBatchStageMs": {
-      "candidateLoop": 36087,
-      "articleWrites": 1088,
-      "clusterFlush": 1250,
-      "freshness": 1813,
-      "catalogs": 4713,
-      "indexNow": 1806,
-      "postParallel": 4713
+      "candidateLoop": 18219,
+      "articleWrites": 0,
+      "clusterFlush": 0,
+      "freshness": 0,
+      "catalogs": 0,
+      "indexNow": 0,
+      "postParallel": 0
     },
     "candidateBudgetMs": 42000,
     "candidateBudgetHit": false,
-    "executionRatePerMinute": 8.47,
+    "executionRatePerMinute": null,
     "cronCadenceMinutes": 1,
-    "observedRatePerMinute": 6,
-    "observedMeetsRequiredRate": true,
-    "estimatedHoursAtObservedRate": 0.0,
+    "observedRatePerMinute": null,
+    "observedMeetsRequiredRate": null,
+    "estimatedHoursAtObservedRate": null,
     "qualityThresholdFloor": 95,
     "minArticleWords": 1500,
-    "semanticPreAuditRejectedTotal": 248901,
-    "preflightRejectedTotal": 653574,
-    "preflightRecentRejectedTotal": 13502,
-    "preflightClusterRejectedTotal": 638601,
+    "semanticPreAuditRejectedTotal": 279306,
+    "preflightRejectedTotal": 800349,
+    "preflightRecentRejectedTotal": 15791,
+    "preflightClusterRejectedTotal": 783087,
     "lastPreflightRejectReasons": {
-      "global_duplicate_slug": 92,
-      "global_duplicate_keyword": 92,
-      "global_keyword_cannibalization": 332,
-      "global_intent_owner_collision": 100,
-      "global_duplicate_intent": 2
+      "global_keyword_cannibalization": 339,
+      "global_duplicate_slug": 109,
+      "global_duplicate_keyword": 109,
+      "global_intent_owner_collision": 110
     }
   },
   "englishControlled": {
     "target": 50000,
-    "published": 1768,
-    "remaining": 48232,
-    "publishedToday": 867,
+    "published": 3462,
+    "remaining": 46538,
+    "publishedToday": 2561,
     "dailyTarget": 34560,
     "minIntervalMinutes": 1,
-    "nextEligibleAt": "2026-09-25T23:31:47.386Z"
+    "nextEligibleAt": "2026-09-26T08:27:11.830Z"
   },
   "couponMigration": {
     "scanned": 48759,
@@ -170,9 +169,9 @@
     "completedAt": "2026-09-18T09:18:02.935Z"
   },
   "couponAudit": {
-    "scanned": 156809,
+    "scanned": 161267,
     "invalidFiles": 0,
     "invalidTokens": 0,
-    "completedAt": "2026-09-25T23:30:53.435Z"
+    "completedAt": "2026-09-26T08:26:09.927Z"
   }
 }
