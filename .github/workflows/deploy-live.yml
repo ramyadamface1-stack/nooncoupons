@@ -128,6 +128,7 @@ jobs:
           grep -Fq 'robotsEnglishSitemap:true' discovery-entry.js
           grep -Fq '/sitemap-en-articles.xml' discovery-entry.js
           grep -Fq 'englishPriorityDiscovery:true' discovery-entry.js
+          grep -Fq 'englishRootSitemapDiscovery:true' discovery-entry.js
           grep -Fq 'englishPriorityArticleLimit:500' discovery-entry.js
           grep -Fq 'englishCategoryEvidenceMin:3' discovery-entry.js
           grep -Fq "R2_COUNT_SNAPSHOT_KEY='_ops/article-count.json'" commerce-entry.js
