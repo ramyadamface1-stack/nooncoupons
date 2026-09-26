@@ -139,7 +139,23 @@ function eeatBlock(ctx){return `<section class="section editorial-method"><h2>م
 
 function faqBlock(ctx,seed){const qs=rotate(QA,seed).slice(0,8);return {html:`<section class="section faq"><h2>أسئلة شائعة عن ${esc(ctx.label)}</h2>${qs.map(([q,a])=>`<details><summary>${esc(q)}</summary><p>${esc(a)} في سياق ${esc(ctx.label)} على ${esc(ctx.mk.name)}، راجع دائمًا تفاصيل السلة الحية قبل الدفع.</p></details>`).join('')}</section>`,items:qs.map(([q,a])=>({'@type':'Question',name:q,acceptedAnswer:{'@type':'Answer',text:`${a} في سياق ${ctx.label} على ${ctx.mk.name}، راجع تفاصيل السلة الحية قبل الدفع.`}}))};}
 
-function extraSchema(origin,path,ctx,faqItems){return {'@context':'https://schema.org','@graph':[{'@type':'WebPage','@id':origin+path+'#guide',url:origin+path,name:ctx.label,inLanguage:'ar',dateModified:'2026-09-16',about:{'@type':'Thing',name:ctx.label},isPartOf:{'@type':'WebSite','@id':origin+'/#website',url:origin,name:'كوبونات نون'},publisher:{'@type':'Organization','@id':origin+'/#publisher',name:'كوبونات نون',url:origin}},{'@type':'FAQPage','@id':origin+path+'#faq',mainEntity:faqItems},{'@type':'Organization','@id':origin+'/#publisher',name:'كوبونات نون',url:origin,description:'دليل مستقل لتنظيم أكواد الخصم ومقارنات التسوق على نون السعودية ونون الإمارات.'}]};}
+function extraSchema(origin,path,ctx,faqItems){
+  const marketPath='/'+ctx.market,lang=ctx.market==='saudi'?'ar-SA':'ar-AE';
+  const crumbs=[
+    {'@type':'ListItem',position:1,name:'الرئيسية',item:origin+'/'},
+    {'@type':'ListItem',position:2,name:ctx.mk.name,item:origin+marketPath}
+  ];
+  if(ctx.type==='category'||ctx.type==='directory')crumbs.push({'@type':'ListItem',position:3,name:'الأقسام',item:origin+marketPath+'/categories'});
+  if(ctx.type==='brand'||ctx.type==='model')crumbs.push({'@type':'ListItem',position:3,name:ctx.brand?.label||ctx.label,item:origin+marketPath+'/brand/'+(ctx.type==='model'?path.split('/').filter(Boolean)[2]:ctx.key)});
+  if(ctx.type==='comparison')crumbs.push({'@type':'ListItem',position:3,name:'المقارنات',item:origin+marketPath+'/categories'});
+  if(crumbs[crumbs.length-1]?.item!==origin+path)crumbs.push({'@type':'ListItem',position:crumbs.length+1,name:ctx.label,item:origin+path});
+  return {'@context':'https://schema.org','@graph':[
+    {'@type':'WebPage','@id':origin+path+'#guide',url:origin+path,name:ctx.label,inLanguage:lang,dateModified:'2026-09-26',about:{'@type':'Thing',name:ctx.label},isPartOf:{'@type':'WebSite','@id':origin+'/#website',url:origin,name:'كوبونات نون'},publisher:{'@type':'Organization','@id':origin+'/#publisher',name:'كوبونات نون',url:origin},breadcrumb:{'@id':origin+path+'#breadcrumb'}},
+    {'@type':'BreadcrumbList','@id':origin+path+'#breadcrumb',itemListElement:crumbs},
+    {'@type':'FAQPage','@id':origin+path+'#faq',mainEntity:faqItems},
+    {'@type':'Organization','@id':origin+'/#publisher',name:'كوبونات نون',url:origin,description:'دليل مستقل لتنظيم أكواد الخصم ومقارنات التسوق على نون السعودية ونون الإمارات.'}
+  ]};
+}
 
 export async function enhanceLandingPage(path,origin,res){
   const ctx=context(path);if(!ctx||!res?.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
@@ -154,8 +170,8 @@ export async function enhanceLandingPage(path,origin,res){
   while((n<floor||body.replace(/<[^>]*>/g,' ').length<charFloor)&&extra<20){guideItems+=section(ctx,seed+extra*101,angles.length+extra,ANGLES[(seed+extra)%ANGLES.length]);extra++;body=buildBody(guideItems);n=words(body)}
   const schema=extraSchema(origin,path,ctx,faq.items);
   html=html.replace(/<\/head>/i,`<meta name="content-depth" content="${n}"><meta name="landing-content-version" content="4"><script type="application/ld+json">${JSON.stringify(schema).replace(/</g,'\\u003c')}</script></head>`).replace(/<\/main>/i,`${body}</main>`);
-  const h=new Headers(res.headers);h.delete('content-length');h.set('x-landing-content','v4');h.set('x-landing-word-count',String(n));h.set('x-landing-char-count',String(body.replace(/<[^>]*>/g,' ').length));h.set('x-landing-images','3');h.set('x-landing-unique-seed',String(seed));h.set('x-landing-schema','webpage-faq-organization');
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-landing-content','v4');h.set('x-landing-word-count',String(n));h.set('x-landing-char-count',String(body.replace(/<[^>]*>/g,' ').length));h.set('x-landing-images','3');h.set('x-landing-unique-seed',String(seed));h.set('x-landing-schema','webpage-breadcrumb-faq-organization');
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
-export const LANDING_CONTENT_V3={version:4,minWords:5000,minChars:5000,imagesPerLanding:3,definitions:true,keywordClusters:true,couponGuide:true,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['WebPage','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true,relatedAuthorityLinks:true,functionalByLandingType:true,metadataMatchedRelatedArticles:true};
+export const LANDING_CONTENT_V3={version:4,minWords:5000,minChars:5000,imagesPerLanding:3,definitions:true,keywordClusters:true,couponGuide:true,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['WebPage','BreadcrumbList','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true,relatedAuthorityLinks:true,functionalByLandingType:true,metadataMatchedRelatedArticles:true};
