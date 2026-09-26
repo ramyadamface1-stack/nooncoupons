@@ -245,16 +245,18 @@ jobs:
           grep -Fq 'secureEnglishBatchStep:true' discovery-entry.js
           grep -Fq 'englishBatchRunsBeforeRepair:false' discovery-entry.js
           grep -Fq "englishSchedulerPriority:'english-uae-core-cron-deadline-safe'" discovery-entry.js
-          grep -Fq 'englishSchedulerEffectiveBatch:12' discovery-entry.js
-          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:12,timeBudgetMs:45000})" auto-platform.js
+          grep -Fq 'englishSchedulerEffectiveBatch:18' discovery-entry.js
+          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:18,timeBudgetMs:45000})" auto-platform.js
           grep -Fq 'candidateScanDeadline:true' english-canary.js
           grep -Fq 'highDemandShareTarget:95' english-canary.js
           grep -Fq 'goldenHeadShareTarget:95' english-canary.js
+          grep -Fq "'cashback offers UAE'" bulk-content-engine.js
+          grep -Fq "'iPhone 17 Pro Max deals'" bulk-content-engine.js
           grep -Fq 'schedulerFirstIntervalBypass:true' english-canary.js
           grep -Fq "const SCHEDULER_STATE_KEY='english-canary/scheduler-status-v23.json';" english-canary.js
           grep -Fq "base={version:23,priority:'english-uae-core-cron-deadline-safe'" english-canary.js
           grep -Fq "const UAE_GEO_SEARCH_MARKETS=['Dubai','Abu Dhabi','Sharjah'];" bulk-content-engine.js
-          grep -Fq 'schedulerEffectiveBatchPerTick:12' english-canary.js
+          grep -Fq 'schedulerEffectiveBatchPerTick:18' english-canary.js
           grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
           grep -Fq 'stateCompaction:true' english-canary.js
           grep -Fq 'publishStateBeforeIndexNow:true' english-canary.js

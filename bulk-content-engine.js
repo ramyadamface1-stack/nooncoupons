@@ -83,15 +83,15 @@ export function buildUsefulArticle(topic,cursor=0){
 }
 
 const UAE_ENGLISH_QUERY_MODIFIERS=['today','2026','Dubai','Abu Dhabi','Sharjah','online','UAE online','buy online UAE','best deals','best offers','deals today','offers today','sale today','coupon today','coupon 2026','promo code 2026','discount code 2026','price UAE','best price UAE','price comparison','shopping guide','checkout guide','deal guide','voucher guide','discount guide','seller guide','shipping guide','delivery guide','cart guide','offers guide','Dubai deals','Abu Dhabi deals','Sharjah deals','Dubai shopping','Abu Dhabi shopping','Sharjah shopping'];
-const UAE_GOLDEN_COMMERCIAL_MODIFIERS=['coupon today','coupon 2026','promo code 2026','discount code 2026','first order coupon','new customer coupon','app coupon','voucher code UAE','online coupon UAE','first purchase coupon','new user coupon','app promo code','free delivery','best deals','best offers','deals today','offers today','sale today','price UAE','best price UAE','electronics deals UAE','mobile deals UAE','laptop deals UAE','beauty offers UAE','perfume deals UAE','gaming deals UAE','Dubai deals','Abu Dhabi deals','Sharjah deals','buy online UAE'];
+const UAE_GOLDEN_COMMERCIAL_MODIFIERS=['coupon today','coupon 2026','promo code 2026','discount code 2026','first order coupon','new customer coupon','app coupon','voucher code UAE','online coupon UAE','first purchase coupon','new user coupon','app promo code','free delivery','free shipping UAE','cashback offers UAE','bank card offers UAE','credit card offers UAE','flash sale UAE','daily deals UAE','mega deals UAE','price drop UAE','bundle deals UAE','lowest price UAE','best deals','best offers','deals today','offers today','sale today','price UAE','best price UAE','electronics deals UAE','mobile deals UAE','laptop deals UAE','beauty offers UAE','perfume deals UAE','gaming deals UAE','Dubai deals','Abu Dhabi deals','Sharjah deals','buy online UAE'];
 const UAE_PROFILE_GOLDEN_MODIFIERS={
-  mobile:['coupon code','promo code','mobile deals','iPhone offers','Samsung offers','smartphone deals','best price','offers today'],
-  computing:['coupon code','promo code','laptop deals','MacBook offers','gaming deals','PS5 deals','best price','offers today'],
-  audio:['coupon code','promo code','AirPods offers','headphone deals','speaker deals','best price','offers today'],
-  screen:['coupon code','promo code','TV deals','monitor offers','best price','offers today'],
-  beauty:['coupon code','promo code','beauty offers','perfume deals','skincare deals','best price','offers today'],
-  appliance:['coupon code','promo code','home appliances deals','fridge deals','vacuum deals','best price','offers today'],
-  kitchen:['coupon code','promo code','air fryer deals','kitchen offers','coffee machine deals','best price','offers today'],
+  mobile:['coupon code','promo code','mobile deals','iPhone offers','Samsung offers','smartphone deals','best price','offers today','iPhone 17 Pro Max deals','iPhone 17 Pro deals','iPhone 17 Air deals','Samsung Galaxy S26 Ultra deals','phone cashback','mobile price UAE'],
+  computing:['coupon code','promo code','laptop deals','MacBook offers','gaming deals','PS5 deals','best price','offers today','MacBook Air M5 deals','MacBook Pro offers','gaming laptop offers','laptop price UAE','iPad deals','PS5 Pro deals','Nintendo Switch 2 deals'],
+  audio:['coupon code','promo code','AirPods offers','headphone deals','speaker deals','best price','offers today','AirPods Pro 3 deals','AirPods 4 deals','Galaxy Buds4 Pro deals','JBL speaker deals','Sony headphones offers'],
+  screen:['coupon code','promo code','TV deals','monitor offers','best price','offers today','OLED TV deals','QLED TV deals','4K TV offers','gaming monitor deals'],
+  beauty:['coupon code','promo code','beauty offers','perfume deals','skincare deals','best price','offers today','Dyson Airwrap deals','Korean skincare offers','perfume sale UAE','sunscreen deals'],
+  appliance:['coupon code','promo code','home appliances deals','fridge deals','vacuum deals','best price','offers today','Dyson vacuum deals','washing machine offers','fridge deals UAE','home appliance sale UAE'],
+  kitchen:['coupon code','promo code','air fryer deals','kitchen offers','coffee machine deals','best price','offers today','Ninja air fryer deals','Philips air fryer deals','coffee machine offers UAE','kitchen sale UAE'],
   home:['coupon code','promo code','home deals','furniture offers','bedding deals','best price','offers today'],
   fashion:['coupon code','promo code','fashion offers','handbag deals','shoe deals','best price','offers today'],
   fitness:['coupon code','promo code','sports deals','fitness offers','smartwatch deals','best price','offers today'],
@@ -115,7 +115,7 @@ const UAE_COMMERCIAL_HEADS={
   eligibility:['Noon first order coupon UAE','Noon coupon UAE new customer','Noon coupon UAE existing customer','Noon coupon eligibility UAE']
 };
 const UAE_POPULAR_SEARCHES={
-  mobile:['iPhone 17 Pro Max','iPhone 17 Pro','iPhone 17','Samsung Galaxy S26 Ultra','Samsung Galaxy S26','Samsung Galaxy S25 Ultra','Google Pixel 10 Pro','Nothing Phone','Xiaomi phone','OnePlus phone','Honor phone'],
+  mobile:['iPhone 17 Pro Max','iPhone 17 Pro','iPhone 17 Air','iPhone 17','Samsung Galaxy S26 Ultra','Samsung Galaxy S26','Samsung Galaxy S25 Ultra','Google Pixel 10 Pro','Nothing Phone','Xiaomi phone','OnePlus phone','Honor phone'],
   computing:['MacBook Air M5','MacBook Neo','MacBook Pro','AI laptop','gaming laptop','2-in-1 laptop','business laptop','Lenovo laptop','ASUS laptop','HP laptop','Dell laptop','iPad','PS5','PS5 Slim','PS5 Pro','DualSense controller','EA Sports FC 26','Nintendo Switch 2','Nintendo Switch 2 Mario Kart bundle','Nintendo Switch'],
   audio:['AirPods Pro 3','AirPods 4','AirPods Pro','AirPods','Samsung Galaxy Buds4 Pro','JBL speaker','Sony headphones','Bose headphones','wireless earbuds'],
   screen:['Samsung TV','LG TV','OLED TV','QLED TV','gaming monitor','4K TV'],
