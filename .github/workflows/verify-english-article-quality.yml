@@ -2,7 +2,7 @@ name: Verify English Article Quality
 on:
   push:
     branches: [main]
-    paths: ['bulk-content-engine.js','quality-audit.js','english-quality-selftest.mjs','.github/workflows/verify-english-article-quality.yml']
+    paths: ['bulk-content-engine.js','quality-audit.js','english-canary.js','english-quality-selftest.mjs','.github/workflows/verify-english-article-quality.yml']
   workflow_dispatch:
 # V6 structural gate; quality thresholds are unchanged.
 permissions:
@@ -18,9 +18,18 @@ jobs:
         run: |
           node --check bulk-content-engine.js
           node --check quality-audit.js
+          node --check english-canary.js
           node --check english-quality-selftest.mjs
       - name: Audit 24 native English commercial samples
         run: node english-quality-selftest.mjs
+      - name: Verify market-specific English hreflang
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -Fq "marketLang=rec.country==='SA'?'en-SA':'en-AE'" english-canary.js
+          grep -Fq "arabicLang=rec.country==='SA'?'ar-SA':'ar-AE'" english-canary.js
+          grep -Fq 'hreflang="${marketLang}"' english-canary.js
+          grep -Fq 'hreflang="${arabicLang}"' english-canary.js
       - name: Verify English metadata wording invariant
         run: |
           python - <<'PY'
