@@ -199,8 +199,19 @@ async function augmentRootSitemap(res,origin){
   const type=(res.headers.get('content-type')||'').toLowerCase();
   if(!type.includes('xml'))return res;
   let body=await res.text();
-  if(!body.includes('/sitemap-priority.xml')&&/<sitemapindex\b/i.test(body))body=body.replace(/<\/sitemapindex>/i,`<sitemap><loc>${esc(origin)}/sitemap-priority.xml</loc></sitemap></sitemapindex>`);
-  const h=new Headers(res.headers);h.delete('content-length');h.set('x-priority-sitemap-discovery','v1');
+  if(/<sitemapindex\b/i.test(body)){
+    const additions=[
+      ['priority',origin+'/sitemap-priority.xml'],
+      ['english',origin+'/sitemap-en-articles.xml']
+    ];
+    for(const [,loc] of additions){
+      if(!body.includes(loc))body=body.replace(/<\/sitemapindex>/i,`<sitemap><loc>${esc(loc)}</loc></sitemap></sitemapindex>`);
+    }
+  }
+  const h=new Headers(res.headers);
+  h.delete('content-length');
+  h.set('x-priority-sitemap-discovery','v2');
+  h.set('x-english-sitemap-discovery','v1');
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
