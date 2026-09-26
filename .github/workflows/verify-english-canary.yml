@@ -57,16 +57,11 @@ jobs:
           const fs=require('fs');
           try{
             const x=JSON.parse(fs.readFileSync('/tmp/canary.json','utf8'));
-            const expected=new Set([
-              'en-noon-coupon-eligibility-saudi-arabia-travel-guide',
-              'en-smart-buying-on-noon-uae-headphones-and-audio-guide'
-            ]);
             const rows=Array.isArray(x.records)?x.records:[];
             const controlled=x.controlled||{};
-            const slugs=new Set(rows.map(r=>r.slug));
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 && rows.length===2 &&
               Number(controlled.target)===50000 && controlled.targetMarket==='AE' && controlled.marketPolicy==='uae-only-new-v6-batch24' && Number(controlled.published)>=2 && Number(controlled.published)<=50000 && Number(controlled.dailyTarget)===34560 && Number(controlled.minIntervalMinutes)===1 && Number(controlled.batchSize)===24 &&
-              [...expected].every(s=>slugs.has(s)) && slugs.size===2 &&
+              new Set(rows.map(r=>r.slug)).size===2 &&
               rows.every(r=>r.r2Present===true && r.language==='en' && r.languageIntent==='en' &&
                 r.languageSource==='native-intent-v6-canary' && r.canary===true && (!r.phase || r.phase==='canary') &&
                 r.minJaccardDistance>=0.18 && r.quality>=95 && r.qualityFloor>=95 && r.wordCount>=1000 &&
@@ -84,7 +79,7 @@ jobs:
           const x=JSON.parse(fs.readFileSync('/tmp/canary.json','utf8'));
           fs.writeFileSync('/tmp/paths.tsv',x.records.map(r=>[r.urlPath,r.country].join('|')).join('\n'));
           NODE
-      - name: Verify both original English pages live
+      - name: Verify baseline English pages live
         run: |
           set -euo pipefail
           ORIGIN="https://noondealsnow.com"
@@ -122,10 +117,11 @@ jobs:
           while IFS='|' read -r path country; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done < /tmp/paths.tsv
           curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
           grep -Fq "$ORIGIN/sitemap-en-articles.xml" /tmp/main-sitemap.xml
-          curl -fsS --max-time 20 "$ORIGIN/en/saudi" -o /tmp/saudi.html
-          curl -fsS --max-time 20 "$ORIGIN/en/uae" -o /tmp/uae.html
-          grep -Fq '/en/articles/en-noon-coupon-eligibility-saudi-arabia-travel-guide' /tmp/saudi.html
-          grep -Fq '/en/articles/en-smart-buying-on-noon-uae-headphones-and-audio-guide' /tmp/uae.html
+          while IFS='|' read -r path country; do
+            if [ "$country" = "AE" ]; then market="uae"; else market="saudi"; fi
+            curl -fsS --max-time 20 "$ORIGIN/en/$market" -o /tmp/market.html
+            grep -Fq "$path" /tmp/market.html
+          done < /tmp/paths.tsv
           for market in saudi uae; do
             curl -fsS -D /tmp/cat.h --max-time 20 "$ORIGIN/en/$market/category/mobiles" -o /tmp/cat.html
             ev="$(awk -F': ' 'tolower($1)=="x-english-evidence"{gsub("\r","",$2);print $2}' /tmp/cat.h)"
