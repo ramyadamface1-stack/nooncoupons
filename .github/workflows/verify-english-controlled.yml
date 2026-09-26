@@ -50,6 +50,8 @@ jobs:
           grep -Fq 'conditionalCreateOnly:true' english-canary.js
           grep -Fq 'qualityBeforeR2Head:true' english-canary.js
           grep -Fq 'schedulerEffectiveBatchPerTick:18' english-canary.js
+          grep -Fq 'englishRelatedArticles:6' english-canary.js
+          grep -Fq 'id="english-related-network"' english-canary.js
           grep -Fq 'stateCompaction:true' english-canary.js
           grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
           grep -Fq 'highDemandShareTarget:95' english-canary.js

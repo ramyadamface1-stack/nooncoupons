@@ -128,7 +128,7 @@ jobs:
           grep -Fq 'robotsEnglishSitemap:true' discovery-entry.js
           grep -Fq '/sitemap-en-articles.xml' discovery-entry.js
           grep -Fq 'englishPriorityDiscovery:true' discovery-entry.js
-          grep -Fq 'englishPriorityArticleLimit:200' discovery-entry.js
+          grep -Fq 'englishPriorityArticleLimit:500' discovery-entry.js
           grep -Fq 'englishCategoryEvidenceMin:3' discovery-entry.js
           grep -Fq "R2_COUNT_SNAPSHOT_KEY='_ops/article-count.json'" commerce-entry.js
           grep -Fq "setInterval(()=>refreshMetrics(false).catch(()=>{}),60000)" admin-page.js
@@ -257,6 +257,8 @@ jobs:
           grep -Fq "base={version:23,priority:'english-uae-core-cron-deadline-safe'" english-canary.js
           grep -Fq "const UAE_GEO_SEARCH_MARKETS=['Dubai','Abu Dhabi','Sharjah'];" bulk-content-engine.js
           grep -Fq 'schedulerEffectiveBatchPerTick:18' english-canary.js
+          grep -Fq 'englishRelatedArticles:6' english-canary.js
+          grep -Fq 'id="english-related-network"' english-canary.js
           grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
           grep -Fq 'stateCompaction:true' english-canary.js
           grep -Fq 'publishStateBeforeIndexNow:true' english-canary.js
