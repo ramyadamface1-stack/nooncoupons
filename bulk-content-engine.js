@@ -107,12 +107,23 @@ const UAE_QUERY_CATEGORY={
 };
 const UAE_COMMERCIAL_HEADS={
   coupon:['Noon UAE coupon code','Noon discount code UAE','Noon promo code UAE','Noon voucher code UAE','Noon coupon Dubai','Noon discount code Dubai'],
+  howto:['How to use Noon coupon UAE','Noon UAE coupon guide','Noon promo code guide UAE'],
+  compare:['Noon UAE price comparison','Noon deals comparison UAE','Compare Noon prices UAE'],
+  trouble:['Noon coupon not working UAE','Noon promo code not working UAE','Noon discount code not working UAE'],
+  question:['Does Noon coupon work UAE','Noon coupon eligibility UAE','Noon promo code eligibility UAE'],
+  seller:['Noon seller guide UAE','Noon UAE seller comparison','Choose Noon seller UAE'],
+  decision:['Noon buying guide UAE','Noon UAE shopping guide','Best way to buy on Noon UAE'],
   timing:['Noon coupon code today UAE','Noon UAE coupon today','Noon promo code UAE today','Noon discount code UAE today'],
   value:['Noon UAE deals','Noon deals UAE','Noon UAE discounts','Noon sale UAE'],
   smartbuy:['Noon UAE offers','Noon offers UAE','Noon UAE deals','Noon shopping offers UAE'],
   cart:['Noon promo code UAE','Noon coupon code UAE','Noon discount code UAE'],
-  finalprice:['Noon UAE deals','Noon discount code UAE','Noon UAE offers'],
-  eligibility:['Noon first order coupon UAE','Noon coupon UAE new customer','Noon coupon UAE existing customer','Noon coupon eligibility UAE']
+  finalprice:['Noon UAE final price','Noon UAE price','Noon deals UAE'],
+  eligibility:['Noon first order coupon UAE','Noon coupon UAE new customer','Noon coupon UAE existing customer','Noon coupon eligibility UAE'],
+  checklist:['Noon checkout checklist UAE','Noon UAE checkout guide','Noon coupon checkout UAE'],
+  multi:['Noon multi item deals UAE','Noon UAE bundle deals','Noon multiple items coupon UAE'],
+  returns:['Noon returns UAE','Noon UAE returns guide','Noon return policy guide UAE'],
+  warranty:['Noon warranty UAE','Noon UAE warranty guide','Noon product warranty UAE'],
+  budget:['Noon budget deals UAE','Noon UAE deals on a budget','Noon affordable deals UAE']
 };
 const UAE_POPULAR_SEARCHES={
   mobile:['iPhone 18 Pro Max','iPhone 18 Pro','iPhone Duo','iPhone 17','Samsung Galaxy S26 Ultra','Samsung Galaxy S26','Galaxy Z Fold8','Galaxy Z Flip8','Google Pixel 10 Pro','Nothing Phone','Xiaomi phone','OnePlus phone','Honor phone'],
@@ -137,14 +148,25 @@ function naturalUaeCommercialKeyword(subject,intent,geo='UAE'){
   const s=String(subject||'Noon shopping').replace(/\s+/g,' ').trim(),g=String(geo||'UAE').replace(/\s+/g,' ').trim();
   const patterns={
     coupon:`${s} Noon ${g} coupon code`,
+    howto:`how to use Noon coupon for ${s} ${g}`,
+    compare:`${s} Noon ${g} price comparison`,
+    trouble:`${s} Noon ${g} coupon not working`,
+    question:`${s} Noon ${g} coupon eligibility`,
+    seller:`${s} Noon ${g} seller guide`,
+    decision:`${s} Noon ${g} buying guide`,
     timing:`${s} Noon ${g} coupon today`,
     value:`${s} Noon ${g} deals`,
     smartbuy:`${s} Noon ${g} offers`,
     cart:`${s} Noon ${g} promo code`,
     finalprice:`${s} Noon ${g} price`,
-    eligibility:`${s} Noon ${g} coupon eligibility`
+    eligibility:`${s} Noon ${g} coupon eligibility`,
+    checklist:`${s} Noon ${g} checkout checklist`,
+    multi:`${s} Noon ${g} multi item deals`,
+    returns:`${s} Noon ${g} returns guide`,
+    warranty:`${s} Noon ${g} warranty guide`,
+    budget:`${s} Noon ${g} budget deals`
   };
-  return String(patterns[intent]||`${s} Noon ${g} shopping deals`).replace(/\s+/g,' ').trim();
+  return String(patterns[intent]||`${s} Noon ${g} shopping guide`).replace(/\s+/g,' ').trim();
 }
 function cleanUaeGoldenModifier(modifier){
   const cleaned=String(modifier||'').replace(/\b(?:UAE|Dubai|Abu Dhabi|Sharjah)\b/gi,' ').replace(/\s+/g,' ').trim();
