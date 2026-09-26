@@ -73,18 +73,24 @@ jobs:
           grep -Fq 'r2HeadRateLimited' english-canary.js
           grep -Fq "const TARGET_MARKET='AE';" english-canary.js
           grep -Fq "marketPolicy:'uae-only-new-v6-batch24'" english-canary.js
-          grep -Fq 'uae-golden-commercial-v3' bulk-content-engine.js
-          grep -Fq 'uae-high-demand-product-v3' bulk-content-engine.js
+          grep -Fq 'uae-golden-commercial-head-v4' bulk-content-engine.js
+          grep -Fq 'uae-high-demand-product-v4' bulk-content-engine.js
           grep -Fq 'UAE_POPULAR_SEARCHES' bulk-content-engine.js
           grep -Fq 'UAE_GOLDEN_COMMERCIAL_MODIFIERS' bulk-content-engine.js
           grep -Fq 'function naturalUaeCommercialKeyword' bulk-content-engine.js
           grep -Fq 'commercial-head-intent' bulk-content-engine.js
-          grep -Fq 'goldenModifier=seed%20!==19' bulk-content-engine.js
-          grep -Fq 'UAE_PROFILE_GOLDEN_MODIFIERS' bulk-content-engine.js
+          grep -Fq 'singleSubject:true' bulk-content-engine.js
+          grep -Fq 'noon-uae-popular-searches-2026-current' bulk-content-engine.js
           grep -Fq "'cashback offers UAE'" bulk-content-engine.js
-          grep -Fq "'iPhone 17 Pro Max deals'" bulk-content-engine.js
+          grep -Fq "'iPhone 18 Pro Max'" bulk-content-engine.js
+          grep -Fq "'iPhone 18 Pro'" bulk-content-engine.js
+          grep -Fq "'iPhone Duo'" bulk-content-engine.js
+          grep -Fq "'AirPods 5'" bulk-content-engine.js
+          grep -Fq "'Galaxy Z Fold8'" bulk-content-engine.js
+          grep -Fq "'Galaxy Z Flip8'" bulk-content-engine.js
+          grep -Fq "naturalUaeCommercialKeyword(subject,candidate.intent,geo)" bulk-content-engine.js
           grep -Fq "'MacBook Air M5 deals'" bulk-content-engine.js
-          grep -Fq 'queryModifier:goldenModifier?cleanModifier:null' bulk-content-engine.js
+          grep -Fq 'queryModifier:null' bulk-content-engine.js
           grep -Fq 'duplicateContinuation:true' english-canary.js
           grep -Fq "duplicateContinuation=result?.duplicate===true||result?.error==='r2_conditional_duplicate'" english-canary.js
           grep -Fq 'Math.min(36,effective*3)' english-canary.js
