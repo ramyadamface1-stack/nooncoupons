@@ -85,22 +85,22 @@ export function buildUsefulArticle(topic,cursor=0){
 const UAE_ENGLISH_QUERY_MODIFIERS=['UAE','Dubai','Abu Dhabi','Sharjah','online','UAE online','buy online UAE','coupon code','promo code','voucher code','coupon eligibility','coupon not working','price UAE','price comparison','final price','shopping guide','checkout guide','seller guide','shipping cost guide','delivery guide','cart guide','returns guide','warranty guide','Dubai shopping','Abu Dhabi shopping','Sharjah shopping'];
 const UAE_GOLDEN_COMMERCIAL_MODIFIERS=['coupon code UAE','promo code UAE','voucher code UAE','online coupon UAE','coupon eligibility UAE','coupon not working UAE','checkout guide UAE','final price UAE','price comparison UAE','seller guide UAE','shipping cost UAE','delivery guide UAE','returns guide UAE','warranty guide UAE','electronics shopping UAE','mobile shopping UAE','laptop shopping UAE','beauty shopping UAE','perfume shopping UAE','gaming shopping UAE','Dubai shopping','Abu Dhabi shopping','Sharjah shopping','buy online UAE'];
 const UAE_PROFILE_GOLDEN_MODIFIERS={
-  mobile:['coupon code','promo code','mobile deals','iPhone offers','Samsung offers','smartphone deals','best price','offers today','iPhone 17 Pro Max deals','iPhone 17 Pro deals','iPhone 17 Air deals','Samsung Galaxy S26 Ultra deals','phone cashback','mobile price UAE'],
-  computing:['coupon code','promo code','laptop deals','MacBook offers','gaming deals','PS5 deals','best price','offers today','MacBook Air M5 deals','MacBook Pro offers','gaming laptop offers','laptop price UAE','iPad deals','PS5 Pro deals','Nintendo Switch 2 deals'],
-  audio:['coupon code','promo code','AirPods offers','headphone deals','speaker deals','best price','offers today','AirPods Pro 3 deals','AirPods 4 deals','Galaxy Buds4 Pro deals','JBL speaker deals','Sony headphones offers'],
-  screen:['coupon code','promo code','TV deals','monitor offers','best price','offers today','OLED TV deals','QLED TV deals','4K TV offers','gaming monitor deals'],
-  beauty:['coupon code','promo code','beauty offers','perfume deals','skincare deals','best price','offers today','Dyson Airwrap deals','Korean skincare offers','perfume sale UAE','sunscreen deals'],
-  appliance:['coupon code','promo code','home appliances deals','fridge deals','vacuum deals','best price','offers today','Dyson vacuum deals','washing machine offers','fridge deals UAE','home appliance sale UAE'],
-  kitchen:['coupon code','promo code','air fryer deals','kitchen offers','coffee machine deals','best price','offers today','Ninja air fryer deals','Philips air fryer deals','coffee machine offers UAE','kitchen sale UAE'],
-  home:['coupon code','promo code','home deals','furniture offers','bedding deals','best price','offers today'],
-  fashion:['coupon code','promo code','fashion offers','handbag deals','shoe deals','best price','offers today'],
-  fitness:['coupon code','promo code','sports deals','fitness offers','smartwatch deals','best price','offers today'],
-  grocery:['coupon code','promo code','grocery offers','coffee deals','protein powder deals','best price','offers today'],
-  kids:['coupon code','promo code','LEGO deals','toy offers','school supplies deals','best price','offers today'],
-  baby:['coupon code','promo code','baby offers','stroller deals','diaper deals','best price','offers today'],
-  travel:['coupon code','promo code','luggage deals','travel offers','cabin bag deals','best price','offers today'],
-  office:['coupon code','promo code','printer deals','office offers','keyboard deals','best price','offers today']
-};
+  mobile:['coupon code','promo code','mobile shopping guide','iPhone buying guide','Samsung buying guide','smartphone price comparison','final price','iPhone model comparison','Samsung model comparison','mobile price UAE'],
+  computing:['coupon code','promo code','laptop shopping guide','MacBook buying guide','gaming laptop guide','PS5 buying guide','price comparison','laptop price UAE','iPad buying guide','Nintendo Switch buying guide'],
+  audio:['coupon code','promo code','AirPods buying guide','headphone comparison','speaker guide','final price','JBL speaker guide','Sony headphones guide'],
+  screen:['coupon code','promo code','TV buying guide','monitor comparison','final price','OLED TV guide','QLED TV guide','4K TV guide','gaming monitor guide'],
+  beauty:['coupon code','promo code','beauty shopping guide','perfume buying guide','skincare guide','final price','Dyson Airwrap guide','Korean skincare guide','sunscreen guide'],
+  appliance:['coupon code','promo code','home appliances guide','fridge buying guide','vacuum guide','final price','Dyson vacuum guide','washing machine guide','home appliance price UAE'],
+  kitchen:['coupon code','promo code','air fryer buying guide','kitchen shopping guide','coffee machine guide','final price','Ninja air fryer guide','Philips air fryer guide','coffee machine UAE guide'],
+  home:['coupon code','promo code','home shopping guide','furniture buying guide','bedding guide','final price'],
+  fashion:['coupon code','promo code','fashion shopping guide','handbag guide','shoe buying guide','final price'],
+  fitness:['coupon code','promo code','sports shopping guide','fitness equipment guide','smartwatch comparison','final price'],
+  grocery:['coupon code','promo code','grocery shopping guide','coffee buying guide','protein powder guide','final price'],
+  kids:['coupon code','promo code','LEGO buying guide','toy guide','school supplies guide','final price'],
+  baby:['coupon code','promo code','baby shopping guide','stroller guide','diaper buying guide','final price'],
+  travel:['coupon code','promo code','luggage buying guide','travel gear guide','cabin bag guide','final price'],
+  office:['coupon code','promo code','printer guide','office equipment guide','keyboard guide','final price']
+}
 const UAE_QUERY_CATEGORY={
   mobile:'mobile phones',computing:'laptops',audio:'headphones',screen:'TVs',fashion:'fashion',beauty:'beauty',
   appliance:'home appliances',kitchen:'home and kitchen',home:'home',fitness:'sports and fitness'
@@ -108,7 +108,7 @@ const UAE_QUERY_CATEGORY={
 const UAE_COMMERCIAL_HEADS={
   coupon:['Noon UAE coupon code','Noon discount code UAE','Noon promo code UAE','Noon voucher code UAE','Noon coupon Dubai','Noon discount code Dubai'],
   howto:['How to use Noon coupon UAE','Noon UAE coupon guide','Noon promo code guide UAE'],
-  compare:['Noon UAE price comparison','Noon deals comparison UAE','Compare Noon prices UAE'],
+  compare:['Noon UAE price comparison','Compare Noon prices UAE','Noon UAE product comparison'],
   trouble:['Noon coupon not working UAE','Noon promo code not working UAE','Noon discount code not working UAE'],
   question:['Does Noon coupon work UAE','Noon coupon eligibility UAE','Noon promo code eligibility UAE'],
   seller:['Noon seller guide UAE','Noon UAE seller comparison','Choose Noon seller UAE'],
@@ -117,13 +117,13 @@ const UAE_COMMERCIAL_HEADS={
   value:['Noon UAE shopping value guide','Noon UAE total cost comparison','Noon UAE final price guide'],
   smartbuy:['Noon UAE smart shopping guide','Noon UAE buying checklist','Noon UAE purchase decision guide'],
   cart:['Noon promo code UAE','Noon coupon code UAE','Noon discount code UAE'],
-  finalprice:['Noon UAE final price','Noon UAE price','Noon deals UAE'],
+  finalprice:['Noon UAE final price','Noon UAE price guide','Noon UAE total cost guide'],
   eligibility:['Noon coupon eligibility UAE','How to check Noon coupon eligibility UAE','Noon UAE coupon conditions guide'],
   checklist:['Noon checkout checklist UAE','Noon UAE checkout guide','Noon coupon checkout UAE'],
-  multi:['Noon multi item deals UAE','Noon UAE bundle deals','Noon multiple items coupon UAE'],
+  multi:['Noon multiple items guide UAE','Noon UAE multi-item checkout guide','Noon multiple items coupon guide UAE'],
   returns:['Noon returns UAE','Noon UAE returns guide','Noon return policy guide UAE'],
   warranty:['Noon warranty UAE','Noon UAE warranty guide','Noon product warranty UAE'],
-  budget:['Noon budget deals UAE','Noon UAE deals on a budget','Noon affordable deals UAE']
+  budget:['Noon budget shopping guide UAE','Noon UAE shopping on a budget','Noon affordable shopping guide UAE']
 };
 const UAE_POPULAR_SEARCHES={
   mobile:['iPhone 18 Pro Max','iPhone 18 Pro','iPhone Duo','iPhone 17','Samsung Galaxy S26 Ultra','Samsung Galaxy S26','Galaxy Z Fold8','Galaxy Z Flip8','Google Pixel 10 Pro','Nothing Phone','Xiaomi phone','OnePlus phone','Honor phone'],
@@ -134,15 +134,15 @@ const UAE_POPULAR_SEARCHES={
   beauty:['sunscreen','fragrance','eau de parfum','hair growth serum','face moisturizer','Korean skincare','setting spray','perfume','Dyson Airwrap','Vitamin C serum','skincare','makeup','hair dryer'],
   appliance:['Samsung fridge','LG fridge','washing machine','vacuum cleaner','Dyson vacuum','home appliances'],
   kitchen:['Ninja air fryer','Philips air fryer','air fryer','coffee machine','blender','microwave'],
-  home:['furniture','mattress','home storage','home deals','bedding'],
+  home:['furniture','mattress','home storage','home organization','bedding'],
   fitness:['smartwatch','fitness tracker','treadmill','dumbbells','yoga mat'],
-  grocery:['coffee','snacks','protein powder','grocery deals'],
+  grocery:['coffee','snacks','protein powder','grocery shopping'],
   kids:['LEGO','kids toys','school supplies','kids fashion'],
   baby:['baby stroller','diapers','baby monitor','baby essentials'],
   travel:['travel luggage','cabin bag','travel backpack','suitcase'],
   office:['printer','keyboard','mouse','office chair','school supplies']
 };
-const UAE_INTENT_SUFFIX={coupon:'coupon code',timing:'coupon today',value:'deals',smartbuy:'offers',cart:'promo code',finalprice:'price',eligibility:'coupon eligibility'};
+const UAE_INTENT_SUFFIX={coupon:'coupon code',timing:'coupon timing guide',value:'shopping value guide',smartbuy:'buying guide',cart:'promo code',finalprice:'final price',eligibility:'coupon eligibility'};
 const UAE_GEO_SEARCH_MARKETS=['Dubai','Abu Dhabi','Sharjah'];
 function naturalUaeCommercialKeyword(subject,intent,geo='UAE'){
   const s=String(subject||'Noon shopping').replace(/\s+/g,' ').trim(),g=String(geo||'UAE').replace(/\s+/g,' ').trim();
@@ -154,23 +154,23 @@ function naturalUaeCommercialKeyword(subject,intent,geo='UAE'){
     question:`${s} Noon ${g} coupon eligibility`,
     seller:`${s} Noon ${g} seller guide`,
     decision:`${s} Noon ${g} buying guide`,
-    timing:`${s} Noon ${g} coupon today`,
-    value:`${s} Noon ${g} deals`,
-    smartbuy:`${s} Noon ${g} offers`,
+    timing:`${s} Noon ${g} coupon timing guide`,
+    value:`${s} Noon ${g} shopping value guide`,
+    smartbuy:`${s} Noon ${g} buying guide`,
     cart:`${s} Noon ${g} promo code`,
     finalprice:`${s} Noon ${g} price`,
     eligibility:`${s} Noon ${g} coupon eligibility`,
     checklist:`${s} Noon ${g} checkout checklist`,
-    multi:`${s} Noon ${g} multi item deals`,
+    multi:`${s} Noon ${g} multi item checkout guide`,
     returns:`${s} Noon ${g} returns guide`,
     warranty:`${s} Noon ${g} warranty guide`,
-    budget:`${s} Noon ${g} budget deals`
+    budget:`${s} Noon ${g} budget shopping guide`
   };
   return String(patterns[intent]||`${s} Noon ${g} shopping guide`).replace(/\s+/g,' ').trim();
 }
 function cleanUaeGoldenModifier(modifier){
   const cleaned=String(modifier||'').replace(/\b(?:UAE|Dubai|Abu Dhabi|Sharjah)\b/gi,' ').replace(/\s+/g,' ').trim();
-  return cleaned||'deals';
+  return cleaned||'shopping guide';
 }
 function uaeEnglishPriorityKeyword(candidate){
   if(candidate?.country!=='AE')return null;
