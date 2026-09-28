@@ -8,8 +8,8 @@ const RESEARCH_UPDATED_AT='2026-09-18';
 const RESEARCH_DATA_VERSION='2026-09-18.v1';
 const SEARCH_SUGGESTIONS=[
   ...CODES.map(code=>({label:`كود نون ${code}`,hint:'كوبون',url:`/coupon/${code.toLowerCase()}`})),
-  {label:'كود نون اليوم',hint:'دليل',url:'/coupon/best-noon-coupon-today'},
-  {label:'كوبونات الطلب الأول',hint:'دليل',url:'/coupon/noon-new-subscribers-2026'},
+  {label:'كود خصم نون السعودية',hint:'كوبونات',url:'/saudi-arabia/noon-coupon-code'},
+  {label:'شروط وأهلية كود نون',hint:'دليل',url:'/guide/noon-coupon-eligibility'},
   {label:'جوالات نون السعودية',hint:'قسم',url:'/saudi/category/mobiles'},
   {label:'جوالات نون الإمارات',hint:'قسم',url:'/uae/category/mobiles'},
   {label:'إلكترونيات نون السعودية',hint:'قسم',url:'/saudi/category/electronics'},
@@ -25,65 +25,31 @@ const extraRoutes=[
   '/research',
   '/glossary',
   '/countries',
-  '/golden-keywords',
   '/noon-coupon-code-saudi-uae',
-  '/coupon/best-noon-coupon-today',
-  '/coupon/noon-free-shipping-code',
-  '/coupon/noon-new-subscribers-2026',
-  '/coupon/noon-mobiles-coupon-2026',
-  '/coupon/my-noon-coupon-experience',
-  '/coupon/noon-fashion-clothing-coupon',
-  '/coupon/noon-beauty-perfumes-coupon-2026',
-  '/coupon/fyp2-noon-first-order'
+  '/guide/noon-coupon-eligibility',
+  '/guide/noon-shipping-checklist'
 ];
+const LEGACY_INTENT_REDIRECTS=Object.freeze({
+  '/coupon/best-noon-coupon-today':'/saudi-arabia/noon-coupon-code',
+  '/coupon/noon-new-subscribers-2026':'/guide/noon-coupon-eligibility',
+  '/coupon/noon-mobiles-coupon-2026':'/saudi/category/mobiles',
+  '/coupon/my-noon-coupon-experience':'/guide/how-to-use-noon-coupon',
+  '/coupon/noon-fashion-clothing-coupon':'/saudi/categories',
+  '/coupon/noon-beauty-perfumes-coupon-2026':'/saudi/category/beauty',
+  '/coupon/fyp2-noon-first-order':'/guide/noon-coupon-eligibility'
+});
 const intentPages={
-  '/coupon/best-noon-coupon-today':{
-    title:'أفضل كود خصم نون اليوم | كيف تختار الكود الأنسب؟',
-    h1:'أفضل كود نون اليوم: كيف تختار بشكل صحيح؟',
-    intro:'لا يوجد كود واحد يمكن اعتباره الأفضل لكل عميل بدون معرفة الدولة والحساب والمنتجات وشروط العرض. لذلك نعرض الأكواد الحالية كلها ونرتب لك طريقة التجربة.',
-    bullets:['ابدأ بالكود الأول ثم انتقل للتالي إذا لم ينطبق.','تأكد أنك على متجر السعودية أو الإمارات الصحيح.','راجع إجمالي السلة بعد إدخال الكود قبل الدفع.','قارن السعر النهائي مع أي عرض مباشر بدون كود.']
+  '/guide/noon-coupon-eligibility':{
+    title:'شروط وأهلية كود نون | كيف تتحقق قبل الدفع؟',
+    h1:'شروط وأهلية كود نون: كيف تعرف إن كان الكود ينطبق على سلتك؟',
+    intro:'أهلية الكوبون قد تتغير حسب السوق والحساب والمنتج والبائع والحملة. هذا الدليل يشرح طريقة فحص الأهلية بدون افتراض أن أي كود مخصص تلقائيًا للطلب الأول أو للعملاء الحاليين.',
+    bullets:['ابدأ بالسوق الصحيح والحساب الذي ستشتري منه.','اختبر سلة صغيرة ومنتجًا واحدًا قبل إضافة عناصر أخرى.','اقرأ رسالة الأهلية التي يعرضها Noon ولا تخمن سبب القبول أو الرفض.','اعتمد على الإجمالي النهائي وشروط الحملة الحالية قبل الدفع.']
   },
-  '/coupon/noon-free-shipping-code':{
-    title:'كود شحن نون | كيف تتحقق من عروض الشحن؟',
-    h1:'هل يوجد كود شحن مجاني على نون؟',
-    intro:'شروط الشحن قد تتغير حسب الدولة والسلة والمنتجات والحساب. بدل ادعاء وجود كود شحن ثابت، استخدم هذه الصفحة لفحص الشحن مع الأكواد الحالية.',
-    bullets:['راجع تكلفة الشحن قبل إدخال الكود وبعده.','تحقق من حد السلة ومتطلبات العضوية إن ظهرت.','بعض المنتجات أو البائعين قد تكون لهم شروط مختلفة.','اعتمد على السعر النهائي الظاهر في السلة.']
-  },
-  '/coupon/noon-new-subscribers-2026':{
-    title:'كوبونات نون للعملاء الجدد | دليل الطلب الأول',
-    h1:'كوبونات نون للطلب الأول والعملاء الجدد',
-    intro:'قد ترتبط بعض الحملات بحساب جديد، لكننا لا ننسب أهلية أي كود لعميل جديد بدون شروط موثقة. جرّب الأكواد الحالية وتحقق من رسالة السلة.',
-    bullets:['تأكد من حالة الحساب والدولة.','استخدم بيانات صحيحة عند إنشاء الحساب.','راقب أي حد أدنى للطلب أو استثناءات.','إذا رُفض الكود جرّب كودًا آخر من القائمة.']
-  },
-  '/coupon/noon-mobiles-coupon-2026':{
-    title:'كوبونات نون للموبايلات | أكواد ونصائح شراء',
-    h1:'كوبونات نون للموبايلات والإلكترونيات',
-    intro:'الموبايلات من أكثر الفئات التي تحتاج مقارنة دقيقة بين سعر المنتج والعرض المباشر والكوبون وطريقة الدفع.',
-    bullets:['قارن نفس الموديل والسعة واللون قبل الحكم على السعر.','افحص البائع والضمان والشحن.','جرّب الكود بعد إضافة المنتج للسلة.','قارن السعر النهائي مع العروض البنكية أو التخفيض المباشر.']
-  },
-  '/coupon/my-noon-coupon-experience':{
-    title:'تجربة استخدام كوبونات نون | خطوات عملية قبل الدفع',
-    h1:'تجربة عملية لاستخدام كوبون نون',
-    intro:'أفضل طريقة لتقييم الكوبون ليست الاسم أو الوصف، بل ما يحدث فعليًا في السلة. هذه الصفحة تلخص المسار العملي من اختيار الكود حتى الدفع.',
-    bullets:['اختر السوق الصحيح.','انسخ الكود بدون تعديل.','أدخله في خانة القسيمة.','تأكد من ظهور الخصم أو التغيير في الإجمالي قبل تأكيد الطلب.']
-  },
-  '/coupon/noon-fashion-clothing-coupon':{
-    title:'كوبونات نون للأزياء والملابس | السعودية والإمارات',
-    h1:'كوبونات نون للأزياء والملابس',
-    intro:'في الأزياء، قد تختلف الأهلية حسب العلامة أو البائع أو نوع المنتج. استخدم الأكواد الحالية ثم تحقق من السلة لكل منتج.',
-    bullets:['افحص المقاس والبائع قبل الشراء.','قارن السعر قبل وبعد الكود.','راجع سياسة الإرجاع والشحن.','لا تعتمد على نسبة خصم غير ظاهرة في السلة.']
-  },
-  '/coupon/noon-beauty-perfumes-coupon-2026':{
-    title:'كوبونات نون للجمال والعطور | أكواد حالية',
-    h1:'كوبونات نون للجمال والعطور',
-    intro:'العطور والجمال فئات شائعة على نون، لكن شروط الكوبون قد تختلف حسب البائع والمنتج والعرض. جرّب الأكواد الحالية وتحقق من الإجمالي.',
-    bullets:['راجع اسم المنتج والحجم والبائع.','قارن السعر مع العرض المباشر.','تحقق من الشحن والضمان إن وجد.','جرّب أكثر من كود قبل الدفع.']
-  },
-  '/coupon/fyp2-noon-first-order':{
-    title:'كود نون للطلب الأول | بدائل حالية وتجربة السلة',
-    h1:'كود الطلب الأول على نون: ماذا تفعل؟',
-    intro:'هذه صفحة نية بحث للعملاء الذين يبحثون عن كود طلب أول. لا ننسب الكود القديم لأي حملة حالية بدون تحقق، ونوجّهك بدل ذلك للأكواد الحالية المتاحة للتجربة.',
-    bullets:['ابدأ بالأكواد الحالية أدناه.','تأكد من حالة حسابك والدولة.','راقب أي رسالة أهلية تظهر في نون.','اختَر الكود الذي يغيّر إجمالي السلة فعليًا.']
+  '/guide/noon-shipping-checklist':{
+    title:'الشحن مع كوبون نون | قائمة تحقق قبل الدفع',
+    h1:'الشحن مع كوبون نون: كيف تفحص التكلفة بدون افتراض شحن مجاني؟',
+    intro:'تكلفة الشحن قد تعتمد على السوق والمنتج والبائع والعنوان والسلة. هذا الدليل يساعدك على مقارنة تكلفة الشحن قبل الكود وبعده بدون ادعاء وجود شحن مجاني أو حد أدنى غير موثق.',
+    bullets:['سجّل تكلفة الشحن قبل تطبيق الكود.','ثبّت المنتج والبائع والكمية أثناء المقارنة.','راجع أي شرط أو حد يظهر داخل Noon نفسه.','قارن الإجمالي النهائي بدل التركيز على كلمة “مجاني” وحدها.']
   }
 };
 
@@ -154,7 +120,7 @@ function premiumHome(){
   return page(
     'كوبونات نون السعودية والإمارات | أكواد نون الحالية',
     'اعثر على أكواد نون الحالية للسعودية والإمارات، ابحث بالكود أو القسم، وانسخ الكود مباشرة ثم تحقق من النتيجة داخل السلة.',
-    `<section class="homeHero"><div class="wrap homeHeroGrid"><div><div class="homeKicker">أكواد نون الحالية · السعودية والإمارات</div><h1>ابحث، انسخ، وجرّب <em>كود نون</em> قبل الدفع</h1><p>كل الأكواد المتاحة في مكان واحد، مع صفحات منفصلة لكل سوق وأدلة تساعدك تختار المنتج وتختبر الكود بدون ادعاءات خصم غير موثقة.</p><div class="searchWrap"><form class="couponSearch" data-search><input data-search-input name="q" autocomplete="off" aria-label="ابحث عن كود أو قسم" placeholder="ابحث عن كود مثل NOV170 أو قسم مثل الإلكترونيات"><button>بحث</button></form><div class="searchSuggest" data-suggestions role="listbox" aria-label="اقتراحات البحث"></div></div><div class="popularSearches"><span>الأكثر بحثًا:</span><a href="/coupon/best-noon-coupon-today">كود نون اليوم</a><a href="/coupon/noon-new-subscribers-2026">أول طلب</a><a href="/saudi/category/mobiles">الجوالات</a><a href="/saudi/category/computers">الكمبيوتر واللابتوب</a><a href="/guide/how-to-use-noon-coupon">طريقة استخدام الكود</a><a href="/uae/category/beauty">الجمال</a></div></div><aside class="quickCoupon"><div class="quickCouponTop"><span>كود سريع للتجربة</span><span>آخر مراجعة: ${today}</span></div><h2>ابدأ بـ NOV170</h2><p>لو لم ينطبق على سلتك، ارجع إلى قائمة الأكواد وجرب كودًا آخر بدون تغيير المنتجات.</p><div class="quickCode"><strong>NOV170</strong><button data-copy="NOV170" data-market="UNSPECIFIED" data-placement="home_quick_coupon">نسخ الكود</button></div><div class="row"><a class="btn" href="/coupon/nov170">شروط وطريقة التجربة</a><a class="btn" href="/coupons">كل الأكواد</a></div></aside></div></section>
+    `<section class="homeHero"><div class="wrap homeHeroGrid"><div><div class="homeKicker">أكواد نون الحالية · السعودية والإمارات</div><h1>ابحث، انسخ، وجرّب <em>كود نون</em> قبل الدفع</h1><p>كل الأكواد المتاحة في مكان واحد، مع صفحات منفصلة لكل سوق وأدلة تساعدك تختار المنتج وتختبر الكود بدون ادعاءات خصم غير موثقة.</p><div class="searchWrap"><form class="couponSearch" data-search><input data-search-input name="q" autocomplete="off" aria-label="ابحث عن كود أو قسم" placeholder="ابحث عن كود مثل NOV170 أو قسم مثل الإلكترونيات"><button>بحث</button></form><div class="searchSuggest" data-suggestions role="listbox" aria-label="اقتراحات البحث"></div></div><div class="popularSearches"><span>الأكثر بحثًا:</span><a href="/saudi-arabia/noon-coupon-code">كود نون السعودية</a><a href="/guide/noon-coupon-eligibility">شروط الكوبون</a><a href="/saudi/category/mobiles">الجوالات</a><a href="/saudi/category/computers">الكمبيوتر واللابتوب</a><a href="/guide/how-to-use-noon-coupon">طريقة استخدام الكود</a><a href="/uae/category/beauty">الجمال</a></div></div><aside class="quickCoupon"><div class="quickCouponTop"><span>كود سريع للتجربة</span><span>آخر مراجعة: ${today}</span></div><h2>ابدأ بـ NOV170</h2><p>لو لم ينطبق على سلتك، ارجع إلى قائمة الأكواد وجرب كودًا آخر بدون تغيير المنتجات.</p><div class="quickCode"><strong>NOV170</strong><button data-copy="NOV170" data-market="UNSPECIFIED" data-placement="home_quick_coupon">نسخ الكود</button></div><div class="row"><a class="btn" href="/coupon/nov170">شروط وطريقة التجربة</a><a class="btn" href="/coupons">كل الأكواد</a></div></aside></div></section>
     <div class="summaryBar"><div class="wrap"><div class="summaryItem"><span class="summaryIcon">🎟️</span><div><b>${CODES.length} أكواد</b><small>ضمن القائمة المعتمدة</small></div></div><div class="summaryItem"><span class="summaryIcon">🌍</span><div><b>سوقان</b><small>السعودية والإمارات</small></div></div><div class="summaryItem"><span class="summaryIcon">🧭</span><div><b>أقسام منفصلة</b><small>لكل دولة وروابطها</small></div></div><div class="summaryItem"><span class="summaryIcon">🛡️</span><div><b>بدون مبالغة</b><small>السلة هي المرجع النهائي</small></div></div></div></div>
     <section id="all-codes" class="section"><div class="wrap"><div class="sectionTitle"><div><div class="sectionLabel">أكواد نون الحالية</div><h2>اختر كودًا وانسخه مباشرة</h2><p>جميع الأكواد المعتمدة (${CODES.length}) ظاهرة بدون إخفاء. لا نعرض نسبة خصم إلا عندما تكون موثقة.</p></div><a class="btn" href="/coupons">عرض صفحة الكوبونات</a></div><div class="couponGrid">${all}</div></div></section>
     <section class="section alt"><div class="wrap"><div class="sectionTitle"><div><div class="sectionLabel">اختر بلدك</div><h2>كوبونات نون حسب الدولة</h2><p>استخدم صفحة السوق الصحيحة قبل تجربة الكود.</p></div></div><div class="countryGrid"><a class="country" href="/saudi"><div style="font-size:35px">🇸🇦</div><div><strong>نون السعودية</strong><p class="muted">الأكواد، الأقسام، وأدلة الشراء للسوق السعودي.</p></div><span class="btn">فتح السعودية</span></a><a class="country" href="/uae"><div style="font-size:35px">🇦🇪</div><div><strong>نون الإمارات</strong><p class="muted">الأكواد، الأقسام، وأدلة الشراء للسوق الإماراتي.</p></div><span class="btn">فتح الإمارات</span></a></div></div></section>
@@ -302,4 +268,4 @@ function faqPage(){const qa=[['كيف أستخدم كود نون؟','انسخ ا
 function intentPage(path,data){const codes=CODES.map(c=>`<span class="mini">${c}</span>`).join('');return page(data.title,data.intro,`<section class="pageHero"><div class="wrap"><span class="eyebrow">دليل كوبونات نون</span><h1>${data.h1}</h1><p class="muted">${data.intro}</p></div></section><section class="section"><div class="wrap"><article class="article"><h2>ما الذي ننصح به؟</h2><ul class="list">${data.bullets.map(x=>`<li>${x}</li>`).join('')}</ul><h2>الأكواد الحالية المتاحة للتجربة</h2><div class="miniCodes">${codes}</div><div class="row"><a class="btn primary" href="/coupons">عرض كل الأكواد حسب الدولة</a><a class="btn" href="/saudi">السعودية</a><a class="btn" href="/uae">الإمارات</a></div><h2>مهم قبل الدفع</h2><p>لا تعتمد على اسم الصفحة أو وصف الكود وحده. نتيجة السلة هي المرجع النهائي لقيمة الخصم والأهلية.</p></article></div></section>`,path)}
 function countryCompare(){return page('كود خصم نون السعودية والإمارات | مقارنة السوقين','صفحة تجمع السعودية والإمارات وتوضح لماذا يجب فصل شروط الكوبون بين السوقين مع عرض الأكواد الحالية.',`<section class="pageHero"><div class="wrap"><span class="eyebrow">السعودية والإمارات</span><h1>كوبونات نون السعودية والإمارات</h1><p class="muted">سوقان منفصلان، قائمة أكواد حالية واحدة، وشروط قد تختلف حسب الدولة والحساب.</p></div></section><section class="section"><div class="wrap countryGrid"><a class="country" href="/saudi"><div style="font-size:36px">🇸🇦</div><strong>السعودية</strong><p class="muted">${CODES.length} أكواد حالية وصفحة مخصصة للسوق السعودي.</p><span class="btn primary">فتح السعودية</span></a><a class="country" href="/uae"><div style="font-size:36px">🇦🇪</div><strong>الإمارات</strong><p class="muted">${CODES.length} أكواد حالية وصفحة مخصصة للسوق الإماراتي.</p><span class="btn primary">فتح الإمارات</span></a><div class="country"><h3>لماذا نفصل السوقين؟</h3><p class="muted">لأن العملة والأهلية وشروط الحملة والمنتجات المستثناة قد تختلف، لذلك لا نخلط نتائج دولة بأخرى.</p></div></div></section>`,'/noon-coupon-code-saudi-uae')}
 async function extendedSitemap(request,env,ctx){const r=await base.fetch(request,env,ctx);const xml=await r.text();const extra=extraRoutes.map(p=>`<url><loc>${ORIGIN}${p}</loc><changefreq>weekly</changefreq><priority>.7</priority></url>`).join('');return new Response(xml.replace('</urlset>',extra+'</urlset>'),{status:r.status,headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300'}})}
-export default {async fetch(request,env,ctx){const url=new URL(request.url);const path=url.pathname.replace(/\/+$/,'')||'/';if(path==='/')return new Response(premiumHome(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});if(path==='/search')return new Response(modernSearchPage(url),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=120','x-robots-tag':'noindex, follow'}});if(path==='/research.json')return new Response(JSON.stringify(researchData()),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'public, max-age=60, s-maxage=300'}});if(path==='/research')return new Response(researchPage(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300','link':'<'+ORIGIN+'/research.json>; rel="alternate"; type="application/json"','x-research-json':'v1'}});if(path==='/glossary')return new Response(glossaryPage(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});if(path==='/countries')return new Response(countriesPage(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});if(path==='/golden-keywords')return new Response(goldenKeywordsHub(ORIGIN),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300','x-golden-keywords':'hub-v1'}});if(path==='/faq')return new Response(faqPage(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});if(path==='/noon-coupon-code-saudi-uae')return new Response(countryCompare(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});if(intentPages[path])return new Response(intentPage(path,intentPages[path]),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});const oldCode=path.match(/^\/coupon\/((?:ops|nov)\d+)$/i);if(oldCode&&!CODES.includes(oldCode[1].toUpperCase()))return Response.redirect(ORIGIN+'/coupons',301);if(path==='/coupon/ramy25-ramadan')return Response.redirect(ORIGIN+'/coupons',301);if(path==='/sitemap.xml')return extendedSitemap(request,env,ctx);return base.fetch(request,env,ctx)},scheduled:base.scheduled};
+export default {async fetch(request,env,ctx){const url=new URL(request.url);const path=url.pathname.replace(/\/+$/,'')||'/';if(path==='/')return new Response(premiumHome(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});if(path==='/search')return new Response(modernSearchPage(url),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=120','x-robots-tag':'noindex, follow'}});if(path==='/research.json')return new Response(JSON.stringify(researchData()),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'public, max-age=60, s-maxage=300'}});if(path==='/research')return new Response(researchPage(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300','link':'<'+ORIGIN+'/research.json>; rel="alternate"; type="application/json"','x-research-json':'v1'}});if(path==='/glossary')return new Response(glossaryPage(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});if(path==='/countries')return new Response(countriesPage(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});if(path==='/golden-keywords')return new Response(goldenKeywordsHub(ORIGIN),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'private, no-store','x-robots-tag':'noindex, follow','x-golden-keywords':'internal-strategy-v2'}});if(path==='/faq')return new Response(faqPage(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});if(path==='/noon-coupon-code-saudi-uae')return new Response(countryCompare(),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});if(LEGACY_INTENT_REDIRECTS[path])return Response.redirect(ORIGIN+LEGACY_INTENT_REDIRECTS[path],301);if(intentPages[path])return new Response(intentPage(path,intentPages[path]),{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=0, s-maxage=300'}});const oldCode=path.match(/^\/coupon\/((?:ops|nov)\d+)$/i);if(oldCode&&!CODES.includes(oldCode[1].toUpperCase()))return Response.redirect(ORIGIN+'/coupons',301);if(path==='/coupon/ramy25-ramadan')return Response.redirect(ORIGIN+'/coupons',301);if(path==='/sitemap.xml')return extendedSitemap(request,env,ctx);return base.fetch(request,env,ctx)},scheduled:base.scheduled};
