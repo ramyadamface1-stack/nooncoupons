@@ -64,11 +64,7 @@ function keyPages(origin){
     '/saudi/categories',
     '/uae/categories',
     '/saudi-arabia/noon-coupon-code',
-    '/saudi-arabia/noon-coupon-code-today',
-    '/saudi-arabia/noon-coupon-code-2026',
     '/uae/noon-coupon-code',
-    '/uae/noon-coupon-code-today',
-    '/uae/noon-coupon-code-2026',
     '/editorial-policy',
     '/coupon-verification',
     '/authors/editorial-team',
@@ -143,7 +139,7 @@ async function injectDiscoveryLinks(req,env,res){
   const type=(res.headers.get('content-type')||'').toLowerCase();
   if(!type.includes('text/html'))return res;
   const path=new URL(req.url).pathname.replace(/\/+$/,'')||'/';
-  const eligible=['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'].includes(path)||/^\/(?:saudi-arabia|uae)\/noon-coupon-code(?:-today|-2026)?$/.test(path);
+  const eligible=['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'].includes(path)||/^\/(?:saudi-arabia|uae)\/noon-coupon-code$/.test(path);
   if(!eligible)return res;
   let html=await res.text();
   if(html.includes('id="crawl-discovery-links"'))return res;
@@ -335,4 +331,4 @@ export default{
   }
 };
 
-export const DISCOVERY_ENTRY_INFO={version:21,edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:45000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:21,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:21,edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:45000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:17,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
