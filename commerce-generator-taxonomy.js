@@ -4,9 +4,7 @@ const hash=s=>{let n=2166136261;for(const c of String(s||'')){n^=c.charCodeAt(0)
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uniq=(xs)=>[...new Set((xs||[]).filter(Boolean))];
 const moneyLinks=(market)=>{const base=market==='uae'?'/uae':'/saudi-arabia',country=market==='uae'?'الإمارات':'السعودية';return [
- {path:base+'/noon-coupon-code',label:'كود خصم نون '+country},
- {path:base+'/noon-coupon-code-today',label:'أكواد نون '+country+' اليوم'},
- {path:base+'/noon-coupon-code-2026',label:'أكواد نون '+country+' 2026'}
+ {path:base+'/noon-coupon-code',label:'كود خصم نون '+country}
 ]};
 
 const CATEGORY_MODEL_KEYS={
@@ -130,4 +128,4 @@ export function decorateArticleCommerce(article={},topic={}){
   return {...article,...fields,commerceTarget:t.targetLabel,html};
 }
 
-export const COMMERCE_GENERATOR_INFO={version:7,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'catalog-intent-preserving-category-aware',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true,priorityBrandWeighting:true,comparisonCadence:'1-in-6-mobile',categoryOnlyCadence:'1-in-7',brandOnlyCadence:'1-in-5',coverageTargets:'category-aware',adaptiveCorrection:'bounded-only',adaptiveCadence:'11/13/17/19'};
+export const COMMERCE_GENERATOR_INFO={version:8,mode:'explicit-generator-taxonomy',metadata:['categoryKey','brandKey','modelKey','comparisonKey','landingPath'],categoryRoutes:Object.keys(CATEGORIES).length,brandRoutes:Object.keys(BRANDS).length,modelRoutes:Object.values(BRANDS).reduce((n,b)=>n+Object.keys(b.models).length,0),comparisonRoutes:Object.keys(COMPARISONS).length,markets:Object.keys(MARKETS).length,brandModelTargeting:'catalog-intent-preserving-category-aware',primaryKeywordMutation:false,internalLinks:true,moneyHubLinks:true,canonicalMoneyHubOnly:true,priorityBrandWeighting:true,comparisonCadence:'1-in-6-mobile',categoryOnlyCadence:'1-in-7',brandOnlyCadence:'1-in-5',coverageTargets:'category-aware',adaptiveCorrection:'bounded-only',adaptiveCadence:'11/13/17/19'};
