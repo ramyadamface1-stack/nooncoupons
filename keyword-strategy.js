@@ -8,7 +8,8 @@ const freshness=()=>{const d=new Date();return `${MONTHS_AR[d.getUTCMonth()]} ${
 const HIGH_VALUE_SCENARIOS=new Set(['وقت العروض','قبل الدفع','للطلب الأول','لحساب حالي','عند رفض الكود']);
 const SEASONAL_INTENTS=new Set(['coupon','compare','finalprice','value','timing','smartbuy','eligibility','checklist','budget']);
 function commercialFreshness(t,intent,s){
-  if(intent==='coupon'&&(HIGH_VALUE_SCENARIOS.has(t.scenario)||HIGH_VALUE_SCENARIOS.has(s)))return freshness();
+  // Never manufacture freshness from the current month/year.
+  // A time modifier is allowed only when the topic carries an explicit, evidence-backed seasonal term.
   if(SEASONAL_INTENTS.has(intent)&&t.seasonalTerm)return t.seasonalTerm;
   return '';
 }
@@ -167,7 +168,7 @@ export function applyKeywordStrategy(topic){
   const baseKw=fitKeyword(builder(expanded,s),expanded,intent,s),specificKw=addSpecificity(baseKw,expanded,intent,s),distinctKw=distinctKeyword(specificKw,expanded,intent,s),kw=preserveDecisionContext(distinctKw,expanded,intent),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
   const couponSeed=Math.abs(Number(topic.topicIndex??topic.diversitySeed??0));
   const code=APPROVED_COUPON_CODES[couponSeed%APPROVED_COUPON_CODES.length];
-  return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,code,keywordStrategy:'search-intent-v6-noon-hierarchy',keywordWordCount:words,searchIntentFamily:intent};
+  return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,code,keywordStrategy:'search-intent-v7-demand-aware',keywordWordCount:words,searchIntentFamily:intent};
 }
 
-export const KEYWORD_STRATEGY_INFO={version:'search-intent-v6-noon-hierarchy',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,distinctSpecificity:true,decisionContextPreserved:true,hierarchyTargetPreserved:true,seasonalKeywords:true,seasonalMonth:freshness(),topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,approvedCouponCount:APPROVED_COUPON_CODES.length,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation','unapproved-coupon-code'],maxRecommendedWords:16,maxKeywordCharacters:70};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v7-demand-aware',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,distinctSpecificity:true,decisionContextPreserved:true,hierarchyTargetPreserved:true,seasonalKeywords:true,automaticCalendarFreshness:false,seasonalMonth:null,topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,approvedCouponCount:APPROVED_COUPON_CODES.length,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation','unapproved-coupon-code'],maxRecommendedWords:16,maxKeywordCharacters:70};
