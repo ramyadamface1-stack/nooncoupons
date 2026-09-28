@@ -78,10 +78,12 @@ jobs:
           grep -Fq 'UAE_POPULAR_SEARCHES' bulk-content-engine.js
           grep -Fq 'UAE_GOLDEN_COMMERCIAL_MODIFIERS' bulk-content-engine.js
           grep -Fq 'function naturalUaeCommercialKeyword' bulk-content-engine.js
-          grep -Fq 'commercial-head-intent' bulk-content-engine.js
+          grep -Fq 'gsc-informed-commercial-intent' bulk-content-engine.js
           grep -Fq 'singleSubject:true' bulk-content-engine.js
-          grep -Fq 'noon-uae-popular-searches-2026-current' bulk-content-engine.js
-          grep -Fq "'cashback offers UAE'" bulk-content-engine.js
+          grep -Fq 'editorial-product-family-seed' bulk-content-engine.js
+          ! grep -Fq "'cashback offers UAE'" bulk-content-engine.js
+          ! grep -Fq "'free shipping UAE'" bulk-content-engine.js
+          ! grep -Fq "'first order coupon'" bulk-content-engine.js
           grep -Fq "'iPhone 18 Pro Max'" bulk-content-engine.js
           grep -Fq "'iPhone 18 Pro'" bulk-content-engine.js
           grep -Fq "'iPhone Duo'" bulk-content-engine.js
@@ -96,7 +98,8 @@ jobs:
           grep -Fq 'Math.min(36,effective*3)' english-canary.js
           grep -Fq "'Noon discount code UAE'" bulk-content-engine.js
           grep -Fq "'Noon promo code UAE'" bulk-content-engine.js
-          grep -Fq "'Noon first order coupon UAE'" bulk-content-engine.js
+          grep -Fq "'Noon coupon eligibility UAE'" bulk-content-engine.js
+          ! grep -Fq "'Noon first order coupon UAE'" bulk-content-engine.js
           grep -Fq "h2>=6&&h2<=18" quality-audit.js
           grep -Fq "const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];" bulk-content-engine-base.js
           grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
