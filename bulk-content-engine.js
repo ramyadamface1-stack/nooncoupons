@@ -82,8 +82,8 @@ export function buildUsefulArticle(topic,cursor=0){
   return {...article,html,diversityVersion:4,topicExpansionVersion:'query-modifier-v4',diversityKey:`${stableIndex(cursor,ARABIC_QUERY_MODIFIERS.length,17)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,101)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,138)}`};
 }
 
-const UAE_ENGLISH_QUERY_MODIFIERS=['today','2026','Dubai','Abu Dhabi','Sharjah','online','UAE online','buy online UAE','best deals','best offers','deals today','offers today','sale today','coupon today','coupon 2026','promo code 2026','discount code 2026','price UAE','best price UAE','price comparison','shopping guide','checkout guide','deal guide','voucher guide','discount guide','seller guide','shipping guide','delivery guide','cart guide','offers guide','Dubai deals','Abu Dhabi deals','Sharjah deals','Dubai shopping','Abu Dhabi shopping','Sharjah shopping'];
-const UAE_GOLDEN_COMMERCIAL_MODIFIERS=['coupon today','coupon 2026','promo code 2026','discount code 2026','first order coupon','new customer coupon','app coupon','voucher code UAE','online coupon UAE','first purchase coupon','new user coupon','app promo code','free delivery','free shipping UAE','cashback offers UAE','bank card offers UAE','credit card offers UAE','flash sale UAE','daily deals UAE','mega deals UAE','price drop UAE','bundle deals UAE','lowest price UAE','best deals','best offers','deals today','offers today','sale today','price UAE','best price UAE','electronics deals UAE','mobile deals UAE','laptop deals UAE','beauty offers UAE','perfume deals UAE','gaming deals UAE','Dubai deals','Abu Dhabi deals','Sharjah deals','buy online UAE'];
+const UAE_ENGLISH_QUERY_MODIFIERS=['UAE','Dubai','Abu Dhabi','Sharjah','online','UAE online','buy online UAE','coupon code','promo code','voucher code','coupon eligibility','coupon not working','price UAE','price comparison','final price','shopping guide','checkout guide','seller guide','shipping cost guide','delivery guide','cart guide','returns guide','warranty guide','Dubai shopping','Abu Dhabi shopping','Sharjah shopping'];
+const UAE_GOLDEN_COMMERCIAL_MODIFIERS=['coupon code UAE','promo code UAE','voucher code UAE','online coupon UAE','coupon eligibility UAE','coupon not working UAE','checkout guide UAE','final price UAE','price comparison UAE','seller guide UAE','shipping cost UAE','delivery guide UAE','returns guide UAE','warranty guide UAE','electronics shopping UAE','mobile shopping UAE','laptop shopping UAE','beauty shopping UAE','perfume shopping UAE','gaming shopping UAE','Dubai shopping','Abu Dhabi shopping','Sharjah shopping','buy online UAE'];
 const UAE_PROFILE_GOLDEN_MODIFIERS={
   mobile:['coupon code','promo code','mobile deals','iPhone offers','Samsung offers','smartphone deals','best price','offers today','iPhone 17 Pro Max deals','iPhone 17 Pro deals','iPhone 17 Air deals','Samsung Galaxy S26 Ultra deals','phone cashback','mobile price UAE'],
   computing:['coupon code','promo code','laptop deals','MacBook offers','gaming deals','PS5 deals','best price','offers today','MacBook Air M5 deals','MacBook Pro offers','gaming laptop offers','laptop price UAE','iPad deals','PS5 Pro deals','Nintendo Switch 2 deals'],
@@ -113,12 +113,12 @@ const UAE_COMMERCIAL_HEADS={
   question:['Does Noon coupon work UAE','Noon coupon eligibility UAE','Noon promo code eligibility UAE'],
   seller:['Noon seller guide UAE','Noon UAE seller comparison','Choose Noon seller UAE'],
   decision:['Noon buying guide UAE','Noon UAE shopping guide','Best way to buy on Noon UAE'],
-  timing:['Noon coupon code today UAE','Noon UAE coupon today','Noon promo code UAE today','Noon discount code UAE today'],
-  value:['Noon UAE deals','Noon deals UAE','Noon UAE discounts','Noon sale UAE'],
-  smartbuy:['Noon UAE offers','Noon offers UAE','Noon UAE deals','Noon shopping offers UAE'],
+  timing:['When to recheck a Noon UAE coupon','Noon UAE coupon timing guide','When to retry a Noon promo code UAE'],
+  value:['Noon UAE shopping value guide','Noon UAE total cost comparison','Noon UAE final price guide'],
+  smartbuy:['Noon UAE smart shopping guide','Noon UAE buying checklist','Noon UAE purchase decision guide'],
   cart:['Noon promo code UAE','Noon coupon code UAE','Noon discount code UAE'],
   finalprice:['Noon UAE final price','Noon UAE price','Noon deals UAE'],
-  eligibility:['Noon first order coupon UAE','Noon coupon UAE new customer','Noon coupon UAE existing customer','Noon coupon eligibility UAE'],
+  eligibility:['Noon coupon eligibility UAE','How to check Noon coupon eligibility UAE','Noon UAE coupon conditions guide'],
   checklist:['Noon checkout checklist UAE','Noon UAE checkout guide','Noon coupon checkout UAE'],
   multi:['Noon multi item deals UAE','Noon UAE bundle deals','Noon multiple items coupon UAE'],
   returns:['Noon returns UAE','Noon UAE returns guide','Noon return policy guide UAE'],
@@ -186,7 +186,7 @@ function uaeEnglishPriorityKeyword(candidate){
     cluster:`uae-${candidate.intent||'commercial'}-${profile}`,
     searchClass,
     headTerm:useDemand?subject:head,
-    demandSource:useDemand?'noon-uae-popular-searches-2026-current':'commercial-head-intent',
+    demandSource:useDemand?'editorial-product-family-seed':'gsc-informed-commercial-intent',
     golden:true,
     goldenModifier:false,
     intentSuffix:UAE_INTENT_SUFFIX[candidate.intent]||'shopping guide',
