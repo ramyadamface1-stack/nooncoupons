@@ -59,7 +59,6 @@ function llms(origin){
 - English UAE hub: ${origin}/en/uae
 - English article sitemap: ${origin}/sitemap-en-articles.xml
 - Markets hub: ${origin}/countries
-- Golden keyword/search-intent hub: ${origin}/golden-keywords
 - Blog: ${origin}/blog
 - Research and methodology: ${origin}/research
 - Machine-readable research facts: ${origin}/research.json
