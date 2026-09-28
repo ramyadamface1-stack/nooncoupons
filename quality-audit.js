@@ -80,6 +80,7 @@ export function auditSeoArticle(article,topic,opts={}){
   addCheck(checks,'trust','reviewer_signal',/مراجعة تحريرية|المراجع|فريق تحرير/i.test(plain),2);
   addCheck(checks,'trust','last_verified',/<time\b[^>]*datetime=/i.test(html)&&/آخر تحقق|آخر مراجعة/i.test(plain),2);
   addCheck(checks,'trust','source_transparency',/المصدر الرسمي|مصدر التحقق|نون الرسمي/i.test(plain),2);
+  addCheck(checks,'trust','evidence_ledger',/<section\b[^>]*class=["'][^"']*evidence-ledger/i.test(html)&&/نسبة الخصم/.test(plain)&&/تاريخ الانتهاء/.test(plain)&&/المرجع التجاري النهائي/.test(plain),4,{critical:true});
 
   addCheck(checks,'aeo','answer_first',/class=["'][^"']*direct-answer/i.test(html)&&strip((html.match(/class=["'][^"']*direct-answer[^"']*["'][^>]*>([\s\S]*?)<\/(?:p|div|aside)>/i)||[])[1]||'').length>=80,4);
   addCheck(checks,'aeo','question_headings',count(html,/<h[23]\b[^>]*>[^<]*(?:كيف|هل|ماذا|متى|لماذا)/gi)>=4,3);
@@ -141,10 +142,10 @@ export function auditSeoArticle(article,topic,opts={}){
   let sum=0,total=0;for(const [g,v] of Object.entries(groups)){const gw=weights[g]||1;sum+=v*gw;total+=gw}
   const score=clamp(sum/Math.max(1,total)),p0=checks.filter(x=>x.critical&&!x.pass),failed=checks.filter(x=>!x.pass),groupFloor=Math.min(...['seo','content','trust','aeo','geo','eeat','technical','uniqueness'].map(g=>groups[g]??0)),threshold=Math.max(95,Number(opts.threshold||opts.qualityThreshold||95));
   const productionReady=p0.length===0&&score>=threshold&&groupFloor>=88&&wordCount>=minWords&&wordCount<=2000;
-  return {score,scoreMode:'compliance-gated-v2',wordCount,productionReady,signature:sig,minSignatureDistance,plain,groups,checks,failed:failed.map(x=>x.name),p0:p0.map(x=>x.name),measuredChecks:checks.length,criteriaCatalogCount:QUALITY_CRITERIA_COUNT,criteriaCatalog:QUALITY_CRITERIA,groupFloor,arabicRatio:Math.round(arabicRatio*1000)/1000};
+  return {score,scoreMode:'compliance-gated-v3-evidence',wordCount,productionReady,signature:sig,minSignatureDistance,plain,groups,checks,failed:failed.map(x=>x.name),p0:p0.map(x=>x.name),measuredChecks:checks.length,criteriaCatalogCount:QUALITY_CRITERIA_COUNT,criteriaCatalog:QUALITY_CRITERIA,groupFloor,arabicRatio:Math.round(arabicRatio*1000)/1000};
 }
 
-export function auditSummary(a){return {score:a.score,scoreMode:a.scoreMode||'compliance-gated-v2',wordCount:a.wordCount,productionReady:a.productionReady,groups:a.groups,p0:a.p0,failed:a.failed,minSignatureDistance:a.minSignatureDistance,signature:a.signature,measuredChecks:a.measuredChecks,criteriaCatalogCount:a.criteriaCatalogCount}}
+export function auditSummary(a){return {score:a.score,scoreMode:a.scoreMode||'compliance-gated-v3-evidence',wordCount:a.wordCount,productionReady:a.productionReady,groups:a.groups,p0:a.p0,failed:a.failed,minSignatureDistance:a.minSignatureDistance,signature:a.signature,measuredChecks:a.measuredChecks,criteriaCatalogCount:a.criteriaCatalogCount}}
 
 
 const ENGLISH_SHINGLE_CACHE=new WeakMap();
