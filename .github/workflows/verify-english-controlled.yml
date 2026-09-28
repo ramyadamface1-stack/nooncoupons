@@ -96,9 +96,9 @@ jobs:
           ! grep -Fq "timing:'coupon today'" bulk-content-engine.js
           ! grep -Fq "value:'deals'" bulk-content-engine.js
           ! grep -Fq "smartbuy:'offers'" bulk-content-engine.js
-          ! grep -Fq "${s} Noon ${g} coupon today" bulk-content-engine.js
-          ! grep -Fq "${s} Noon ${g} deals" bulk-content-engine.js
-          ! grep -Fq "${s} Noon ${g} offers" bulk-content-engine.js
+          ! grep -Fq '${s} Noon ${g} coupon today' bulk-content-engine.js
+          ! grep -Fq '${s} Noon ${g} deals' bulk-content-engine.js
+          ! grep -Fq '${s} Noon ${g} offers' bulk-content-engine.js
           grep -Fq 'queryModifier:null' bulk-content-engine.js
           grep -Fq 'duplicateContinuation:true' english-canary.js
           grep -Fq "duplicateContinuation=result?.duplicate===true||result?.error==='r2_conditional_duplicate'" english-canary.js
