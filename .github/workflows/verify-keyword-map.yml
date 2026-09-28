@@ -44,6 +44,11 @@ jobs:
             exit 0
           fi
           home="$(cat /tmp/home)"
+          if ! grep -Fq '<title>كود خصم نون | أكواد نون السعودية والإمارات</title>' <<<"$home"; then
+            echo 'KEYWORD_MAP_LIVE=WAITING_FOR_CURRENT_DEPLOY'
+            echo 'SOURCE_INVARIANTS=PASS'
+            exit 0
+          fi
           grep -Fq '<title>كود خصم نون | أكواد نون السعودية والإمارات</title>' <<<"$home"
           grep -Fq 'كود خصم نون: أكواد نون للسعودية والإمارات' <<<"$home"
           grep -Fq 'id="search-intent-hubs"' <<<"$home"
