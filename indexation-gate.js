@@ -28,9 +28,9 @@ export function evaluateIndexation(article,topic,{globalGate=null,contextualLink
   if(schemaGate&&!schemaGate.pass)reasons.push('schema_not_valid');
   if(!coupon?.publishAllowed)reasons.push('coupon_not_fresh_enough');
   if(matureCluster&&Number(contextualLinks||0)<2)reasons.push('weak_cluster_support');
-  if(score<85)reasons.push('indexation_value_below_threshold');
+  if(score<95)reasons.push('indexation_value_below_threshold');
 
-  return {indexable:reasons.length===0,score,reasons,intentSpecificity:Math.round(intentSpecificity*1000)/1000,topicCoverage:Math.round(topicCoverage*1000)/1000,contextualLinks:Number(contextualLinks||0),clusterSize:Number(clusterSize||0),matureCluster,policy:'independent-intent-information-gain-v1'};
+  return {indexable:reasons.length===0,score,reasons,intentSpecificity:Math.round(intentSpecificity*1000)/1000,topicCoverage:Math.round(topicCoverage*1000)/1000,contextualLinks:Number(contextualLinks||0),clusterSize:Number(clusterSize||0),matureCluster,policy:'independent-intent-information-gain-v2'};
 }
 
-export const INDEXATION_GATE_INFO={version:1,minScore:85,minMeaningfulKeywordTokens:4,minTopicCoverage:0.8,minContextualLinksWhenMature:2,matureClusterSize:4,policy:'independent-intent-information-gain-v1'};
+export const INDEXATION_GATE_INFO={version:2,minScore:95,minMeaningfulKeywordTokens:4,minTopicCoverage:0.8,minContextualLinksWhenMature:2,matureClusterSize:4,policy:'independent-intent-information-gain-v2'};
