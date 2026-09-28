@@ -21,12 +21,12 @@ jobs:
           node --check premium-entry.js
           node --check discovery-entry.js
           node --check brand-runtime.js
-          grep -Fq "2026-09-18-v2-golden-hub" keyword-pages.js
+          grep -Fq "2026-09-28-v3-intent-owner" keyword-pages.js
           grep -Fq "GOLDEN_KEYWORD_ROUTES" keyword-pages.js
           grep -Fq "goldenKeywordsHub" keyword-pages.js
-          grep -Fq "كود خصم نون 2026" keyword-pages.js
-          grep -Fq "كود خصم نون السعودية 2026" keyword-pages.js
-          grep -Fq "كود خصم نون الإمارات 2026" keyword-pages.js
+          ! grep -Fq "كود خصم نون 2026" keyword-pages.js
+          ! grep -Fq "كود خصم نون السعودية 2026" keyword-pages.js
+          ! grep -Fq "كود خصم نون الإمارات 2026" keyword-pages.js
           grep -Fq "noon-discount-50" keyword-pages.js
           grep -Fq "noon-yellow-friday" keyword-pages.js
           grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
@@ -44,7 +44,7 @@ jobs:
             exit 0
           fi
           home="$(cat /tmp/home)"
-          grep -Fq '<title>كود خصم نون 2026 | أكواد خصم نون السعودية والإمارات</title>' <<<"$home"
+          grep -Fq '<title>كود خصم نون | أكواد نون السعودية والإمارات</title>' <<<"$home"
           grep -Fq 'كود خصم نون: أكواد نون للسعودية والإمارات' <<<"$home"
           grep -Fq 'id="search-intent-hubs"' <<<"$home"
 
@@ -67,8 +67,10 @@ jobs:
           pages="$(curl -fsS --max-time 20 "$ORIGIN/sitemap-pages.xml")"
           grep -Fq '/coupon/noon-discount-50' <<<"$pages"
           grep -Fq '/guide/noon-yellow-friday' <<<"$pages"
-          grep -Fq '/golden-keywords' <<<"$pages"
-          golden="$(curl -fsS --max-time 20 "$ORIGIN/golden-keywords")"
-          grep -Fq 'الكلمات والصفحات الذهبية لنون' <<<"$golden"
+          ! grep -Fq '/golden-keywords' <<<"$pages"
+          curl -fsS -D /tmp/golden_headers --max-time 20 "$ORIGIN/golden-keywords" -o /tmp/golden
+          golden="$(cat /tmp/golden)"
+          grep -Fqi 'x-robots-tag: noindex, follow' /tmp/golden_headers
+          grep -Fq 'خريطة نيات البحث الداخلية' <<<"$golden"
           grep -Fq '"@type":"CollectionPage"' <<<"$golden"
           echo 'KEYWORD_MAP_LIVE=PASS'
