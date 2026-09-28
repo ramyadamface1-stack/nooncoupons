@@ -604,7 +604,6 @@ jobs:
           grep -Fq 'English Saudi hub: https://noondealsnow.com/en/saudi' /tmp/llms.txt
           grep -Fq 'English article sitemap: https://noondealsnow.com/sitemap-en-articles.xml' /tmp/llms.txt
           grep -Fq 'English RSS: https://noondealsnow.com/feed-en.xml' /tmp/llms.txt
-          grep -Fq 'Golden keyword/search-intent hub: https://noondealsnow.com/golden-keywords' /tmp/llms.txt
 
           echo "VERIFY_ROUTE=control-health-visits"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/api/control-health?deploy=$GITHUB_SHA" -o /tmp/control-health.json
@@ -645,7 +644,9 @@ jobs:
 
           echo "VERIFY_ROUTE=golden-keywords"
           curl -fsS --retry 3 --retry-all-errors --retry-delay 2 "$RUNTIME_ORIGIN/golden-keywords?deploy=$GITHUB_SHA" -D /tmp/golden.h -o /tmp/golden.html
-          grep -Fqi 'x-golden-keywords: hub-v1' /tmp/golden.h
+          grep -Fqi 'x-golden-keywords: internal-strategy-v2' /tmp/golden.h
+          grep -Fqi 'x-robots-tag: noindex, follow' /tmp/golden.h
+          grep -Fq 'خريطة نيات البحث الداخلية' /tmp/golden.html
           grep -Fqi 'x-seo-settings: r2-v1' /tmp/golden.h
           grep -Fq '"@type":"CollectionPage"' /tmp/golden.html
           grep -Fq '"@type":"ItemList"' /tmp/golden.html
