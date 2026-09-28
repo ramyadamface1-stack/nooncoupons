@@ -255,7 +255,7 @@ jobs:
           grep -Fq 'goldenHeadShareTarget:70' english-canary.js
           grep -Fq 'commercialSeedShareTarget:100' english-canary.js
           grep -Fq 'currentUaeModelTerms:true' english-canary.js
-          grep -Fq "'cashback offers UAE'" bulk-content-engine.js
+          ! grep -Fq "'cashback offers UAE'" bulk-content-engine.js
           grep -Fq "'iPhone 17 Pro Max deals'" bulk-content-engine.js
           grep -Fq 'schedulerFirstIntervalBypass:true' english-canary.js
           grep -Fq "const SCHEDULER_STATE_KEY='english-canary/scheduler-status-v23.json';" english-canary.js
@@ -313,8 +313,10 @@ jobs:
           if grep -Fq '.svg?v=8&coupon=' auto-platform.js; then echo 'STALE_AUTO_PLATFORM_SVG_V8=1'; exit 1; fi
           node --check gsc-snapshot.js
           grep -Fq "property:'sc-domain:noondealsnow.com'" gsc-snapshot.js
-          grep -Fq "dataAvailable:false" gsc-snapshot.js
-          grep -Fq "status:'no_rows_returned'" gsc-snapshot.js
+          grep -Fq "dataAvailable:true" gsc-snapshot.js
+          grep -Fq "clicks:4" gsc-snapshot.js
+          grep -Fq "impressions:846" gsc-snapshot.js
+          grep -Fq "cannibalizationCandidates" gsc-snapshot.js
           grep -Fq "/api/admin/seo-drops" admin-runtime.js
           grep -Fq 'id="seoDropsPanel"' admin-page.js
           grep -Fq 'Google Search Console' admin-page.js
