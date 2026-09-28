@@ -4,9 +4,9 @@ const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
 const pick=(xs,n,salt=0)=>xs?.length?xs[Math.abs((Number(n)||0)+salt)%xs.length]:null;
 const uniq=xs=>[...new Set((xs||[]).filter(Boolean))];
 
-// Current high-interest product families observed on Noon in September 2026.
-// These are topic seeds only; article copy must still avoid inventing prices, stock or discount claims.
-const SEPTEMBER_2026_SEEDS={
+// Curated product-family seeds used only to diversify category coverage.
+// They are not claims about search volume, current stock, launch status, discount eligibility or popularity.
+const PRODUCT_FAMILY_SEEDS={
   mobiles:['iPhone 17','iPhone 17 Pro','iPhone 17 Pro Max','iPhone 17 Air','iPhone 16','Samsung Galaxy S25 Ultra','Samsung Galaxy S24 Ultra','Samsung Galaxy Flip 6','Samsung Galaxy Fold 6','Huawei Phone','Nothing Phone'],
   laptops:['MacBook Air','MacBook Pro','Acer Laptops','ASUS Laptops','Dell Laptops','HP Laptops','Huawei Laptops','Lenovo Laptops','MSI Laptops','Razer Laptops','Samsung Laptops','Gaming Laptop'],
   audio:['AirPods 4','AirPods Pro','Bose Speakers','Harman Kardon Speaker','JBL Speakers','Marshall Speaker','Sony Speaker'],
@@ -57,7 +57,7 @@ const CATEGORY_MODEL_KEYS={
 };
 
 const PRODUCT_ANGLES=[
-  'السعر النهائي بعد الكوبون','هل الكوبون يعمل','أفضل وقت لتجربة الكود','مقارنة البائعين','الشحن والتوصيل','سياسة الإرجاع','الضمان','اختيار السعة','اختيار المقاس','اختيار اللون','مقارنة المواصفات','للطلب الأول','للحساب الحالي','قبل الدفع','وقت عروض سبتمبر','ميزانية محددة','مقارنة البدائل','القيمة مقابل السعر','فحص أهلية السلة','شراء أكثر من قطعة','الشراء من التطبيق','الشراء من المتصفح','مراجعة الملحقات','التوافق مع الاستخدام','مراجعة النسخة والموديل'
+  'السعر النهائي بعد تجربة الكود','كيفية التحقق من الكود','أفضل وقت لإعادة فحص السلة','مقارنة البائعين','الشحن والتوصيل','سياسة الإرجاع','الضمان','اختيار السعة','اختيار المقاس','اختيار اللون','مقارنة المواصفات','فحص شروط الحساب','قبل الدفع','ميزانية محددة','مقارنة البدائل','القيمة مقابل السعر','فحص أهلية السلة','شراء أكثر من قطعة','الشراء من التطبيق','الشراء من المتصفح','مراجعة الملحقات','التوافق مع الاستخدام','مراجعة النسخة والموديل'
 ];
 
 function eligibleBrands(categoryKey){
@@ -86,14 +86,14 @@ export function expandNoonTopic(topic={},cursor=0){
   const subcategories=uniq(category.terms||[]);
   const brands=eligibleBrands(categoryKey);
   const models=modelRows(categoryKey);
-  const seasonal=SEPTEMBER_2026_SEEDS[categoryKey]||[];
+  const seasonal=PRODUCT_FAMILY_SEEDS[categoryKey]||[];
   const level=n%6;
   let catalogLevel='category',catalogTarget=category.label||topic.category||'',brandKey=null,modelKey=null;
 
   if(level===1&&subcategories.length){
     catalogLevel='subcategory';catalogTarget=pick(subcategories,n,3);
   }else if(level===2&&brands.length){
-    const [bk,b]=pick(brands,n,7);catalogLevel='brand';brandKey=bk;catalogTarget=`${b.label} ${pick(subcategories,n,11)||category.label||''}`.trim();
+    const [bk,b]=pick(brands,n,7);catalogLevel='brand';brandKey=bk;catalogTarget=`${b.label} ${category.label||''}`.trim();
   }else if(level===3&&models.length){
     const m=pick(models,n,13);catalogLevel='model';brandKey=m.brandKey;modelKey=m.modelKey;catalogTarget=`${m.brand} ${m.model}`.trim();
   }else if(level===4&&seasonal.length){
@@ -104,8 +104,7 @@ export function expandNoonTopic(topic={},cursor=0){
     catalogLevel='product-intent';catalogTarget=`${base} ${pick(PRODUCT_ANGLES,n,31)}`.trim();
   }
 
-  const seasonalCadence=n%4===0;
-  const seasonalTerm=seasonalCadence?'سبتمبر 2026':'';
+  const seasonalTerm=clean(topic.seasonalTerm||'');
   return {
     ...topic,
     categoryKey,
@@ -116,16 +115,18 @@ export function expandNoonTopic(topic={},cursor=0){
     catalogBrandKey:brandKey,
     catalogModelKey:modelKey,
     seasonalTerm,
-    topicExpansionVersion:'noon-hierarchy-v2'
+    topicExpansionVersion:'noon-hierarchy-v3-demand-safe'
   };
 }
 
 export const NOON_TOPIC_EXPANSION_INFO={
-  version:'noon-hierarchy-v2',
+  version:'noon-hierarchy-v3-demand-safe',
   levels:['category','subcategory','brand','model','seasonal-product','product-intent'],
   seasonalMonth:'سبتمبر 2026',
   seasonalCadence:'1-in-4',
   productAngles:PRODUCT_ANGLES.length,
-  seededCategories:Object.keys(SEPTEMBER_2026_SEEDS).length,
-  categoryModelCompatibility:true
+  seededCategories:Object.keys(PRODUCT_FAMILY_SEEDS).length,
+  categoryModelCompatibility:true,
+  brandSubcategoryClaims:false,
+  automaticSeasonalFreshness:false
 };
