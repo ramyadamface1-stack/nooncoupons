@@ -256,7 +256,11 @@ jobs:
           grep -Fq 'commercialSeedShareTarget:100' english-canary.js
           grep -Fq 'currentUaeModelTerms:true' english-canary.js
           ! grep -Fq "'cashback offers UAE'" bulk-content-engine.js
-          grep -Fq "'iPhone 17 Pro Max deals'" bulk-content-engine.js
+          grep -Fq "'mobile shopping guide'" bulk-content-engine.js
+          ! grep -Fq "'offers today'" bulk-content-engine.js
+          ! grep -Fq "timing:'coupon today'" bulk-content-engine.js
+          ! grep -Fq "value:'deals'" bulk-content-engine.js
+          ! grep -Fq "smartbuy:'offers'" bulk-content-engine.js
           grep -Fq 'schedulerFirstIntervalBypass:true' english-canary.js
           grep -Fq "const SCHEDULER_STATE_KEY='english-canary/scheduler-status-v23.json';" english-canary.js
           grep -Fq "base={version:23,priority:'english-uae-core-cron-deadline-safe'" english-canary.js
