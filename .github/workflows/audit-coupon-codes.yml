@@ -62,6 +62,13 @@ jobs:
           APPROVED='NOV170 NOV188 NOV174 NOV157 NOV177 NOV186 NOV163 NOV153 NOV195 NOV161'
           ORIGIN='https://noondealsnow.com'
 
+          NS="$(dig +short NS noondealsnow.com 2>/dev/null || true)"
+          if grep -Eqi 'failed-whois-verification|verify-contact-details\.namecheap\.com' <<<"$NS"; then
+            echo 'LIVE_COUPON_AUDIT=BLOCKED_BY_NAMECHEAP_CONTACT_VERIFICATION'
+            echo "$NS"
+            exit 0
+          fi
+
           curl -fsS --retry 4 --retry-delay 2 "$ORIGIN/?coupon-audit=3" -o /tmp/home.html
           curl -fsS --retry 4 --retry-delay 2 "$ORIGIN/blog?coupon-audit=3" -o /tmp/blog.html
 
