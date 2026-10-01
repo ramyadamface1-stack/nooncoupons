@@ -59,6 +59,7 @@ function keyPages(origin){
   return [
     '/',
     '/coupons',
+    '/en/coupons',
     '/blog',
     '/saudi',
     '/uae',
@@ -184,6 +185,7 @@ async function prioritySitemap(env,origin){
     .slice(0,500)
     .map(a=>({loc:origin+(a.urlPath||('/en/articles/'+enc(a.slug))),lastmod:a.updatedAt||a.createdAt||null}));
   const englishPages=[
+    {loc:origin+'/en/coupons',lastmod:null},
     {loc:origin+'/en/saudi',lastmod:null},
     {loc:origin+'/en/uae',lastmod:null},
     {loc:origin+'/en/saudi/noon-coupon-code',lastmod:null},
@@ -242,7 +244,7 @@ async function hubSitemap(env,origin){
     if(a.brandKey&&a.modelKey)add('/'+market+'/model/'+encodeURIComponent(a.brandKey)+'/'+encodeURIComponent(a.modelKey),lastmod);
     if(a.landingPath&&String(a.landingPath).startsWith('/'))add(String(a.landingPath),lastmod);
   }
-  add('/en/saudi');add('/en/uae');add('/en/saudi/noon-coupon-code');add('/en/uae/noon-coupon-code');add('/en/saudi/category/mobiles');
+  add('/en/coupons');add('/en/saudi');add('/en/uae');add('/en/saudi/noon-coupon-code');add('/en/uae/noon-coupon-code');add('/en/saudi/category/mobiles');
   let english=[];try{english=(await englishCanaryRecords(env)).filter(discoveryEligible)}catch{}
   for(const a of english){
     const market=a.country==='AE'?'uae':'saudi',lastmod=a.updatedAt||a.createdAt||null;
@@ -340,7 +342,7 @@ function edgePageCacheKey(u){
 function edgePageCacheEligible(req,u){
   if(req.method!=='GET'||u.search||req.headers.has('authorization')||req.headers.has('cookie')||req.headers.has('range'))return false;
   const p=u.pathname.replace(/\/+$/,'')||'/';
-  if(['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide','/en/saudi','/en/uae'].includes(p))return true;
+  if(['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide','/en/coupons','/en/saudi','/en/uae'].includes(p))return true;
   if(/^\/(?:saudi|uae)\/(?:category|brand|model|compare)\/[^/]+(?:\/[^/]+)?$/.test(p))return true;
   if(/^\/en\/(?:saudi|uae)\/noon-coupon-code$/.test(p))return true;
   if(/^\/en\/(?:saudi|uae)\/(?:category|product)\/[^/]+$/.test(p))return true;
@@ -445,4 +447,4 @@ export default{
   }
 };
 
-export const DISCOVERY_ENTRY_INFO={version:23,release:DISCOVERY_RELEASE,revisionEndpoint:'/api/revision',hubSitemap:true,hubSitemapPath:'/sitemap-hubs.xml',edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:45000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:33,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:23,release:DISCOVERY_RELEASE,revisionEndpoint:'/api/revision',hubSitemap:true,hubSitemapPath:'/sitemap-hubs.xml',edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:45000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:34,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
