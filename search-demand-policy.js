@@ -8,6 +8,10 @@ function marketKey(topic={}){
   return 'saudi';
 }
 
+function shoppingOwner(topic={}){
+  return '/'+marketKey(topic)+'/shopping-guide';
+}
+
 function genericCouponOwner(topic={}){
   return marketKey(topic)==='uae'?'/uae/noon-coupon-code':'/saudi-arabia/noon-coupon-code';
 }
@@ -36,8 +40,13 @@ export function searchDemandEvidence(topic={}){
 export function evaluateSearchDemandPolicy(topic={}){
   const evidence=searchDemandEvidence(topic);
   const intent=String(topic.intent||topic.searchIntentFamily||'');
+  const broadBuyingIntent=['decision','smartbuy','budget','checklist'].includes(intent);
   const specific=Boolean(topic.brandKey||topic.modelKey||topic.comparisonKey||['brand','model','product-intent'].includes(String(topic.catalogLevel||'')));
   if(specific)return {createStandalone:true,action:'create',reason:'specific-entity-intent',ownerPath:null,evidence};
+
+  if(broadBuyingIntent&&!topic.categoryKey){
+    return {createStandalone:false,action:'route-existing',reason:'broad-buying-owned-by-country-guide',ownerPath:shoppingOwner(topic),evidence};
+  }
 
   if(intent==='returns'){
     return {createStandalone:false,action:'route-existing',reason:'returns-owned-by-refund-guide',ownerPath:'/guide/noon-refund-credit',evidence};
@@ -53,12 +62,13 @@ export function evaluateSearchDemandPolicy(topic={}){
 }
 
 export const SEARCH_DEMAND_POLICY_INFO=Object.freeze({
-  version:2,
+  version:3,
   model:'demand-aware-intent-owner-v1',
   sourceWindow:'GSC 2026-08-29..2026-09-25 + uploaded 1000-keyword editorial bank',
   principles:['one-intent-one-owner','measured-demand-over-artificial-variation','route-hub-intents-to-existing-pages','specific-entity-pages-still-require-quality-gates'],
   observedCategories:[...GSC_SUPPORTED_CATEGORY_KEYS],
   canonicalCouponOwners:{SA:'/saudi-arabia/noon-coupon-code',AE:'/uae/noon-coupon-code'},
   howToOwner:'/guide/how-to-use-noon-coupon',
-  refundOwner:'/guide/noon-refund-credit'
+  refundOwner:'/guide/noon-refund-credit',
+  shoppingOwners:{SA:'/saudi/shopping-guide',AE:'/uae/shopping-guide'}
 });
