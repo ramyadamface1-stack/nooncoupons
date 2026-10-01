@@ -166,6 +166,13 @@ async function r2putJson(env,key,value){
   }
   throw last||new Error('r2_status_put_failed');
 }
+function maxIsoStamp(a,b){
+  const am=Date.parse(String(a||'')),bm=Date.parse(String(b||''));
+  if(Number.isFinite(am)&&Number.isFinite(bm))return am>=bm?String(a):String(b);
+  if(Number.isFinite(am))return String(a);
+  if(Number.isFinite(bm))return String(b);
+  return b||a||null;
+}
 async function r2putGeneratorStatusMonotonic(env,value){
   const current=await r2json(env,R2_GENERATOR_STATUS_KEY,null);
   const next={...value,backend:'r2-v1'};
@@ -174,6 +181,11 @@ async function r2putGeneratorStatusMonotonic(env,value){
     const sameDay=String(current.bulkDay||'')===String(next.bulkDay||'');
     if(sameDay)next.bulkPublishedToday=Math.max(Number(current.bulkPublishedToday||0),Number(next.bulkPublishedToday||0));
     next.bulkCursorV2=Math.max(Number(current.bulkCursorV2||0),Number(next.bulkCursorV2||0));
+    next.bulkLastSuccessAt=maxIsoStamp(current.bulkLastSuccessAt,next.bulkLastSuccessAt);
+    next.lastSuccess=maxIsoStamp(current.lastSuccess,next.lastSuccess);
+    next.bulkLastTickAt=maxIsoStamp(current.bulkLastTickAt,next.bulkLastTickAt);
+    next.bulkLastRun=maxIsoStamp(current.bulkLastRun,next.bulkLastRun);
+    next.bulkSearchDemandPolicyVersion=Math.max(Number(current.bulkSearchDemandPolicyVersion||0),Number(next.bulkSearchDemandPolicyVersion||0));
   }
   return r2putJson(env,R2_GENERATOR_STATUS_KEY,next);
 }
