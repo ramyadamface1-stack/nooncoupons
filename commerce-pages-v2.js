@@ -351,12 +351,18 @@ async function categoryPage(market, key, origin, env) {
   const rows = all.filter((a) => commerceMeta(a).categoryKey === key).slice(0,30);
   const path = `/${market}/category/${key}`;
   const isSaudiMobiles=market==='saudi'&&key==='mobiles';
-  const title = isSaudiMobiles?'عروض نون للموبايلات السعودية | كوبونات وأدلة الشراء':`${c.label} على ${mk.name}`;
-  const desc = isSaudiMobiles?'استكشف عروض وموبايلات نون السعودية مع براندات وموديلات وأدلة شراء وكود للتجربة داخل السلة، بدون ادعاء خصم ثابت غير موثق.':`${c.desc} الصفحة تربط القسم بالبراندات والموديلات والمقالات ذات الصلة وباقي شبكة الموقع.`;
+  const gscCategoryIntent=market==='saudi'?({
+    mobiles:{title:'عروض نون للموبايلات السعودية | كوبونات وأدلة الشراء',desc:'استكشف عروض وموبايلات نون السعودية مع براندات وموديلات وأدلة شراء وكود للتجربة داخل السلة، بدون ادعاء خصم ثابت غير موثق.'},
+    audio:{title:'كود خصم سماعات نون السعودية | سماعات وصوتيات',desc:'صفحة السماعات والصوتيات على نون السعودية: جرّب الكود على سلة ثابتة، وقارن البراند والبائع والاتصال والبطارية والإجمالي النهائي قبل الدفع.'},
+    gifts:{title:'هدايا نون السعودية | أفكار هدايا وكود للتجربة',desc:'دليل هدايا نون السعودية حسب المناسبة والميزانية وموعد التوصيل، مع كود للتجربة ومراجعة السعر النهائي وسياسة الإرجاع قبل الدفع.'},
+    'home-kitchen':{title:'كود خصم البيت والمطبخ نون السعودية | أدوات وأجهزة',desc:'دليل البيت والمطبخ على نون السعودية مع كود للتجربة، ومراجعة السعة والخامة والأبعاد والبائع والشحن والسعر النهائي.'}
+  })[key]:null;
+  const title = gscCategoryIntent?.title||`${c.label} على ${mk.name}`;
+  const desc = gscCategoryIntent?.desc||`${c.desc} الصفحة تربط القسم بالبراندات والموديلات والمقالات ذات الصلة وباقي شبكة الموقع.`;
   const hero = `<header class="hero"><div class="w">${breadcrumbs(market,[{label:c.label}])}<h1>${title}</h1><p>${desc}</p></div></header>`;
   const eligibleBrandCount=Object.values(BRANDS).filter(b=>b.categories?.includes(key)).length;
   const mobileBrands = eligibleBrandCount ? `<section class="section"><h2>براندات ${c.label}</h2><p class="lead">اختر البراند ثم انتقل إلى عائلة المنتج والمقالات والعروض المرتبطة.</p>${brandGrid(market,'',key)}</section>` : '';
-  const opportunityAnswer=isSaudiMobiles?`<section class="section"><h2>أين تجد عروض نون للموبايلات؟</h2><div class="box"><p><strong>الإجابة المختصرة:</strong> ابدأ من هذه الصفحة لمقارنة براندات وموديلات الموبايلات على نون السعودية، ثم جرّب الكود على نفس السلة وراجع السعر النهائي داخل نون قبل الدفع.</p><p>نربط هنا الموبايلات بالبراند والموديل والمقالات المتخصصة حتى لا تضطر للبحث بين صفحات منفصلة وغير مترابطة.</p></div></section>`:'';
+  const opportunityAnswer=isSaudiMobiles?`<section class="section"><h2>أين تجد عروض نون للموبايلات؟</h2><div class="box"><p><strong>الإجابة المختصرة:</strong> ابدأ من هذه الصفحة لمقارنة براندات وموديلات الموبايلات على نون السعودية، ثم جرّب الكود على نفس السلة وراجع السعر النهائي داخل نون قبل الدفع.</p><p>نربط هنا الموبايلات بالبراند والموديل والمقالات المتخصصة حتى لا تضطر للبحث بين صفحات منفصلة وغير مترابطة.</p></div></section>`:gscCategoryIntent?`<section class="section"><h2>${esc(gscCategoryIntent.title.split('|')[0].trim())}</h2><div class="box"><p><strong>الإجابة المختصرة:</strong> هذه الصفحة هي نقطة التجميع العامة لهذا القسم على نون السعودية. استخدم المقالات للمواقف التفصيلية، وجرّب الكود فقط على السلة نفسها ثم اعتمد على إجمالي نون النهائي.</p></div></section>`:'';
   const main = `${couponBox(market,key,c.label)}${opportunityAnswer}<section class="section"><h2>خطوات قرار الشراء</h2><div class="check"><div class="box"><strong>1. حدد الاستخدام</strong><br>اختيار المنتج يسبق اختيار الكوبون.</div><div class="box"><strong>2. ثبت النسخة</strong><br>قارن نفس السعة أو المقاس أو الإصدار.</div><div class="box"><strong>3. راجع البائع</strong><br>الضمان والإرجاع والشحن جزء من القرار.</div><div class="box"><strong>4. اختبر الكود</strong><br>قارن الإجمالي النهائي بعد تطبيقه.</div></div></section>${mobileBrands}<section class="section"><h2>مقالات ${c.label}</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">ستظهر المقالات المتخصصة هنا عندما تتوفر أدلة مراجعة ومناسبة لهذا القسم.</div>'}</section><section class="section"><h2>أقسام مرتبطة</h2>${categoryGrid(market,key)}</section>`;
   return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market,key), 'category', {'x-commerce-category':key});
 }
@@ -371,7 +377,8 @@ async function brandPage(market, key, origin, env) {
     puma:{title:'قسيمة وكود خصم PUMA بوما على نون السعودية | أحذية وRunning',desc:'صفحة بوما PUMA على نون السعودية لتجربة الكود، ومراجعة Running وLifestyle والمقاس والبائع والإرجاع قبل الدفع.'},
     adidas:{title:'كود خصم adidas أديداس على نون السعودية | أحذية ورياضة',desc:'صفحة adidas أديداس على نون السعودية لتجربة الكود، والوصول إلى Running وOriginals وFootball مع مراجعة المقاس والبائع والسعر النهائي.'},
     braun:{title:'كود براون على نون السعودية | Braun Grooming وSilk-épil',desc:'صفحة Braun براون على نون السعودية لتجربة الكود ومراجعة Grooming وSilk-épil والبائع والضمان وشروط الإرجاع قبل الدفع.'},
-    versace:{title:'كود خصم Versace فيرساتشي على نون السعودية | عطور',desc:'صفحة Versace فيرساتشي على نون السعودية لتجربة الكود ومراجعة العطر والبائع والحجم والسعر النهائي وشروط الإرجاع قبل الدفع.'}
+    versace:{title:'كود خصم Versace فيرساتشي على نون السعودية | عطور',desc:'صفحة Versace فيرساتشي على نون السعودية لتجربة الكود ومراجعة العطر والبائع والحجم والسعر النهائي وشروط الإرجاع قبل الدفع.'},
+    sony:{title:'كود خصم Sony سوني على نون السعودية | PlayStation وBRAVIA وسماعات',desc:'صفحة Sony سوني على نون السعودية لتجربة الكود والوصول إلى PlayStation وBRAVIA والسماعات مع مراجعة البائع والضمان والسعر النهائي.'}
   })[key]:null;
   const title = gscBrandIntent?.title||`كود خصم ${b.label} على ${mk.name} | ${categoryLabel}`;
   const desc = gscBrandIntent?.desc||`بوابة ${b.label} على ${mk.name}: جرّب الكود من القائمة المعتمدة، ثم استكشف عائلات الموديلات وأدلة الاختيار والمقالات المرتبطة قبل الدفع.`;
