@@ -175,8 +175,14 @@ async function prioritySitemap(env,origin){
     for(const a of marketRows){if(a.categoryKey)byCategory.set(a.categoryKey,(byCategory.get(a.categoryKey)||0)+1)}
     for(const [categoryKey,count] of byCategory)if(count>=3)englishPages.push({loc:origin+'/en/'+market+'/category/'+encodeURIComponent(categoryKey),lastmod:null});
     if(country==='AE'){
-      const iphone18=marketRows.filter(a=>/iphone\s*18\s*pro\s*max/i.test(String(a.title||'')+' '+String(a.primaryKeyword||'')));
-      if(iphone18.length>=2)englishPages.push({loc:origin+'/en/uae/product/iphone-18-pro-max',lastmod:iphone18.map(a=>a.updatedAt||a.createdAt||'').sort().slice(-1)[0]||null});
+      const productHubs=[
+        ['iphone-18-pro-max',/iphone\s*18\s*pro\s*max/i],
+        ['iphone-duo',/iphone\s*duo/i]
+      ];
+      for(const [key,pattern] of productHubs){
+        const matches=marketRows.filter(a=>pattern.test(String(a.title||'')+' '+String(a.primaryKeyword||'')));
+        if(matches.length>=2)englishPages.push({loc:origin+'/en/uae/product/'+key,lastmod:matches.map(a=>a.updatedAt||a.createdAt||'').sort().slice(-1)[0]||null});
+      }
     }
   }
   const auditArchive=[];
@@ -217,7 +223,11 @@ async function hubSitemap(env,origin){
     const market=a.country==='AE'?'uae':'saudi',lastmod=a.updatedAt||a.createdAt||null;
     add('/en/'+market,lastmod);
     if(a.categoryKey)add('/en/'+market+'/category/'+encodeURIComponent(a.categoryKey),lastmod);
-    if(a.country==='AE'&&/iphone\s*18\s*pro\s*max/i.test(String(a.title||'')+' '+String(a.primaryKeyword||'')))add('/en/uae/product/iphone-18-pro-max',lastmod);
+    if(a.country==='AE'){
+      const hay=String(a.title||'')+' '+String(a.primaryKeyword||'');
+      if(/iphone\s*18\s*pro\s*max/i.test(hay))add('/en/uae/product/iphone-18-pro-max',lastmod);
+      if(/iphone\s*duo/i.test(hay))add('/en/uae/product/iphone-duo',lastmod);
+    }
   }
   const out=[...rows.values()].slice(0,10000);
   const xml=`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${out.map(x=>`<url><loc>${esc(x.loc)}</loc>${x.lastmod?`<lastmod>${esc(x.lastmod)}</lastmod>`:''}</url>`).join('')}</urlset>`;
