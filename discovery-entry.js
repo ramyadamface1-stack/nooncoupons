@@ -174,6 +174,10 @@ async function prioritySitemap(env,origin){
     const byCategory=new Map();
     for(const a of marketRows){if(a.categoryKey)byCategory.set(a.categoryKey,(byCategory.get(a.categoryKey)||0)+1)}
     for(const [categoryKey,count] of byCategory)if(count>=3)englishPages.push({loc:origin+'/en/'+market+'/category/'+encodeURIComponent(categoryKey),lastmod:null});
+    if(country==='AE'){
+      const iphone18=marketRows.filter(a=>/iphone\s*18\s*pro\s*max/i.test(String(a.title||'')+' '+String(a.primaryKeyword||'')));
+      if(iphone18.length>=2)englishPages.push({loc:origin+'/en/uae/product/iphone-18-pro-max',lastmod:iphone18.map(a=>a.updatedAt||a.createdAt||'').sort().slice(-1)[0]||null});
+    }
   }
   const auditArchive=[];
   try{
@@ -213,6 +217,7 @@ async function hubSitemap(env,origin){
     const market=a.country==='AE'?'uae':'saudi',lastmod=a.updatedAt||a.createdAt||null;
     add('/en/'+market,lastmod);
     if(a.categoryKey)add('/en/'+market+'/category/'+encodeURIComponent(a.categoryKey),lastmod);
+    if(a.country==='AE'&&/iphone\s*18\s*pro\s*max/i.test(String(a.title||'')+' '+String(a.primaryKeyword||'')))add('/en/uae/product/iphone-18-pro-max',lastmod);
     if(a.urlPath&&String(a.urlPath).startsWith('/'))add(String(a.urlPath),lastmod);
   }
   const out=[...rows.values()].slice(0,10000);
@@ -268,7 +273,7 @@ function edgePageCacheEligible(req,u){
   const p=u.pathname.replace(/\/+$/,'')||'/';
   if(['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/en/saudi','/en/uae'].includes(p))return true;
   if(/^\/(?:saudi|uae)\/(?:category|brand|model|compare)\/[^/]+(?:\/[^/]+)?$/.test(p))return true;
-  if(/^\/en\/(?:saudi|uae)\/category\/[^/]+$/.test(p))return true;
+  if(/^\/en\/(?:saudi|uae)\/(?:category|product)\/[^/]+$/.test(p))return true;
   if(/^\/(?:articles|en\/articles)\/[^/]+$/.test(p))return true;
   if(/^\/(?:saudi-arabia|uae)\/noon-coupon-code(?:-today|-2026)?$/.test(p))return true;
   if(/^\/(?:saudi-arabia|uae)\/coupon\/[^/]+$/.test(p))return true;
