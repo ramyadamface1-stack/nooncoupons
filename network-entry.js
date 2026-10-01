@@ -51,6 +51,7 @@ function conversionLayer(marketHint=''){const approved=JSON.stringify(APPROVED_C
 function gscCtrOverride(slug){
   const x=String(slug||'');
   if(x.includes('السعر-النهائي-samsung-galaxy-s25-ultra-نون-السعودية'))return {title:'سعر Samsung Galaxy S25 Ultra على نون السعودية | قبل الشراء',description:'راجع سعر Samsung Galaxy S25 Ultra على نون السعودية مع النسخة والبائع والضمان والشحن، ثم قارن الإجمالي النهائي بعد تجربة الكود.'};
+  if(x.startsWith('شراء-samsung-galaxy-s24-ultra-من-نون-السعودية'))return {title:'Samsung Galaxy S24 Ultra على نون السعودية | دليل الشراء',description:'راجع Samsung Galaxy S24 Ultra على نون السعودية مع النسخة والبائع والضمان والشحن والسعر النهائي، ثم جرّب الكود على نفس السلة قبل الدفع.'};
   if(x.startsWith('شراء-samsung-galaxy-s25-ultra-من-نون-السعودية'))return {title:'شراء Samsung Galaxy S25 Ultra من نون السعودية | دليل الميزانية',description:'دليل شراء Samsung Galaxy S25 Ultra من نون السعودية مع مراجعة الميزانية والتصوير والنسخة والبائع والسعر النهائي قبل الدفع.'};
   if(x.includes('كود-خصم-السماعات-نون-السعودية'))return {title:'كود خصم سماعات نون السعودية | جرّب الكود قبل الدفع',description:'دليل كود خصم سماعات نون السعودية: اختر السماعة والبائع، جرّب الكود على سلة ثابتة، ثم راجع الخصم والإجمالي النهائي قبل الدفع.'};
   if(x.includes('استخدام-كود-نون-السعودية-مع-السماعات'))return {title:'سماعات التمارين على نون السعودية | البائع وشروط الكود',description:'دليل اختيار سماعات التمارين على نون السعودية مع مقارنة البائع والشروط والتوافق، ثم اختبار الكود داخل السلة قبل الدفع.'};
