@@ -431,7 +431,7 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
     const sourceAuditCutoff=String(audit.completedAt||audit.lastBatchAt||'').trim();
     if(!sourceAuditCutoff||!Number.isFinite(Date.parse(sourceAuditCutoff)))return {ok:false,reason:'corpus_audit_cutoff_missing'};
     const state={version:4,runId:owner,sourceAuditRunId:audit.runId||null,sourceAuditVersion:audit.version||4,sourceAuditScanned:Number(audit.scanned||0),sourceAuditCutoff,ownerSnapshotModel:'r2-uploaded-cutoff-v1',cursor:null,scanned:0,readFailures:0,listCalls:0,listedObjects:0,skippedAfterCutoff:0,skippedMissingUploaded:0,titleTargets,contentTargets,semanticTargets,titleGroups:{},semanticGroups:{},discoveryArticles:0,discoveryShards:0,scanDone:false,done:false,startedAt:new Date().toISOString()};
-    await refreshArticleAuditLock(env,owner);await saveOwnerState(env,state);
+    await acquireArticleAuditLock(env,owner);await saveOwnerState(env,state);
     return {ok:true,reset:true,auditLock:true,...ownerPublicState(state)};
   }
   const stateObj=await retry(()=>env.CONTENT_FINAL.get(OWNER_STATE_KEY));if(!stateObj)return {ok:false,reason:'owner_state_missing'};
