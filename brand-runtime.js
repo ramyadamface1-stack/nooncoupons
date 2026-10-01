@@ -6,6 +6,12 @@ export {ControlPlane,GeneratorControl} from './network-entry.js';
 const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
 const SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#111827"/><path d="M15 18h34v8H15zm0 12h25v8H15zm0 12h18v8H15z" fill="#facc15"/></svg>`;
 const APPROVED=new Set(APPROVED_COUPON_CODES.map(x=>String(x).toUpperCase()));
+const CORE_ROUTE_OVERRIDES={
+  '/':{title:'Noon Deals Now | بوابة نون للسعودية والإمارات',description:'بوابة مستقلة لتنظيم أسواق نون والأقسام والأدلة وصفحات الأكواد في السعودية والإمارات.'},
+  '/saudi':{title:'نون السعودية | الأقسام والأدلة وصفحات الأكواد',description:'بوابة نون السعودية للأقسام والبراندات والأدلة، مع رابط واضح لصفحة كود الخصم المخصصة للسوق السعودي.'},
+  '/uae':{title:'نون الإمارات | الأقسام والأدلة وصفحات الأكواد',description:'بوابة نون الإمارات للأقسام والبراندات والأدلة، مع رابط واضح لصفحة كود الخصم المخصصة للسوق الإماراتي.'},
+  '/coupons':{title:'دليل أكواد نون حسب الدولة | السعودية والإمارات',description:'اختر سوق نون الصحيح ثم افتح صفحة الكود أو صفحة الخصم المخصصة للسعودية أو الإمارات قبل الدفع.'}
+};
 let seoSettingsCache={at:0,value:null};
 const attr=s=>String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 async function cachedSeoSettings(env){
@@ -27,6 +33,7 @@ function upsertMetaProperty(html,name,value){
 function routeOverrideFor(settings,path){
   const all=settings?.routeOverrides||{};
   if(all[path])return all[path];
+  if(CORE_ROUTE_OVERRIDES[path])return CORE_ROUTE_OVERRIDES[path];
   const patterns=Object.keys(all).filter(k=>k.includes(':')||k.includes('*')).sort((a,b)=>b.length-a.length);
   for(const pattern of patterns){
     const rx='^'+pattern.split('/').map(seg=>{
@@ -413,4 +420,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:22,canonicalOriginRedirect:true,internalOriginNormalization:true,canonicalFallback:true,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:23,coreIntentMetaDeconflict:true,canonicalOriginRedirect:true,internalOriginNormalization:true,canonicalFallback:true,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
