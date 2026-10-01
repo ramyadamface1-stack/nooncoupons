@@ -10,7 +10,9 @@ const CORE_ROUTE_OVERRIDES={
   '/':{title:'Noon Deals Now | بوابة نون للسعودية والإمارات',description:'بوابة مستقلة لتنظيم أسواق نون والأقسام والأدلة وصفحات الأكواد في السعودية والإمارات.'},
   '/saudi':{title:'نون السعودية | الأقسام والأدلة وصفحات الأكواد',description:'بوابة نون السعودية للأقسام والبراندات والأدلة، مع رابط واضح لصفحة كود الخصم المخصصة للسوق السعودي.'},
   '/uae':{title:'نون الإمارات | الأقسام والأدلة وصفحات الأكواد',description:'بوابة نون الإمارات للأقسام والبراندات والأدلة، مع رابط واضح لصفحة كود الخصم المخصصة للسوق الإماراتي.'},
-  '/coupons':{title:'دليل أكواد نون حسب الدولة | السعودية والإمارات',description:'اختر سوق نون الصحيح ثم افتح صفحة الكود أو صفحة الخصم المخصصة للسعودية أو الإمارات قبل الدفع.'}
+  '/coupons':{title:'دليل أكواد نون حسب الدولة | السعودية والإمارات',description:'اختر سوق نون الصحيح ثم افتح صفحة الكود أو صفحة الخصم المخصصة للسعودية أو الإمارات قبل الدفع.'},
+  '/saudi/categories':{title:'تصنيفات ومنتجات نون السعودية | استكشف الأقسام',description:'استكشف أقسام وبراندات ومنتجات نون السعودية حسب نوع الشراء، ثم انتقل لصفحة الكوبون عند الاستعداد للدفع.'},
+  '/uae/categories':{title:'تصنيفات ومنتجات نون الإمارات | استكشف الأقسام',description:'استكشف أقسام وبراندات ومنتجات نون الإمارات حسب نوع الشراء، ثم انتقل لصفحة الكوبون عند الاستعداد للدفع.'}
 };
 let seoSettingsCache={at:0,value:null};
 const attr=s=>String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -166,11 +168,22 @@ function sanitizeVisibleCouponTokens(html){
   }).join('');
   return {html:out,tokens};
 }
+const CORE_H1_OVERRIDES={
+  '/':'استكشف نون حسب الدولة والقسم والكود',
+  '/saudi':'دليل نون السعودية: أقسام وبراندات وكوبونات',
+  '/uae':'دليل نون الإمارات: أقسام وبراندات وكوبونات',
+  '/coupons':'دليل أكواد نون حسب الدولة',
+  '/saudi/categories':'تصنيفات ومنتجات نون السعودية',
+  '/uae/categories':'تصنيفات ومنتجات نون الإمارات'
+};
+function deconflictCoreH1(html,path){const value=CORE_H1_OVERRIDES[path];if(!value)return html;return String(html).replace(/<h1\b([^>]*)>[\s\S]*?<\/h1>/i,'<h1$1>'+value+'</h1>')}
 function injectIntentOwnerLink(html,path){
   const map={
     '/saudi':['/saudi-arabia/noon-coupon-code','صفحة كود خصم نون السعودية'],
     '/uae':['/uae/noon-coupon-code','صفحة كود خصم نون الإمارات'],
-    '/coupons':['/saudi-arabia/noon-coupon-code','كود خصم نون السعودية']
+    '/coupons':['/saudi-arabia/noon-coupon-code','كود خصم نون السعودية'],
+    '/saudi/categories':['/saudi-arabia/noon-coupon-code','صفحة كود خصم نون السعودية'],
+    '/uae/categories':['/uae/noon-coupon-code','صفحة كود خصم نون الإمارات']
   };
   const row=map[path];if(!row||String(html).includes('data-intent-owner-link="v1"'))return html;
   const block=`<nav data-intent-owner-link="v1" aria-label="صفحة الكوبون الرئيسية" style="width:min(1180px,92%);margin:18px auto;padding:12px 0"><a href="${row[0]}" style="font-weight:900;text-decoration:none">${row[1]} ←</a>${path==='/coupons'?'<span aria-hidden="true"> · </span><a href="/uae/noon-coupon-code" style="font-weight:900;text-decoration:none">كود خصم نون الإمارات ←</a>':''}</nav>`;
@@ -396,6 +409,7 @@ export default{
     html=injectSeoExtras(html,settings);
     html=normalizeInternalOrigin(html,origin);
     html=ensureCanonicalLink(html,origin,u.pathname);
+    html=deconflictCoreH1(html,u.pathname);
     html=injectIntentOwnerLink(html,u.pathname);
     const imagePerf=!u.pathname.startsWith('/admin')?optimizeImages(html):{html,count:0,firstSrc:null};html=imagePerf.html;
     if(!u.pathname.startsWith('/admin')){
@@ -431,4 +445,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:24,coreIntentOwnerLinks:true,coreIntentMetaDeconflict:true,canonicalOriginRedirect:true,internalOriginNormalization:true,canonicalFallback:true,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:25,coreH1Deconflict:true,categoryIntentOwnerLinks:true,coreIntentOwnerLinks:true,coreIntentMetaDeconflict:true,canonicalOriginRedirect:true,internalOriginNormalization:true,canonicalFallback:true,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
