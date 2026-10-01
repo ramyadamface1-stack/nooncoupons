@@ -239,16 +239,33 @@ async function englishCategoryPage(market,key,origin,env){
 }
 
 async function englishProductHub(market,key,origin,env){
-  if(market!=='uae'||key!=='iphone-18-pro-max')return null;
-  const path='/en/uae/product/iphone-18-pro-max',label='iPhone 18 Pro Max';
-  const all=await englishMarketRows(env,market),rows=all.filter(a=>/iphone\s*18\s*pro\s*max/i.test(String(a.title||'')+' '+String(a.primaryKeyword||''))).slice(0,12),evidence=rows.length>=2;
-  const title='iPhone 18 Pro Max on Noon UAE | Price, Deals & Coupon Guide';
-  const desc='A focused iPhone 18 Pro Max hub for Noon UAE covering seller checks, price comparison, coupon eligibility, shipping and the final checkout total.';
-  const code=codeFor('en:uae:product:'+key);
+  if(market!=='uae')return null;
+  const cfg={
+    'iphone-18-pro-max':{
+      label:'iPhone 18 Pro Max',
+      pattern:/iphone\s*18\s*pro\s*max/i,
+      title:'iPhone 18 Pro Max on Noon UAE | Price, Deals & Coupon Guide',
+      desc:'A focused iPhone 18 Pro Max hub for Noon UAE covering seller checks, price comparison, coupon eligibility, shipping and the final checkout total.',
+      familyPath:'/uae/model/apple/iphone-plus-pro-max',
+      note:'Confirm storage, regional version and included accessories.'
+    },
+    'iphone-duo':{
+      label:'iPhone Duo',
+      pattern:/iphone\s*duo/i,
+      title:'iPhone Duo on Noon UAE | Search, Deals & Coupon Guide',
+      desc:'A focused Noon UAE search hub for iPhone Duo queries, bringing together city-specific guides, seller checks, coupon testing and final-checkout comparisons.',
+      familyPath:'/uae/brand/apple',
+      note:'Confirm the exact product or listing name shown by Noon before comparing price, seller or coupon eligibility.'
+    }
+  }[key];
+  if(!cfg)return null;
+  const path=`/en/uae/product/${key}`,label=cfg.label;
+  const all=await englishMarketRows(env,market),rows=all.filter(a=>cfg.pattern.test(String(a.title||'')+' '+String(a.primaryKeyword||''))).slice(0,12),evidence=rows.length>=2;
+  const title=cfg.title,desc=cfg.desc,code=codeFor('en:uae:product:'+key);
   const hero=`<header class="hero"><div class="w"><div class="crumbs"><a href="/en/uae">Noon UAE</a> · <a href="/en/uae/category/mobiles">Mobiles</a></div><h1>${title}</h1><p>${desc}</p></div></header>`;
-  const coupon=`<aside class="coupon"><div><small>Coupon-first action</small><h2>Try code <span class="code">${code}</span></h2><p class="lead">Test the code on the exact iPhone 18 Pro Max cart you intend to buy. Keep seller, storage, quantity and delivery conditions fixed, then compare the final checkout total.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside>`;
-  const answer=`<section class="section"><h2>Quick answer: what should you check before buying?</h2><div class="check"><div class="box"><strong>Exact model</strong><p>Confirm storage, regional version and included accessories.</p></div><div class="box"><strong>Seller and warranty</strong><p>Compare the seller, warranty route and return conditions.</p></div><div class="box"><strong>Coupon eligibility</strong><p>Apply the code only after the cart is fixed and use the Noon checkout message as the reference.</p></div><div class="box"><strong>Final price</strong><p>Compare the complete payable total including shipping and visible cart adjustments.</p></div></div></section>`;
-  const main=`${coupon}<section class="section">${englishTrust()}${englishFreshness(rows)}</section>${answer}<section class="section"><h2>iPhone 18 Pro Max guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">Supporting guides will appear here after they pass the quality gate.</div>'}</section><section class="section"><h2>Continue in the UAE mobile cluster</h2><div class="chips"><a href="/en/uae/category/mobiles">Noon UAE mobiles</a><a href="/uae/brand/apple">Apple hub</a><a href="/uae/model/apple/iphone-plus-pro-max">iPhone family hub</a><a href="/uae/noon-coupon-code">Noon UAE coupon page</a></div></section>`;
+  const coupon=`<aside class="coupon"><div><small>Coupon-first action</small><h2>Try code <span class="code">${code}</span></h2><p class="lead">Test the code on the exact cart you intend to buy. Keep seller, variant, quantity and delivery conditions fixed, then compare the final checkout total.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside>`;
+  const answer=`<section class="section"><h2>Quick answer: what should you check first?</h2><div class="check"><div class="box"><strong>Exact listing</strong><p>${esc(cfg.note)}</p></div><div class="box"><strong>Seller and warranty</strong><p>Compare the seller, warranty route and return conditions.</p></div><div class="box"><strong>Coupon eligibility</strong><p>Apply the code only after the cart is fixed and use the Noon checkout message as the reference.</p></div><div class="box"><strong>Final price</strong><p>Compare the complete payable total including shipping and visible cart adjustments.</p></div></div></section>`;
+  const main=`${coupon}<section class="section">${englishTrust()}${englishFreshness(rows)}</section>${answer}<section class="section"><h2>${esc(label)} guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">Supporting guides will appear here after they pass the quality gate.</div>'}</section><section class="section"><h2>Continue in the UAE mobile cluster</h2><div class="chips"><a href="/en/uae/category/mobiles">Noon UAE mobiles</a><a href="/uae/brand/apple">Apple hub</a><a href="${cfg.familyPath}">Related Apple family</a><a href="/uae/noon-coupon-code">Noon UAE coupon page</a></div></section>`;
   const robots=evidence?'index,follow,max-image-preview:large':'noindex,follow';
   const head=englishHead(origin,path,title,desc,market,rows).replace('content="index,follow,max-image-preview:large"',`content="${robots}"`);
   return htmlResponse(`<!doctype html><html lang="en-AE" dir="ltr"><head>${head}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'product-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-product-hub':key,'x-english-evidence':evidence?'content-backed':'insufficient','x-robots-tag':robots});
