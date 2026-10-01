@@ -194,7 +194,7 @@ function englishCategoryGrid(market){
  return `<div class="grid4">${Object.keys(CATEGORIES).map(k=>`<article class="card visual-card"><div>${visualSvg(k,EN_CATEGORY_LABELS[k]||k)}<span class="visual-theme">${esc(CATEGORY_VISUALS[k]?.theme||'shopping')}</span><h3><a href="/en/${market}/category/${k}">${esc(EN_CATEGORY_LABELS[k]||k)}</a></h3><p>Explore coupon-focused guides and eligible shopping content for this category.</p></div><a class="read" href="/en/${market}/category/${k}">Explore category →</a></article>`).join('')}</div>`;
 }
 function englishSchema(origin,path,title,desc,market,rows=[]){
- const marketName=market==='saudi'?'Saudi Arabia':'UAE',marketPath=`/en/${market}`,isCategory=/^\/en\/(?:saudi|uae)\/category\/[^/]+$/.test(path),modified=latestEnglishModified(rows);
+ const genericCoupons=path==='/en/coupons',marketName=market==='saudi'?'Saudi Arabia':'UAE',marketPath=`/en/${market}`,isCategory=/^\/en\/(?:saudi|uae)\/category\/[^/]+$/.test(path),modified=latestEnglishModified(rows);
  const page={'@type':'CollectionPage','@id':origin+path+'#page',url:origin+path,name:title,description:desc,inLanguage:'en',isPartOf:{'@id':origin+'/#website'},publisher:{'@id':origin+'/#organization'},mainEntity:{'@type':'ItemList',numberOfItems:rows.length,itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+englishArticlePath(a),name:a.title||a.slug}))}};
  if(modified)page.dateModified=modified;
  return {
@@ -206,8 +206,8 @@ function englishSchema(origin,path,title,desc,market,rows=[]){
    page,
    {'@type':'BreadcrumbList','@id':origin+path+'#breadcrumb',itemListElement:[
     {'@type':'ListItem',position:1,name:'Home',item:origin+'/'},
-    {'@type':'ListItem',position:2,name:'Noon '+marketName,item:origin+marketPath},
-    ...(isCategory?[{'@type':'ListItem',position:3,name:title,item:origin+path}]:[])
+    {'@type':'ListItem',position:2,name:genericCoupons?'Coupons':'Noon '+marketName,item:genericCoupons?origin+path:origin+marketPath},
+    ...(!genericCoupons&&isCategory?[{'@type':'ListItem',position:3,name:title,item:origin+path}]:[])
    ]}
   ]
  };
@@ -216,7 +216,7 @@ function englishTrust(){
  return `<aside class="box" data-english-eeat="v1" aria-label="English content policy"><strong>English content policy</strong><p>Native-English pages are published through controlled expansion and quality gates. Coupon availability is separated from any unverified discount claim; the Noon cart remains the final reference for eligibility and savings.</p><div class="chips"><a href="/editorial-policy">Editorial policy</a><a href="/coupon-verification">Coupon verification</a><a href="/authors/editorial-team">Editorial team</a><a href="/research">Research & methodology</a></div></aside>`;
 }
 function englishHead(origin,path,title,desc,market,rows=[]){
- const enLang=market==='saudi'?'en-SA':'en-AE',arLang=market==='saudi'?'ar-SA':'ar-AE',schema=englishSchema(origin,path,title,desc,market,rows);
+ const genericCoupons=path==='/en/coupons',enLang=genericCoupons?'en':market==='saudi'?'en-SA':'en-AE',arLang=genericCoupons?'ar':market==='saudi'?'ar-SA':'ar-AE',schema=englishSchema(origin,path,title,desc,market,rows);
  let arPath=null;
  if(/^\/en\/(?:saudi|uae)$/.test(path))arPath=path.replace(/^\/en/,'');
  else if(/^\/en\/(?:saudi|uae)\/category\/[^/]+$/.test(path))arPath=path.replace(/^\/en/,'');
