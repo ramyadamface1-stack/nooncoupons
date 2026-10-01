@@ -216,8 +216,14 @@ function englishTrust(){
  return `<aside class="box" data-english-eeat="v1" aria-label="English content policy"><strong>English content policy</strong><p>Native-English pages are published through controlled expansion and quality gates. Coupon availability is separated from any unverified discount claim; the Noon cart remains the final reference for eligibility and savings.</p><div class="chips"><a href="/editorial-policy">Editorial policy</a><a href="/coupon-verification">Coupon verification</a><a href="/authors/editorial-team">Editorial team</a><a href="/research">Research & methodology</a></div></aside>`;
 }
 function englishHead(origin,path,title,desc,market,rows=[]){
- const arPath=path.replace(/^\/en/,''),enLang=market==='saudi'?'en-SA':'en-AE',arLang=market==='saudi'?'ar-SA':'ar-AE',schema=englishSchema(origin,path,title,desc,market,rows);
- return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | Noon Coupons</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin+path)}"><link rel="alternate" hreflang="${enLang}" href="${esc(origin+path)}"><link rel="alternate" hreflang="${arLang}" href="${esc(origin+arPath)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+'/')}"><link rel="alternate" type="application/rss+xml" title="Noon Deals Now — English guides" href="${esc(origin+'/feed-en.xml')}"><script type="application/ld+json" data-schema="english-collection">${safeJson(schema)}</script><style>${CSS}</style>`;
+ const enLang=market==='saudi'?'en-SA':'en-AE',arLang=market==='saudi'?'ar-SA':'ar-AE',schema=englishSchema(origin,path,title,desc,market,rows);
+ let arPath=null;
+ if(/^\/en\/(?:saudi|uae)$/.test(path))arPath=path.replace(/^\/en/,'');
+ else if(/^\/en\/(?:saudi|uae)\/category\/[^/]+$/.test(path))arPath=path.replace(/^\/en/,'');
+ else if(path==='/en/saudi/noon-coupon-code')arPath='/saudi-arabia/noon-coupon-code';
+ else if(path==='/en/uae/noon-coupon-code')arPath='/uae/noon-coupon-code';
+ const arAlternate=arPath?`<link rel="alternate" hreflang="${arLang}" href="${esc(origin+arPath)}">`:'';
+ return `<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} | Noon Coupons</title><meta name="description" content="${esc(desc)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(origin+path)}"><link rel="alternate" hreflang="${enLang}" href="${esc(origin+path)}">${arAlternate}<link rel="alternate" hreflang="x-default" href="${esc(origin+'/')}"><link rel="alternate" type="application/rss+xml" title="Noon Deals Now — English guides" href="${esc(origin+'/feed-en.xml')}"><script type="application/ld+json" data-schema="english-collection">${safeJson(schema)}</script><style>${CSS}</style>`;
 }
 async function englishCategoryPage(market,key,origin,env){
  const mk=MARKETS[market],cat=CATEGORIES[key];if(!mk||!cat)return null;
