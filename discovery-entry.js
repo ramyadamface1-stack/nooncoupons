@@ -69,6 +69,7 @@ function keyPages(origin){
     '/uae/noon-coupon-code',
     '/editorial-policy',
     '/coupon-verification',
+    '/guide/noon-refund-credit',
     '/authors/editorial-team',
     '/about',
     '/privacy',
