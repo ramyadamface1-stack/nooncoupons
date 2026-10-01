@@ -303,6 +303,19 @@ async function englishCouponPage(market,origin,env){
   return htmlResponse(`<!doctype html><html lang="${market==='saudi'?'en-SA':'en-AE'}" dir="ltr"><head>${head}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'coupon-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-coupon-intent-owner':'v1','x-commerce-market':market});
 }
 
+async function englishUaeSavingGuide(origin,env){
+  const market='uae',path='/en/uae/saving-guide';
+  const rows=await englishMarketRows(env,market);
+  const title='Noon UAE Saving Guide | Coupons, Categories & Final Price';
+  const desc='A practical Noon UAE saving guide: choose the right category, keep the cart stable, test a coupon, compare seller and delivery terms, and judge the final checkout total.';
+  const code=codeFor('en:uae:saving-guide');
+  const hero=`<header class="hero"><div class="w"><div class="crumbs"><a href="/en/uae">Noon UAE</a> · <a href="/en/uae/noon-coupon-code">Coupon page</a></div><h1>${title}</h1><p>${desc}</p><aside class="coupon"><div><small>Coupon-first check</small><h2>Try code <span class="code">${code}</span></h2><p class="lead">Keep the product, seller and quantity unchanged, then compare the payable total before and after the code.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside></div></header>`;
+  const answer=`<section class="section"><h2>How can you save on Noon UAE without relying on a headline discount?</h2><div class="check"><div class="box"><strong>1. Start with the exact product</strong><p>Fix the model, size, storage or pack quantity before comparing anything else.</p></div><div class="box"><strong>2. Compare the seller and delivery</strong><p>Seller, warranty, return route and delivery cost can change the real value of the order.</p></div><div class="box"><strong>3. Test one coupon on the same cart</strong><p>Use the dedicated UAE coupon page and keep the cart stable while testing eligibility.</p></div><div class="box"><strong>4. Decide from the final total</strong><p>The payable Noon checkout total is the practical reference for the current cart.</p></div></div></section>`;
+  const main=`${answer}<section class="section">${englishTrust()}${englishFreshness(rows)}</section><section class="section"><h2>High-value UAE shopping paths</h2><div class="chips"><a href="/en/uae/noon-coupon-code">Noon UAE coupon code</a><a href="/en/uae/category/grocery">Grocery</a><a href="/en/uae/category/mobiles">Mobiles</a><a href="/en/uae/category/home-kitchen">Home & Kitchen</a></div></section><section class="section"><h2>Latest eligible UAE guides</h2>${rows.length?`<div class="grid">${rows.slice(0,18).map(englishArticleCard).join('')}</div>`:'<div class="empty">Eligible UAE guides will appear here as they are published.</div>'}</section>`;
+  const head=englishHead(origin,path,title,desc,market,rows);
+  return htmlResponse(`<!doctype html><html lang="en-AE" dir="ltr"><head>${head}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'saving-guide-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-saving-intent-owner':'v1','x-commerce-market':'uae'});
+}
+
 async function englishCountryPage(market,origin,env){
  const mk=MARKETS[market];if(!mk)return null;
  const path=`/en/${market}`,rows=(await englishMarketRows(env,market)),countryName=market==='saudi'?'Saudi Arabia':'UAE',title=`Noon ${countryName} Shopping Hub | Categories & Buying Guides`,desc=`Explore Noon ${countryName} by category, city and buying guide. For coupon-code searches, use the dedicated market coupon page.`,code=codeFor('country:'+market);
@@ -433,6 +446,7 @@ async function comparisonPage(market, key, origin, env) {
 
 export async function commerceLanding(path, origin, env) {
   if (path==='/en/coupons') return englishCouponsIndex(origin,env);
+  if (path==='/en/uae/saving-guide') return englishUaeSavingGuide(origin,env);
   let m = path.match(/^\/en\/(saudi|uae)\/product\/([a-z0-9-]+)$/);
   if (m) return englishProductHub(m[1],m[2],origin,env);
   m = path.match(/^\/en\/(saudi|uae)\/noon-coupon-code$/);
