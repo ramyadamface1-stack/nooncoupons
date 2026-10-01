@@ -190,6 +190,36 @@ async function prioritySitemap(env,origin){
   return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300, s-maxage=900, stale-while-revalidate=86400','x-robots-tag':'all','x-priority-sitemap-count':String(rows.length),'x-priority-sitemap':'v2','x-english-priority-count':String(englishArticles.length),'x-english-priority-hubs':String(englishPages.length)}});
 }
 
+async function hubSitemap(env,origin){
+  const data=await latest(env);
+  const rows=new Map();
+  const add=(path,lastmod=null)=>{
+    if(!path||!String(path).startsWith('/'))return;
+    const loc=origin+path;
+    const prev=rows.get(loc);
+    if(!prev||String(lastmod||'')>String(prev.lastmod||''))rows.set(loc,{loc,lastmod:lastmod||prev?.lastmod||null});
+  };
+  for(const a of (data.articles||[]).filter(discoveryEligible)){
+    const market=a.country==='AE'?'uae':'saudi';
+    const lastmod=a.updatedAt||a.createdAt||null;
+    add('/'+market,lastmod);add('/'+market+'/categories',lastmod);
+    if(a.categoryKey)add('/'+market+'/category/'+encodeURIComponent(a.categoryKey),lastmod);
+    if(a.brandKey)add('/'+market+'/brand/'+encodeURIComponent(a.brandKey),lastmod);
+    if(a.brandKey&&a.modelKey)add('/'+market+'/model/'+encodeURIComponent(a.brandKey)+'/'+encodeURIComponent(a.modelKey),lastmod);
+    if(a.landingPath&&String(a.landingPath).startsWith('/'))add(String(a.landingPath),lastmod);
+  }
+  let english=[];try{english=(await englishCanaryRecords(env)).filter(discoveryEligible)}catch{}
+  for(const a of english){
+    const market=a.country==='AE'?'uae':'saudi',lastmod=a.updatedAt||a.createdAt||null;
+    add('/en/'+market,lastmod);
+    if(a.categoryKey)add('/en/'+market+'/category/'+encodeURIComponent(a.categoryKey),lastmod);
+    if(a.urlPath&&String(a.urlPath).startsWith('/'))add(String(a.urlPath),lastmod);
+  }
+  const out=[...rows.values()].slice(0,10000);
+  const xml=`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${out.map(x=>`<url><loc>${esc(x.loc)}</loc>${x.lastmod?`<lastmod>${esc(x.lastmod)}</lastmod>`:''}</url>`).join('')}</urlset>`;
+  return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300, s-maxage=900, stale-while-revalidate=86400','x-robots-tag':'all','x-hub-sitemap':'v1','x-hub-sitemap-count':String(out.length)}});
+}
+
 async function augmentRootSitemap(res,origin){
   if(!res.ok)return res;
   const type=(res.headers.get('content-type')||'').toLowerCase();
@@ -198,7 +228,8 @@ async function augmentRootSitemap(res,origin){
   if(/<sitemapindex\b/i.test(body)){
     const additions=[
       ['priority',origin+'/sitemap-priority.xml'],
-      ['english',origin+'/sitemap-en-articles.xml']
+      ['english',origin+'/sitemap-en-articles.xml'],
+      ['hubs',origin+'/sitemap-hubs.xml']
     ];
     for(const [,loc] of additions){
       if(!body.includes(loc))body=body.replace(/<\/sitemapindex>/i,`<sitemap><loc>${esc(loc)}</loc></sitemap></sitemapindex>`);
@@ -208,6 +239,7 @@ async function augmentRootSitemap(res,origin){
   h.delete('content-length');
   h.set('x-priority-sitemap-discovery','v2');
   h.set('x-english-sitemap-discovery','v1');
+  h.set('x-hub-sitemap-discovery','v1');
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
@@ -219,10 +251,12 @@ async function augmentRobots(res,origin){
   const root=`Sitemap: ${origin}/sitemap.xml`;
   const priority=`Sitemap: ${origin}/sitemap-priority.xml`;
   const english=`Sitemap: ${origin}/sitemap-en-articles.xml`;
+  const hubs=`Sitemap: ${origin}/sitemap-hubs.xml`;
   if(!body.includes(root))body=(body.trimEnd()+`\n${root}\n`).replace(/^\n+/, '');
   if(!body.includes(priority))body=(body.trimEnd()+`\n${priority}\n`).replace(/^\n+/, '');
   if(!body.includes(english))body=(body.trimEnd()+`\n${english}\n`).replace(/^\n+/, '');
-  const h=new Headers(res.headers);h.delete('content-length');h.set('x-priority-sitemap-robots','v1');h.set('x-english-sitemap-robots','v1');
+  if(!body.includes(hubs))body=(body.trimEnd()+`\n${hubs}\n`).replace(/^\n+/, '');
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-priority-sitemap-robots','v1');h.set('x-english-sitemap-robots','v1');h.set('x-hub-sitemap-robots','v1');
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
@@ -261,6 +295,7 @@ export default{
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
     if(req.method==='GET'&&u.pathname==='/sitemap-priority.xml')return prioritySitemap(env,origin);
+    if(req.method==='GET'&&u.pathname==='/sitemap-hubs.xml')return hubSitemap(env,origin);
     if(req.method==='GET'&&u.pathname==='/api/coupon-migration-health'){
       const state=await readCouponR2MigrationState(env);
       return new Response(JSON.stringify(state,null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
@@ -331,4 +366,4 @@ export default{
   }
 };
 
-export const DISCOVERY_ENTRY_INFO={version:21,edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:45000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:17,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:22,hubSitemap:true,hubSitemapPath:'/sitemap-hubs.xml',edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:45000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:17,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
