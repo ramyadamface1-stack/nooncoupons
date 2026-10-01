@@ -205,7 +205,8 @@ async function prioritySitemap(env,origin){
     if(country==='AE'){
       const productHubs=[
         ['iphone-18-pro-max',/iphone\s*18\s*pro\s*max/i],
-        ['iphone-duo',/iphone\s*duo/i]
+        ['iphone-duo',/iphone\s*duo/i],
+        ['samsung-galaxy-s26-ultra',/samsung\s*(?:galaxy\s*)?s26\s*ultra/i]
       ];
       for(const [key,pattern] of productHubs){
         const matches=marketRows.filter(a=>pattern.test(String(a.title||'')+' '+String(a.primaryKeyword||'')));
@@ -257,6 +258,7 @@ async function hubSitemap(env,origin){
       const hay=String(a.title||'')+' '+String(a.primaryKeyword||'');
       if(/iphone\s*18\s*pro\s*max/i.test(hay))add('/en/uae/product/iphone-18-pro-max',lastmod);
       if(/iphone\s*duo/i.test(hay))add('/en/uae/product/iphone-duo',lastmod);
+      if(/samsung\s*(?:galaxy\s*)?s26\s*ultra/i.test(hay))add('/en/uae/product/samsung-galaxy-s26-ultra',lastmod);
     }
   }
   const out=[...rows.values()].slice(0,10000);
