@@ -16,7 +16,7 @@ const PLATFORM_VERSION='platform-1.6-quality-first';
 const STATIC_SITEMAPS=['pages','guides','coupons','coupons-saudi','coupons-uae'];
 const AUDIT_DISCOVERY_CURRENT_KEY='maintenance/article-discovery-v1/current.json';
 const STATIC_PAGE_PATHS=['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide','/about','/contact','/privacy','/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer','/terms','/research','/glossary','/countries'];
-const STATIC_GUIDE_PATHS=['/guide/how-to-use-noon-coupon','/guide/coupon-not-working','/guide/saudi-noon-saving-guide','/guide/uae-noon-saving-guide','/guide/first-order-guide','/guide/payment-methods-and-coupons','/guide/coupon-vs-offer','/guide/smart-cart-checklist'];
+const STATIC_GUIDE_PATHS=['/guide/how-to-use-noon-coupon','/guide/coupon-not-working','/guide/saudi-noon-saving-guide','/guide/uae-noon-saving-guide','/guide/first-order-guide','/guide/payment-methods-and-coupons','/guide/coupon-vs-offer','/guide/smart-cart-checklist','/guide/noon-yellow-friday','/guide/noon-refund-credit','/guide/philips-lumea-warranty-safety'];
 const STATIC_MARKET_MONEY_PATHS={
   'coupons-saudi':['/saudi-arabia/noon-coupon-code','/saudi-arabia/noon-coupon-code-today'],
   'coupons-uae':['/uae/noon-coupon-code','/uae/noon-coupon-code-today']
