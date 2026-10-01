@@ -168,7 +168,13 @@ async function prioritySitemap(env,origin){
     .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')))
     .slice(0,500)
     .map(a=>({loc:origin+(a.urlPath||('/en/articles/'+enc(a.slug))),lastmod:a.updatedAt||a.createdAt||null}));
-  const englishPages=[];
+  const englishPages=[
+    {loc:origin+'/en/saudi',lastmod:null},
+    {loc:origin+'/en/uae',lastmod:null},
+    {loc:origin+'/en/saudi/noon-coupon-code',lastmod:null},
+    {loc:origin+'/en/uae/noon-coupon-code',lastmod:null},
+    {loc:origin+'/en/saudi/category/mobiles',lastmod:null}
+  ];
   for(const [country,market] of [['SA','saudi'],['AE','uae']]){
     const marketRows=english.filter(a=>a.country===country);
     if(!marketRows.length)continue;
@@ -221,6 +227,7 @@ async function hubSitemap(env,origin){
     if(a.brandKey&&a.modelKey)add('/'+market+'/model/'+encodeURIComponent(a.brandKey)+'/'+encodeURIComponent(a.modelKey),lastmod);
     if(a.landingPath&&String(a.landingPath).startsWith('/'))add(String(a.landingPath),lastmod);
   }
+  add('/en/saudi');add('/en/uae');add('/en/saudi/noon-coupon-code');add('/en/uae/noon-coupon-code');add('/en/saudi/category/mobiles');
   let english=[];try{english=(await englishCanaryRecords(env)).filter(discoveryEligible)}catch{}
   for(const a of english){
     const market=a.country==='AE'?'uae':'saudi',lastmod=a.updatedAt||a.createdAt||null;
