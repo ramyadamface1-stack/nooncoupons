@@ -77,6 +77,7 @@ async function appendHomeCommerce(req,res){
 }
 function moneySitemap(origin){
   const paths=[
+    '/en/coupons',
     '/saudi-arabia/noon-coupon-code',
     '/uae/noon-coupon-code',
     '/en/saudi/noon-coupon-code',
