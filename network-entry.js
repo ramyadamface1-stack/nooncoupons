@@ -13,7 +13,7 @@ function relatedRows(all,rec){const owner=intentOwnerKey(rec);return (all||[]).f
 function opportunityLinks(rec){if(rec?.country!=='SA')return '';const hay=[rec?.title,rec?.primaryKeyword,rec?.category,rec?.categoryKey,rec?.intentLabel,rec?.intent].filter(Boolean).join(' ').toLowerCase();const links=[];if(/mobile|phone|iphone|samsung|جوال|هاتف|موبايل/.test(hay))links.push('<a href="/saudi/category/mobiles">جوالات نون السعودية</a>');if(/computer|laptop|macbook|razer|حاسب|كمبيوتر|لابتوب/.test(hay))links.push('<a href="/saudi/category/computers">كمبيوتر ولابتوب نون السعودية</a>');if(/coupon|code|checkout|cart|رفض|كود|خصم|سلة|دفع|شراء/.test(hay))links.push('<a href="/guide/how-to-use-noon-coupon">طريقة استخدام كود نون</a>');return links.slice(0,2).join('')}
 function articleHubLinks(rec){
   const isAE=rec?.country==='AE',market=isAE?'الإمارات':'السعودية',root=isAE?'/uae':'/saudi',moneyRoot=isAE?'/uae':'/saudi-arabia';
-  const links=[['/', 'الرئيسية'],['/blog','المدونة'],[root,'نون '+market],[root+'/categories','تصنيفات نون '+market],[moneyRoot+'/noon-coupon-code','كود خصم نون '+market],[moneyRoot+'/noon-coupon-code-today','كود نون اليوم']];
+  const links=[['/', 'الرئيسية'],['/blog','المدونة'],[root,'نون '+market],[root+'/shopping-guide','دليل الشراء من نون '+market],[root+'/categories','تصنيفات نون '+market],[moneyRoot+'/noon-coupon-code','كود خصم نون '+market],[moneyRoot+'/noon-coupon-code-today','كود نون اليوم']];
   const category=String(rec?.categoryKey||rec?.category||'').trim(),brand=String(rec?.brandKey||'').trim(),model=String(rec?.modelKey||'').trim();
   if(category)links.push([root+'/category/'+encodeURIComponent(category),'قسم '+category]);
   if(brand)links.push([root+'/brand/'+encodeURIComponent(brand),'براند '+brand]);
