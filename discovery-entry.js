@@ -75,6 +75,7 @@ function keyPages(origin){
     '/editorial-policy',
     '/coupon-verification',
     '/guide/noon-refund-credit',
+    '/guide/philips-lumea-warranty-safety',
     '/authors/editorial-team',
     '/about',
     '/privacy',
