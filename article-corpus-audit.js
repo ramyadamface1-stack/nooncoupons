@@ -431,14 +431,13 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
     const sourceAuditCutoff=String(audit.completedAt||audit.lastBatchAt||'').trim();
     if(!sourceAuditCutoff||!Number.isFinite(Date.parse(sourceAuditCutoff)))return {ok:false,reason:'corpus_audit_cutoff_missing'};
     const state={version:4,runId:owner,sourceAuditRunId:audit.runId||null,sourceAuditVersion:audit.version||4,sourceAuditScanned:Number(audit.scanned||0),sourceAuditCutoff,ownerSnapshotModel:'r2-uploaded-cutoff-v1',cursor:null,scanned:0,readFailures:0,listCalls:0,listedObjects:0,skippedAfterCutoff:0,skippedMissingUploaded:0,titleTargets,contentTargets,semanticTargets,titleGroups:{},semanticGroups:{},discoveryArticles:0,discoveryShards:0,scanDone:false,done:false,startedAt:new Date().toISOString()};
-    await acquireArticleAuditLock(env,owner);await saveOwnerState(env,state);
-    return {ok:true,reset:true,auditLock:true,...ownerPublicState(state)};
+    await releaseArticleAuditLock(env);await saveOwnerState(env,state);
+    return {ok:true,reset:true,auditLock:false,auditLockReleased:true,...ownerPublicState(state)};
   }
   const stateObj=await retry(()=>env.CONTENT_FINAL.get(OWNER_STATE_KEY));if(!stateObj)return {ok:false,reason:'owner_state_missing'};
   let state;try{state=JSON.parse(await stateObj.text())}catch{return {ok:false,reason:'owner_state_invalid'}};
   if(state.runId!==owner)return {ok:false,reason:'owner_analysis_owned_by_other_run',runId:state.runId};
-  if(state.done){await releaseArticleAuditLock(env,owner);return {ok:true,...ownerPublicState(state)}}
-  await refreshArticleAuditLock(env,owner);
+  if(state.done)return {ok:true,...ownerPublicState(state)}
   const titleTargets=new Set(state.titleTargets||[]),contentTargets=new Set(state.contentTargets||[]),semanticTargets=new Set(state.semanticTargets||[]),target=Math.max(1,Math.min(Number(limit)||1000,1000));
   const ownerCatalogCache=new Map();
   const discoveryRows=[];
@@ -486,6 +485,6 @@ export async function runArticleCollisionOwnerBatch(env,{limit=1000,reset=false,
     await appendResolvedOwnerDiscovery(env,state);
   }
   await saveOwnerState(env,state);
-  if(state.scanDone){await publishDiscoveryPointer(env,state);await releaseArticleAuditLock(env,owner);}
-  return {ok:true,batch:{objects:objs.length,pagesRead},auditLockReleased:Boolean(state.scanDone),...ownerPublicState(state)};
+  if(state.scanDone)await publishDiscoveryPointer(env,state);
+  return {ok:true,batch:{objects:objs.length,pagesRead},auditLockReleased:true,...ownerPublicState(state)};
 }
