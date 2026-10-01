@@ -47,6 +47,9 @@ function routeOverrideFor(settings,path){
   }
   return null;
 }
+function seoTokenKey(token){return String(token||'').toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[إأآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[^a-z0-9\u0600-\u06ff]+/g,'')}
+function dedupeSeoTitleWords(value){const tokens=String(value||'').replace(/\s+/g,' ').trim().split(' ').filter(Boolean),out=[];for(const token of tokens){const key=seoTokenKey(token),prev=out.length?seoTokenKey(out[out.length-1]):'';if(key&&prev&&key===prev)continue;out.push(token)}return out.join(' ')}
+function normalizeRenderedTitle(html){return String(html).replace(/<title>([\s\S]*?)<\/title>/i,(m,title)=>'<title>'+attr(dedupeSeoTitleWords(String(title).replace(/&amp;/g,'&')))+'</title>')}
 function injectSeoExtras(html,settings){
   let out=String(html);
   const tags=[];
@@ -410,6 +413,7 @@ export default{
     html=normalizeInternalOrigin(html,origin);
     html=ensureCanonicalLink(html,origin,u.pathname);
     html=deconflictCoreH1(html,u.pathname);
+    html=normalizeRenderedTitle(html);
     html=injectIntentOwnerLink(html,u.pathname);
     const imagePerf=!u.pathname.startsWith('/admin')?optimizeImages(html):{html,count:0,firstSrc:null};html=imagePerf.html;
     if(!u.pathname.startsWith('/admin')){
@@ -445,4 +449,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:25,coreH1Deconflict:true,categoryIntentOwnerLinks:true,coreIntentOwnerLinks:true,coreIntentMetaDeconflict:true,canonicalOriginRedirect:true,internalOriginNormalization:true,canonicalFallback:true,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:26,renderedTitleDeduplication:true,coreH1Deconflict:true,categoryIntentOwnerLinks:true,coreIntentOwnerLinks:true,coreIntentMetaDeconflict:true,canonicalOriginRedirect:true,internalOriginNormalization:true,canonicalFallback:true,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
