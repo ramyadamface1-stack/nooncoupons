@@ -166,6 +166,16 @@ function sanitizeVisibleCouponTokens(html){
   }).join('');
   return {html:out,tokens};
 }
+function injectIntentOwnerLink(html,path){
+  const map={
+    '/saudi':['/saudi-arabia/noon-coupon-code','صفحة كود خصم نون السعودية'],
+    '/uae':['/uae/noon-coupon-code','صفحة كود خصم نون الإمارات'],
+    '/coupons':['/saudi-arabia/noon-coupon-code','كود خصم نون السعودية']
+  };
+  const row=map[path];if(!row||String(html).includes('data-intent-owner-link="v1"'))return html;
+  const block=`<nav data-intent-owner-link="v1" aria-label="صفحة الكوبون الرئيسية" style="width:min(1180px,92%);margin:18px auto;padding:12px 0"><a href="${row[0]}" style="font-weight:900;text-decoration:none">${row[1]} ←</a>${path==='/coupons'?'<span aria-hidden="true"> · </span><a href="/uae/noon-coupon-code" style="font-weight:900;text-decoration:none">كود خصم نون الإمارات ←</a>':''}</nav>`;
+  return /<\/main>/i.test(html)?String(html).replace(/<\/main>/i,block+'</main>'):String(html).replace(/<\/body>/i,block+'</body>');
+}
 function normalizeCouponUi(html){
   const state={duplicatesRemoved:0,countLabelsFixed:0};
   const seen=new Set();
@@ -386,6 +396,7 @@ export default{
     html=injectSeoExtras(html,settings);
     html=normalizeInternalOrigin(html,origin);
     html=ensureCanonicalLink(html,origin,u.pathname);
+    html=injectIntentOwnerLink(html,u.pathname);
     const imagePerf=!u.pathname.startsWith('/admin')?optimizeImages(html):{html,count:0,firstSrc:null};html=imagePerf.html;
     if(!u.pathname.startsWith('/admin')){
       html=serviceWorkerRegistration(html);
@@ -420,4 +431,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:23,coreIntentMetaDeconflict:true,canonicalOriginRedirect:true,internalOriginNormalization:true,canonicalFallback:true,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:24,coreIntentOwnerLinks:true,coreIntentMetaDeconflict:true,canonicalOriginRedirect:true,internalOriginNormalization:true,canonicalFallback:true,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
