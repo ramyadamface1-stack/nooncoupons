@@ -271,11 +271,25 @@ async function englishProductHub(market,key,origin,env){
   return htmlResponse(`<!doctype html><html lang="en-AE" dir="ltr"><head>${head}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'product-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-product-hub':key,'x-english-evidence':evidence?'content-backed':'insufficient','x-robots-tag':robots});
 }
 
+async function englishCouponPage(market,origin,env){
+  const mk=MARKETS[market];if(!mk)return null;
+  const countryName=market==='saudi'?'Saudi Arabia':'UAE',short=market==='saudi'?'KSA':'UAE',path=`/en/${market}/noon-coupon-code`;
+  const rows=await englishMarketRows(env,market);
+  const title=`Noon Coupon Code ${short} | Current Codes & Checkout Guide`;
+  const desc=`Current Noon coupon codes to test in ${countryName}, with clear checkout verification, market-specific navigation and no unverified fixed-discount claims.`;
+  const cards=CODES.map(code=>`<article class="card"><small>Current site-approved test code</small><h3><span class="code">${esc(code)}</span></h3><p>Copy this code and test it on the same Noon ${esc(countryName)} cart. Eligibility and savings are confirmed only by the checkout result.</p><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(code)}');this.textContent='Code copied'">Copy ${esc(code)}</button></article>`).join('');
+  const hero=`<header class="hero"><div class="w"><div class="crumbs"><a href="/en/${market}">Noon ${countryName}</a> · <a href="${market==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code'}">العربية</a></div><h1>${title}</h1><p>${desc}</p></div></header>`;
+  const answer=`<section class="section"><h2>How do you verify a Noon coupon code in ${countryName}?</h2><div class="check"><div class="box"><strong>Use the correct market</strong><p>Keep the Noon ${esc(countryName)} store and delivery market fixed.</p></div><div class="box"><strong>Keep the cart unchanged</strong><p>Use the same products, quantities and sellers before and after the code.</p></div><div class="box"><strong>Read the checkout message</strong><p>Do not infer eligibility from a code name or a third-party percentage claim.</p></div><div class="box"><strong>Compare the payable total</strong><p>The final checkout total is the practical reference for this cart.</p></div></div></section>`;
+  const main=`${answer}<section class="section"><h2>Codes to test now</h2><div class="grid">${cards}</div></section><section class="section">${englishTrust()}${englishFreshness(rows)}</section><section class="section"><h2>Continue shopping</h2><div class="chips"><a href="/en/${market}">Noon ${countryName} shopping hub</a><a href="/en/${market}/category/mobiles">Mobiles</a><a href="/${market}/categories">Arabic categories</a><a href="/coupon-verification">Coupon verification methodology</a></div></section>`;
+  const head=englishHead(origin,path,title,desc,market,rows);
+  return htmlResponse(`<!doctype html><html lang="${market==='saudi'?'en-SA':'en-AE'}" dir="ltr"><head>${head}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'coupon-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-coupon-intent-owner':'v1','x-commerce-market':market});
+}
+
 async function englishCountryPage(market,origin,env){
  const mk=MARKETS[market];if(!mk)return null;
- const path=`/en/${market}`,rows=(await englishMarketRows(env,market)),title=`Noon coupons in ${market==='saudi'?'Saudi Arabia':'the UAE'}`,desc=`Coupon-first shopping hub for Noon ${market==='saudi'?'Saudi Arabia':'UAE'}, with categories, cities and buying guides.`,code=codeFor('country:'+market);
+ const path=`/en/${market}`,rows=(await englishMarketRows(env,market)),countryName=market==='saudi'?'Saudi Arabia':'UAE',title=`Noon ${countryName} Shopping Hub | Categories & Buying Guides`,desc=`Explore Noon ${countryName} by category, city and buying guide. For coupon-code searches, use the dedicated market coupon page.`,code=codeFor('country:'+market);
  const cities=(CITIES[market]||[]).map(c=>`<article class="card"><small>${esc(c.ar)}</small><h3>${esc(c.en)}</h3><p>Local navigation for shoppers in ${esc(c.en)} without claiming a city-specific discount unless verified.</p></article>`).join('');
- const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/en/${market}">English</a> · <a href="/${market}">العربية</a></div><h1>${title}</h1><p>${desc}</p><aside class="coupon"><div><small>Primary action</small><h2>Copy code <span class="code">${code}</span></h2><p class="lead">Check eligibility in your cart; the final Noon checkout is the reference.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside></div></header>`;
+ const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/en/${market}">English</a> · <a href="/${market}">العربية</a></div><h1>${title}</h1><p>${desc}</p><div class="chips"><a href="/en/${market}/noon-coupon-code">Noon ${countryName} coupon page</a><a href="/en/${market}/category/mobiles">Mobiles</a></div><aside class="coupon"><div><small>Primary action</small><h2>Copy code <span class="code">${code}</span></h2><p class="lead">Check eligibility in your cart; the final Noon checkout is the reference.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside></div></header>`;
  const main=`<section class="section">${englishTrust()}${englishFreshness(rows)}</section><section class="section"><h2>Shop by category</h2>${englishCategoryGrid(market)}</section><section class="section"><h2>Major cities</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>Latest eligible guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">Eligible English guides will appear here as they are published.</div>'}</section>`;
  return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${englishHead(origin,path,title,desc,market,rows)}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'country-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-commerce-market':market,'x-content-language':'en','x-english-eeat':'v1'});
 }
@@ -388,6 +402,8 @@ async function comparisonPage(market, key, origin, env) {
 export async function commerceLanding(path, origin, env) {
   let m = path.match(/^\/en\/(saudi|uae)\/product\/([a-z0-9-]+)$/);
   if (m) return englishProductHub(m[1],m[2],origin,env);
+  m = path.match(/^\/en\/(saudi|uae)\/noon-coupon-code$/);
+  if (m) return englishCouponPage(m[1],origin,env);
   m = path.match(/^\/en\/(saudi|uae)\/category\/([a-z0-9-]+)$/);
   if (m) return englishCategoryPage(m[1],m[2],origin,env);
   m = path.match(/^\/en\/(saudi|uae)$/);
