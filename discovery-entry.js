@@ -225,6 +225,20 @@ async function hubSitemap(env,origin){
   return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300, s-maxage=900, stale-while-revalidate=86400','x-robots-tag':'all','x-hub-sitemap':'v1','x-hub-sitemap-count':String(out.length)}});
 }
 
+async function imageSitemap(env,origin){
+  const data=await latest(env);
+  let english=[];try{english=await englishCanaryRecords(env)}catch{}
+  const source=[...(data.articles||[]),...(english||[])].filter(discoveryEligible)
+    .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,500);
+  const rows=source.map(a=>{
+    const page=origin+articleHref(a),coupon=String(a.coupon||a.code||''),country=a.country==='AE'?'AE':'SA',title=String(a.title||a.primaryKeyword||a.slug);
+    const images=[2,3].map(v=>origin+'/assets/coupon-svg/'+enc(a.slug)+'/'+v+'.svg?v=9&coupon='+encodeURIComponent(coupon)+'&country='+country);
+    return `<url><loc>${esc(page)}</loc>${images.map(src=>`<image:image><image:loc>${esc(src)}</image:loc><image:title>${esc(title)}</image:title></image:image>`).join('')}</url>`;
+  }).join('');
+  const xml=`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${rows}</urlset>`;
+  return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300, s-maxage=900, stale-while-revalidate=86400','x-robots-tag':'all','x-image-sitemap':'v1','x-image-sitemap-pages':String(source.length)}});
+}
+
 async function augmentRootSitemap(res,origin){
   if(!res.ok)return res;
   const type=(res.headers.get('content-type')||'').toLowerCase();
@@ -234,7 +248,8 @@ async function augmentRootSitemap(res,origin){
     const additions=[
       ['priority',origin+'/sitemap-priority.xml'],
       ['english',origin+'/sitemap-en-articles.xml'],
-      ['hubs',origin+'/sitemap-hubs.xml']
+      ['hubs',origin+'/sitemap-hubs.xml'],
+      ['images',origin+'/sitemap-images.xml']
     ];
     for(const [,loc] of additions){
       if(!body.includes(loc))body=body.replace(/<\/sitemapindex>/i,`<sitemap><loc>${esc(loc)}</loc></sitemap></sitemapindex>`);
@@ -257,22 +272,25 @@ async function augmentRobots(res,origin){
   const priority=`Sitemap: ${origin}/sitemap-priority.xml`;
   const english=`Sitemap: ${origin}/sitemap-en-articles.xml`;
   const hubs=`Sitemap: ${origin}/sitemap-hubs.xml`;
+  const images=`Sitemap: ${origin}/sitemap-images.xml`;
   if(!body.includes(root))body=(body.trimEnd()+`\n${root}\n`).replace(/^\n+/, '');
   if(!body.includes(priority))body=(body.trimEnd()+`\n${priority}\n`).replace(/^\n+/, '');
   if(!body.includes(english))body=(body.trimEnd()+`\n${english}\n`).replace(/^\n+/, '');
   if(!body.includes(hubs))body=(body.trimEnd()+`\n${hubs}\n`).replace(/^\n+/, '');
+  if(!body.includes(images))body=(body.trimEnd()+`\n${images}\n`).replace(/^\n+/, '');
   const h=new Headers(res.headers);h.delete('content-length');h.set('x-priority-sitemap-robots','v1');h.set('x-english-sitemap-robots','v1');h.set('x-hub-sitemap-robots','v1');
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
 async function sitemapHealth(req,env,ctx,origin){
-  const paths=['/sitemap.xml','/sitemap-priority.xml','/sitemap-en-articles.xml','/sitemap-hubs.xml','/sitemap-commerce.xml','/sitemap-money.xml'];
+  const paths=['/sitemap.xml','/sitemap-priority.xml','/sitemap-en-articles.xml','/sitemap-hubs.xml','/sitemap-images.xml','/sitemap-commerce.xml','/sitemap-money.xml'];
   const rows=[];
   for(const path of paths){
     try{
       let res;
       if(path==='/sitemap-priority.xml')res=await prioritySitemap(env,origin);
       else if(path==='/sitemap-hubs.xml')res=await hubSitemap(env,origin);
+      else if(path==='/sitemap-images.xml')res=await imageSitemap(env,origin);
       else{const u=new URL(req.url);u.pathname=path;u.search='';res=await app.fetch(new Request(u.toString(),{method:'GET',headers:{accept:'application/xml,text/xml,*/*'}}),env,ctx)}
       const text=await res.text(),type=(res.headers.get('content-type')||'').toLowerCase(),root=/<(?:urlset|sitemapindex)\b/i.test(text),xmlDecl=/^\s*<\?xml\b/i.test(text),locs=(text.match(/<loc>/gi)||[]).length,httpLocs=(text.match(/<loc>http:\/\//gi)||[]).length,httpsLocs=(text.match(/<loc>https:\/\//gi)||[]).length;
       rows.push({path,status:res.status,ok:res.ok&&type.includes('xml')&&root,contentType:type,xmlDeclaration:xmlDecl,rootDetected:root,locs,httpLocs,httpsLocs,bytes:text.length});
@@ -318,6 +336,7 @@ export default{
     if(req.method==='GET'&&u.pathname==='/api/sitemap-health')return sitemapHealth(req,env,ctx,origin);
     if(req.method==='GET'&&u.pathname==='/sitemap-priority.xml')return prioritySitemap(env,origin);
     if(req.method==='GET'&&u.pathname==='/sitemap-hubs.xml')return hubSitemap(env,origin);
+    if(req.method==='GET'&&u.pathname==='/sitemap-images.xml')return imageSitemap(env,origin);
     if(req.method==='GET'&&u.pathname==='/api/coupon-migration-health'){
       const state=await readCouponR2MigrationState(env);
       return new Response(JSON.stringify(state,null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
