@@ -286,8 +286,21 @@ async function countryPage(market,origin,env){
  const title=`كوبونات وعروض ${mk.name}`,desc=`كوبونات نون ${mk.name} مع أقسام التسوق والأدلة التي تساعدك قبل الدفع.`;
  const cities=(CITIES[market]||[]).map(c=>`<article class="card"><small>${esc(c.en)}</small><h3><a href="/${market}/city/${c.key}">${esc(c.ar)}</a></h3><p>محتوى وكوبونات ${esc(mk.name)} المرتبطة بالبحث من ${esc(c.ar)} بدون ادعاء اختلاف خصم غير موثق حسب المدينة.</p></article>`).join('');
  const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/">الرئيسية</a></div><div class="market-switch"><a class="${market==='saudi'?'current':''}" href="/saudi">🇸🇦 السعودية</a><a class="${market==='uae'?'current':''}" href="/uae">🇦🇪 الإمارات</a></div><h1>${title}</h1><p>${desc}</p><aside class="coupon"><div><small>ابدأ بالكوبون</small><h2>انسخ الكود <span class="code">${code}</span></h2><p class="lead">تحقق من أهلية الكود داخل سلتك؛ لا نفترض نسبة خصم ثابتة.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='تم نسخ الكود'">نسخ الكود</button></aside><div class="trust-row"><span>${CODES.length} أكواد معتمدة فقط</span><span>المحتوى مستقل عن Noon</span><span>التحقق داخل السلة هو المرجع</span><span><a href="/coupon-verification">منهجية التحقق</a></span></div></div></header>`;
- const main=`<section class="section"><h2>تسوق حسب القسم</h2><p class="lead">اختر القسم الذي تتسوق فيه للوصول إلى الأدلة والبراندات والمقالات المرتبطة.</p>${categoryGrid(market)}</section><section class="section"><h2>براندات شائعة</h2><p class="lead">ابدأ بالبراند إذا كنت تعرف المنتج أو العائلة التي تبحث عنها.</p>${brandGrid(market)}</section><section class="section"><h2>أهم المدن</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>أحدث الأدلة والكوبونات</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">تظهر المقالات المؤهلة تلقائيًا.</div>'}</section>`;
+ const main=`<section class="section"><div class="chips"><a href="/${market}/shopping-guide">دليل الشراء من ${mk.name}</a><a href="/${market}/categories">كل الأقسام</a></div></section><section class="section"><h2>تسوق حسب القسم</h2><p class="lead">اختر القسم الذي تتسوق فيه للوصول إلى الأدلة والبراندات والمقالات المرتبطة.</p>${categoryGrid(market)}</section><section class="section"><h2>براندات شائعة</h2><p class="lead">ابدأ بالبراند إذا كنت تعرف المنتج أو العائلة التي تبحث عنها.</p>${brandGrid(market)}</section><section class="section"><h2>أهم المدن</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>أحدث الأدلة والكوبونات</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">تظهر المقالات المؤهلة تلقائيًا.</div>'}</section>`;
  return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market),'country',{'x-commerce-market':market});
+}
+
+async function shoppingGuidePage(market,origin,env){
+  const mk=MARKETS[market];if(!mk)return null;
+  const all=marketRows(await latestArticles(env),market);
+  const rows=all.filter(a=>/شراء|قبل شراء|السعر النهائي|التوفير|buy|final.?price|shopping/i.test(String(a.title||'')+' '+String(a.primaryKeyword||'')+' '+String(a.searchIntentFamily||''))).slice(0,30);
+  const path=`/${market}/shopping-guide`,country=market==='saudi'?'السعودية':'الإمارات';
+  const title=`دليل الشراء من نون ${country} | السعر النهائي والكوبون والبائع`;
+  const desc=`دليل عملي للشراء من نون ${country}: اختيار المنتج والبائع، مراجعة الشحن والإرجاع، تجربة الكوبون على سلة ثابتة، ومقارنة الإجمالي النهائي قبل الدفع.`;
+  const hero=`<header class="hero"><div class="w">${breadcrumbs(market,[{label:'دليل الشراء'}])}<h1>${title}</h1><p>${desc}</p><div class="chips"><a href="/${market}/categories">تصفح الأقسام</a><a href="${market==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code'}">صفحة الكوبون الأساسية</a></div></div></header>`;
+  const answer=`<section class="section"><h2>كيف تشتري من نون ${country} بدون ما تخلط بين السعر والكوبون؟</h2><div class="check"><div class="box"><strong>1. اختر المنتج أولًا</strong><p>حدد المواصفات أو المقاس أو الاستخدام قبل التفكير في الكود.</p></div><div class="box"><strong>2. ثبّت البائع والسلة</strong><p>قارن نفس المنتج والكمية والبائع حتى تكون المقارنة عادلة.</p></div><div class="box"><strong>3. جرّب الكود</strong><p>طبّق الكود على السلة نفسها وراجع أي رسالة أهلية ظاهرة من نون.</p></div><div class="box"><strong>4. احسم بالإجمالي</strong><p>السعر النهائي بعد الشحن والخصومات الظاهرة هو المرجع قبل الدفع.</p></div></div></section>`;
+  const main=`${couponBox(market,'shopping-guide','الشراء من نون '+country)}${answer}<section class="section"><h2>ابدأ بالقسم المناسب</h2>${categoryGrid(market)}</section><section class="section"><h2>أدلة شراء مرتبطة</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">ستظهر هنا فقط أدلة الشراء المؤهلة والجودة المعتمدة.</div>'}</section>`;
+  return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market),'shopping-guide',{'x-shopping-intent-owner':'v1','x-commerce-market':market});
 }
 
 async function cityPage(market,key,origin,env){
@@ -381,6 +394,8 @@ export async function commerceLanding(path, origin, env) {
   if (m) return englishCountryPage(m[1],origin,env);
   m = path.match(/^\/(saudi|uae)$/);
   if (m) return countryPage(m[1],origin,env);
+  m = path.match(/^\/(saudi|uae)\/shopping-guide$/);
+  if (m) return shoppingGuidePage(m[1],origin,env);
   m = path.match(/^\/(saudi|uae)\/city\/([a-z0-9-]+)$/);
   if (m) return cityPage(m[1],m[2],origin,env);
   m = path.match(/^\/(saudi|uae)\/categories$/);
