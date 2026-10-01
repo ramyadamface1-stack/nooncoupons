@@ -1,8 +1,9 @@
 name: Audit Coupon Codes
 
 on:
-  push:
-    branches: [main]
+  workflow_run:
+    workflows: ["Deploy Live Worker"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -10,6 +11,7 @@ permissions:
 
 jobs:
   audit:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
