@@ -161,8 +161,26 @@ function blogPage(){
 function guidePage(slug){
   const g=GUIDES.find(x=>x[0]===slug);if(!g)return null;
   const [s,title,desc]=g;
-  const generic=`<p>${desc}</p><h2>ابدأ بالدولة الصحيحة</h2><p>تأكد أنك تستخدم متجر نون الخاص بالسعودية أو الإمارات لأن الشروط والعملات والأهلية قد تختلف من سوق لآخر.</p><h2>اختبر الكود داخل السلة</h2><p>انسخ الكود كما هو، أضفه في خانة القسيمة، ثم راجع السعر النهائي. لا تعتبر الكود ناجحًا إلا إذا ظهر أثره على إجمالي الطلب.</p><h2>لو الكود لم يعمل</h2><p>جرّب كودًا آخر من القائمة، وراجع نوع الحساب والمنتجات وطريقة الدفع والحد الأدنى إن كان مذكورًا في العرض. بعض المنتجات أو البائعين قد يكونون مستثنين.</p><h2>قارن قبل الدفع</h2><p>قد يكون العرض المباشر أو خصم طريقة الدفع أفضل من الكوبون. القرار الصحيح يعتمد على السعر النهائي بعد الشحن والخصومات، وليس على رقم الخصم وحده.</p><div class="notice">هذا الدليل لا يضمن أهلية أي كود بعينه؛ شاشة السلة في نون هي المرجع النهائي لتطبيق الخصم.</div>`;
-  return layout(`${title} | كوبونات نون`,desc,`${pageHero(title,desc,breadcrumbs([`<a href="/blog">الأدلة</a>`,title]))}<section class="section"><div class="shell"><article class="content">${generic}<div class="hr"></div><h2>أكواد يمكنك تجربتها الآن</h2><div class="grid">${CODES.slice(0,4).map((c,i)=>couponCard(c,i%2?'AE':'SA')).join('')}</div></article></div></section>`,`/guide/${s}`,[{'@context':'https://schema.org','@type':'Article',headline:title,description:desc,author:{'@type':'Organization',name:SITE.name},publisher:{'@type':'Organization',name:SITE.name},mainEntityOfPage:SITE.origin+`/guide/${s}`}]);
+  const base=`<p>${desc}</p><h2>ابدأ بالدولة الصحيحة</h2><p>تأكد أنك تستخدم متجر نون الخاص بالسعودية أو الإمارات لأن الشروط والعملات والأهلية قد تختلف من سوق لآخر.</p><h2>اختبر الكود داخل السلة</h2><p>انسخ الكود كما هو، أضفه في خانة القسيمة، ثم راجع السعر النهائي. لا تعتبر الكود ناجحًا إلا إذا ظهر أثره على إجمالي الطلب.</p><h2>لو الكود لم يعمل</h2><p>راجع السوق والحساب والمنتج والبائع وطريقة الدفع وأي شروط ظاهرة داخل نون. غيّر عاملًا واحدًا فقط في كل محاولة حتى تعرف سبب اختلاف النتيجة.</p><h2>قارن قبل الدفع</h2><p>قد يكون العرض المباشر أو خصم طريقة الدفع أفضل من الكوبون. القرار الصحيح يعتمد على السعر النهائي بعد الشحن والخصومات، وليس على رقم الخصم وحده.</p><div class="notice">هذا الدليل لا يضمن أهلية أي كود بعينه؛ شاشة السلة في نون هي المرجع النهائي لتطبيق الخصم.</div><p><a href="/saudi-arabia/noon-coupon-code">كود خصم نون السعودية</a> · <a href="/uae/noon-coupon-code">كود خصم نون الإمارات</a> · <a href="/coupon-verification">منهجية التحقق</a></p>`;
+  let special='',extra=[{'@context':'https://schema.org','@type':'Article',headline:title,description:desc,author:{'@type':'Organization',name:SITE.name},publisher:{'@type':'Organization',name:SITE.name},mainEntityOfPage:SITE.origin+`/guide/${s}`}];
+  if(s==='how-to-use-noon-coupon'){
+    const steps=['اختر متجر نون للدولة الصحيحة','ثبّت المنتج والبائع والكمية في السلة','انسخ كودًا واحدًا كما هو','أدخل الكود في خانة القسيمة','راجع رسالة القبول أو الرفض والإجمالي النهائي','إذا غيرت عنصرًا في السلة أعد المقارنة من البداية'];
+    special=`<section class="notice"><strong>إجابة سريعة:</strong> استخدم الكود على سلة ثابتة في السوق الصحيح، ثم اعتبر التغيير الظاهر في إجمالي نون هو الدليل العملي على تطبيقه.</section><h2>طريقة استخدام كود خصم نون في 6 خطوات</h2><ol>${steps.map(x=>`<li>${x}</li>`).join('')}</ol>`;
+    extra.push({'@context':'https://schema.org','@type':'HowTo',name:'طريقة استخدام كود خصم نون',description:desc,totalTime:'PT3M',step:steps.map((x,i)=>({'@type':'HowToStep',position:i+1,name:x,text:x}))});
+    extra.push({'@context':'https://schema.org','@type':'FAQPage',mainEntity:[
+      {'@type':'Question',name:'أين أضع كود خصم نون؟',acceptedAnswer:{'@type':'Answer',text:'ضع الكود في خانة القسيمة أو الكوبون داخل السلة أو صفحة الدفع، ثم راجع الإجمالي النهائي.'}},
+      {'@type':'Question',name:'كيف أعرف أن كود نون اتطبق؟',acceptedAnswer:{'@type':'Answer',text:'اعتبر الكود مطبقًا فقط عندما يظهر أثره في السلة أو الإجمالي النهائي داخل نون.'}},
+      {'@type':'Question',name:'هل نفس الكود مضمون للسعودية والإمارات؟',acceptedAnswer:{'@type':'Answer',text:'لا نفترض ذلك. اختبر الكود داخل السوق الصحيح لأن الأهلية والنتيجة قد تختلف حسب الحساب والسلة والسوق.'}}
+    ]});
+  }else if(s==='coupon-not-working'){
+    special=`<section class="notice"><strong>إجابة سريعة:</strong> لو الكود لم يعمل، لا تكرر المحاولة عشوائيًا. اختبر السوق والحساب والمنتج والبائع وطريقة الدفع واحدًا بعد الآخر.</section>`;
+    extra.push({'@context':'https://schema.org','@type':'FAQPage',mainEntity:[
+      {'@type':'Question',name:'لماذا لا يعمل كود نون؟',acceptedAnswer:{'@type':'Answer',text:'قد تختلف الأهلية حسب السوق والحساب والمنتجات والبائع وطريقة الدفع وشروط العرض الحالية. رسالة نون في السلة هي المرجع.'}},
+      {'@type':'Question',name:'ماذا أفعل بعد رفض الكود؟',acceptedAnswer:{'@type':'Answer',text:'ابدأ بسلة صغيرة، تحقق من السوق والكود، ثم غيّر عاملًا واحدًا في كل مرة لمعرفة ما يرتبط بالرفض.'}}
+    ]});
+  }
+  const generic=special+base;
+  return layout(`${title} | كوبونات نون`,desc,`${pageHero(title,desc,breadcrumbs([`<a href="/blog">الأدلة</a>`,title]))}<section class="section"><div class="shell"><article class="content">${generic}<div class="hr"></div><h2>أكواد يمكنك تجربتها الآن</h2><div class="grid">${CODES.slice(0,4).map((c,i)=>couponCard(c,i%2?'AE':'SA')).join('')}</div></article></div></section>`,`/guide/${s}`,extra);
 }
 
 function couponDetail(code){
