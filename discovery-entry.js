@@ -63,6 +63,8 @@ function keyPages(origin){
     '/uae',
     '/saudi/categories',
     '/uae/categories',
+    '/saudi/shopping-guide',
+    '/uae/shopping-guide',
     '/saudi-arabia/noon-coupon-code',
     '/uae/noon-coupon-code',
     '/editorial-policy',
@@ -139,7 +141,7 @@ async function injectDiscoveryLinks(req,env,res){
   const type=(res.headers.get('content-type')||'').toLowerCase();
   if(!type.includes('text/html'))return res;
   const path=new URL(req.url).pathname.replace(/\/+$/,'')||'/';
-  const eligible=['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories'].includes(path)||/^\/(?:saudi-arabia|uae)\/noon-coupon-code$/.test(path);
+  const eligible=['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide'].includes(path)||/^\/(?:saudi-arabia|uae)\/noon-coupon-code$/.test(path);
   if(!eligible)return res;
   let html=await res.text();
   if(html.includes('id="crawl-discovery-links"'))return res;
@@ -314,7 +316,7 @@ function edgePageCacheKey(u){
 function edgePageCacheEligible(req,u){
   if(req.method!=='GET'||u.search||req.headers.has('authorization')||req.headers.has('cookie')||req.headers.has('range'))return false;
   const p=u.pathname.replace(/\/+$/,'')||'/';
-  if(['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/en/saudi','/en/uae'].includes(p))return true;
+  if(['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide','/en/saudi','/en/uae'].includes(p))return true;
   if(/^\/(?:saudi|uae)\/(?:category|brand|model|compare)\/[^/]+(?:\/[^/]+)?$/.test(p))return true;
   if(/^\/en\/(?:saudi|uae)\/(?:category|product)\/[^/]+$/.test(p))return true;
   if(/^\/(?:articles|en\/articles)\/[^/]+$/.test(p))return true;
