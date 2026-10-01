@@ -274,6 +274,25 @@ async function runOnce(env,{manual=false}={}){
   }finally{await generatorUnlock(env,runId)}
 }
 
+const NO_IDLE_WINDOW_MS=60*60*1000,NO_IDLE_RESCUE_AFTER_MS=45*60*1000,NO_IDLE_RESCUE_COOLDOWN_MS=15*60*1000;
+function latestGenerationSuccessMs(status){
+  const stamps=[status?.bulkLastSuccessAt,status?.lastSuccess].map(x=>Date.parse(x||'')).filter(Number.isFinite);
+  return stamps.length?Math.max(...stamps):NaN;
+}
+function generationFreshnessSnapshot(status){
+  const lastMs=latestGenerationSuccessMs(status),ageMs=Number.isFinite(lastMs)?Math.max(0,Date.now()-lastMs):null,ageMinutes=ageMs==null?null:Math.round(ageMs/6000)/10;
+  return {policy:'quality-gated-no-idle-v1',targetMaxIdleMinutes:60,rescueStartsAfterMinutes:45,rescueCooldownMinutes:15,lastSuccessfulPublishAt:Number.isFinite(lastMs)?new Date(lastMs).toISOString():null,minutesSinceLastSuccessfulPublish:ageMinutes,withinOneHour:ageMs==null?false:ageMs<NO_IDLE_WINDOW_MS,rescueDue:ageMs==null||ageMs>=NO_IDLE_RESCUE_AFTER_MS,lastRescueAt:status?.bulkNoIdleGuardLastRescueAt||null,lastRescueResult:status?.bulkNoIdleGuardLastRescueResult||null};
+}
+async function guardedBulkTick(env){
+  const first=await bulkTick(env),skip=first?.skipped||first?.bulk?.skipped||first?.summary?.bulkLastSkipReason||null;
+  if(['bulk_already_running','daily_target_reached','bulk_paused','corpus_audit_in_progress'].includes(String(skip||'')))return {first,rescue:null,guard:'blocked_by_runtime_state'};
+  const status=await getGeneratorStatus(env),fresh=generationFreshnessSnapshot(status),lastRescueMs=Date.parse(status.bulkNoIdleGuardLastRescueAt||''),cooldown=Number.isFinite(lastRescueMs)&&Date.now()-lastRescueMs<NO_IDLE_RESCUE_COOLDOWN_MS;
+  if(!fresh.rescueDue||cooldown)return {first,rescue:null,guard:cooldown?'rescue_cooldown':'fresh'};
+  const rescue=await runOnce(env,{manual:false}),stamp=now(),result=rescue?.record?'published':String(rescue?.skipped||rescue?.error||'no_publish');
+  await updateGeneratorStatus(env,{bulkNoIdleGuardLastCheckAt:stamp,bulkNoIdleGuardLastRescueAt:stamp,bulkNoIdleGuardLastRescueResult:result});
+  return {first,rescue,guard:'rescue_attempted'};
+}
+
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
@@ -305,6 +324,10 @@ export default{
       try{const d=await r.json();delete d.groqReady;d.workersAIReady=Boolean(env.AI);d.generatorVersion=VERSION;d.activeProvider='workers-ai + '+BULK_ENGINE_INFO.version;d.externalProviders=false;d.qualityFirst=true;d.config={...(d.config||{}),model:env.WORKERS_AI_MODEL||'@cf/zai-org/glm-4.7-flash'};return json(d,r.status)}catch{return r}
     }
     if(u.pathname.startsWith('/api/admin/')){const r=await handleAdminApi(req,env);if(r)return r}
+    if(u.pathname==='/api/generation-freshness'&&req.method==='GET'){
+      const status=await getGeneratorStatus(env),snapshot=generationFreshnessSnapshot(status);
+      return json({ok:true,...snapshot,cron:'* * * * *',bulkLastTickAt:status.bulkLastTickAt||null,bulkLastTickPublished:Number(status.bulkLastTickPublished||0),bulkLastError:status.bulkLastError||null,workersAiLastSuccess:status.lastSuccess||null,qualityThreshold:95,minArticleWords:1500});
+    }
     if(u.pathname==='/api/generator-health'){
       const [cfg,status]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env)]);
       let st={articles:[]},controlStateAvailable=true,controlStateError=null;
@@ -324,6 +347,6 @@ export default{
     ctx.waitUntil(englishRun);
     await Promise.race([englishRun,new Promise(resolve=>setTimeout(resolve,9000))]);
     if(app.scheduled)ctx.waitUntil(app.scheduled(event,env,ctx));
-    ctx.waitUntil(bulkTick(env));
+    ctx.waitUntil(guardedBulkTick(env));
   }
 };
