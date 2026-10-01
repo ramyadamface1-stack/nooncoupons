@@ -21,7 +21,7 @@ jobs:
           node --check premium-entry.js
           node --check discovery-entry.js
           node --check brand-runtime.js
-          grep -Fq "2026-09-28-v3-intent-owner" keyword-pages.js
+          grep -Fq "2026-10-01-v6-generic-coupon-owner" keyword-pages.js
           grep -Fq "GOLDEN_KEYWORD_ROUTES" keyword-pages.js
           grep -Fq "goldenKeywordsHub" keyword-pages.js
           ! grep -Fq "كود خصم نون 2026" keyword-pages.js
@@ -44,14 +44,18 @@ jobs:
             exit 0
           fi
           home="$(cat /tmp/home)"
-          if ! grep -Fq '<title>كود خصم نون | أكواد نون السعودية والإمارات</title>' <<<"$home"; then
+          if ! grep -Fq '<title>Noon Deals Now | بوابة نون للسعودية والإمارات</title>' <<<"$home"; then
             echo 'KEYWORD_MAP_LIVE=WAITING_FOR_CURRENT_DEPLOY'
             echo 'SOURCE_INVARIANTS=PASS'
             exit 0
           fi
-          grep -Fq '<title>كود خصم نون | أكواد نون السعودية والإمارات</title>' <<<"$home"
-          grep -Fq 'كود خصم نون: أكواد نون للسعودية والإمارات' <<<"$home"
+          grep -Fq '<title>Noon Deals Now | بوابة نون للسعودية والإمارات</title>' <<<"$home"
+          grep -Fq 'استكشف نون حسب الدولة والقسم والكود' <<<"$home"
           grep -Fq 'id="search-intent-hubs"' <<<"$home"
+
+          coupons="$(curl -fsS --max-time 20 "$ORIGIN/coupons")"
+          grep -Fq 'كود خصم نون' <<<"$coupons"
+          grep -Fq 'اختر السعودية أو الإمارات' <<<"$coupons"
 
           sa="$(curl -fsS -L --max-time 20 "$ORIGIN/saudi-arabia")"
           ae="$(curl -fsS --max-time 20 "$ORIGIN/uae")"
