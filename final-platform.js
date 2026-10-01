@@ -55,9 +55,16 @@ function llms(origin){
 - UAE coupon hub: ${origin}/uae/noon-coupon-code
 - Saudi shopping categories: ${origin}/saudi/categories
 - UAE shopping categories: ${origin}/uae/categories
+- Saudi buying-intent guide: ${origin}/saudi/shopping-guide
+- UAE buying-intent guide: ${origin}/uae/shopping-guide
+- English coupon selector: ${origin}/en/coupons
 - English Saudi hub: ${origin}/en/saudi
 - English UAE hub: ${origin}/en/uae
+- English Saudi coupon hub: ${origin}/en/saudi/noon-coupon-code
+- English UAE coupon hub: ${origin}/en/uae/noon-coupon-code
 - English article sitemap: ${origin}/sitemap-en-articles.xml
+- Image sitemap: ${origin}/sitemap-images.xml
+- Hub sitemap: ${origin}/sitemap-hubs.xml
 - Markets hub: ${origin}/countries
 - Blog: ${origin}/blog
 - Research and methodology: ${origin}/research
@@ -72,6 +79,8 @@ function llms(origin){
 - About: ${origin}/about
 - Editorial policy: ${origin}/editorial-policy
 - Coupon verification methodology: ${origin}/coupon-verification
+- Refund-credit guide: ${origin}/guide/noon-refund-credit
+- Philips Lumea warranty & safety guide: ${origin}/guide/philips-lumea-warranty-safety
 - Editorial team: ${origin}/authors/editorial-team
 - Research methodology: ${origin}/research
 - Glossary / entity definitions: ${origin}/glossary
