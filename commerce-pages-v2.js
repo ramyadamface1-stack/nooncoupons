@@ -118,8 +118,8 @@ function schema(origin, path, title, desc, rows) {
   return {
     '@context': 'https://schema.org',
     '@graph': [
-      {'@type':'Organization','@id':origin+'/#organization',name:'كوبونات نون',url:origin+'/'},
-      {'@type':'WebSite','@id':origin+'/#website',name:'كوبونات نون',url:origin+'/',inLanguage:'ar',publisher:{'@id':origin+'/#organization'}},
+      {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',alternateName:'كوبونات نون',url:origin+'/'},
+      {'@type':'WebSite','@id':origin+'/#website',name:'Noon Deals Now',alternateName:'كوبونات نون',url:origin+'/',inLanguage:['ar','en'],publisher:{'@id':origin+'/#organization'}},
       {
         '@type': 'CollectionPage',
         '@id': origin + path + '#page',
