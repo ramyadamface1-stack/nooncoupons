@@ -172,6 +172,24 @@ async function injectDiscoveryLinks(req,env,res){
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
+function coreSitemap(origin){
+  const extra=[
+    '/en/saudi',
+    '/en/uae',
+    '/en/saudi/noon-coupon-code',
+    '/en/uae/noon-coupon-code',
+    '/en/saudi/category/mobiles',
+    '/en/uae/category/grocery'
+  ];
+  const seen=new Set(),rows=[];
+  for(const row of [...keyPages(origin),...extra.map(path=>({loc:origin+path,lastmod:null}))]){
+    if(seen.has(row.loc))continue;
+    seen.add(row.loc);rows.push(row);
+  }
+  const xml=`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${rows.map(x=>`<url><loc>${esc(x.loc)}</loc></url>`).join('')}</urlset>`;
+  return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300, s-maxage=1800, stale-while-revalidate=86400','x-robots-tag':'all','x-core-sitemap':'v1','x-core-sitemap-count':String(rows.length)}});
+}
+
 async function prioritySitemap(env,origin){
   const data=await latest(env);
   const articles=(data.articles||[])
@@ -287,6 +305,7 @@ async function augmentRootSitemap(res,origin){
   let body=await res.text();
   if(/<sitemapindex\b/i.test(body)){
     const additions=[
+      ['core',origin+'/sitemap-core.xml'],
       ['priority',origin+'/sitemap-priority.xml'],
       ['english',origin+'/sitemap-en-articles.xml'],
       ['hubs',origin+'/sitemap-hubs.xml'],
@@ -310,11 +329,13 @@ async function augmentRobots(res,origin){
   if(type&&!type.includes('text/plain'))return res;
   let body=await res.text();
   const root=`Sitemap: ${origin}/sitemap.xml`;
+  const core=`Sitemap: ${origin}/sitemap-core.xml`;
   const priority=`Sitemap: ${origin}/sitemap-priority.xml`;
   const english=`Sitemap: ${origin}/sitemap-en-articles.xml`;
   const hubs=`Sitemap: ${origin}/sitemap-hubs.xml`;
   const images=`Sitemap: ${origin}/sitemap-images.xml`;
   if(!body.includes(root))body=(body.trimEnd()+`\n${root}\n`).replace(/^\n+/, '');
+  if(!body.includes(core))body=(body.trimEnd()+`\n${core}\n`).replace(/^\n+/, '');
   if(!body.includes(priority))body=(body.trimEnd()+`\n${priority}\n`).replace(/^\n+/, '');
   if(!body.includes(english))body=(body.trimEnd()+`\n${english}\n`).replace(/^\n+/, '');
   if(!body.includes(hubs))body=(body.trimEnd()+`\n${hubs}\n`).replace(/^\n+/, '');
@@ -329,7 +350,8 @@ async function sitemapHealth(req,env,ctx,origin){
   for(const path of paths){
     try{
       let res;
-      if(path==='/sitemap-priority.xml')res=await prioritySitemap(env,origin);
+      if(path==='/sitemap-core.xml')res=coreSitemap(origin);
+      else if(path==='/sitemap-priority.xml')res=await prioritySitemap(env,origin);
       else if(path==='/sitemap-hubs.xml')res=await hubSitemap(env,origin);
       else if(path==='/sitemap-images.xml')res=await imageSitemap(env,origin);
       else{const u=new URL(req.url);u.pathname=path;u.search='';res=await app.fetch(new Request(u.toString(),{method:'GET',headers:{accept:'application/xml,text/xml,*/*'}}),env,ctx)}
@@ -377,6 +399,7 @@ export default{
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
     if(req.method==='GET'&&u.pathname==='/api/revision')return new Response(JSON.stringify({ok:true,release:DISCOVERY_RELEASE,layer:'discovery-entry',sitemapHealth:true,imageSitemap:true,englishIntentOwners:true,shoppingIntentOwners:true,noIdleGenerationGuard:true,titleCannibalizationGate:true},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-runtime-revision':DISCOVERY_RELEASE}});
     if(req.method==='GET'&&u.pathname==='/api/sitemap-health')return sitemapHealth(req,env,ctx,origin);
+    if(req.method==='GET'&&u.pathname==='/sitemap-core.xml'){const r=coreSitemap(origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
     if(req.method==='GET'&&u.pathname==='/sitemap-priority.xml'){const r=await prioritySitemap(env,origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
     if(req.method==='GET'&&u.pathname==='/sitemap-hubs.xml'){const r=await hubSitemap(env,origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
     if(req.method==='GET'&&u.pathname==='/sitemap-images.xml'){const r=await imageSitemap(env,origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
@@ -451,4 +474,4 @@ export default{
   }
 };
 
-export const DISCOVERY_ENTRY_INFO={version:23,release:DISCOVERY_RELEASE,revisionEndpoint:'/api/revision',hubSitemap:true,hubSitemapPath:'/sitemap-hubs.xml',edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:45000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:34,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:24,coreSitemap:true,coreSitemapPath:'/sitemap-core.xml',release:DISCOVERY_RELEASE,revisionEndpoint:'/api/revision',hubSitemap:true,hubSitemapPath:'/sitemap-hubs.xml',edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:45000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:34,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
