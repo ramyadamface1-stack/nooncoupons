@@ -39,6 +39,9 @@ export function evaluateSearchDemandPolicy(topic={}){
   const specific=Boolean(topic.brandKey||topic.modelKey||topic.comparisonKey||['brand','model','product-intent'].includes(String(topic.catalogLevel||'')));
   if(specific)return {createStandalone:true,action:'create',reason:'specific-entity-intent',ownerPath:null,evidence};
 
+  if(intent==='returns'){
+    return {createStandalone:false,action:'route-existing',reason:'returns-owned-by-refund-guide',ownerPath:'/guide/noon-refund-credit',evidence};
+  }
   if(intent==='howto'){
     return {createStandalone:false,action:'route-existing',reason:'howto-owned-by-guide',ownerPath:'/guide/how-to-use-noon-coupon',evidence};
   }
@@ -50,11 +53,12 @@ export function evaluateSearchDemandPolicy(topic={}){
 }
 
 export const SEARCH_DEMAND_POLICY_INFO=Object.freeze({
-  version:1,
+  version:2,
   model:'demand-aware-intent-owner-v1',
   sourceWindow:'GSC 2026-08-29..2026-09-25 + uploaded 1000-keyword editorial bank',
   principles:['one-intent-one-owner','measured-demand-over-artificial-variation','route-hub-intents-to-existing-pages','specific-entity-pages-still-require-quality-gates'],
   observedCategories:[...GSC_SUPPORTED_CATEGORY_KEYS],
   canonicalCouponOwners:{SA:'/saudi-arabia/noon-coupon-code',AE:'/uae/noon-coupon-code'},
-  howToOwner:'/guide/how-to-use-noon-coupon'
+  howToOwner:'/guide/how-to-use-noon-coupon',
+  refundOwner:'/guide/noon-refund-credit'
 });
