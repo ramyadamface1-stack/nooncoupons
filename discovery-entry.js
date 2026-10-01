@@ -265,6 +265,22 @@ async function augmentRobots(res,origin){
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
+async function sitemapHealth(req,env,ctx,origin){
+  const paths=['/sitemap.xml','/sitemap-priority.xml','/sitemap-en-articles.xml','/sitemap-hubs.xml','/sitemap-commerce.xml','/sitemap-money.xml'];
+  const rows=[];
+  for(const path of paths){
+    try{
+      let res;
+      if(path==='/sitemap-priority.xml')res=await prioritySitemap(env,origin);
+      else if(path==='/sitemap-hubs.xml')res=await hubSitemap(env,origin);
+      else{const u=new URL(req.url);u.pathname=path;u.search='';res=await app.fetch(new Request(u.toString(),{method:'GET',headers:{accept:'application/xml,text/xml,*/*'}}),env,ctx)}
+      const text=await res.text(),type=(res.headers.get('content-type')||'').toLowerCase(),root=/<(?:urlset|sitemapindex)\b/i.test(text),xmlDecl=/^\s*<\?xml\b/i.test(text),locs=(text.match(/<loc>/gi)||[]).length,httpLocs=(text.match(/<loc>http:\/\//gi)||[]).length,httpsLocs=(text.match(/<loc>https:\/\//gi)||[]).length;
+      rows.push({path,status:res.status,ok:res.ok&&type.includes('xml')&&root,contentType:type,xmlDeclaration:xmlDecl,rootDetected:root,locs,httpLocs,httpsLocs,bytes:text.length});
+    }catch(e){rows.push({path,status:0,ok:false,error:String(e?.message||e).slice(0,220)})}
+  }
+  return new Response(JSON.stringify({ok:rows.every(x=>x.ok),origin,checkedAt:new Date().toISOString(),rows},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-sitemap-self-audit':'v1'}});
+}
+
 function edgePageCacheKey(u){
   return new Request(u.origin+u.pathname,{method:'GET'});
 }
@@ -299,6 +315,7 @@ export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
+    if(req.method==='GET'&&u.pathname==='/api/sitemap-health')return sitemapHealth(req,env,ctx,origin);
     if(req.method==='GET'&&u.pathname==='/sitemap-priority.xml')return prioritySitemap(env,origin);
     if(req.method==='GET'&&u.pathname==='/sitemap-hubs.xml')return hubSitemap(env,origin);
     if(req.method==='GET'&&u.pathname==='/api/coupon-migration-health'){
