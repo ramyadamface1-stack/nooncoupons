@@ -345,7 +345,7 @@ async function augmentRobots(res,origin){
 }
 
 async function sitemapHealth(req,env,ctx,origin){
-  const paths=['/sitemap.xml','/sitemap-pages.xml','/sitemap-guides.xml','/sitemap-coupons.xml','/sitemap-coupons-saudi.xml','/sitemap-coupons-uae.xml','/sitemap-priority.xml','/sitemap-en-articles.xml','/sitemap-hubs.xml','/sitemap-images.xml','/sitemap-commerce.xml','/sitemap-money.xml','/sitemap-topics.xml'];
+  const paths=['/sitemap.xml','/sitemap-core.xml','/sitemap-pages.xml','/sitemap-guides.xml','/sitemap-coupons.xml','/sitemap-coupons-saudi.xml','/sitemap-coupons-uae.xml','/sitemap-priority.xml','/sitemap-en-articles.xml','/sitemap-hubs.xml','/sitemap-images.xml','/sitemap-commerce.xml','/sitemap-money.xml','/sitemap-topics.xml'];
   const rows=[];
   for(const path of paths){
     try{
