@@ -367,14 +367,21 @@ async function brandPage(market, key, origin, env) {
   const all = marketRows(await latestArticles(env), market);
   const rows = all.filter((a) => commerceMeta(a).brandKey === key).slice(0,24);
   const path = `/${market}/brand/${key}`,primaryCategory=b.categories?.[0]||'electronics',categoryLabel=CATEGORIES[primaryCategory]?.label||'المنتجات';
-  const title = `كود خصم ${b.label} على ${mk.name} | ${categoryLabel}`;
-  const desc = `بوابة ${b.label} على ${mk.name}: جرّب الكود من القائمة المعتمدة، ثم استكشف عائلات الموديلات وأدلة الاختيار والمقالات المرتبطة قبل الدفع.`;
+  const gscBrandIntent=market==='saudi'?({
+    puma:{title:'قسيمة وكود خصم PUMA بوما على نون السعودية | أحذية وRunning',desc:'صفحة بوما PUMA على نون السعودية لتجربة الكود، ومراجعة Running وLifestyle والمقاس والبائع والإرجاع قبل الدفع.'},
+    adidas:{title:'كود خصم adidas أديداس على نون السعودية | أحذية ورياضة',desc:'صفحة adidas أديداس على نون السعودية لتجربة الكود، والوصول إلى Running وOriginals وFootball مع مراجعة المقاس والبائع والسعر النهائي.'},
+    braun:{title:'كود براون على نون السعودية | Braun Grooming وSilk-épil',desc:'صفحة Braun براون على نون السعودية لتجربة الكود ومراجعة Grooming وSilk-épil والبائع والضمان وشروط الإرجاع قبل الدفع.'},
+    versace:{title:'كود خصم Versace فيرساتشي على نون السعودية | عطور',desc:'صفحة Versace فيرساتشي على نون السعودية لتجربة الكود ومراجعة العطر والبائع والحجم والسعر النهائي وشروط الإرجاع قبل الدفع.'}
+  })[key]:null;
+  const title = gscBrandIntent?.title||`كود خصم ${b.label} على ${mk.name} | ${categoryLabel}`;
+  const desc = gscBrandIntent?.desc||`بوابة ${b.label} على ${mk.name}: جرّب الكود من القائمة المعتمدة، ثم استكشف عائلات الموديلات وأدلة الاختيار والمقالات المرتبطة قبل الدفع.`;
   const hero = `<header class="hero"><div class="w">${breadcrumbs(market,[{label:categoryLabel,path:`/${market}/category/${primaryCategory}`},{label:b.label}])}<h1>${title}</h1><p>${desc}</p></div></header>`;
   const models = Object.entries(b.models).map(([modelKey,m]) => `<article class="card"><small>عائلة موديلات</small><h3><a href="/${market}/model/${key}/${modelKey}">${esc(m.label)}</a></h3><p>أدلة ومقارنات مرتبطة بعائلة ${esc(m.label)} بدون تجميد سعر أو مواصفة متغيرة.</p><a class="read" href="/${market}/model/${key}/${modelKey}">افتح العائلة ←</a></article>`).join('');
   const comps = Object.entries(COMPARISONS).filter(([,c]) => c.a === key || c.b === key).map(([k,c]) => `<article class="card"><h3><a href="/${market}/compare/${k}">${esc(c.title)}</a></h3><a class="read" href="/${market}/compare/${k}">افتح المقارنة ←</a></article>`).join('');
-  const answer = `<section class="section"><h2>هل يوجد كود خصم ${esc(b.label)} على نون؟</h2><div class="box"><p><strong>الإجابة المختصرة:</strong> استخدم الكود الظاهر في هذه الصفحة كتجربة داخل سلة نون ${esc(mk.name)}، ثم اعتبر رسالة نون والإجمالي النهائي المرجع الفعلي للأهلية والتوفير.</p><p>هذه الصفحة هي نقطة التجميع الأساسية لبحث ${esc(b.label)} العام؛ أما المقالات أدناه فمخصصة لموديلات أو سيناريوهات شراء أكثر تحديدًا.</p></div></section>`;
+  const aliasText=(b.aliases||[]).filter(Boolean).slice(0,3).join(' / ');
+  const answer = `<section class="section"><h2>هل يوجد كود أو قسيمة خصم ${esc(b.label)} على نون؟</h2><div class="box"><p><strong>الإجابة المختصرة:</strong> استخدم الكود الظاهر في هذه الصفحة كتجربة داخل سلة نون ${esc(mk.name)}، ثم اعتبر رسالة نون والإجمالي النهائي المرجع الفعلي للأهلية والتوفير.</p><p>هذه الصفحة هي نقطة التجميع الأساسية لبحث ${esc(b.label)} العام${aliasText?'، بما في ذلك الصيغ: '+esc(aliasText):''}؛ أما المقالات أدناه فمخصصة لموديلات أو سيناريوهات شراء أكثر تحديدًا.</p></div></section>`;
   const main = `${couponBox(market,'brand:'+key,b.label)}${answer}<section class="section"><h2>عائلات ${b.label}</h2><div class="grid">${models}</div></section><section class="section"><h2>مقارنات مرتبطة</h2><div class="grid">${comps || '<div class="empty">ستضاف المقارنات المناسبة هنا.</div>'}</div></section><section class="section"><h2>مقالات ${b.label}</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">تظهر المقالات تلقائيًا عند تطابق البراند بوضوح.</div>'}</section><section class="section"><h2>براندات أخرى</h2>${brandGrid(market,key,primaryCategory)}</section>`;
-  return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market,primaryCategory), 'brand', {'x-commerce-brand':key,'x-brand-intent-owner':'v1','x-brand-primary-category':primaryCategory});
+  return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market,primaryCategory), 'brand', {'x-commerce-brand':key,'x-brand-intent-owner':'v2','x-brand-primary-category':primaryCategory,'x-gsc-brand-intent':gscBrandIntent?'observed':'generic'});
 }
 
 async function modelPage(market, brandKey, modelKey, origin, env) {
