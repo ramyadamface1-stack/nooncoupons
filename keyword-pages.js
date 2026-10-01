@@ -117,8 +117,13 @@ const LANDINGS={
 };
 
 function schemaFor(origin,path,p){
+  const orgId=origin+'/#organization',siteId=origin+'/#website',teamId=origin+'/authors/editorial-team#team',pageId=origin+path+'#webpage';
   return {'@context':'https://schema.org','@graph':[
-    {'@type':'WebPage','@id':origin+path+'#webpage',url:origin+path,name:p.title,description:p.description,inLanguage:'ar',dateModified:UPDATED,isPartOf:{'@id':origin+'/#website'}},
+    {'@type':'Organization','@id':orgId,name:'Noon Deals Now',alternateName:'كوبونات نون',url:origin+'/'},
+    {'@type':'Organization','@id':teamId,name:'فريق تحرير Noon Deals Now',url:origin+'/authors/editorial-team',parentOrganization:{'@id':orgId}},
+    {'@type':'WebSite','@id':siteId,name:'Noon Deals Now',alternateName:'كوبونات نون',url:origin+'/',inLanguage:['ar','en'],publisher:{'@id':orgId}},
+    {'@type':'WebPage','@id':pageId,url:origin+path,name:p.title,description:p.description,inLanguage:'ar',dateModified:UPDATED,isPartOf:{'@id':siteId},publisher:{'@id':orgId}},
+    {'@type':'Article','@id':origin+path+'#article',headline:p.h1,description:p.description,inLanguage:'ar',dateModified:UPDATED,mainEntityOfPage:{'@id':pageId},author:{'@id':teamId},publisher:{'@id':orgId}},
     {'@type':'BreadcrumbList',itemListElement:[{'@type':'ListItem',position:1,name:'الرئيسية',item:origin+'/'},{'@type':'ListItem',position:2,name:'أدلة نون',item:origin+'/blog'},{'@type':'ListItem',position:3,name:p.h1,item:origin+path}]},
     {'@type':'FAQPage',mainEntity:p.faq.map(([q,a])=>({'@type':'Question',name:q,acceptedAnswer:{'@type':'Answer',text:a}}))}
   ]};
