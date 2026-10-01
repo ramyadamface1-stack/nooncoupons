@@ -1,17 +1,17 @@
-const UPDATED='2026-09-15';
+const UPDATED='2026-10-01';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
 
 const TARGETS={
   '/':{
-    title:'كود خصم نون | أكواد نون السعودية والإمارات',
-    description:'كود خصم نون وأكواد خصم نون للسعودية والإمارات مع طريقة تحقق واضحة قبل الدفع، وصفحات مستقلة لكل سوق بدون ادعاءات خصم غير موثقة.',
-    h1:'كود خصم نون: أكواد نون للسعودية والإمارات',intent:'core-noon-coupon'
+    title:'Noon Deals Now | بوابة نون للسعودية والإمارات',
+    description:'بوابة مستقلة لاستكشاف نون السعودية والإمارات حسب السوق والقسم والبراند، مع صفحات منفصلة للكوبونات وأدلة الشراء.',
+    h1:'استكشف نون حسب الدولة والقسم والكود',intent:'site-navigation-hub'
   },
   '/coupons':{
-    title:'كوبونات نون وأكواد نون الحالية | السعودية والإمارات',
-    description:'كوبونات نون وأكواد نون الحالية مرتبة للسعودية والإمارات. انسخ الكود وجرّبه داخل السلة وتحقق من النتيجة قبل الدفع.',
-    h1:'كوبونات نون وأكواد الخصم الحالية',intent:'noon-coupons'
+    title:'كود خصم نون | أكواد نون السعودية والإمارات',
+    description:'الصفحة العامة لكود خصم نون وأكواد نون: اختر السعودية أو الإمارات، انسخ الكود، وجرّبه على سلة ثابتة ثم تحقق من النتيجة قبل الدفع.',
+    h1:'كود خصم نون: اختر السعودية أو الإمارات',intent:'generic-noon-coupon-owner'
   },
   '/saudi-arabia':{
     title:'كود خصم نون السعودية | أكواد وكوبونات نون',
@@ -166,4 +166,4 @@ export function augmentKeywordSitemap(path,xml,origin){
   return xml.replace('</urlset>',add+'</urlset>');
 }
 
-export const KEYWORD_MAP_VERSION='2026-10-01-v5-gsc-intent-owners';
+export const KEYWORD_MAP_VERSION='2026-10-01-v6-generic-coupon-owner';
