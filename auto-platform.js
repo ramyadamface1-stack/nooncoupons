@@ -7,7 +7,7 @@ import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStat
 import {readState,pickTopic,publishGenerated} from './generator-core-v2.js';
 import {generateWithWorkersAI,workersAiBudget,isWorkersAiFreeQuotaError} from './workers-ai-generator.js';
 import {BULK_ENGINE_INFO,BULK_RUNTIME_LIMITS} from './bulk-generator.js';
-import {normalizeApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
+import {APPROVED_COUPON_CODES,normalizeApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {ensureRuntimeArticleQuality,normalizeRuntimeTitle,normalizeRuntimeMeta,RUNTIME_ARTICLE_QUALITY_INFO} from './article-quality-runtime.js';
 import {runEnglishScheduledTick} from './english-canary.js';
 
@@ -15,6 +15,12 @@ const VERSION='generator-5.0-quality-first';
 const PLATFORM_VERSION='platform-1.6-quality-first';
 const STATIC_SITEMAPS=['pages','guides','coupons','coupons-saudi','coupons-uae'];
 const AUDIT_DISCOVERY_CURRENT_KEY='maintenance/article-discovery-v1/current.json';
+const STATIC_PAGE_PATHS=['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide','/about','/contact','/privacy','/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer','/terms','/research','/glossary','/countries'];
+const STATIC_GUIDE_PATHS=['/guide/how-to-use-noon-coupon','/guide/coupon-not-working','/guide/saudi-noon-saving-guide','/guide/uae-noon-saving-guide','/guide/first-order-guide','/guide/payment-methods-and-coupons','/guide/coupon-vs-offer','/guide/smart-cart-checklist'];
+const STATIC_MARKET_MONEY_PATHS={
+  'coupons-saudi':['/saudi-arabia/noon-coupon-code','/saudi-arabia/noon-coupon-code-today'],
+  'coupons-uae':['/uae/noon-coupon-code','/uae/noon-coupon-code-today']
+};
 const now=()=>new Date().toISOString();
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -174,6 +180,18 @@ async function bulkBlogPage(req,env,ctx){
   return new Response(h,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=60,s-maxage=300','x-blog-schema':'collection-v1','x-blog-page-size':String(perPage)}});
 }
 
+function staticSitemapPaths(name){
+  if(name==='pages')return STATIC_PAGE_PATHS;
+  if(name==='guides')return STATIC_GUIDE_PATHS;
+  if(name==='coupons')return ['/coupons',...APPROVED_COUPON_CODES.map(code=>'/coupon/'+String(code).toLowerCase())];
+  return STATIC_MARKET_MONEY_PATHS[name]||[];
+}
+function staticSitemap(name,origin){
+  const paths=[...new Set(staticSitemapPaths(name))];
+  const urls=paths.map(path=>`<url><loc>${esc(origin+path)}</loc></url>`).join('');
+  return xml(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
+}
+
 async function sitemapIndex(env,origin){
   const items=[];
   const discovery=await r2json(env,AUDIT_DISCOVERY_CURRENT_KEY,null);
@@ -297,6 +315,10 @@ export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
     if(u.pathname==='/sitemap.xml')return xml(await sitemapIndex(env,origin));
+    {
+      const m=u.pathname.match(/^\/sitemap-(pages|guides|coupons|coupons-saudi|coupons-uae)\.xml$/);
+      if(m)return staticSitemap(m[1],origin);
+    }
     if(u.pathname.startsWith('/sitemap-audit-articles-')){const r=await auditArticleSitemap(u.pathname,env,origin);if(r)return r}
      if(u.pathname.startsWith('/sitemap-fresh-articles-')){const r=await freshArticleSitemap(u.pathname,env,origin);if(r)return r}
      if(u.pathname.startsWith('/sitemap-articles-')){const r=await articleSitemap(u.pathname,env,origin);if(r)return r}
