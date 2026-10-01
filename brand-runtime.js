@@ -225,6 +225,31 @@ function brandHead(html){
 }
 
 function favicon(){return new Response(SVG,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public, max-age=604800, immutable','x-content-type-options':'nosniff'}})}
+function canonicalPublicRedirect(req,env,u){
+  const host=String(u.hostname||'').toLowerCase();
+  if(host!=='noondealsnow.com'&&host!=='www.noondealsnow.com')return null;
+  let canonical;try{canonical=new URL(env.SITE_ORIGIN||'https://noondealsnow.com')}catch{canonical=new URL('https://noondealsnow.com')}
+  let cfScheme='';try{cfScheme=String(JSON.parse(req.headers.get('cf-visitor')||'{}')?.scheme||'').toLowerCase()}catch{}
+  const forwarded=String(req.headers.get('x-forwarded-proto')||'').split(',')[0].trim().toLowerCase();
+  const insecure=u.protocol!=='https:'||forwarded==='http'||cfScheme==='http';
+  const wrongHost=host!==String(canonical.hostname||'').toLowerCase();
+  if(!insecure&&!wrongHost)return null;
+  return new Response(null,{status:301,headers:{location:canonical.origin+u.pathname+u.search,'cache-control':'public, max-age=86400','x-canonical-origin-redirect':'https-apex-v1'}});
+}
+function normalizeInternalOrigin(html,origin){
+  let canonical='https://noondealsnow.com';
+  try{canonical=new URL(origin||canonical).origin}catch{}
+  return String(html)
+    .replace(/http:\/\/(?:www\.)?noondealsnow\.com/gi,canonical)
+    .replace(/https:\/\/www\.noondealsnow\.com/gi,canonical);
+}
+function ensureCanonicalLink(html,origin,path){
+  if(/<link\b[^>]*rel=["'][^"']*canonical[^"']*["'][^>]*>/i.test(html))return html;
+  if(path==='/admin'||path.startsWith('/admin/')||path.startsWith('/api/'))return html;
+  const href=String(origin||'https://noondealsnow.com').replace(/\/+$/,'')+(path||'/');
+  const tag='<link rel="canonical" href="'+attr(href)+'">';
+  return /<\/head>/i.test(html)?html.replace(/<\/head>/i,tag+'</head>'):tag+html;
+}
 function legacyCanonicalRedirect(u){const path=u.pathname.replace(/\/+$/,'')||'/';if(path==='/saudi/noon-coupon-code')return '/saudi-arabia/noon-coupon-code';const m=path.match(/^\/(?:saudi-arabia|saudi|uae)\/article\/(.+)$/);if(m)return '/articles/'+m[1];return null}
 function configuredSeoRedirect(path,settings){
   const from=String(path||'').replace(/\/+$/,'')||'/',to=settings?.redirects?.[from];
@@ -324,6 +349,7 @@ async function trackUniqueArticleVisit(req,env,path){
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url);
+    const canonicalRedirect=canonicalPublicRedirect(req,env,u);if(canonicalRedirect)return canonicalRedirect;
     if(req.method==='POST'&&u.pathname==='/api/track-event')return handleConversionEvent(req,env);
     if(req.method==='GET'&&u.pathname==='/favicon.svg')return favicon();
     if(req.method==='GET'&&u.pathname==='/sw.js')return new Response(SW_JS,{headers:{'content-type':'application/javascript; charset=utf-8','cache-control':'no-cache','service-worker-allowed':'/','x-content-type-options':'nosniff'}});
@@ -351,6 +377,8 @@ export default{
     const visibleSanitized=sanitizeVisibleCouponTokens(normalized.html);
     let html=applySeoSettings(brandHead(visibleSanitized.html),settings,u.pathname,origin);
     html=injectSeoExtras(html,settings);
+    html=normalizeInternalOrigin(html,origin);
+    html=ensureCanonicalLink(html,origin,u.pathname);
     const imagePerf=!u.pathname.startsWith('/admin')?optimizeImages(html):{html,count:0,firstSrc:null};html=imagePerf.html;
     if(!u.pathname.startsWith('/admin')){
       html=serviceWorkerRegistration(html);
@@ -361,6 +389,7 @@ export default{
     }
     const h=new Headers(res.headers);h.delete('content-length');
     h.set('x-brand-layer','v1');
+    h.set('x-canonical-origin-normalized','https-apex-v1');
     h.set('x-seo-settings',settings?'r2-v1':'default');
     h.set('x-seo-redirects',settings&&Object.keys(settings.redirects||{}).length?'configured-v1':'none');
     h.set('x-image-performance','lazy-v1');
@@ -384,4 +413,4 @@ export default{
   async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
 };
 
-export const BRAND_RUNTIME_INFO={version:21,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
+export const BRAND_RUNTIME_INFO={version:22,canonicalOriginRedirect:true,internalOriginNormalization:true,canonicalFallback:true,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
