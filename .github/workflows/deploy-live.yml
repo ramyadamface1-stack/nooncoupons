@@ -164,7 +164,32 @@ jobs:
             jq -c '{success,errors}' /tmp/cf-domains.json 2>/dev/null || true
           fi
 
+          echo 'DNS_PUBLIC_NS'
+          dig +short NS noondealsnow.com || true
+          echo 'DNS_PUBLIC_A_SYSTEM'
           getent ahosts noondealsnow.com || true
+          echo 'DNS_PUBLIC_A_CLOUDFLARE'
+          dig +short A noondealsnow.com @1.1.1.1 || true
+          echo 'DNS_PUBLIC_A_GOOGLE'
+          dig +short A noondealsnow.com @8.8.8.8 || true
+          echo 'DNS_PUBLIC_AAAA'
+          dig +short AAAA noondealsnow.com @1.1.1.1 || true
+
+          zone_id=$(jq -r '.result[]? | select(((.hostname // .name // "")|ascii_downcase)=="noondealsnow.com") | .zone_id' /tmp/cf-domains.json | head -n1)
+          echo "CF_CUSTOM_DOMAIN_ZONE_ID_PRESENT=$([ -n "$zone_id" ] && echo yes || echo no)"
+          if [ -n "$zone_id" ]; then
+            dns_code=$(curl -sS -o /tmp/cf-dns.json -w '%{http_code}' \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H 'Content-Type: application/json' \
+              "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=noondealsnow.com" || true)
+            echo "CF_DNS_RECORDS_HTTP=$dns_code"
+            if [ "$dns_code" = '200' ]; then
+              jq -c '[.result[]? | {id,type,name,content,proxied,ttl}]' /tmp/cf-dns.json
+            else
+              jq -c '{success,errors}' /tmp/cf-dns.json 2>/dev/null || true
+            fi
+          fi
+
           code=$(curl -sS --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 30 \
             -A 'NoonDealsNow-custom-domain-verifier' -o /tmp/custom-revision.json -w '%{http_code}' \
             "$CUSTOM/api/revision?verify=${GITHUB_RUN_ID}" || true)
