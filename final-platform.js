@@ -62,6 +62,7 @@ function llms(origin){
 - English UAE hub: ${origin}/en/uae
 - English Saudi coupon hub: ${origin}/en/saudi/noon-coupon-code
 - English UAE coupon hub: ${origin}/en/uae/noon-coupon-code
+- UAE savings guide: ${origin}/en/uae/saving-guide
 - English article sitemap: ${origin}/sitemap-en-articles.xml
 - Image sitemap: ${origin}/sitemap-images.xml
 - Hub sitemap: ${origin}/sitemap-hubs.xml
