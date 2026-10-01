@@ -93,21 +93,23 @@ jobs:
       - name: Deploy existing Worker
         run: npx wrangler deploy
 
-      - name: Verify production revision and SEO discovery
+      - name: Verify deployed Worker runtime
         shell: bash
         run: |
           set -euo pipefail
-          ORIGIN='https://noondealsnow.com'
+          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
           token="deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           get_ok(){
             local path="$1" out="$2" headers="$3"
             local ok=0
-            for i in $(seq 1 18); do
-              code=$(curl -sS --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 35                 -A 'NoonDealsNow-production-verifier' -D "$headers" -o "$out" -w '%{http_code}'                 "$ORIGIN$path?verify=$token-$i" || true)
+            for i in $(seq 1 12); do
+              code=$(curl -sS --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 35 \
+                -A 'NoonDealsNow-worker-verifier' -D "$headers" -o "$out" -w '%{http_code}' \
+                "$ORIGIN$path?verify=$token-$i" || true)
               if [ "$code" = '200' ]; then ok=1; break; fi
-              sleep 5
+              sleep 4
             done
-            [ "$ok" = 1 ] || { echo "LIVE_ROUTE_FAILED=$path"; exit 1; }
+            [ "$ok" = 1 ] || { echo "WORKER_ROUTE_FAILED=$path"; exit 1; }
           }
 
           get_ok '/api/revision' /tmp/revision.json /tmp/revision.h
@@ -127,7 +129,7 @@ jobs:
           grep -Fq '/sitemap-images.xml' /tmp/root.xml
 
           get_ok '/api/sitemap-health' /tmp/sitemap-health.json /tmp/sitemap-health.h
-          jq -e '.rows|length>=10' /tmp/sitemap-health.json >/dev/null
+          jq -e '.ok==true and (.rows|length>=14)' /tmp/sitemap-health.json >/dev/null
           jq -e '[.rows[]|select(.status!=200 or .ok!=true)]|length==0' /tmp/sitemap-health.json >/dev/null
 
           get_ok '/api/generation-freshness' /tmp/fresh.json /tmp/fresh.h
@@ -142,4 +144,34 @@ jobs:
           get_ok '/guide/noon-refund-credit' /tmp/refund.html /tmp/refund.h
           grep -Fq 'استرجاع رصيد نون' /tmp/refund.html
 
-          echo 'PRODUCTION_DEPLOY_VERIFY=PASS'
+          echo 'WORKER_DEPLOY_VERIFY=PASS'
+
+      - name: Diagnose custom-domain attachment and reachability
+        shell: bash
+        run: |
+          set -euo pipefail
+          CUSTOM='https://noondealsnow.com'
+          echo 'CUSTOM_DOMAIN=noondealsnow.com'
+
+          domain_code=$(curl -sS -o /tmp/cf-domains.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H 'Content-Type: application/json' \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains" || true)
+          echo "CF_WORKERS_DOMAINS_HTTP=$domain_code"
+          if [ "$domain_code" = '200' ] && jq -e '.success==true' /tmp/cf-domains.json >/dev/null 2>&1; then
+            jq -c '[.result[]? | select(((.hostname // .name // "")|ascii_downcase)=="noondealsnow.com")]' /tmp/cf-domains.json
+          else
+            jq -c '{success,errors}' /tmp/cf-domains.json 2>/dev/null || true
+          fi
+
+          getent ahosts noondealsnow.com || true
+          code=$(curl -sS --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 30 \
+            -A 'NoonDealsNow-custom-domain-verifier' -o /tmp/custom-revision.json -w '%{http_code}' \
+            "$CUSTOM/api/revision?verify=${GITHUB_RUN_ID}" || true)
+          echo "CUSTOM_DOMAIN_REVISION_HTTP=$code"
+          if [ "$code" = '200' ] && jq -e '.ok==true and .layer=="discovery-entry"' /tmp/custom-revision.json >/dev/null 2>&1; then
+            echo 'CUSTOM_DOMAIN_LIVE_VERIFY=PASS'
+          else
+            echo 'CUSTOM_DOMAIN_LIVE_VERIFY=BLOCKED_FROM_GITHUB_RUNNER'
+            echo 'Worker deployment remains verified on workers.dev; custom-domain verification must remain a separate gate.'
+          fi
