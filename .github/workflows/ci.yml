@@ -1,0 +1,47 @@
+name: NoonDealsNow CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate package
+        run: node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('package.json ok')"
+      - name: Syntax-check runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            index.js
+            site.js
+            seo-layer.js
+            commerce-pages-v2.js
+            commerce-entry.js
+            network-entry.js
+            brand-runtime.js
+            discovery-entry.js
+            english-canary.js
+            quality-index.js
+            bulk-content-engine.js
+            bulk-content-engine-base.js
+          )
+          for f in "${files[@]}"; do
+            if [ -f "$f" ]; then
+              echo "Checking $f"
+              node --check "$f"
+            fi
+          done
