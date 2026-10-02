@@ -37,7 +37,7 @@ export function keywordSimilarity(a,b){
   return hit/Math.max(A.size,B.size);
 }
 
-function campaignIntentDimension(topic){
+export function campaignIntentDimension(topic){
   return topic?.campaignKind==='campaign'&&topic?.campaignStartKnown===true&&topic?.campaignEndKnown===true?String(topic?.campaignId||''):'';
 }
 export function intentKey(topic){
@@ -115,7 +115,7 @@ export function preflightGlobalGate(topic,cluster){
     if(kw&&norm(e.primaryKeyword||'')===kw)exactKeyword=true;
     if(e.intentKey&&e.intentKey===ik)intentCollision=true;
     if((e.ownerIntentKey||intentOwnerKey(e))===owner)ownerCollision=true;
-    const sameContext=(!e.country||e.country===topic?.country)&&(!e.category||e.category===topic?.category);
+    const sameContext=(!e.country||e.country===topic?.country)&&(!e.category||e.category===topic?.category)&&campaignIntentDimension(e)===campaignIntentDimension(topic);
     if(sameContext&&(!e.intent||e.intent===topic?.intent)){
       const s=keywordSimilarity(topic?.kw||'',e.primaryKeyword||'');
       if(s>maxKeywordSimilarity){maxKeywordSimilarity=s;nearest=e}
@@ -140,7 +140,7 @@ export function globalGate(article,topic,audit,cluster){
     if(title&&norm(e.title||'')===title)exactTitle=true;
     if(e.intentKey&&e.intentKey===ik)intentCollision=true;
     if((e.ownerIntentKey||intentOwnerKey(e))===owner)ownerCollision=true;
-    const sameContext=(!e.country||e.country===topic?.country)&&(!e.category||e.category===topic?.category);
+    const sameContext=(!e.country||e.country===topic?.country)&&(!e.category||e.category===topic?.category)&&campaignIntentDimension(e)===campaignIntentDimension(topic);
     if(sameContext&&(!e.intent||e.intent===topic?.intent)){const ks=keywordSimilarity(article?.primaryKeyword||topic?.kw,e.primaryKeyword||'');if(ks>maxKeywordSimilarity){maxKeywordSimilarity=ks;nearest=e}const ts=keywordSimilarity(article?.title||'',e.title||'');if(ts>maxTitleSimilarity){maxTitleSimilarity=ts;nearest=e}}
     if(sameContext&&(!e.intent||e.intent===topic?.intent)&&e.signature&&audit?.signature){const d=signatureDistance(audit.signature,e.signature);if(d<minDistance){minDistance=d;nearest=e}}
   }
@@ -198,4 +198,4 @@ export async function flushClusters(env,cache,dirtyKeys){
   }
 }
 
-export const GLOBAL_INDEX_INFO={version:VERSION,gateRevision:4,titleCannibalizationSimilarityMax:0.82,intentKeyVersion:4,intentOwnerVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],intentOwnerDimensions:['country','category','intent','useCase','factor','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:6,cannibalizationSimilarityMax:0.78,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:8,r2ReadRetry:3,r2WriteRetry:5,failClosedOnClusterRead:true,preflightGate:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','intent-owner-collision','keyword-cannibalization'],postBuildChecks:['duplicate-title','semantic-collision','title-cannibalization']};
+export const GLOBAL_INDEX_INFO={version:VERSION,gateRevision:5,titleCannibalizationSimilarityMax:0.82,intentKeyVersion:4,intentOwnerVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],intentOwnerDimensions:['country','category','intent','useCase','factor','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:6,cannibalizationSimilarityMax:0.78,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:8,r2ReadRetry:3,r2WriteRetry:5,failClosedOnClusterRead:true,preflightGate:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','intent-owner-collision','keyword-cannibalization'],postBuildChecks:['duplicate-title','semantic-collision','title-cannibalization']};
