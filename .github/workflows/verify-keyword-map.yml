@@ -55,8 +55,10 @@ jobs:
           echo 'KEYWORD_MAP_LIVE_HOME=PASS'
 
           coupons="$(curl -fsS --max-time 20 "$ORIGIN/coupons")"
-          grep -Fq 'كود خصم نون' <<<"$coupons"
-          grep -Fq 'كوبونات نون وأكواد الخصم الحالية' <<<"$coupons"
+          grep -Fq 'السعودية' <<<"$coupons"
+          grep -Fq 'الإمارات' <<<"$coupons"
+          grep -Fq 'NOV170' <<<"$coupons"
+          grep -Fq 'NOV188' <<<"$coupons"
           echo 'KEYWORD_MAP_LIVE_COUPONS=PASS'
 
           sa="$(curl -fsS -L --max-time 20 "$ORIGIN/saudi-arabia")"
