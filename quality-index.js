@@ -24,9 +24,9 @@ async function r2getCritical(env,key){
 async function r2putRetry(env,key,value,options){
   if(!env?.CONTENT_FINAL)throw new Error('r2_binding_missing');
   let last=null;
-  for(let attempt=1;attempt<=3;attempt++){
+  for(let attempt=1;attempt<=5;attempt++){
     try{return await env.CONTENT_FINAL.put(key,value,options)}
-    catch(e){last=e;if(attempt<3)await sleep(60*attempt)}
+    catch(e){last=e;if(attempt<5){const rate=/10058|concurrent request rate/i.test(String(e?.message||e)),delay=rate?Math.min(3000,300*attempt*attempt):100*attempt;await sleep(delay)}}
   }
   throw last||new Error('r2_put_failed');
 }
@@ -37,16 +37,19 @@ export function keywordSimilarity(a,b){
   return hit/Math.max(A.size,B.size);
 }
 
+function campaignIntentDimension(topic){
+  return topic?.campaignKind==='campaign'&&topic?.campaignStartKnown===true&&topic?.campaignEndKnown===true?String(topic?.campaignId||''):'';
+}
 export function intentKey(topic){
   return norm([
     topic?.country,topic?.category,topic?.intent,topic?.useCase,topic?.factor,topic?.scenario,
-    topic?.queryModifier,topic?.catalogLevel,topic?.catalogTarget,topic?.brandKey,topic?.modelKey,topic?.comparisonKey
+    topic?.queryModifier,topic?.catalogLevel,topic?.catalogTarget,topic?.brandKey,topic?.modelKey,topic?.comparisonKey,campaignIntentDimension(topic)
   ].join('|'));
 }
 export function intentOwnerKey(topic){
   return norm([
     topic?.country,topic?.category,topic?.intent,topic?.useCase,topic?.factor,
-    topic?.catalogLevel,topic?.catalogTarget,topic?.brandKey,topic?.modelKey,topic?.comparisonKey
+    topic?.catalogLevel,topic?.catalogTarget,topic?.brandKey,topic?.modelKey,topic?.comparisonKey,campaignIntentDimension(topic)
   ].join('|'));
 }
 
@@ -67,7 +70,7 @@ export async function loadCluster(env,topic,cache=new Map()){
 
 function compactEntry(rec){
   if(!rec?.slug||!rec?.primaryKeyword||!rec?.country||!rec?.category)return null;
-  return {slug:rec.slug,title:rec.title||rec.primaryKeyword,primaryKeyword:rec.primaryKeyword,signature:rec.signature||null,country:rec.country,category:rec.category,intent:rec.intent||'',intentLabel:rec.intentLabel||'',intentKey:intentKey(rec),ownerIntentKey:intentOwnerKey(rec),createdAt:rec.createdAt||rec.updatedAt||now()};
+  return {slug:rec.slug,title:rec.title||rec.primaryKeyword,primaryKeyword:rec.primaryKeyword,signature:rec.signature||null,country:rec.country,category:rec.category,intent:rec.intent||'',intentLabel:rec.intentLabel||'',campaignId:rec.campaignId||null,campaignKind:rec.campaignKind||null,campaignStartKnown:Boolean(rec.campaignStartKnown),campaignEndKnown:Boolean(rec.campaignEndKnown),intentKey:intentKey(rec),ownerIntentKey:intentOwnerKey(rec),createdAt:rec.createdAt||rec.updatedAt||now()};
 }
 
 async function r2json(env,key,fallback){try{const o=await r2getCritical(env,key);return o?await o.json():fallback}catch(e){if(String(e?.message||e)==='r2_binding_missing')throw e;return fallback}}
@@ -182,7 +185,7 @@ export function injectContextualLinks(article,links=[]){
 }
 
 export function addToCluster(cluster,rec,topic){
-  const entry={slug:rec.slug,title:rec.title,primaryKeyword:rec.primaryKeyword,signature:rec.signature,country:rec.country,category:topic?.category||'',intent:topic?.intent||'',intentLabel:topic?.intentLabel||'',intentKey:intentKey(topic),ownerIntentKey:intentOwnerKey(topic),createdAt:rec.createdAt||now()};
+  const entry={slug:rec.slug,title:rec.title,primaryKeyword:rec.primaryKeyword,signature:rec.signature,country:rec.country,category:topic?.category||'',intent:topic?.intent||'',intentLabel:topic?.intentLabel||'',campaignId:topic?.campaignId||null,campaignKind:topic?.campaignKind||null,campaignStartKnown:Boolean(topic?.campaignStartKnown),campaignEndKnown:Boolean(topic?.campaignEndKnown),intentKey:intentKey(topic),ownerIntentKey:intentOwnerKey(topic),createdAt:rec.createdAt||now()};
   const entries=[entry,...(cluster.entries||[]).filter(x=>x?.slug!==entry.slug)].slice(0,MAX_CLUSTER_ENTRIES);
   cluster.version=VERSION;cluster.country=topic?.country||rec.country;cluster.category=topic?.category||cluster.category||'';cluster.updatedAt=now();cluster.entries=entries;return cluster;
 }
@@ -190,9 +193,9 @@ export function addToCluster(cluster,rec,topic){
 export async function flushClusters(env,cache,dirtyKeys){
   if(!env?.CONTENT_FINAL)return;
   const rows=[...dirtyKeys].map(key=>[key,cache.get(key)]).filter(([,value])=>Boolean(value));
-  for(let i=0;i<rows.length;i+=16){
-    await Promise.all(rows.slice(i,i+16).map(([key,value])=>r2putRetry(env,key,JSON.stringify(value),{httpMetadata:{contentType:'application/json; charset=utf-8'}})));
+  for(let i=0;i<rows.length;i+=8){
+    await Promise.all(rows.slice(i,i+8).map(([key,value])=>r2putRetry(env,key,JSON.stringify(value),{httpMetadata:{contentType:'application/json; charset=utf-8'}})));
   }
 }
 
-export const GLOBAL_INDEX_INFO={version:VERSION,gateRevision:4,titleCannibalizationSimilarityMax:0.82,intentKeyVersion:3,intentOwnerVersion:1,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],intentOwnerDimensions:['country','category','intent','useCase','factor','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:6,cannibalizationSimilarityMax:0.78,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:16,r2ReadRetry:3,r2WriteRetry:3,failClosedOnClusterRead:true,preflightGate:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','intent-owner-collision','keyword-cannibalization'],postBuildChecks:['duplicate-title','semantic-collision','title-cannibalization']};
+export const GLOBAL_INDEX_INFO={version:VERSION,gateRevision:4,titleCannibalizationSimilarityMax:0.82,intentKeyVersion:4,intentOwnerVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],intentOwnerDimensions:['country','category','intent','useCase','factor','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:6,cannibalizationSimilarityMax:0.78,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:8,r2ReadRetry:3,r2WriteRetry:5,failClosedOnClusterRead:true,preflightGate:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','intent-owner-collision','keyword-cannibalization'],postBuildChecks:['duplicate-title','semantic-collision','title-cannibalization']};
