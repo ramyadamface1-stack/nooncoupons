@@ -45,6 +45,7 @@ jobs:
             router.js
             index.js
             english-canary.js
+            campaign-calendar.js
             search-demand-policy.js
             quality-index.js
             bulk-generator.js
@@ -67,6 +68,8 @@ jobs:
           grep -Fq 'global_title_cannibalization' quality-index.js
           grep -Fq 'hubOwnedHeadTermsBlocked:true' english-canary.js
           grep -Fq 'broad-buying-owned-by-country-guide' search-demand-policy.js
+          grep -Fq 'campaignAwareGeneration:true' bulk-generator.js
+          grep -Fq 'campaignAwareProfileTargeting:true' english-canary.js
           grep -Fq '/en/uae/saving-guide' commerce-pages-v2.js
           grep -Fq '/guide/noon-refund-credit' keyword-pages.js
           echo 'SOURCE_AUDIT=PASS'
@@ -134,6 +137,9 @@ jobs:
 
           get_ok '/api/generation-freshness' /tmp/fresh.json /tmp/fresh.h
           jq -e '.ok==true and .targetMaxIdleMinutes==60 and .rescueStartsAfterMinutes==45' /tmp/fresh.json >/dev/null
+
+          get_ok '/api/platform-health' /tmp/platform-health.json /tmp/platform-health.h
+          jq -e '.ok==true and .campaignCalendar.version=="noon-core-oct-2026-v1" and .campaignCalendar.timezone=="Africa/Cairo" and .campaignCalendar.slotShare==75 and .campaignCalendar.publicKeywordInjection==false' /tmp/platform-health.json >/dev/null
 
           get_ok '/coupons' /tmp/coupons.html /tmp/coupons.h
           grep -Fq 'كود خصم نون' /tmp/coupons.html
