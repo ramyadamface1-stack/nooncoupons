@@ -161,6 +161,17 @@ jobs:
           get_ok '/guide/noon-refund-credit' /tmp/refund.html /tmp/refund.h
           grep -Fq 'استرجاع رصيد نون' /tmp/refund.html
 
+          get_ok '/' /tmp/home.html /tmp/home.h
+          grep -Fq 'googletagmanager.com/gtag/js?id=G-1551Z7DJ2C' /tmp/home.html
+          grep -Fq "gtag('config','G-1551Z7DJ2C')" /tmp/home.html
+          grep -Fq 'name="google-site-verification"' /tmp/home.html
+          grep -Fq 'LmU-uUjdxfArIxwpCxeSn7eKDIcUrc3zU2CqS8zmxrQ' /tmp/home.html
+
+          http_code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 'http://noondealsnow.com/' || true)
+          http_location=$(curl -sSI --max-time 20 'http://noondealsnow.com/' | awk 'BEGIN{IGNORECASE=1}/^location:/{gsub("\r",""); print $2; exit}' || true)
+          case "$http_code" in 301|302|307|308) ;; *) echo "HTTP_TO_HTTPS_BAD_CODE=$http_code"; exit 1;; esac
+          [[ "$http_location" == https://noondealsnow.com/* ]] || { echo "HTTP_TO_HTTPS_BAD_LOCATION=$http_location"; exit 1; }
+
           echo 'WORKER_DEPLOY_VERIFY=PASS'
 
       - name: Diagnose custom-domain attachment and reachability
