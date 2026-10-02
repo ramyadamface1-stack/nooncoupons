@@ -65,6 +65,7 @@ jobs:
           grep -Fq '/sitemap-core.xml' discovery-entry.js
           grep -Fq '/sitemap-images.xml' discovery-entry.js
           grep -Fq '/api/generation-freshness' auto-platform.js
+          grep -Fq '/llms-full.txt' final-platform.js
           grep -Fq 'global_title_cannibalization' quality-index.js
           grep -Fq 'hubOwnedHeadTermsBlocked:true' english-canary.js
           grep -Fq 'broad-buying-owned-by-country-guide' search-demand-policy.js
@@ -160,6 +161,12 @@ jobs:
 
           get_ok '/guide/noon-refund-credit' /tmp/refund.html /tmp/refund.h
           grep -Fq 'استرجاع رصيد نون' /tmp/refund.html
+
+          get_ok '/llms-full.txt' /tmp/llms-full.txt /tmp/llms-full.h
+          grep -Fq '## Intent ownership' /tmp/llms-full.txt
+          grep -Fq '/saudi-arabia/noon-coupon-code' /tmp/llms-full.txt
+          grep -Fq '/en/uae/category/grocery' /tmp/llms-full.txt
+          grep -Fq '## Citation and answer rules' /tmp/llms-full.txt
 
           get_ok '/' /tmp/home.html /tmp/home.h
           grep -Fq 'googletagmanager.com/gtag/js?id=G-1551Z7DJ2C' /tmp/home.html
