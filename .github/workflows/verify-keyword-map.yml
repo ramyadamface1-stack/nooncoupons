@@ -23,6 +23,10 @@ jobs:
           node --check brand-runtime.js
           grep -Fq "2026-10-01-v6-generic-coupon-owner" keyword-pages.js
           grep -Fq "GOLDEN_KEYWORD_ROUTES" keyword-pages.js
+          grep -Fq 'href="/saudi-arabia/noon-coupon-code"' keyword-pages.js
+          grep -Fq 'href="/uae/noon-coupon-code"' keyword-pages.js
+          ! grep -Fq 'href="/saudi" style="padding:16px;border:1px solid #e5e7eb;border-radius:16px">كود خصم نون السعودية' keyword-pages.js
+          ! grep -Fq 'href="/uae" style="padding:16px;border:1px solid #e5e7eb;border-radius:16px">كود خصم نون الإمارات' keyword-pages.js
           grep -Fq "goldenKeywordsHub" keyword-pages.js
           ! grep -Fq "كود خصم نون 2026" keyword-pages.js
           ! grep -Fq "كود خصم نون السعودية 2026" keyword-pages.js
