@@ -52,10 +52,12 @@ jobs:
           grep -Fq '<title>Noon Deals Now | بوابة نون للسعودية والإمارات</title>' <<<"$home"
           grep -Fq 'استكشف نون حسب الدولة والقسم والكود' <<<"$home"
           grep -Fq 'id="search-intent-hubs"' <<<"$home"
+          echo 'KEYWORD_MAP_LIVE_HOME=PASS'
 
           coupons="$(curl -fsS --max-time 20 "$ORIGIN/coupons")"
           grep -Fq 'كود خصم نون' <<<"$coupons"
-          grep -Fq 'اختر السعودية أو الإمارات' <<<"$coupons"
+          grep -Fq 'كوبونات نون وأكواد الخصم الحالية' <<<"$coupons"
+          echo 'KEYWORD_MAP_LIVE_COUPONS=PASS'
 
           sa="$(curl -fsS -L --max-time 20 "$ORIGIN/saudi-arabia")"
           ae="$(curl -fsS --max-time 20 "$ORIGIN/uae")"
@@ -65,6 +67,7 @@ jobs:
           grep -Fq '<link rel="canonical" href="' <<<"$ae"
           grep -Fq '/uae' <<<"$ae"
           grep -Fq 'نسخ الكود' <<<"$ae"
+          echo 'KEYWORD_MAP_LIVE_MARKETS=PASS'
 
           p50="$(curl -fsS --max-time 20 "$ORIGIN/coupon/noon-discount-50")"
           yellow="$(curl -fsS --max-time 20 "$ORIGIN/guide/noon-yellow-friday")"
@@ -72,14 +75,17 @@ jobs:
           grep -Fq 'قاعدة التحرير' <<<"$p50"
           grep -Fq 'الجمعة الصفراء نون: كيف تتابع الأكواد والعروض بأمان؟' <<<"$yellow"
           grep -Fq 'قاعدة التحرير' <<<"$yellow"
+          echo 'KEYWORD_MAP_LIVE_INTENT_PAGES=PASS'
 
           pages="$(curl -fsS --max-time 20 "$ORIGIN/sitemap-pages.xml")"
           grep -Fq '/coupon/noon-discount-50' <<<"$pages"
           grep -Fq '/guide/noon-yellow-friday' <<<"$pages"
           ! grep -Fq '/golden-keywords' <<<"$pages"
+          echo 'KEYWORD_MAP_LIVE_SITEMAP=PASS'
           curl -fsS -D /tmp/golden_headers --max-time 20 "$ORIGIN/golden-keywords" -o /tmp/golden
           golden="$(cat /tmp/golden)"
           grep -Fqi 'x-robots-tag: noindex, follow' /tmp/golden_headers
           grep -Fq 'خريطة نيات البحث الداخلية' <<<"$golden"
           grep -Fq '"@type":"CollectionPage"' <<<"$golden"
+          echo 'KEYWORD_MAP_LIVE_GOLDEN=PASS'
           echo 'KEYWORD_MAP_LIVE=PASS'
