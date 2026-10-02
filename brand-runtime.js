@@ -283,7 +283,19 @@ function ensureCanonicalLink(html,origin,path){
   const tag='<link rel="canonical" href="'+attr(href)+'">';
   return /<\/head>/i.test(html)?html.replace(/<\/head>/i,tag+'</head>'):tag+html;
 }
-function legacyCanonicalRedirect(u){const path=u.pathname.replace(/\/+$/,'')||'/';if(path==='/saudi/noon-coupon-code')return '/saudi-arabia/noon-coupon-code';const m=path.match(/^\/(?:saudi-arabia|saudi|uae)\/article\/(.+)$/);if(m)return '/articles/'+m[1];return null}
+function legacyCanonicalRedirect(u){
+  const path=u.pathname.replace(/\/+$/,'')||'/';
+  const englishLegacy={
+    '/en/articles/en-noon-cart-coupon-uae-grocery-checkout-guide':'/en/uae/category/grocery',
+    '/en/articles/en-noon-coupon-code-uae-grocery-checkout-checklist':'/en/uae/category/grocery',
+    '/en/articles/en-iphone-duo-noon-abu-dhabi-deals':'/en/articles/en-iphone-duo-noon-abu-dhabi-coupon-code'
+  };
+  if(englishLegacy[path])return englishLegacy[path];
+  if(path==='/saudi/noon-coupon-code')return '/saudi-arabia/noon-coupon-code';
+  const m=path.match(/^\/(?:saudi-arabia|saudi|uae)\/article\/(.+)$/);
+  if(m)return '/articles/'+m[1];
+  return null
+}
 function configuredSeoRedirect(path,settings){
   const from=String(path||'').replace(/\/+$/,'')||'/',to=settings?.redirects?.[from];
   if(!to||from===to||String(to).startsWith('//'))return null;
