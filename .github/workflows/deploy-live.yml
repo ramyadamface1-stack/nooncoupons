@@ -138,8 +138,19 @@ jobs:
           get_ok '/api/generation-freshness' /tmp/fresh.json /tmp/fresh.h
           jq -e '.ok==true and .targetMaxIdleMinutes==60 and .rescueStartsAfterMinutes==45' /tmp/fresh.json >/dev/null
 
-          get_ok '/api/platform-health' /tmp/platform-health.json /tmp/platform-health.h
-          jq -e '.ok==true and .campaignCalendar.version=="noon-core-oct-2026-v1" and .campaignCalendar.timezone=="Africa/Cairo" and .campaignCalendar.slotShare==75 and .campaignCalendar.publicKeywordInjection==false' /tmp/platform-health.json >/dev/null
+          campaign_health_ok=0
+          for i in $(seq 1 8); do
+            get_ok '/api/platform-health' /tmp/platform-health.json /tmp/platform-health.h
+            if jq -e '.ok==true and .campaignCalendar.version=="noon-core-oct-2026-v1" and .campaignCalendar.timezone=="Africa/Cairo" and .campaignCalendar.slotShare==75 and .campaignCalendar.publicKeywordInjection==false' /tmp/platform-health.json >/dev/null 2>&1; then
+              campaign_health_ok=1
+              break
+            fi
+            sleep 3
+          done
+          if [ "$campaign_health_ok" != '1' ]; then
+            cat /tmp/platform-health.json || true
+            exit 1
+          fi
 
           get_ok '/coupons' /tmp/coupons.html /tmp/coupons.h
           grep -Fq 'كود خصم نون' /tmp/coupons.html
