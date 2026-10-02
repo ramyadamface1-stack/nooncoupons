@@ -336,7 +336,9 @@ async function englishUaeSavingGuide(origin,env){
 async function englishCountryPage(market,origin,env){
  const mk=MARKETS[market];if(!mk)return null;
  const allRows=await englishMarketRows(env,market);
- const rows=[...allRows].sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,36);
+ const canaryRows=allRows.filter(a=>a.canary===true).slice(0,2);
+ const recentRows=[...allRows].sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).filter(a=>!canaryRows.some(c=>c.slug===a.slug)).slice(0,Math.max(0,36-canaryRows.length));
+ const rows=[...canaryRows,...recentRows];
  const path=`/en/${market}`,countryName=market==='saudi'?'Saudi Arabia':'UAE',title=market==='saudi'?'Noon KSA Shopping Hub | Categories & Guides':'Noon UAE Shopping Hub | Categories & Guides',desc=`Explore Noon ${countryName} by category, city and buying guide. For coupon-code searches, use the dedicated market coupon page.`,code=codeFor('country:'+market);
  const cities=(CITIES[market]||[]).map(c=>`<article class="card"><small>${esc(c.ar)}</small><h3>${esc(c.en)}</h3><p>Local navigation for shoppers in ${esc(c.en)} without claiming a city-specific discount unless verified.</p></article>`).join('');
  const savingLink=market==='uae'?'<a href="/en/uae/saving-guide">UAE saving guide</a>':'';
