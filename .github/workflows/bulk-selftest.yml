@@ -26,6 +26,7 @@ jobs:
           node --check bulk-content-engine.js
           node --check campaign-calendar.js
           node --check campaign-calendar-selftest.mjs
+          node --check campaign-intent-selftest.mjs
           node --check bulk-generator.js
           node --check search-demand-policy.js
           node --check search-demand-policy-selftest.mjs
@@ -48,6 +49,8 @@ jobs:
           ! grep -Fq "/noon-coupon-code-2026" commerce-generator-taxonomy.js
       - name: Test campaign calendar
         run: node campaign-calendar-selftest.mjs
+      - name: Test campaign intent isolation
+        run: node campaign-intent-selftest.mjs
       - name: Test demand-aware intent ownership
         run: node search-demand-policy-selftest.mjs
       - name: Audit 40 diversified Arabic bulk samples
