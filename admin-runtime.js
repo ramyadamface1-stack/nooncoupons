@@ -232,17 +232,23 @@ export async function generatorUnlock(env,runId){
   return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}});
 }
 export async function bulkTick(env){
-  const status=await getGeneratorStatus(env),runningAt=Date.parse(status.bulkRunningAt||'');
-  if(Number.isFinite(runningAt)&&Date.now()-runningAt<BULK_RUN_LOCK_MS)return {ok:true,skipped:'bulk_already_running',backend:'r2-v1',bulkPublishedToday:Number(status.bulkPublishedToday||0)};
-  const cfg=await getGeneratorConfig(env),locked={...status,bulkRunningAt:now(),backend:'r2-v1'};await r2putGeneratorStatusMonotonic(env,locked);
+  const status=await getGeneratorStatus(env),runId='bulk-'+Date.now()+'-'+Math.random().toString(36).slice(2,8),lock=await generatorLock(env,runId);
+  if(!lock.ok)return {ok:true,skipped:'bulk_already_running',backend:'r2-v1',bulkPublishedToday:Number(status.bulkPublishedToday||0)};
+  const cfg=await getGeneratorConfig(env);
+  let bulk=null,adaptive=null;
   try{
-    const adaptive=chooseAdaptiveBulkBatch(env,locked),effectiveBatch=adaptive.batchSize;
-    const bulk=await runProgrammaticBatch(env,cfg,locked,{dailyTarget:Number(env.BULK_DAILY_TARGET||32000),batchSize:effectiveBatch});
-    const next={...locked,...(bulk.patch||{}),bulkRunningAt:null,bulkLastSkipReason:bulk.skipped||null,bulkLastTickAt:now(),bulkLastTickPublished:Array.isArray(bulk.records)?bulk.records.length:0,backend:'r2-v1',updatedAt:now()};await r2putGeneratorStatusMonotonic(env,next);
-    return {ok:true,backend:'r2-v1',adaptiveBatch:adaptive,bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0},summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0),bulkLastSkipReason:next.bulkLastSkipReason,bulkLastTickPublished:Number(next.bulkLastTickPublished||0)}};
+    adaptive=chooseAdaptiveBulkBatch(env,status);
+    bulk=await runProgrammaticBatch(env,cfg,status,{dailyTarget:Number(env.BULK_DAILY_TARGET||32000),batchSize:adaptive.batchSize});
+    const next={...status,...(bulk.patch||{}),bulkRunningAt:null,bulkLastSkipReason:bulk.skipped||null,bulkLastTickAt:now(),bulkLastTickPublished:Array.isArray(bulk.records)?bulk.records.length:0,bulkLastErrorStack:null,backend:'r2-v1',updatedAt:now()};
+    await r2putGeneratorStatusMonotonic(env,next);
+    return {ok:true,backend:'r2-v1',statusPersisted:true,adaptiveBatch:adaptive,bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0,campaignAttemptCounts:bulk.campaignAttemptCounts||{},campaignPostClusterCounts:bulk.campaignPostClusterCounts||{},campaignPublishedCounts:bulk.campaignPublishedCounts||{}},summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0),bulkLastSkipReason:next.bulkLastSkipReason,bulkLastTickPublished:Number(next.bulkLastTickPublished||0),bulkLastSuccessAt:next.bulkLastSuccessAt||null}};
   }catch(e){
-    const safeStack=String(e?.stack||'').split('\n').slice(0,6).join(' | ').replace(/https?:\/\/[^ )]+/g,'[url]').slice(0,1200);
-    const next={...locked,bulkRunningAt:null,bulkLastRun:now(),bulkLastError:String(e?.message||e),bulkLastErrorStack:safeStack||null,bulkLastSkipReason:null,bulkLastTickAt:now(),bulkLastTickPublished:0,backend:'r2-v1',updatedAt:now()};await r2putGeneratorStatusMonotonic(env,next);return {ok:false,backend:'r2-v1',error:next.bulkLastError};
+    const safeStack=String(e?.stack||'').split('\n').slice(0,6).join(' | ').replace(/https?:\/\/[^ )]+/g,'[url]').slice(0,1200),patch=bulk?.patch||{};
+    const next={...status,...patch,bulkRunningAt:null,bulkLastRun:patch.bulkLastRun||now(),bulkLastError:String(e?.message||e),bulkLastErrorStack:safeStack||null,bulkLastSkipReason:bulk?.skipped||null,bulkLastTickAt:now(),bulkLastTickPublished:Array.isArray(bulk?.records)?bulk.records.length:0,backend:'r2-v1',updatedAt:now()};
+    try{await r2putGeneratorStatusMonotonic(env,next)}catch{}
+    return {ok:false,backend:'r2-v1',statusPersisted:false,error:next.bulkLastError,bulkRecords:Array.isArray(bulk?.records)?bulk.records.length:0};
+  }finally{
+    await generatorUnlock(env,runId);
   }
 }
 
