@@ -106,6 +106,11 @@ function marketLocale(path){
   return path.startsWith('/saudi')?'ar-SA':path.startsWith('/uae')?'ar-AE':'ar';
 }
 function categoryAlternates(origin,path,rows=[]){
+  const countryMatch=path.match(/^\/(saudi|uae)$/);
+  if(countryMatch){
+    const market=countryMatch[1],arLang=market==='saudi'?'ar-SA':'ar-AE',enLang=market==='saudi'?'en-SA':'en-AE';
+    return `<link rel="alternate" hreflang="${arLang}" href="${esc(origin+path)}"><link rel="alternate" hreflang="${enLang}" href="${esc(origin+'/en'+path)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+'/')}">`;
+  }
   const categoryLike=/^\/(?:saudi|uae)\/(?:categories|category\/[^/]+)$/.test(path);
   if(!categoryLike)return `<link rel="alternate" hreflang="${marketLocale(path)}" href="${esc(origin+path)}"><link rel="alternate" hreflang="x-default" href="${esc(origin+'/')}">`;
   const saPath=path.replace(/^\/uae/,'/saudi'),aePath=path.replace(/^\/saudi/,'/uae');
