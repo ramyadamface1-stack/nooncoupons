@@ -62,6 +62,12 @@ function diversitySection(topic,cursor,offset=0){
   const frame=DIVERSITY_FRAMES[stableIndex(cursor,DIVERSITY_FRAMES.length,101+offset*37)],t=topic||{},steps=frame.steps(t).map(x=>`<li>${esc(x)}</li>`).join('');
   return `<section class="decision-angle" data-diversity-frame="${stableIndex(cursor,DIVERSITY_FRAMES.length,101+offset*37)}"><h2>${esc(frame.title)}: ${esc(t.queryModifier||'قرار الشراء')}</h2><p>${esc(frame.lead(t))}</p><ol>${steps}</ol><p class="atomic-answer"><strong>الخلاصة:</strong> ${esc(frame.close(t))}</p></section>`;
 }
+function campaignContextSection(topic){
+  const t=topic||{};
+  if(!t.campaignSearchEligible||!t.campaignName)return '';
+  const phase=t.campaignPhase==='preheat'?'مرحلة الاستعداد للبحث':'النافذة الحالية للبحث';
+  return `<section class="campaign-search-context" data-campaign="${esc(t.campaignId||'')}"><h2>سياق البحث: ${esc(t.campaignName)}</h2><p>هذا الدليل مهيأ لـ${esc(phase)} المرتبطة بـ<strong>${esc(t.campaignName)}</strong> في نون ${esc(t.market)}. وجود اسم الحملة هنا لا يعني وجود نسبة خصم ثابتة أو أهلية مضمونة؛ الهدف هو مساعدتك على مقارنة ${esc(t.category)} والسعر النهائي والبائع والشحن أثناء فترة يرتفع فيها هذا النوع من البحث.</p><p>استخدم ${esc(t.code)} كمدخل قابل للاختبار فقط، وثبّت المنتج والبائع والكمية قبل المقارنة. إذا تغيّرت شروط الحملة أو رسالة السلة، اعتبر ما يظهر في نون وقت الدفع هو المرجع النهائي بدل أي افتراض سابق.</p></section>`;
+}
 
 export function buildBulkTopic(cursor=0,options={}){
   const topic=buildBulkTopicBase(cursor,options),queryModifier=queryModifierFor(cursor);
@@ -73,7 +79,8 @@ export function buildBulkTopic(cursor=0,options={}){
 export function buildUsefulArticle(topic,cursor=0){
   const article=buildUsefulArticleBase(topic,cursor);
   if(!article)return article;
-  const baseWords=plainWords(article.html),sections=[];
+  const baseWords=plainWords(article.html),sections=[],campaignSection=campaignContextSection(topic);
+  if(campaignSection)sections.push(campaignSection);
   if(baseWords<1780)sections.push(diversitySection(topic,cursor,0));
   if(baseWords<1660)sections.push(diversitySection(topic,cursor,1));
   if(!sections.length)return article;
