@@ -307,6 +307,7 @@ async function guardedBulkTick(env){
   if(['bulk_already_running','daily_target_reached','bulk_paused','corpus_audit_in_progress'].includes(String(skip||'')))return {first,rescue:null,guard:'blocked_by_runtime_state'};
   const status=await getGeneratorStatus(env),fresh=generationFreshnessSnapshot(status),lastRescueMs=Date.parse(status.bulkNoIdleGuardLastRescueAt||''),cooldown=Number.isFinite(lastRescueMs)&&Date.now()-lastRescueMs<NO_IDLE_RESCUE_COOLDOWN_MS;
   if(!fresh.rescueDue||cooldown)return {first,rescue:null,guard:cooldown?'rescue_cooldown':'fresh'};
+  await new Promise(resolve=>setTimeout(resolve,1200));
   const rescue=await runOnce(env,{manual:false}),stamp=now(),result=rescue?.record?'published':String(rescue?.skipped||rescue?.error||'no_publish');
   await updateGeneratorStatus(env,{bulkNoIdleGuardLastCheckAt:stamp,bulkNoIdleGuardLastRescueAt:stamp,bulkNoIdleGuardLastRescueResult:result});
   return {first,rescue,guard:'rescue_attempted'};
