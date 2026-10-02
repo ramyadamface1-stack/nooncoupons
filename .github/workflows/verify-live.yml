@@ -71,10 +71,10 @@ jobs:
           grep -Fq 'cooperativeYieldEveryTries:8' bulk-generator.js
           grep -Fq 'preAuditSemanticGate' quality-audit.js
           grep -Fq 'articleWriteConcurrency:32' bulk-generator.js
-          grep -Fq 'clusterWriteConcurrency:16' quality-index.js
+          grep -Fq 'clusterWriteConcurrency:8' quality-index.js
           grep -Fq 'r2ReadRetry:3' bulk-generator.js
           grep -Fq 'r2CatalogFailClosed:true' bulk-generator.js
-          grep -Fq 'r2WriteRetry:3' bulk-generator.js
+          grep -Fq 'r2WriteRetry:5' bulk-generator.js
           grep -Fq 'r2HeadRetry:3' bulk-generator.js
           grep -Fq 'r2_status_read_failed' admin-runtime.js
           grep -Fq 'failClosedOnClusterRead:true' quality-index.js
