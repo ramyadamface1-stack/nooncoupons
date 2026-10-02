@@ -25,7 +25,7 @@ jobs:
       - name: Verify deployed reciprocal language hubs
         run: |
           set -euo pipefail
-          ORIGIN="https://nooncoupons.ramychatgptgcoupons.workers.dev"
+          ORIGIN="https://noondealsnow.com"
           for i in $(seq 1 18); do
             ar="$(curl -sS --max-time 20 "$ORIGIN/saudi" || true)"
             en="$(curl -sS -D /tmp/en.h --max-time 20 "$ORIGIN/en/saudi" || true)"
