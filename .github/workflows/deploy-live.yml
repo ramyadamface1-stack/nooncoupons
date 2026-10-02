@@ -141,7 +141,7 @@ jobs:
           campaign_health_ok=0
           for i in $(seq 1 8); do
             get_ok '/api/platform-health' /tmp/platform-health.json /tmp/platform-health.h
-            if jq -e '.ok==true and .campaignCalendar.version=="noon-core-oct-2026-v1" and .campaignCalendar.timezone=="Africa/Cairo" and .campaignCalendar.slotShare==75 and .campaignCalendar.publicKeywordInjection==false' /tmp/platform-health.json >/dev/null 2>&1; then
+            if jq -e '.ok==true and .campaignCalendar.version=="noon-core-oct-2026-v1" and .campaignCalendar.timezone=="Africa/Cairo" and .campaignCalendar.slotShare==75 and .campaignCalendar.publicKeywordInjection=="exact-dated-campaigns-only"' /tmp/platform-health.json >/dev/null 2>&1; then
               campaign_health_ok=1
               break
             fi
