@@ -422,6 +422,7 @@ export default{
     const visibleSanitized=sanitizeVisibleCouponTokens(normalized.html);
     let html=applySeoSettings(brandHead(visibleSanitized.html),settings,u.pathname,origin);
     html=injectSeoExtras(html,settings);
+    const finalSchemaRepair=repairJsonLd(html,origin,settings);html=finalSchemaRepair.html;
     html=normalizeInternalOrigin(html,origin);
     html=ensureCanonicalLink(html,origin,u.pathname);
     html=deconflictCoreH1(html,u.pathname);
@@ -446,9 +447,9 @@ export default{
     h.set('x-service-worker-cache','static-assets-v1');
     h.set('x-analytics-settings',settings?.analyticsEnabled?'enabled-v2':'disabled-v2');
     h.set('x-conversion-events','aggregate-v2');
-    h.set('x-organization-schema-count',String(repaired.state.organizations));
-    h.set('x-organization-logo-fixed',String(repaired.state.fixed));
-    h.set('x-organization-root-customized',String(repaired.state.rootCustomized));
+    h.set('x-organization-schema-count',String(finalSchemaRepair.state.organizations));
+    h.set('x-organization-logo-fixed',String(finalSchemaRepair.state.fixed));
+    h.set('x-organization-root-customized',String(finalSchemaRepair.state.rootCustomized));
     h.set('x-seo-route-patterns',Object.keys(settings?.routeOverrides||{}).some(x=>x.includes(':')||x.includes('*'))?'configured-v1':'none');
     h.set('x-seo-global-jsonld',settings?.globalJsonLd?'configured-v1':'none');
     h.set('x-seo-safe-custom-head',settings?.customHeadHtml?'configured-v1':'none');
