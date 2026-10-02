@@ -21,7 +21,7 @@ const UAE_GOLDEN_OUTPUT_CYCLE=10;
 const UAE_GOLDEN_OUTPUT_SLOTS=7;
 const UAE_GOLDEN_COMMERCIAL_INTENTS=new Set(['coupon','timing','value','smartbuy','cart','finalprice','eligibility']);
 const UAE_PRIORITY_PROFILES=new Set(['mobile','computing','audio','screen','beauty','appliance','kitchen','home','fashion','fitness','grocery','kids','baby','travel','office']);
-const UAE_HIGH_DEMAND_PROFILES=new Set(['mobile','computing','audio','screen','beauty','appliance','kitchen']);
+const UAE_HIGH_DEMAND_PROFILES=new Set(['mobile','computing','audio','screen','beauty','appliance','kitchen','home','fashion','fitness','grocery','kids','baby','travel','office']);
 const UAE_HUB_OWNED_KEYWORD_CLUSTERS=new Set([
   'noon-coupon-code-uae','noon-discount-code-uae','noon-promo-code-uae','noon-voucher-code-uae',
   'noon-coupon-eligibility-uae','noon-coupon-not-working-uae',
@@ -199,11 +199,14 @@ async function findCandidate(env,state,slot,{deadlineMs=0,maxScan=MAX_SCAN}={}){
     const fallbackCode=desiredCountry==='AE'?'NOV188':'NOV170',candidate={...rawCandidate,code:normalizeApprovedCoupon(rawCandidate.code,fallbackCode)};
     if(UAE_HUB_OWNED_KEYWORD_CLUSTERS.has(String(candidate.keywordCluster||'').toLowerCase())){diag.hubOwnedIntentSkip++;continue;}
     if(!isApprovedCoupon(candidate.code)){diag.invalidCoupon++;continue;}
-    const wantsGolden=(slot%UAE_GOLDEN_OUTPUT_CYCLE)<UAE_GOLDEN_OUTPUT_SLOTS;
+    const slotWantsGolden=(slot%UAE_GOLDEN_OUTPUT_CYCLE)<UAE_GOLDEN_OUTPUT_SLOTS;
     const tier=String(candidate.keywordTier||''),isSearchTier=tier==='uae-golden-commercial-head-v4'||tier==='uae-high-demand-product-v4',isGoldenCommercial=isSearchTier&&UAE_GOLDEN_COMMERCIAL_INTENTS.has(candidate.intent);
-    if(wantsGolden){
-      if(!isGoldenCommercial){diag.keywordMixSkip++;continue;}
-    }else if(isGoldenCommercial){diag.keywordMixSkip++;continue;}
+    const recentGoldenCount=recentWindow.filter(r=>UAE_GOLDEN_COMMERCIAL_INTENTS.has(r.intent)).length;
+    const recentGoldenPct=recentWindow.length?recentGoldenCount/recentWindow.length:0;
+    const enforceGolden=recentWindow.length<10?slotWantsGolden:recentGoldenPct<0.70;
+    const enforceSupporting=recentWindow.length<10&&!slotWantsGolden;
+    if(enforceGolden&&!isGoldenCommercial){diag.keywordMixSkip++;continue;}
+    if(enforceSupporting&&isGoldenCommercial){diag.keywordMixSkip++;continue;}
     const highDemandCoverageComplete=[...UAE_HIGH_DEMAND_PROFILES].every(profile=>usedProfiles.has(profile));
     if(slot<PROFILE_DIVERSITY_SLOTS&&!highDemandCoverageComplete&&usedProfiles.has(candidate.profileKey)){diag.profileCap++;continue;}
     if((profileCounts.get(candidate.profileKey)||0)>=PROFILE_MAX_PER_BATCH){diag.profileCap++;continue;}
@@ -308,7 +311,7 @@ async function writeEnglishSchedulerState(env,payload){
   return false;
 }
 export async function runEnglishScheduledTick(env,{maxPerTick=18,timeBudgetMs=45000}={}){
-  const startedAt=now(),base={version:23,priority:'english-uae-core-cron-deadline-safe',startedAt,maxPerTick:Number(maxPerTick||1),timeBudgetMs:Number(timeBudgetMs||9000)};
+  const startedAt=now(),base={version:24,priority:'english-uae-core-cron-adaptive-mix',startedAt,maxPerTick:Number(maxPerTick||1),timeBudgetMs:Number(timeBudgetMs||9000)};
   await writeEnglishSchedulerState(env,{...base,status:'running',completedAt:null,ok:null,error:null,published:0,skipped:null,resultErrors:[]});
   let batch=null,error=null;
   try{batch=await runEnglishCanaryBatch(env,{maxPerTick,timeBudgetMs,ignoreIntervalFirst:true})}catch(e){error=String(e?.message||e).slice(0,240)}
