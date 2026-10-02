@@ -118,7 +118,7 @@ function schema(origin, path, title, desc, rows) {
   return {
     '@context': 'https://schema.org',
     '@graph': [
-      {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',alternateName:'كوبونات نون',url:origin+'/'},
+      {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',alternateName:'كوبونات نون',url:origin+'/',logo:{'@type':'ImageObject',url:origin+'/favicon.svg',contentUrl:origin+'/favicon.svg',width:64,height:64}},
       {'@type':'WebSite','@id':origin+'/#website',name:'Noon Deals Now',alternateName:'كوبونات نون',url:origin+'/',inLanguage:['ar','en'],publisher:{'@id':origin+'/#organization'}},
       {
         '@type': 'CollectionPage',
@@ -200,7 +200,7 @@ function englishSchema(origin,path,title,desc,market,rows=[]){
  return {
   '@context':'https://schema.org',
   '@graph':[
-   {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',url:origin+'/'},
+   {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',url:origin+'/',logo:{'@type':'ImageObject',url:origin+'/favicon.svg',contentUrl:origin+'/favicon.svg',width:64,height:64}},
    {'@type':'Organization','@id':origin+'/authors/editorial-team#team',name:'Noon Deals Now Editorial Team',url:origin+'/authors/editorial-team',parentOrganization:{'@id':origin+'/#organization'}},
    {'@type':'WebSite','@id':origin+'/#website',name:'Noon Deals Now',url:origin+'/',inLanguage:['ar','en'],publisher:{'@id':origin+'/#organization'}},
    page,
@@ -335,11 +335,14 @@ async function englishUaeSavingGuide(origin,env){
 
 async function englishCountryPage(market,origin,env){
  const mk=MARKETS[market];if(!mk)return null;
- const path=`/en/${market}`,rows=(await englishMarketRows(env,market)),countryName=market==='saudi'?'Saudi Arabia':'UAE',title=`Noon ${countryName} Shopping Hub | Categories & Buying Guides`,desc=`Explore Noon ${countryName} by category, city and buying guide. For coupon-code searches, use the dedicated market coupon page.`,code=codeFor('country:'+market);
+ const allRows=await englishMarketRows(env,market);
+ const rows=[...allRows].sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,36);
+ const path=`/en/${market}`,countryName=market==='saudi'?'Saudi Arabia':'UAE',title=market==='saudi'?'Noon KSA Shopping Hub | Categories & Guides':'Noon UAE Shopping Hub | Categories & Guides',desc=`Explore Noon ${countryName} by category, city and buying guide. For coupon-code searches, use the dedicated market coupon page.`,code=codeFor('country:'+market);
  const cities=(CITIES[market]||[]).map(c=>`<article class="card"><small>${esc(c.ar)}</small><h3>${esc(c.en)}</h3><p>Local navigation for shoppers in ${esc(c.en)} without claiming a city-specific discount unless verified.</p></article>`).join('');
  const savingLink=market==='uae'?'<a href="/en/uae/saving-guide">UAE saving guide</a>':'';
  const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/en/${market}">English</a> · <a href="/${market}">العربية</a></div><h1>${title}</h1><p>${desc}</p><div class="chips"><a href="/en/${market}/noon-coupon-code">Noon ${countryName} coupon page</a>${savingLink}<a href="/en/${market}/category/mobiles">Mobiles</a></div><aside class="coupon"><div><small>Primary action</small><h2>Copy code <span class="code">${code}</span></h2><p class="lead">Check eligibility in your cart; the final Noon checkout is the reference.</p></div><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='Code copied'">Copy code</button></aside></div></header>`;
- const main=`<section class="section">${englishTrust()}${englishFreshness(rows)}</section><section class="section"><h2>Shop by category</h2>${englishCategoryGrid(market)}</section><section class="section"><h2>Major cities</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>Latest eligible guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">Eligible English guides will appear here as they are published.</div>'}</section>`;
+ const coverage=allRows.length>rows.length?`<p class="lead" data-english-hub-cap="36">Showing the latest ${rows.length} of ${allRows.length} eligible guides. Browse category hubs and the English sitemap for the full index.</p>`:'';
+ const main=`<section class="section">${englishTrust()}${englishFreshness(rows)}${coverage}</section><section class="section"><h2>Shop by category</h2>${englishCategoryGrid(market)}</section><section class="section"><h2>Major cities</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>Latest eligible guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">Eligible English guides will appear here as they are published.</div>'}</section>`;
  return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${englishHead(origin,path,title,desc,market,rows)}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'country-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-commerce-market':market,'x-content-language':'en','x-english-eeat':'v1'});
 }
 
