@@ -24,6 +24,8 @@ jobs:
           node --check indexation-gate.js
           node --check editorial-trust-layer.js
           node --check bulk-content-engine.js
+          node --check campaign-calendar.js
+          node --check campaign-calendar-selftest.mjs
           node --check bulk-generator.js
           node --check search-demand-policy.js
           node --check search-demand-policy-selftest.mjs
@@ -40,9 +42,12 @@ jobs:
           grep -Fq "intent_too_broad" indexation-gate.js
           grep -Fq "editorial-accountability" editorial-trust-layer.js
           grep -Fq "demandAwareIntentOwnership:true" bulk-generator.js
+          grep -Fq "campaignAwareGeneration:true" bulk-generator.js
           grep -Fq "automaticCalendarFreshness:false" keyword-strategy.js
           ! grep -Fq "/noon-coupon-code-today" commerce-generator-taxonomy.js
           ! grep -Fq "/noon-coupon-code-2026" commerce-generator-taxonomy.js
+      - name: Test campaign calendar
+        run: node campaign-calendar-selftest.mjs
       - name: Test demand-aware intent ownership
         run: node search-demand-policy-selftest.mjs
       - name: Audit 40 diversified Arabic bulk samples
