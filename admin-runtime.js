@@ -158,11 +158,14 @@ async function saveSeoSettings(env,input={}){
 async function r2putJson(env,key,value){
   if(!env.CONTENT_FINAL)throw new Error('r2_binding_missing');
   let last=null;
-  for(let attempt=1;attempt<=3;attempt++){
+  for(let attempt=1;attempt<=5;attempt++){
     try{
       await env.CONTENT_FINAL.put(key,JSON.stringify(value),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
       return value;
-    }catch(e){last=e;if(attempt<3)await new Promise(resolve=>setTimeout(resolve,60*attempt))}
+    }catch(e){
+      last=e;
+      if(attempt<5){const rate=/10058|concurrent request rate/i.test(String(e?.message||e)),delay=rate?Math.min(3500,350*attempt*attempt):120*attempt;await new Promise(resolve=>setTimeout(resolve,delay))}
+    }
   }
   throw last||new Error('r2_status_put_failed');
 }
