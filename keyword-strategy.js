@@ -67,6 +67,19 @@ function preserveDecisionContext(kw,t,intent){
   const room=Math.max(10,70-prefix.length-1),category=cat(t),shortCategory=category.slice(0,room).replace(/\s+\S*$/,'').trim()||category.slice(0,room).trim();
   return clean(`${label} ${shortCategory} نون ${mk} ${ctx}`).slice(0,70).trim();
 }
+function preserveSeasonalTerm(kw,t,intent){
+  const term=clean(t.seasonalTerm),cleanKw=clean(kw);
+  if(!term||cleanKw.toLowerCase().includes(term.toLowerCase()))return cleanKw;
+  const label=INTENT_LABELS[intent]||'دليل',mk=market(t),category=cat(t);
+  const candidates=[
+    clean(`${cleanKw} ${term}`),
+    clean(`${fitKeywordWithoutScenario(t,intent)} ${term}`),
+    clean(`${label} ${category} نون ${mk} ${term}`)
+  ];
+  for(const candidate of candidates)if(candidate.length<=70)return candidate;
+  const prefix=clean(`${label} نون ${mk} ${term}`),room=Math.max(10,70-prefix.length-1),shortCategory=category.slice(0,room).replace(/\s+\S*$/,'').trim()||category.slice(0,room).trim();
+  return clean(`${label} ${shortCategory} نون ${mk} ${term}`).slice(0,70).trim();
+}
 function specificityParts(t,intent){
   const u=clean(t.useCase),f=clean(t.factor),modifier=clean(t.queryModifier),base=['compare','seller','value','finalprice','warranty'].includes(intent)?[f,u]:[u,f];
   const natural=[...new Set(base.filter(Boolean))].sort((a,b)=>a.length-b.length);
@@ -165,10 +178,10 @@ function fitKeyword(raw,t,intent,s){
 
 export function applyKeywordStrategy(topic){
   const expanded=expandNoonTopic(topic,topic.topicIndex??topic.diversitySeed??0),rawIntent=expanded.intent,intent=effectiveIntent(expanded),s=scenario(expanded,intent),builder=BUILDERS[intent]||BUILDERS.decision;
-  const baseKw=fitKeyword(builder(expanded,s),expanded,intent,s),specificKw=addSpecificity(baseKw,expanded,intent,s),distinctKw=distinctKeyword(specificKw,expanded,intent,s),kw=preserveDecisionContext(distinctKw,expanded,intent),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
+  const baseKw=fitKeyword(builder(expanded,s),expanded,intent,s),specificKw=addSpecificity(baseKw,expanded,intent,s),distinctKw=distinctKeyword(specificKw,expanded,intent,s),contextKw=preserveDecisionContext(distinctKw,expanded,intent),kw=preserveSeasonalTerm(contextKw,expanded,intent),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
   const couponSeed=Math.abs(Number(topic.topicIndex??topic.diversitySeed??0));
   const code=APPROVED_COUPON_CODES[couponSeed%APPROVED_COUPON_CODES.length];
   return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,code,keywordStrategy:'search-intent-v7-demand-aware',keywordWordCount:words,searchIntentFamily:intent};
 }
 
-export const KEYWORD_STRATEGY_INFO={version:'search-intent-v7-demand-aware',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,distinctSpecificity:true,decisionContextPreserved:true,hierarchyTargetPreserved:true,seasonalKeywords:true,automaticCalendarFreshness:false,seasonalMonth:null,topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,approvedCouponCount:APPROVED_COUPON_CODES.length,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation','unapproved-coupon-code'],maxRecommendedWords:16,maxKeywordCharacters:70};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v7-demand-aware',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,distinctSpecificity:true,decisionContextPreserved:true,hierarchyTargetPreserved:true,seasonalKeywords:true,campaignSeasonalPreservation:true,automaticCalendarFreshness:false,seasonalMonth:null,topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,approvedCouponCount:APPROVED_COUPON_CODES.length,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation','unapproved-coupon-code'],maxRecommendedWords:16,maxKeywordCharacters:70};
