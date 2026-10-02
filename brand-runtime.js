@@ -128,7 +128,10 @@ function walk(node,origin,state,settings){
     }else if(!node.logo){node.logo={'@type':'ImageObject',url:logoUrl,contentUrl:logoUrl,width:64,height:64};state.fixed++}
     if(!node.url)node.url=root?origin+'/':node.url;
   }
-  if(Array.isArray(node['@graph']))for(const v of node['@graph'])walk(v,origin,state,settings);
+  for(const [key,value] of Object.entries(node)){
+    if(key==='@context'||key==='@type')continue;
+    if(value&&typeof value==='object')walk(value,origin,state,settings);
+  }
 }
 
 function repairJsonLd(html,origin,settings){
