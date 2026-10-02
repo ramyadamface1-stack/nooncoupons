@@ -16,7 +16,7 @@ jobs:
           set -euo pipefail
           node --check commerce-pages-v2.js
           grep -Fq "enLang=market==='saudi'?'en-SA':'en-AE'" commerce-pages-v2.js
-          grep -Fq "arLang=market==='saudi'?'ar-SA':'ar-AE'" commerce-pages-v2.js
+          grep -Fq "arLang=genericCoupons?'ar':market==='saudi'?'ar-SA':'ar-AE'" commerce-pages-v2.js
           grep -Fq 'hreflang="${enLang}"' commerce-pages-v2.js
           grep -Fq 'hreflang="${arLang}"' commerce-pages-v2.js
           grep -Fq 'hreflang="x-default"' commerce-pages-v2.js
