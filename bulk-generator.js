@@ -63,7 +63,7 @@ async function writeCatalogs(env,day,countBefore,records,{writeDaysIndex=true}={
 }
 
 export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batchSize=3}={}){
-  const startedMs=Date.now(),candidateBudgetMs=Math.max(15000,Math.min(45000,Number(env.BULK_CANDIDATE_BUDGET_MS||12000)));
+  const startedMs=Date.now(),candidateBudgetMs=Math.max(6000,Math.min(15000,Number(env.BULK_CANDIDATE_BUDGET_MS||12000)));
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing',patch:{bulkLastError:'r2_binding_missing',bulkLastRun:now()}};
   const auditLock=await publicationBlockedByArticleAudit(env);
   if(auditLock)return {ok:true,skipped:'corpus_audit_in_progress',records:[],auditLock:{runId:auditLock.runId||null,expiresAt:auditLock.expiresAt||null,failClosed:Boolean(auditLock.failClosed)},patch:{bulkLastRun:now(),bulkLastError:null,bulkAuditLockRunId:auditLock.runId||null,bulkAuditLockUntil:auditLock.expiresAt||null}};
