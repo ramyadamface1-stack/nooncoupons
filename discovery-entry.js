@@ -396,6 +396,10 @@ function edgePageCachePut(req,u,res,ctx){
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
+    if(u.hostname.toLowerCase()==='www.noondealsnow.com'){
+      const canonical=new URL(req.url);canonical.protocol='https:';canonical.hostname='noondealsnow.com';canonical.port='';
+      return new Response(null,{status:308,headers:{location:canonical.toString(),'cache-control':'public, max-age=86400','x-canonical-host-redirect':'www-to-apex-v1'}});
+    }
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
     if(req.method==='GET'&&u.pathname==='/api/revision')return new Response(JSON.stringify({ok:true,release:DISCOVERY_RELEASE,layer:'discovery-entry',sitemapHealth:true,imageSitemap:true,englishIntentOwners:true,shoppingIntentOwners:true,noIdleGenerationGuard:true,titleCannibalizationGate:true},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-runtime-revision':DISCOVERY_RELEASE}});
     if(req.method==='GET'&&u.pathname==='/api/sitemap-health')return sitemapHealth(req,env,ctx,origin);
