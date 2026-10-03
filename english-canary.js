@@ -334,7 +334,7 @@ async function readEnglishSchedulerState(env){
   try{const o=await env.CONTENT_FINAL?.get(SCHEDULER_STATE_KEY);return o?await o.json():null}catch{return null}
 }
 export async function runEnglishScheduledTick(env,{maxPerTick=18,timeBudgetMs=12000}={}){
-  const previous=await readEnglishSchedulerState(env),requestedBudget=Math.max(5000,Number(timeBudgetMs||12000)),adaptiveBudget=Number(previous?.published||0)===0?Math.min(requestedBudget,6000):requestedBudget,startedAt=now(),base={version:24,priority:'english-uae-core-cron-deadline-safe',startedAt,maxPerTick:Number(maxPerTick||1),timeBudgetMs:adaptiveBudget,requestedTimeBudgetMs:requestedBudget,cpuSaverAdaptive:true};
+  const previous=await readEnglishSchedulerState(env),requestedBudget=Math.max(5000,Number(timeBudgetMs||12000)),adaptiveBudget=Number(previous?.published||0)===0?Math.min(requestedBudget,6000):requestedBudget,startedAt=now(),base={version:23,priority:'english-uae-core-cron-deadline-safe',startedAt,maxPerTick:Number(maxPerTick||1),timeBudgetMs:adaptiveBudget,requestedTimeBudgetMs:requestedBudget,cpuSaverAdaptive:true};
   await writeEnglishSchedulerState(env,{...base,status:'running',completedAt:null,ok:null,error:null,published:0,skipped:null,resultErrors:[]});
   let batch=null,error=null;
   try{batch=await runEnglishCanaryBatch(env,{maxPerTick,timeBudgetMs:adaptiveBudget,ignoreIntervalFirst:true})}catch(e){error=String(e?.message||e).slice(0,240)}
