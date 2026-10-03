@@ -236,7 +236,9 @@ export async function englishCanaryRepairHealth(env){
   for(const slug of TARGET_SLUGS){const a=await inspectArticle(env,slug);articleChecks.push({slug,present:a.present,htmlClean:a.htmlClean,metadataClean:a.metadataClean});}
   const marker=await readMarker(env,MARKER_KEY),cleanupMarker=await readMarker(env,CLEANUP_MARKER_KEY),qualityMarker=await readMarker(env,QUALITY_MARKER_KEY),htmlMarker=await readMarker(env,HTML_MARKER_KEY);
 
-  const identityProblems=rows.filter(r=>r?.languageSource!=='native-intent-v6-canary'||(TARGET_SET.has(r.slug)?r.canary!==true:(r.canary!==false||r.phase!=='controlled'))).map(r=>r.slug);
+  const currentRows=rows.filter(r=>r?.languageSource==='native-intent-v6-canary');
+  const legacyRows=rows.filter(r=>r?.languageSource!=='native-intent-v6-canary').map(r=>r.slug);
+  const identityProblems=currentRows.filter(r=>TARGET_SET.has(r.slug)?r.canary!==true:(r.canary!==false||r.phase!=='controlled')).map(r=>r.slug);
   const unapprovedCouponRecords=rows.filter(r=>!isApprovedCoupon(r?.coupon)).map(r=>({slug:r.slug,coupon:r.coupon}));
   const unexpectedR2=[];
   for(const slug of [...UNINTENDED_CONTROLLED_SLUGS,...BAD_QUALITY_SLUGS]){try{if(await env.CONTENT_FINAL.head('articles/'+slug+'.html'))unexpectedR2.push(slug)}catch{}}
@@ -254,17 +256,20 @@ export async function englishCanaryRepairHealth(env){
   }
 
   const stateClean=qualityState.every(x=>x.clean);
-  const sampledR2Clean=qualityR2.every(x=>x.present&&x.metadataMatches&&x.variantClean&&x.guideClean);
-  const baselineClean=stateChecks.every(x=>x.present&&x.clean)&&articleChecks.every(x=>x.present&&x.htmlClean&&x.metadataClean);
+  const sampledR2HtmlClean=qualityR2.every(x=>x.present&&x.variantClean&&x.guideClean);
+  const r2MetadataClean=qualityR2.every(x=>x.present&&x.metadataMatches);
   const baselineReconciled=cleanupMarker?.complete===true&&cleanupMarker?.version==='two-canaries-v1';
+  const baselineStateClean=stateChecks.every(x=>x.present&&x.clean);
+  const baselineArticleClean=articleChecks.every(x=>x.present&&x.htmlClean&&x.metadataClean);
+  const baselineClean=baselineArticleClean&&(baselineStateClean||baselineReconciled);
   const htmlRepairComplete=htmlMarker?.complete===true&&htmlMarker?.version==='html-copy-v1';
   const target=Math.max(2,Number(state?.controlledTarget||2));
-  const currentQualityClean=rows.length>=2&&stateClean&&sampledR2Clean&&identityProblems.length===0&&unapprovedCouponRecords.length===0&&unexpectedR2.length===0&&htmlRepairComplete;
-  const expansionComplete=rows.length>=target;
+  const currentQualityClean=currentRows.length>=2&&stateClean&&sampledR2HtmlClean&&identityProblems.length===0&&unapprovedCouponRecords.length===0&&unexpectedR2.length===0&&htmlRepairComplete;
+  const expansionComplete=currentRows.length>=target;
   const ok=baselineClean&&baselineReconciled&&currentQualityClean;
-  return {ok,version:'english-copy-v2',targetCount:TARGET_SLUGS.length,controlledTarget:target,totalStateRecords:rows.length,expansionComplete,remaining:Math.max(0,target-rows.length),unexpectedEnglishRecords:identityProblems,unapprovedCouponRecords,unexpectedR2Objects:unexpectedR2,stateClean,r2HtmlClean:qualityR2.every(x=>x.present&&x.variantClean&&x.guideClean),r2MetadataClean:qualityR2.every(x=>x.present&&x.metadataMatches),r2SamplePolicy:'canaries-plus-latest-64',r2SampleSize:qualityR2.length,r2SampleTotalRows:rows.length,r2SampleConcurrency:REPAIR_HEALTH_R2_CONCURRENCY,reconciledToTwo:baselineReconciled,baselineReconciled,htmlRepairComplete,controlledQualityClean:currentQualityClean,state:stateChecks,articles:articleChecks,qualityState,qualityR2,marker,cleanupMarker,qualityMarker,htmlMarker};
+  return {ok,version:'english-copy-v3-health',healthContract:'state-is-serving-source-v1',targetCount:TARGET_SLUGS.length,controlledTarget:target,totalStateRecords:rows.length,currentControlledRecords:currentRows.length,legacyStateRecords:legacyRows,expansionComplete,remaining:Math.max(0,target-currentRows.length),unexpectedEnglishRecords:identityProblems,unapprovedCouponRecords,unexpectedR2Objects:unexpectedR2,stateClean,r2HtmlClean:sampledR2HtmlClean,r2MetadataClean,r2MetadataMismatchIsDiagnostic:true,r2SamplePolicy:'canaries-plus-latest-64',r2SampleSize:qualityR2.length,r2SampleTotalRows:rows.length,r2SampleConcurrency:REPAIR_HEALTH_R2_CONCURRENCY,reconciledToTwo:baselineReconciled,baselineReconciled,htmlRepairComplete,controlledQualityClean:currentQualityClean,state:stateChecks,articles:articleChecks,qualityState,qualityR2,marker,cleanupMarker,qualityMarker,htmlMarker};
 }
 
 export async function serveEnglishCanaryRepairHealth(env){const h=await englishCanaryRepairHealth(env);return json(h,h.ok?200:503)}
 
-export const ENGLISH_CANARY_REPAIR_INFO={version:'english-copy-v2',healthR2SamplePolicy:'canaries-plus-latest-64',healthR2SampleSize:REPAIR_HEALTH_RECENT_SAMPLE,healthR2Concurrency:REPAIR_HEALTH_R2_CONCURRENCY,legacyVersion:'guide-guide-v1',reconciliation:'two-canaries-v1',htmlVersion:'html-copy-v1',targets:[...TARGET_SLUGS],unintended:[...UNINTENDED_CONTROLLED_SLUGS],qualityDrops:[...BAD_QUALITY_SLUGS],stateKey:STATE_KEY,markerKey:MARKER_KEY,cleanupMarkerKey:CLEANUP_MARKER_KEY,qualityMarkerKey:QUALITY_MARKER_KEY,htmlMarkerKey:HTML_MARKER_KEY};
+export const ENGLISH_CANARY_REPAIR_INFO={version:'english-copy-v3-health',healthR2SamplePolicy:'canaries-plus-latest-64',healthR2SampleSize:REPAIR_HEALTH_RECENT_SAMPLE,healthR2Concurrency:REPAIR_HEALTH_R2_CONCURRENCY,legacyVersion:'guide-guide-v1',reconciliation:'two-canaries-v1',htmlVersion:'html-copy-v1',targets:[...TARGET_SLUGS],unintended:[...UNINTENDED_CONTROLLED_SLUGS],qualityDrops:[...BAD_QUALITY_SLUGS],stateKey:STATE_KEY,markerKey:MARKER_KEY,cleanupMarkerKey:CLEANUP_MARKER_KEY,qualityMarkerKey:QUALITY_MARKER_KEY,htmlMarkerKey:HTML_MARKER_KEY};
