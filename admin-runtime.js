@@ -27,7 +27,7 @@ const R2_GENERATOR_CONFIG_KEY='_ops/generator-config.json';
 const R2_GENERATOR_STATUS_KEY='_ops/generator-status.json';
 const R2_GENERATOR_LOCK_KEY='_ops/generator-lock.json';
 const R2_SEO_SETTINGS_KEY='_ops/seo-settings.json';
-const BULK_RUN_LOCK_MS=5*60*1000;
+const BULK_RUN_LOCK_MS=5*60*1000,GENERATOR_LOCK_TTL_MS=120*1000;
 
 export function chooseAdaptiveBulkBatch(env,status={}){
   const catchupGoal=Math.max(0,Number(env.BULK_CATCHUP_TOTAL||30000));
@@ -329,7 +329,10 @@ export class GeneratorControl{
     }
     if(p==='/lock'&&req.method==='POST'){
       const b=await req.json(),lock=await this.ctx.storage.get('lock');
-      if(lock&&Date.now()-Date.parse(lock.at)<240000)return json({ok:false,lock},409);
+      if(lock){
+        const ageMs=Date.now()-Date.parse(lock.at);
+        if(Number.isFinite(ageMs)&&ageMs<GENERATOR_LOCK_TTL_MS)return json({ok:false,lock,retryAfterMs:Math.max(0,GENERATOR_LOCK_TTL_MS-ageMs)},409);
+      }
       await this.ctx.storage.put('lock',{id:b.runId,at:now()});return json({ok:true});
     }
     if(p==='/unlock'&&req.method==='POST'){

@@ -87,6 +87,8 @@ jobs:
           grep -Fq "policy:'quality-gated-no-idle-v2'" auto-platform.js
           grep -Fq "rescueMode:true" auto-platform.js
           grep -Fq 'repairFloor=rescueMode?80:90' workers-ai-generator.js
+          grep -Fq 'GENERATOR_LOCK_TTL_MS=120*1000' admin-runtime.js
+          grep -Fq "lock_busy_retry_next_cron" auto-platform.js
           grep -Fq '/llms-full.txt' final-platform.js
           grep -Fq 'global_title_cannibalization' quality-index.js
           grep -Fq 'hubOwnedHeadTermsBlocked:true' english-canary.js

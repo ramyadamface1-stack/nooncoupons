@@ -306,9 +306,10 @@ function generationFreshnessSnapshot(status){
 async function guardedBulkTick(env){
   const statusBefore=await getGeneratorStatus(env),freshBefore=generationFreshnessSnapshot(statusBefore),lastRescueMs=Date.parse(statusBefore.bulkNoIdleGuardLastRescueAt||''),cooldown=Number.isFinite(lastRescueMs)&&Date.now()-lastRescueMs<NO_IDLE_RESCUE_COOLDOWN_MS;
   if(freshBefore.rescueDue&&!cooldown){
-    const rescue=await runOnce(env,{manual:false,rescue:true}),stamp=now(),result=rescue?.record?'published':String(rescue?.skipped||rescue?.error||'no_publish');
-    await updateGeneratorStatus(env,{bulkNoIdleGuardLastCheckAt:stamp,bulkNoIdleGuardLastRescueAt:stamp,bulkNoIdleGuardLastRescueResult:result,bulkNoIdleGuardRescueAttempts:Number(statusBefore.bulkNoIdleGuardRescueAttempts||0)+1});
+    const rescue=await runOnce(env,{manual:false,rescue:true}),stamp=now(),result=rescue?.record?'published':String(rescue?.skipped||rescue?.error||'no_publish'),lockBusy=result==='already_running';
+    await updateGeneratorStatus(env,{bulkNoIdleGuardLastCheckAt:stamp,bulkNoIdleGuardLastRescueResult:lockBusy?'lock_busy_retry_next_cron':result,...(lockBusy?{}:{bulkNoIdleGuardLastRescueAt:stamp,bulkNoIdleGuardRescueAttempts:Number(statusBefore.bulkNoIdleGuardRescueAttempts||0)+1})});
     if(rescue?.record)return {first:null,rescue,guard:'rescue_published_bulk_deferred'};
+    if(lockBusy)return {first:null,rescue,guard:'rescue_lock_busy_retry_next_cron'};
   }
   const first=await bulkTick(env),skip=first?.skipped||first?.bulk?.skipped||first?.summary?.bulkLastSkipReason||null;
   if(['bulk_already_running','daily_target_reached','bulk_paused','corpus_audit_in_progress'].includes(String(skip||'')))return {first,rescue:null,guard:'blocked_by_runtime_state'};
