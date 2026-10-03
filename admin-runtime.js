@@ -177,20 +177,10 @@ function maxIsoStamp(a,b){
   return b||a||null;
 }
 async function r2putGeneratorStatusMonotonic(env,value){
-  const current=await r2json(env,R2_GENERATOR_STATUS_KEY,null);
-  const next={...value,backend:'r2-v1'};
-  if(current?.backend==='r2-v1'){
-    next.bulkPublishedTotal=Math.max(Number(current.bulkPublishedTotal||0),Number(next.bulkPublishedTotal||0));
-    const sameDay=String(current.bulkDay||'')===String(next.bulkDay||'');
-    if(sameDay)next.bulkPublishedToday=Math.max(Number(current.bulkPublishedToday||0),Number(next.bulkPublishedToday||0));
-    next.bulkCursorV2=Math.max(Number(current.bulkCursorV2||0),Number(next.bulkCursorV2||0));
-    next.bulkLastSuccessAt=maxIsoStamp(current.bulkLastSuccessAt,next.bulkLastSuccessAt);
-    next.lastSuccess=maxIsoStamp(current.lastSuccess,next.lastSuccess);
-    next.bulkLastTickAt=maxIsoStamp(current.bulkLastTickAt,next.bulkLastTickAt);
-    next.bulkLastRun=maxIsoStamp(current.bulkLastRun,next.bulkLastRun);
-    next.bulkSearchDemandPolicyVersion=Math.max(Number(current.bulkSearchDemandPolicyVersion||0),Number(next.bulkSearchDemandPolicyVersion||0));
-  }
-  return r2putJson(env,R2_GENERATOR_STATUS_KEY,next);
+  const next={...value,backend:'do-v2',storageBackend:'durable-object'};
+  const r=await gctl(env,'/status-monotonic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(next)});
+  if(!r.ok)throw new Error('do_status_write_failed:'+r.status);
+  return await r.json();
 }
 function defaultGeneratorConfig(env){
   return {...GENERATOR_DEFAULTS,enabled:true,model:env.WORKERS_AI_MODEL||GENERATOR_DEFAULTS.model,provider:'workers-ai',externalProviders:false,targetWords:1700,minWords:1500,qualityThreshold:95,backend:'do-v2',storageBackend:'durable-object',updatedAt:now()};
@@ -199,7 +189,7 @@ async function bootstrapGeneratorStatus(env){
   const day=now().slice(0,10),days=await r2json(env,'bulk/days.json',{days:[]}),latest=await r2json(env,'bulk/latest.json',{articles:[]});
   const rows=Array.isArray(days?.days)?days.days:[],todayRow=rows.find(x=>x?.day===day),total=rows.reduce((s,x)=>s+Math.max(0,Number(x?.count||0)),0);
   const topicMax=(latest?.articles||[]).reduce((m,x)=>Math.max(m,Number(x?.topicIndex||0)),0);
-  return {attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkDay:day,bulkPublishedTotal:total,bulkPublishedToday:Math.max(0,Number(todayRow?.count||0)),bulkCursorV2:Math.max(500000,topicMax+1),bulkRunningAt:null,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false,legacyUpgradePausedForConsolidation:true,backend:'r2-v1',updatedAt:now()};
+  return {attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkDay:day,bulkPublishedTotal:total,bulkPublishedToday:Math.max(0,Number(todayRow?.count||0)),bulkCursorV2:Math.max(500000,topicMax+1),bulkRunningAt:null,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false,legacyUpgradePausedForConsolidation:true,backend:'do-v2',storageBackend:'durable-object',updatedAt:now()};
 }
 export async function getGeneratorConfig(env){
   try{
@@ -245,20 +235,20 @@ export async function generatorUnlock(env,runId){
 
 export async function bulkTick(env){
   const status=await getGeneratorStatus(env),runId='bulk-'+Date.now()+'-'+Math.random().toString(36).slice(2,8),lock=await generatorLock(env,runId);
-  if(!lock.ok)return {ok:true,skipped:'bulk_already_running',backend:'r2-v1',bulkPublishedToday:Number(status.bulkPublishedToday||0)};
+  if(!lock.ok)return {ok:true,skipped:'bulk_already_running',backend:'do-v2',bulkPublishedToday:Number(status.bulkPublishedToday||0)};
   const cfg=await getGeneratorConfig(env);
   let bulk=null,adaptive=null;
   try{
     adaptive=chooseAdaptiveBulkBatch(env,status);
     bulk=await runProgrammaticBatch(env,cfg,status,{dailyTarget:Number(env.BULK_DAILY_TARGET||32000),batchSize:adaptive.batchSize});
-    const next={...status,...(bulk.patch||{}),bulkRunningAt:null,bulkLastSkipReason:bulk.skipped||null,bulkLastTickAt:now(),bulkLastTickPublished:Array.isArray(bulk.records)?bulk.records.length:0,bulkLastErrorStack:null,backend:'r2-v1',updatedAt:now()};
+    const next={...status,...(bulk.patch||{}),bulkRunningAt:null,bulkLastSkipReason:bulk.skipped||null,bulkLastTickAt:now(),bulkLastTickPublished:Array.isArray(bulk.records)?bulk.records.length:0,bulkLastErrorStack:null,backend:'do-v2',updatedAt:now()};
     await r2putGeneratorStatusMonotonic(env,next);
-    return {ok:true,backend:'r2-v1',statusPersisted:true,adaptiveBatch:adaptive,bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0,campaignAttemptCounts:bulk.campaignAttemptCounts||{},campaignPostClusterCounts:bulk.campaignPostClusterCounts||{},campaignPublishedCounts:bulk.campaignPublishedCounts||{}},summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0),bulkLastSkipReason:next.bulkLastSkipReason,bulkLastTickPublished:Number(next.bulkLastTickPublished||0),bulkLastSuccessAt:next.bulkLastSuccessAt||null}};
+    return {ok:true,backend:'do-v2',statusPersisted:true,adaptiveBatch:adaptive,bulk:{ok:bulk.ok,skipped:bulk.skipped||null,engine:bulk.engine||null,records:bulk.records||[],tries:bulk.tries||0,rejectedQuality:bulk.rejectedQuality||0,rejectedDuplicate:bulk.rejectedDuplicate||0,campaignAttemptCounts:bulk.campaignAttemptCounts||{},campaignPostClusterCounts:bulk.campaignPostClusterCounts||{},campaignPublishedCounts:bulk.campaignPublishedCounts||{}},summary:{bulkPublishedToday:Number(next.bulkPublishedToday||0),bulkPublishedTotal:Number(next.bulkPublishedTotal||0),bulkDailyTarget:Number(next.bulkDailyTarget||env.BULK_DAILY_TARGET||32000),bulkCursorV2:Number(next.bulkCursorV2||0),bulkLastSkipReason:next.bulkLastSkipReason,bulkLastTickPublished:Number(next.bulkLastTickPublished||0),bulkLastSuccessAt:next.bulkLastSuccessAt||null}};
   }catch(e){
     const safeStack=String(e?.stack||'').split('\n').slice(0,6).join(' | ').replace(/https?:\/\/[^ )]+/g,'[url]').slice(0,1200),patch=bulk?.patch||{};
-    const next={...status,...patch,bulkRunningAt:null,bulkLastRun:patch.bulkLastRun||now(),bulkLastError:String(e?.message||e),bulkLastErrorStack:safeStack||null,bulkLastSkipReason:bulk?.skipped||null,bulkLastTickAt:now(),bulkLastTickPublished:Array.isArray(bulk?.records)?bulk.records.length:0,backend:'r2-v1',updatedAt:now()};
+    const next={...status,...patch,bulkRunningAt:null,bulkLastRun:patch.bulkLastRun||now(),bulkLastError:String(e?.message||e),bulkLastErrorStack:safeStack||null,bulkLastSkipReason:bulk?.skipped||null,bulkLastTickAt:now(),bulkLastTickPublished:Array.isArray(bulk?.records)?bulk.records.length:0,backend:'do-v2',updatedAt:now()};
     try{await r2putGeneratorStatusMonotonic(env,next)}catch{}
-    return {ok:false,backend:'r2-v1',statusPersisted:false,error:next.bulkLastError,bulkRecords:Array.isArray(bulk?.records)?bulk.records.length:0};
+    return {ok:false,backend:'do-v2',statusPersisted:false,error:next.bulkLastError,bulkRecords:Array.isArray(bulk?.records)?bulk.records.length:0};
   }finally{
     await generatorUnlock(env,runId);
   }
@@ -282,7 +272,7 @@ export class GeneratorControl{
     if(dirty)await this.ctx.storage.put('config',c);
     return c;
   }
-  async status(){const s=await this.ctx.storage.get('status');return s?{...s,backend:'do-v2',storageBackend:'durable-object'}:{attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkPublishedTotal:0,bulkPublishedToday:0,bulkCursor:0,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false,legacyUpgradeCursorV2:0,legacyUpgradePassV2:1,legacyUpgradePausedForConsolidation:false,backend:'do-v2',storageBackend:'durable-object'}}
+  async status(){const s=await this.ctx.storage.get('status');return s||{attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkPublishedTotal:0,bulkPublishedToday:0,bulkCursor:0,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false,legacyUpgradeCursorV2:0,legacyUpgradePassV2:1,legacyUpgradePausedForConsolidation:false,backend:'do-v2',storageBackend:'durable-object'}}
   async fetch(req){
     const u=new URL(req.url),p=u.pathname;
     if(p==='/config'&&req.method==='GET')return json(await this.config());
