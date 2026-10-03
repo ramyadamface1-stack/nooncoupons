@@ -113,17 +113,27 @@ async function readState(env,{tolerant=false}={}){
     throw new Error('english_state_read_failed:'+String(e?.message||e).slice(0,160));
   }
 }
-async function writeState(env,state){
+function normalizeState(env,state){
   const baseTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env),all=Array.isArray(state.records)?state.records:[],keepPlainFrom=Math.max(0,all.length-64);
   const records=all.map((r,i)=>i>=keepPlainFrom?r:(()=>{const {plain,...rest}=r||{};return rest})());
-  const n=records.length,clean={...state,records,version:4,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:baseTarget,controlledTarget,status:n>=baseTarget?'complete':'active',controlledStatus:n>=controlledTarget?'complete':'active',updatedAt:now()};
-  const payload=JSON.stringify(clean),opts={httpMetadata:{contentType:'application/json; charset=utf-8'}};
+  const n=records.length;
+  return {...state,records,version:5,builder:BULK_ENGINE_INFO.englishArticleBuilder,target:baseTarget,controlledTarget,status:n>=baseTarget?'complete':'active',controlledStatus:n>=controlledTarget?'complete':'active',updatedAt:now()};
+}
+async function writeState(env,state){
+  const clean=normalizeState(env,state),payload=JSON.stringify(clean),opts={httpMetadata:{contentType:'application/json; charset=utf-8'}};
   let last=null;
   for(let attempt=1;attempt<=2;attempt++){
     try{await withDeadline(env.CONTENT_FINAL.put(STATE_KEY,payload,opts),3500,'english_state_put_timeout');return clean}
     catch(e){last=e;if(attempt<2)await sleep(180*attempt)}
   }
   throw last||new Error('english_state_put_failed');
+}
+async function persistState(env,state,defer=false){
+  if(!defer)return writeState(env,state);
+  const clean=normalizeState(env,state);
+  for(const key of Object.keys(state))delete state[key];
+  Object.assign(state,clean);
+  return state;
 }
 function publicRecord(r){if(!r)return r;const {plain,...safe}=r;return safe}
 function recentForAudit(records){return (records||[]).slice(-64).map(r=>({slug:r.slug,primaryKeyword:r.primaryKeyword,signature:r.signature,plain:r.plain||'',blueprint:r.blueprint}))}
@@ -227,7 +237,7 @@ async function findCandidate(env,state,slot,{deadlineMs=0,maxScan=MAX_SCAN}={}){
   return {notFound:true,diagnostics:diag,nextCursor:cursor};
 }
 
-export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=5000}={}){
+export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=5000,stateOverride=null,deferStateWrite=false}={}){
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing'};
   let auditLock=null;
   try{auditLock=await withDeadline(publicationBlockedByArticleAudit(env),1800,'english_audit_lock_timeout')}
@@ -235,15 +245,15 @@ export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=50
   if(auditLock)return {ok:true,skipped:'corpus_audit_in_progress',auditLock:{runId:auditLock.runId||null,expiresAt:auditLock.expiresAt||null,failClosed:Boolean(auditLock.failClosed)}};
   const canaryTarget=targetFromEnv(env),target=controlledTargetFromEnv(env);
   if(canaryTarget===0)return {ok:true,skipped:'english_canary_disabled',target:canaryTarget,controlledTarget:target};
-  let state=await readState(env);
-  if(state.records.length>=target){if(state.controlledStatus!=='complete')state=await writeState(env,state);return {ok:true,skipped:'english_controlled_complete',target:canaryTarget,controlledTarget:target,published:state.records.length}}
+  let state=stateOverride||await readState(env);
+  if(state.records.length>=target){if(state.controlledStatus!=='complete')state=await persistState(env,state,deferStateWrite);return {ok:true,skipped:'english_controlled_complete',target:canaryTarget,controlledTarget:target,published:state.records.length}}
   const dailyTarget=dailyTargetFromEnv(env),todayCount=publishedToday(state.records),minInterval=minIntervalMinutesFromEnv(env),nextAt=nextEligibleAt(state,env),nowMs=Date.now();
   if(todayCount>=dailyTarget)return {ok:true,skipped:'english_daily_target_complete',published:state.records.length,publishedToday:todayCount,dailyTarget,controlledTarget:target};
   if(!ignoreInterval&&nextAt&&Date.parse(nextAt)>nowMs)return {ok:true,skipped:'english_interval_wait',published:state.records.length,publishedToday:todayCount,dailyTarget,minIntervalMinutes:minInterval,nextEligibleAt:nextAt,controlledTarget:target};
-  const slot=state.records.length,scanMs=Math.max(1500,Math.min(8000,Number(scanBudgetMs||5000)||5000)),scanDeadline=Date.now()+scanMs;let found=null;try{found=await findCandidate(env,state,slot,{deadlineMs:scanDeadline})}catch(e){state.lastError='candidate_scan_error:'+String(e?.message||e).slice(0,220);state.lastAttemptAt=now();state=await writeState(env,state);return {ok:false,error:state.lastError,published:state.records.length,target:canaryTarget,controlledTarget:target}}
+  const slot=state.records.length,scanMs=Math.max(1500,Math.min(8000,Number(scanBudgetMs||5000)||5000)),scanDeadline=Date.now()+scanMs;let found=null;try{found=await findCandidate(env,state,slot,{deadlineMs:scanDeadline})}catch(e){state.lastError='candidate_scan_error:'+String(e?.message||e).slice(0,220);state.lastAttemptAt=now();state=await persistState(env,state,deferStateWrite);return {ok:false,error:state.lastError,published:state.records.length,target:canaryTarget,controlledTarget:target}}
   if(!found||found.notFound){
     const previous=Math.max(START_CURSOR,Number(state.cursor||START_CURSOR)),next=Math.max(previous+1,Number(found?.nextCursor||0)||previous+1);
-    state.cursor=next;state.lastError=null;state.lastCandidateDiagnostics=found?.diagnostics||null;state.lastAttemptAt=now();state=await writeState(env,state);
+    state.cursor=next;state.lastError=null;state.lastCandidateDiagnostics=found?.diagnostics||null;state.lastAttemptAt=now();state=await persistState(env,state,deferStateWrite);
     return {ok:true,skipped:found?.budgetExhausted?'english_candidate_scan_budget':'english_candidate_scan_continue',cursorAdvancedTo:next,diagnostics:state.lastCandidateDiagnostics,published:state.records.length,target:canaryTarget,controlledTarget:target};
   }
   const {cursor,candidate,article,audit,categoryKey}=found,createdAt=now(),floor=qualityFloor(audit),urlPath='/en/articles/'+article.slug,isCanary=slot<canaryTarget;
@@ -260,7 +270,7 @@ export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=50
     customMetadata:{lang:'en',ls:'native-intent-v6-canary',t:encodeURIComponent(record.title).slice(0,900),m:encodeURIComponent(record.metaDescription).slice(0,900),c:record.country,cp:record.coupon,q:String(record.quality),qf:String(record.qualityFloor),qc:String(record.qualityChecks),p:record.provider,kw:encodeURIComponent(record.primaryKeyword).slice(0,900),kt:String(record.keywordTier||'').slice(0,120),kc:String(record.keywordCluster||'').slice(0,120),bp:String(record.blueprint),at:createdAt,status:'published',canary:isCanary?'1':'0',phase:record.phase}
   });
   if(!write.ok){
-    state.cursor=cursor+1;state.lastError='r2_conditional_put_transient:'+String(write.error||'unknown');state.lastAttemptAt=now();state=await writeState(env,state);
+    state.cursor=cursor+1;state.lastError='r2_conditional_put_transient:'+String(write.error||'unknown');state.lastAttemptAt=now();state=await persistState(env,state,deferStateWrite);
     return {ok:false,error:state.lastError,published:state.records.length,target:canaryTarget,controlledTarget:target};
   }
   if(write.duplicate){
@@ -270,13 +280,13 @@ export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=50
       record.recoveredFromR2=true;
       state.records.push(record);state.cursor=cursor+1;state.lastError=null;state.lastAttemptAt=createdAt;state.lastPublishedAt=createdAt;
       state.lastIndexNow={enabled:false,submitted:0,queued:0,deferred:true,status:null,error:'recovered_existing_r2_object',at:createdAt,urlPath};
-      state=await writeState(env,state);
+      state=await persistState(env,state,deferStateWrite);
       return {ok:true,recovered:true,target:canaryTarget,controlledTarget:target,published:state.records.length,publishedToday:publishedToday(state.records),record:publicRecord(record),indexNow:state.lastIndexNow,audit:{score:audit.score,wordCount:audit.wordCount,minJaccardDistance:audit.minJaccardDistance,groups:audit.groups}};
     }
-    state.cursor=cursor+1;state.lastError=null;state.lastAttemptAt=now();state=await writeState(env,state);
+    state.cursor=cursor+1;state.lastError=null;state.lastAttemptAt=now();state=await persistState(env,state,deferStateWrite);
     return {ok:false,error:'r2_conditional_duplicate',duplicate:true,published:state.records.length,target:canaryTarget,controlledTarget:target};
   }
-  state.records.push(record);state.cursor=cursor+1;state.lastError=null;state.lastAttemptAt=createdAt;state.lastPublishedAt=createdAt;state.lastIndexNow={enabled:String(env.INDEXNOW_ENABLED||'false').toLowerCase()==='true',submitted:0,queued:0,deferred:true,status:null,error:null,at:createdAt,urlPath};state=await writeState(env,state);
+  state.records.push(record);state.cursor=cursor+1;state.lastError=null;state.lastAttemptAt=createdAt;state.lastPublishedAt=createdAt;state.lastIndexNow={enabled:String(env.INDEXNOW_ENABLED||'false').toLowerCase()==='true',submitted:0,queued:0,deferred:true,status:null,error:null,at:createdAt,urlPath};state=await persistState(env,state,deferStateWrite);
   let indexNow=state.lastIndexNow;
   try{
     indexNow=await Promise.race([
@@ -285,16 +295,17 @@ export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=50
     ]);
   }catch{indexNow={enabled:true,submitted:0,queued:1,deferred:true,status:null,error:'indexnow_deferred_after_publish'}}
   state.lastIndexNow={...indexNow,at:createdAt,urlPath};
-  try{state=await writeState(env,state)}catch{}
+  try{state=await persistState(env,state,deferStateWrite)}catch{}
   return {ok:true,target:canaryTarget,controlledTarget:target,published:state.records.length,publishedToday:publishedToday(state.records),dailyTarget:dailyTargetFromEnv(env),minIntervalMinutes:minIntervalMinutesFromEnv(env),nextEligibleAt:nextEligibleAt(state,env),canaryComplete:state.status==='complete',controlledComplete:state.controlledStatus==='complete',record:publicRecord(record),indexNow,audit:{score:audit.score,wordCount:audit.wordCount,minJaccardDistance:audit.minJaccardDistance,groups:audit.groups}};
 }
 
 export async function runEnglishCanaryBatch(env,{maxPerTick=null,timeBudgetMs=45000,ignoreIntervalFirst=false}={}){
   const configured=batchSizeFromEnv(env),requested=Number(maxPerTick||configured)||configured,effective=Math.max(1,Math.min(configured,24,requested)),budget=Math.max(5000,Math.min(50000,Number(timeBudgetMs||45000)||45000)),startedAt=Date.now(),results=[],scanBudgetMs=Math.max(1000,Math.min(2200,Math.floor((budget-3500)/Math.max(1,effective)))),maxScanChunks=Math.max(effective,Math.min(36,effective*3));
-  let stoppedByBudget=false,published=0,chunks=0;
+  let stoppedByBudget=false,published=0,chunks=0,sharedState=null,statePersisted=false;
+  try{sharedState=await readState(env)}catch(e){return {ok:false,error:'english_state_read_failed:'+String(e?.message||e).slice(0,160),published:0,results:[]}}
   while(published<effective&&chunks<maxScanChunks){
     if(chunks>0&&Date.now()-startedAt>=budget-1200){stoppedByBudget=true;break}
-    const result=await runEnglishCanary(env,{ignoreInterval:ignoreIntervalFirst||chunks>0,scanBudgetMs});
+    const result=await runEnglishCanary(env,{ignoreInterval:ignoreIntervalFirst||chunks>0,scanBudgetMs,stateOverride:sharedState,deferStateWrite:true});
     results.push(result);chunks++;
     if(result?.record){published++;continue}
     const scanContinuation=result?.skipped==='english_candidate_scan_continue'||result?.skipped==='english_candidate_scan_budget';
@@ -302,17 +313,25 @@ export async function runEnglishCanaryBatch(env,{maxPerTick=null,timeBudgetMs=45
     if(scanContinuation||duplicateContinuation)continue;
     if(result?.skipped||result?.ok===false)break;
   }
+  try{sharedState=await writeState(env,sharedState);statePersisted=true}catch{}
   const durationMs=Date.now()-startedAt;
-  return {ok:results.some(r=>r?.ok!==false)||published>0,maxPerTick:effective,configuredMaxPerTick:configured,published,scanChunks:chunks,maxScanChunks,durationMs,timeBudgetMs:budget,stoppedByBudget,results};
+  return {ok:results.some(r=>r?.ok!==false)||published>0,maxPerTick:effective,configuredMaxPerTick:configured,published,scanChunks:chunks,maxScanChunks,durationMs,timeBudgetMs:budget,stoppedByBudget,stateWritesPerBatch:1,statePersisted,results};
 }
 
+async function schedulerDo(env,path,init){
+  if(!env?.GENERATOR_CONTROL)return null;
+  const id=env.GENERATOR_CONTROL.idFromName('primary');
+  return env.GENERATOR_CONTROL.get(id).fetch('https://generator.internal'+path,init);
+}
 async function writeEnglishSchedulerState(env,payload){
-  if(!env.CONTENT_FINAL)return false;
-  for(let attempt=1;attempt<=3;attempt++){
-    try{await env.CONTENT_FINAL.put(SCHEDULER_STATE_KEY,JSON.stringify(payload),{httpMetadata:{contentType:'application/json; charset=utf-8'}});return true}
-    catch{if(attempt<3)await sleep(100*attempt)}
-  }
-  return false;
+  try{
+    const r=await schedulerDo(env,'/english-scheduler',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+    return Boolean(r?.ok);
+  }catch{return false}
+}
+async function readEnglishSchedulerState(env){
+  try{const r=await schedulerDo(env,'/english-scheduler');if(r?.ok)return await r.json()}catch{}
+  try{const o=await env.CONTENT_FINAL?.get(SCHEDULER_STATE_KEY);return o?await o.json():null}catch{return null}
 }
 export async function runEnglishScheduledTick(env,{maxPerTick=18,timeBudgetMs=45000}={}){
   const startedAt=now(),base={version:23,priority:'english-uae-core-cron-deadline-safe',startedAt,maxPerTick:Number(maxPerTick||1),timeBudgetMs:Number(timeBudgetMs||9000)};
@@ -327,7 +346,7 @@ export async function englishCanaryRecords(env){const s=await readState(env);ret
 
 export async function englishCanaryHealth(env){
   const state=await readState(env),allRecords=(state.records||[]).map(publicRecord);
-  let scheduler=null;try{const o=await env.CONTENT_FINAL?.get(SCHEDULER_STATE_KEY);if(o)scheduler=await o.json()}catch{}
+  const scheduler=await readEnglishSchedulerState(env);
   const auditLock=await readArticleAuditLock(env),canaryTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env);
   const canaryBase=allRecords.slice(0,canaryTarget),recentBase=allRecords.slice(Math.max(canaryTarget,allRecords.length-48));
   const sampleBase=[...canaryBase,...recentBase].filter((r,i,a)=>r?.slug&&a.findIndex(x=>x?.slug===r.slug)===i),verified=[];
@@ -397,4 +416,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:35,hubOwnedHeadTermsBlocked:true,samsungS26IntentHubLink:true,uaeSavingsCtrOverride:true,englishCouponIntentOwners:true,iphone18IntentHubLink:true,iphoneDuoIntentHubLink:true,gscCtrOverrides:Object.keys(GSC_CTR_OVERRIDES).length,coreHighDemandCoverageRelease:true,r2DuplicateStateRecovery:true,marketAwareRelatedLinks:true,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:24,schedulerTimeBudgetMs:45000,schedulerFirstIntervalBypass:true,schedulerStateKey:SCHEDULER_STATE_KEY,schedulerStateVersion:23,adaptiveGoldenMix:true,expandedUaeCandidateProfiles:true,publishedOutputMixEnforced:true,goldenCommercialIntentMixEnforced:true,goldenOutputCycle:UAE_GOLDEN_OUTPUT_CYCLE,goldenOutputSlots:UAE_GOLDEN_OUTPUT_SLOTS,goldenCommercialIntents:[...UAE_GOLDEN_COMMERCIAL_INTENTS],stateCompaction:true,publishStateBeforeIndexNow:true,indexNowPostPublishBudgetMs:1500,boundedR2Ops:true,r2ArticlePutTimeoutMs:3200,r2StatePutTimeoutMs:3500,lateWriteRecovery:true,boundedStateRead:true,stateReadTimeoutMs:2200,boundedAuditLockRead:true,auditLockReadTimeoutMs:1800,multiChunkCandidateScan:true,duplicateContinuation:true,maxScanChunksMultiplier:3,auditFailureDiagnostics:true,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,englishSemanticDiversityV2:true,fastEnglishDiscoveryCache:true,highDemandUaeKeywordTargeting:true,campaignAwareProfileTargeting:true,campaignCalendarVersion:CAMPAIGN_CALENDAR_INFO.version,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:100,goldenHeadShareTarget:70,commercialSeedShareTarget:100,currentUaeModelTerms:true,goldenModifierAppliedToKeyword:true,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:1200,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',englishRelatedArticles:6,sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:36,r2SaverMode:true,englishStateWritesPerBatch:1,schedulerStateBackend:'durable-object',hubOwnedHeadTermsBlocked:true,samsungS26IntentHubLink:true,uaeSavingsCtrOverride:true,englishCouponIntentOwners:true,iphone18IntentHubLink:true,iphoneDuoIntentHubLink:true,gscCtrOverrides:Object.keys(GSC_CTR_OVERRIDES).length,coreHighDemandCoverageRelease:true,r2DuplicateStateRecovery:true,marketAwareRelatedLinks:true,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:24,schedulerTimeBudgetMs:45000,schedulerFirstIntervalBypass:true,schedulerStateKey:SCHEDULER_STATE_KEY,schedulerStateVersion:23,adaptiveGoldenMix:true,expandedUaeCandidateProfiles:true,publishedOutputMixEnforced:true,goldenCommercialIntentMixEnforced:true,goldenOutputCycle:UAE_GOLDEN_OUTPUT_CYCLE,goldenOutputSlots:UAE_GOLDEN_OUTPUT_SLOTS,goldenCommercialIntents:[...UAE_GOLDEN_COMMERCIAL_INTENTS],stateCompaction:true,publishStateBeforeIndexNow:true,indexNowPostPublishBudgetMs:1500,boundedR2Ops:true,r2ArticlePutTimeoutMs:3200,r2StatePutTimeoutMs:3500,lateWriteRecovery:true,boundedStateRead:true,stateReadTimeoutMs:2200,boundedAuditLockRead:true,auditLockReadTimeoutMs:1800,multiChunkCandidateScan:true,duplicateContinuation:true,maxScanChunksMultiplier:3,auditFailureDiagnostics:true,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,englishSemanticDiversityV2:true,fastEnglishDiscoveryCache:true,highDemandUaeKeywordTargeting:true,campaignAwareProfileTargeting:true,campaignCalendarVersion:CAMPAIGN_CALENDAR_INFO.version,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:100,goldenHeadShareTarget:70,commercialSeedShareTarget:100,currentUaeModelTerms:true,goldenModifierAppliedToKeyword:true,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:1200,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',englishRelatedArticles:6,sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
