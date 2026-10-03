@@ -199,6 +199,44 @@ jobs:
 
           echo 'WORKER_DEPLOY_VERIFY=PASS'
 
+      - name: Ensure www custom domain
+        shell: bash
+        run: |
+          set -euo pipefail
+          HOST='www.noondealsnow.com'
+          SERVICE='nooncoupons'
+          ZONE='noondealsnow.com'
+
+          curl -fsS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H 'Content-Type: application/json' \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains" \
+            -o /tmp/cf-domains-www.json
+
+          if jq -e --arg h "$HOST" '.success==true and any(.result[]?; ((.hostname // .name // "")|ascii_downcase)==($h|ascii_downcase))' /tmp/cf-domains-www.json >/dev/null; then
+            echo 'WWW_CUSTOM_DOMAIN_ALREADY_PRESENT=1'
+          else
+            body=$(jq -cn --arg hostname "$HOST" --arg service "$SERVICE" --arg zone_name "$ZONE" '{hostname:$hostname,service:$service,zone_name:$zone_name}')
+            code=$(curl -sS -o /tmp/cf-www-attach.json -w '%{http_code}' \
+              -X PUT \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H 'Content-Type: application/json' \
+              --data "$body" \
+              "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains")
+            echo "WWW_CUSTOM_DOMAIN_ATTACH_HTTP=$code"
+            jq -c '{success,result:{id:.result.id,hostname:.result.hostname,service:.result.service,zone_name:.result.zone_name},errors}' /tmp/cf-www-attach.json
+            test "$code" = '200'
+            jq -e '.success==true and ((.result.hostname // "")|ascii_downcase)=="www.noondealsnow.com" and .result.service=="nooncoupons"' /tmp/cf-www-attach.json >/dev/null
+          fi
+
+          curl -fsS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H 'Content-Type: application/json' \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/domains" \
+            -o /tmp/cf-domains-www-after.json
+          jq -e --arg h "$HOST" '.success==true and any(.result[]?; ((.hostname // .name // "")|ascii_downcase)==($h|ascii_downcase) and .service=="nooncoupons")' /tmp/cf-domains-www-after.json >/dev/null
+          echo 'WWW_CUSTOM_DOMAIN_BOUND=1'
+
       - name: Diagnose custom-domain attachment and reachability
         shell: bash
         run: |
