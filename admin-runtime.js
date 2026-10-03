@@ -193,7 +193,7 @@ async function r2putGeneratorStatusMonotonic(env,value){
   return r2putJson(env,R2_GENERATOR_STATUS_KEY,next);
 }
 function defaultGeneratorConfig(env){
-  return {...GENERATOR_DEFAULTS,enabled:true,model:env.WORKERS_AI_MODEL||GENERATOR_DEFAULTS.model,provider:'workers-ai',externalProviders:false,targetWords:1700,minWords:1500,qualityThreshold:95,backend:'r2-v1',updatedAt:now()};
+  return {...GENERATOR_DEFAULTS,enabled:true,model:env.WORKERS_AI_MODEL||GENERATOR_DEFAULTS.model,provider:'workers-ai',externalProviders:false,targetWords:1700,minWords:1500,qualityThreshold:95,backend:'do-v2',storageBackend:'durable-object',updatedAt:now()};
 }
 async function bootstrapGeneratorStatus(env){
   const day=now().slice(0,10),days=await r2json(env,'bulk/days.json',{days:[]}),latest=await r2json(env,'bulk/latest.json',{articles:[]});
@@ -202,35 +202,47 @@ async function bootstrapGeneratorStatus(env){
   return {attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkDay:day,bulkPublishedTotal:total,bulkPublishedToday:Math.max(0,Number(todayRow?.count||0)),bulkCursorV2:Math.max(500000,topicMax+1),bulkRunningAt:null,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false,legacyUpgradePausedForConsolidation:true,backend:'r2-v1',updatedAt:now()};
 }
 export async function getGeneratorConfig(env){
-  const existing=await r2json(env,R2_GENERATOR_CONFIG_KEY,null),defaults=defaultGeneratorConfig(env);
-  if(existing?.backend==='r2-v1'){
-    const next={...defaults,...existing,enabled:true,externalProviders:false,minWords:Math.max(1500,Number(existing.minWords||0)),targetWords:Math.max(1700,Number(existing.targetWords||0)),qualityThreshold:Math.max(95,Number(existing.qualityThreshold||0))};
-    if(Number(existing.minWords||0)<1500||Number(existing.targetWords||0)<1700||Number(existing.qualityThreshold||0)<95)return r2putJson(env,R2_GENERATOR_CONFIG_KEY,{...next,updatedAt:now()});
-    return next;
-  }
-  return r2putJson(env,R2_GENERATOR_CONFIG_KEY,defaults);
+  try{
+    const r=await gctl(env,'/config');
+    if(r.ok)return await r.json();
+  }catch{}
+  const defaults=defaultGeneratorConfig(env);
+  return defaults;
 }
 export async function getGeneratorStatus(env){
-  const existing=await r2json(env,R2_GENERATOR_STATUS_KEY,null);
-  if(existing?.backend==='r2-v1')return existing;
-  const boot=await bootstrapGeneratorStatus(env);return r2putJson(env,R2_GENERATOR_STATUS_KEY,boot);
+  try{
+    const r=await gctl(env,'/status');
+    if(r.ok){
+      const current=await r.json();
+      if(current?.backend==='do-v2')return current;
+      const legacy=await r2json(env,R2_GENERATOR_STATUS_KEY,null);
+      const seed=legacy?.backend==='r2-v1'?{...legacy,backend:'do-v2',storageBackend:'durable-object',migratedFromR2At:now()}:{...await bootstrapGeneratorStatus(env),backend:'do-v2',storageBackend:'durable-object'};
+      const wr=await gctl(env,'/status-monotonic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(seed)});
+      if(wr.ok)return await wr.json();
+      return seed;
+    }
+  }catch{}
+  const legacy=await r2json(env,R2_GENERATOR_STATUS_KEY,null);
+  return legacy?.backend==='r2-v1'?legacy:await bootstrapGeneratorStatus(env);
 }
 export async function updateGeneratorStatus(env,patch){
-  const current=await getGeneratorStatus(env),next={...current,...patch,backend:'r2-v1',updatedAt:now()};
-  next.recent=[{at:now(),ok:!patch.lastError,slug:patch.lastSlug||null,error:patch.lastError||null},...(current.recent||[])].slice(0,100);
-  return r2putGeneratorStatusMonotonic(env,next);
+  const next={...patch,backend:'do-v2',storageBackend:'durable-object',updatedAt:now()};
+  try{
+    const r=await gctl(env,'/status-monotonic',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(next)});
+    if(r.ok)return await r.json();
+  }catch{}
+  const current=await getGeneratorStatus(env);
+  return {...current,...next};
 }
 export async function generatorLock(env,runId){
-  const lock=await r2json(env,R2_GENERATOR_LOCK_KEY,null),lockedAt=Date.parse(lock?.at||'');
-  if(lock&&Number.isFinite(lockedAt)&&Date.now()-lockedAt<240000)return new Response(JSON.stringify({ok:false,lock}),{status:409,headers:{'content-type':'application/json'}});
-  await r2putJson(env,R2_GENERATOR_LOCK_KEY,{id:runId,at:now(),backend:'r2-v1'});
-  return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}});
+  try{return await gctl(env,'/lock',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId})})}
+  catch{return new Response(JSON.stringify({ok:true,degraded:true}),{status:200,headers:{'content-type':'application/json'}})}
 }
 export async function generatorUnlock(env,runId){
-  const lock=await r2json(env,R2_GENERATOR_LOCK_KEY,null);
-  if(!lock||!runId||lock.id===runId)try{await env.CONTENT_FINAL.delete(R2_GENERATOR_LOCK_KEY)}catch{}
-  return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}});
+  try{return await gctl(env,'/unlock',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId})})}
+  catch{return new Response(JSON.stringify({ok:true,degraded:true}),{status:200,headers:{'content-type':'application/json'}})}
 }
+
 export async function bulkTick(env){
   const status=await getGeneratorStatus(env),runId='bulk-'+Date.now()+'-'+Math.random().toString(36).slice(2,8),lock=await generatorLock(env,runId);
   if(!lock.ok)return {ok:true,skipped:'bulk_already_running',backend:'r2-v1',bulkPublishedToday:Number(status.bulkPublishedToday||0)};
@@ -262,13 +274,15 @@ export class GeneratorControl{
     if(c.model!==model){c.model=model;dirty=true}
     if(c.provider!=='workers-ai'){c.provider='workers-ai';dirty=true}
     if(c.externalProviders!==false){c.externalProviders=false;dirty=true}
+    if(c.backend!=='do-v2'){c.backend='do-v2';dirty=true}
+    if(c.storageBackend!=='durable-object'){c.storageBackend='durable-object';dirty=true}
     if(!Number.isFinite(Number(c.targetWords))){c.targetWords=GENERATOR_DEFAULTS.targetWords;dirty=true}
     if(!Number.isFinite(Number(c.minWords))||Number(c.minWords)<1500){c.minWords=Math.max(1500,Number(GENERATOR_DEFAULTS.minWords||1500));dirty=true}
     if(!Number.isFinite(Number(c.qualityThreshold))){c.qualityThreshold=GENERATOR_DEFAULTS.qualityThreshold;dirty=true}
     if(dirty)await this.ctx.storage.put('config',c);
     return c;
   }
-  async status(){return (await this.ctx.storage.get('status'))||{attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkPublishedTotal:0,bulkPublishedToday:0,bulkCursor:0,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false,legacyUpgradeCursorV2:0,legacyUpgradePassV2:1,legacyUpgradePausedForConsolidation:false}}
+  async status(){const s=await this.ctx.storage.get('status');return s?{...s,backend:'do-v2',storageBackend:'durable-object'}:{attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkPublishedTotal:0,bulkPublishedToday:0,bulkCursor:0,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false,legacyUpgradeCursorV2:0,legacyUpgradePassV2:1,legacyUpgradePausedForConsolidation:false,backend:'do-v2',storageBackend:'durable-object'}}
   async fetch(req){
     const u=new URL(req.url),p=u.pathname;
     if(p==='/config'&&req.method==='GET')return json(await this.config());
@@ -287,6 +301,22 @@ export class GeneratorControl{
       s.recent=[{at:now(),ok:!b.lastError,slug:b.lastSlug||null,error:b.lastError||null},...(s.recent||[])].slice(0,100);
       await this.ctx.storage.put('status',s);return json(s);
     }
+    if(p==='/status-monotonic'&&req.method==='POST'){
+      const b=await req.json(),current=await this.status(),next={...current,...b,backend:'do-v2',storageBackend:'durable-object',updatedAt:now()};
+      next.bulkPublishedTotal=Math.max(Number(current.bulkPublishedTotal||0),Number(next.bulkPublishedTotal||0));
+      if(String(current.bulkDay||'')===String(next.bulkDay||''))next.bulkPublishedToday=Math.max(Number(current.bulkPublishedToday||0),Number(next.bulkPublishedToday||0));
+      next.bulkCursorV2=Math.max(Number(current.bulkCursorV2||0),Number(next.bulkCursorV2||0));
+      next.bulkLastSuccessAt=maxIsoStamp(current.bulkLastSuccessAt,next.bulkLastSuccessAt);
+      next.lastSuccess=maxIsoStamp(current.lastSuccess,next.lastSuccess);
+      next.bulkLastTickAt=maxIsoStamp(current.bulkLastTickAt,next.bulkLastTickAt);
+      next.bulkLastRun=maxIsoStamp(current.bulkLastRun,next.bulkLastRun);
+      await this.ctx.storage.put('status',next);return json(next);
+    }
+    if(p==='/english-scheduler'&&req.method==='GET')return json((await this.ctx.storage.get('englishScheduler'))||null);
+    if(p==='/english-scheduler'&&req.method==='POST'){const b=await req.json();await this.ctx.storage.put('englishScheduler',b);return json(b)}
+    if(p==='/indexnow-state'&&req.method==='GET')return json((await this.ctx.storage.get('indexNowState'))||{pending:[],batchSize:1000});
+    if(p==='/indexnow-state'&&req.method==='POST'){const b=await req.json();await this.ctx.storage.put('indexNowState',b);return json(b)}
+
     if(p==='/bulk-tick'&&req.method==='POST'){
       const status=await this.status(),runningAt=Date.parse(status.bulkRunningAt||'');
       if(Number.isFinite(runningAt)&&Date.now()-runningAt<BULK_RUN_LOCK_MS)return json({ok:true,skipped:'bulk_already_running',bulkPublishedToday:Number(status.bulkPublishedToday||0),legacyUpgradeTotal:Number(status.legacyUpgradeTotal||0)});
