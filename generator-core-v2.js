@@ -38,20 +38,41 @@ const ANGLES=[
 
 export function providerReadiness(env){return {workersAI:Boolean(env.AI),any:Boolean(env.AI),external:false}}
 
+function topicAtIndex(n){
+  let q=n;
+  const country=COUNTRIES[q%COUNTRIES.length];q=Math.floor(q/COUNTRIES.length);
+  const code=CODES[q%CODES.length];q=Math.floor(q/CODES.length);
+  const modifier=MODIFIERS[q%MODIFIERS.length];q=Math.floor(q/MODIFIERS.length);
+  const angle=ANGLES[q%ANGLES.length];q=Math.floor(q/ANGLES.length);
+  const category=CATEGORIES[q%CATEGORIES.length],countryName=country==='SA'?'السعودية':'الإمارات',t=angle(countryName,category,code,modifier);
+  return applyCommerceTarget({...t,country,code,category,modifier,countryName,variant:n%4,topicIndex:n},n);
+}
+
 export function pickTopic(state,attempt=0){
   const existing=new Set((state.articles||[]).map(a=>norm(a.primaryKeyword||'')));
   const total=CATEGORIES.length*ANGLES.length*MODIFIERS.length*CODES.length*COUNTRIES.length;
   for(let step=0;step<Math.min(total,16000);step++){
-    const n=(attempt+step)%total;let q=n;
-    const country=COUNTRIES[q%COUNTRIES.length];q=Math.floor(q/COUNTRIES.length);
-    const code=CODES[q%CODES.length];q=Math.floor(q/CODES.length);
-    const modifier=MODIFIERS[q%MODIFIERS.length];q=Math.floor(q/MODIFIERS.length);
-    const angle=ANGLES[q%ANGLES.length];q=Math.floor(q/ANGLES.length);
-    const category=CATEGORIES[q%CATEGORIES.length],countryName=country==='SA'?'السعودية':'الإمارات',t=angle(countryName,category,code,modifier);
-    const targeted=applyCommerceTarget({...t,country,code,category,modifier,countryName,variant:n%4,topicIndex:n},n);
+    const n=(attempt+step)%total,targeted=topicAtIndex(n);
     if(!existing.has(norm(targeted.kw)))return targeted;
   }
   return null;
+}
+
+export function pickRescueTopic(state,attempt=0){
+  const rows=Array.isArray(state?.articles)?state.articles:[],existing=new Set(rows.map(a=>norm(a.primaryKeyword||''))),saturation=new Map();
+  for(const a of rows){
+    const key=String(a?.country||'')+'|'+norm(a?.category||'');
+    saturation.set(key,(saturation.get(key)||0)+1);
+  }
+  const total=CATEGORIES.length*ANGLES.length*MODIFIERS.length*CODES.length*COUNTRIES.length,scan=Math.min(total,768),stride=37;
+  let best=null,bestScore=Infinity;
+  for(let step=0;step<scan;step++){
+    const n=(attempt+step*stride)%total,targeted=topicAtIndex(n);
+    if(existing.has(norm(targeted.kw)))continue;
+    const score=saturation.get(String(targeted.country||'')+'|'+norm(targeted.category||''))||0;
+    if(score<bestScore){best=targeted;bestScore=score;if(score===0)break}
+  }
+  return best||pickTopic(state,attempt);
 }
 
 export function auditGenerated(a,t,cfg){

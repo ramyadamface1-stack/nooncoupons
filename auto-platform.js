@@ -4,7 +4,7 @@ export {GeneratorControl} from './admin-runtime.js';
 import {renderAdmin} from './admin-page.js';
 import {secureLogin} from './secure-admin-auth.js';
 import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin,bulkTick,chooseAdaptiveBulkBatch} from './admin-runtime.js';
-import {readState,pickTopic,publishGenerated} from './generator-core-v2.js';
+import {readState,pickTopic,pickRescueTopic,publishGenerated} from './generator-core-v2.js';
 import {generateWithWorkersAI,workersAiBudget,isWorkersAiFreeQuotaError} from './workers-ai-generator.js';
 import {BULK_ENGINE_INFO,BULK_RUNTIME_LIMITS,CAMPAIGN_CALENDAR_INFO} from './bulk-generator.js';
 import {APPROVED_COUPON_CODES,normalizeApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
@@ -250,7 +250,7 @@ function aiUsage(status,callsUsed=0){
   return {workersAiDay:day,workersAiCallsToday:base+Math.max(0,Number(callsUsed||0))};
 }
 
-async function runOnce(env,{manual=false}={}){
+async function runOnce(env,{manual=false,rescue=false}={}){
   const cfg=await getGeneratorConfig(env);
   if(!cfg.enabled&&!manual)return {skipped:'paused'};
   const runId=crypto.randomUUID(),lock=await generatorLock(env,runId);
@@ -258,8 +258,9 @@ async function runOnce(env,{manual=false}={}){
   const started=Date.now(),status=await getGeneratorStatus(env),attempt=Number(status.attempts||0);
   let workersAiCallsUsed=0;
   try{
-    const st=await readState(env),topic=pickTopic(st,attempt);
+    const st=await readState(env),topic=rescue?pickRescueTopic(st,attempt):pickTopic(st,attempt);
     if(!topic)throw new Error('topic_pool_exhausted');
+    const effectiveCfg=rescue?{...cfg,minWords:Math.max(1500,Number(cfg.minWords||1500)),targetWords:1750,qualityThreshold:Math.max(95,Number(cfg.qualityThreshold||95)),rescueMode:true}:cfg;
     const budget=workersAiBudget(env,st,status);
     if(!budget.binding){
       const next={...aiUsage(status,0),attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:'workers_ai_binding_missing',lastOperationalState:'workers-ai-unavailable',lastDurationMs:Date.now()-started};
@@ -273,7 +274,7 @@ async function runOnce(env,{manual=false}={}){
       await updateGeneratorStatus(env,next);return {ok:true,skipped:reason,budget};
     }
     let out;
-    try{out=await generateWithWorkersAI(env,topic,cfg,st,attempt,status);workersAiCallsUsed=Number(out.callsUsed||0)}
+    try{out=await generateWithWorkersAI(env,topic,effectiveCfg,st,attempt,status);workersAiCallsUsed=Number(out.callsUsed||0)}
     catch(e){workersAiCallsUsed=Number(e?.workersAiCallsUsed||0);throw e}
     if(out.skipped){
       const next={...aiUsage(status,workersAiCallsUsed),attempts:attempt+1,published:Number(status.published||0),drafted:Number(status.drafted||0),failed:Number(status.failed||0),skippedNoAI:Number(status.skippedNoAI||0)+1,lastRun:now(),lastError:String(out.reason||'workers_ai_skipped'),lastOperationalState:'workers-ai-skipped',lastDurationMs:Date.now()-started};
@@ -282,7 +283,7 @@ async function runOnce(env,{manual=false}={}){
     const usage=aiUsage(status,workersAiCallsUsed);
     if(!out.audit.productionReady)throw Object.assign(new Error('quality_gate_'+out.audit.score+'_words_'+out.audit.wordCount),{workersAiCallsUsed});
     const rec=await publishGenerated(env,out.article,topic,out.audit,out.provider);
-    const next={...usage,attempts:attempt+1,published:Number(status.published||0)+1,drafted:Number(status.drafted||0),failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:null,lastOperationalState:'published',lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:out.provider,lastQuality:out.audit.score,lastWordCount:out.audit.wordCount,lastDurationMs:Date.now()-started};
+    const next={...usage,attempts:attempt+1,published:Number(status.published||0)+1,drafted:Number(status.drafted||0),failed:Number(status.failed||0),lastRun:now(),lastSuccess:now(),lastError:null,lastOperationalState:rescue?'rescue-published':'published',lastSlug:rec.slug,lastTitle:rec.title,lastKeyword:rec.primaryKeyword,lastProvider:out.provider,lastQuality:out.audit.score,lastWordCount:out.audit.wordCount,lastDurationMs:Date.now()-started,...(rescue?{lastRescueQuality:out.audit.score,lastRescueWordCount:out.audit.wordCount,lastRescueCallsUsed:workersAiCallsUsed}:{})};
     await updateGeneratorStatus(env,next);
     return {ok:true,record:rec,audit:out.audit,provider:out.provider,workersAiCallsUsed,budget:out.budget};
   }catch(e){
@@ -293,14 +294,14 @@ async function runOnce(env,{manual=false}={}){
   }finally{await generatorUnlock(env,runId)}
 }
 
-const NO_IDLE_WINDOW_MS=60*60*1000,NO_IDLE_RESCUE_AFTER_MS=45*60*1000,NO_IDLE_RESCUE_COOLDOWN_MS=15*60*1000;
+const NO_IDLE_WINDOW_MS=60*60*1000,NO_IDLE_RESCUE_AFTER_MS=40*60*1000,NO_IDLE_RESCUE_COOLDOWN_MS=8*60*1000;
 function latestGenerationSuccessMs(status){
   const stamps=[status?.bulkLastSuccessAt,status?.lastSuccess].map(x=>Date.parse(x||'')).filter(Number.isFinite);
   return stamps.length?Math.max(...stamps):NaN;
 }
 function generationFreshnessSnapshot(status){
   const lastMs=latestGenerationSuccessMs(status),ageMs=Number.isFinite(lastMs)?Math.max(0,Date.now()-lastMs):null,ageMinutes=ageMs==null?null:Math.round(ageMs/6000)/10;
-  return {policy:'quality-gated-no-idle-v1',targetMaxIdleMinutes:60,rescueStartsAfterMinutes:45,rescueCooldownMinutes:15,lastSuccessfulPublishAt:Number.isFinite(lastMs)?new Date(lastMs).toISOString():null,minutesSinceLastSuccessfulPublish:ageMinutes,withinOneHour:ageMs==null?false:ageMs<NO_IDLE_WINDOW_MS,rescueDue:ageMs==null||ageMs>=NO_IDLE_RESCUE_AFTER_MS,lastRescueAt:status?.bulkNoIdleGuardLastRescueAt||null,lastRescueResult:status?.bulkNoIdleGuardLastRescueResult||null};
+  return {policy:'quality-gated-no-idle-v2',targetMaxIdleMinutes:60,rescueStartsAfterMinutes:40,rescueCooldownMinutes:8,rescueAttemptsBeforeHour:3,rescueQualityFloor:95,rescueMinWords:1500,lastSuccessfulPublishAt:Number.isFinite(lastMs)?new Date(lastMs).toISOString():null,minutesSinceLastSuccessfulPublish:ageMinutes,withinOneHour:ageMs==null?false:ageMs<NO_IDLE_WINDOW_MS,rescueDue:ageMs==null||ageMs>=NO_IDLE_RESCUE_AFTER_MS,lastRescueAt:status?.bulkNoIdleGuardLastRescueAt||null,lastRescueResult:status?.bulkNoIdleGuardLastRescueResult||null,lastRescueQuality:status?.lastRescueQuality??null,lastRescueWordCount:status?.lastRescueWordCount??null};
 }
 async function guardedBulkTick(env){
   const first=await bulkTick(env),skip=first?.skipped||first?.bulk?.skipped||first?.summary?.bulkLastSkipReason||null;
@@ -308,8 +309,8 @@ async function guardedBulkTick(env){
   const status=await getGeneratorStatus(env),fresh=generationFreshnessSnapshot(status),lastRescueMs=Date.parse(status.bulkNoIdleGuardLastRescueAt||''),cooldown=Number.isFinite(lastRescueMs)&&Date.now()-lastRescueMs<NO_IDLE_RESCUE_COOLDOWN_MS;
   if(!fresh.rescueDue||cooldown)return {first,rescue:null,guard:cooldown?'rescue_cooldown':'fresh'};
   await new Promise(resolve=>setTimeout(resolve,1200));
-  const rescue=await runOnce(env,{manual:false}),stamp=now(),result=rescue?.record?'published':String(rescue?.skipped||rescue?.error||'no_publish');
-  await updateGeneratorStatus(env,{bulkNoIdleGuardLastCheckAt:stamp,bulkNoIdleGuardLastRescueAt:stamp,bulkNoIdleGuardLastRescueResult:result});
+  const rescue=await runOnce(env,{manual:false,rescue:true}),stamp=now(),result=rescue?.record?'published':String(rescue?.skipped||rescue?.error||'no_publish');
+  await updateGeneratorStatus(env,{bulkNoIdleGuardLastCheckAt:stamp,bulkNoIdleGuardLastRescueAt:stamp,bulkNoIdleGuardLastRescueResult:result,bulkNoIdleGuardRescueAttempts:Number(status.bulkNoIdleGuardRescueAttempts||0)+1});
   return {first,rescue,guard:'rescue_attempted'};
 }
 

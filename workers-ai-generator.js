@@ -43,8 +43,8 @@ export function workersAiBudget(env,state,status={}){
 }
 
 function basePrompt(t,cfg,existing){
-  const market=t.country==='SA'?'saudi-arabia':'uae';
-  const target=Math.max(Number(cfg.minWords||1500)+200,Math.min(Number(cfg.targetWords||1500),1600));
+  const market=t.country==='SA'?'saudi-arabia':'uae',rescueMode=cfg?.rescueMode===true;
+  const target=rescueMode?1750:Math.max(Number(cfg.minWords||1500)+200,Math.min(Number(cfg.targetWords||1500),1600));
   return `اكتب نص HTML عربي كامل لمقال أصلي عالي الجودة لموقع كوبونات نون. أعد HTML فقط بدون JSON وبدون Markdown fences وبدون <html> أو <body> أو <script> أو <h1>.
 
 الدولة الوحيدة: ${t.countryName} (${t.country})
@@ -69,6 +69,7 @@ function basePrompt(t,cfg,existing){
 - أضف CTA فيه زر <button type="button" data-copy-code="${t.code}"> لنسخ الكود وتجربته.
 - لا تضف JSON-LD؛ النظام سيضيفه برمجيًا.
 - الحد الأدنى الفعلي ${cfg.minWords} كلمة والهدف قرابة ${target} كلمة، وممنوع تجاوز 2000 كلمة.
+${rescueMode?'- وضع الإنقاذ: لا تُنهِ المقال قبل 1650 كلمة مفيدة تقريبًا، ووزّع العمق على الأقسام بدل الحشو.':''}
 - اجعل النص عربيًا طبيعيًا وواضحًا، ولا تستخدم Lorem ipsum أو As an AI.
 - لا تستخدم تفكيرًا مطولًا أو مقدمة خارج المقال؛ ابدأ مباشرة بالمحتوى وأكمله للنهاية.
 
@@ -194,7 +195,7 @@ function repairPrompt(t,cfg,article,audit){
   return `أعد كتابة/توسيع/اختصار BODY HTML التالي لمقال نون بحيث يعالج هذه المشاكل فقط: ${failed}.
 أعد HTML BODY فقط بدون JSON وبدون <h1> وبدون <script>.
 الدولة الوحيدة ${t.countryName} (${t.country})، الكوبون الوحيد ${t.code}، الكلمة الأساسية ${t.kw}.
-ممنوع اختلاق نسبة خصم أو شروط. أزل أي متجر منافس، وأزل أي ذكر لسوق نون غير ${t.countryName}، وأزل أي كود NOV غير ${t.code}. المطلوب بين ${cfg.minWords} و2000 كلمة مفيدة، من 6 إلى 9 عناوين H2 فقط وبحد أقصى 10، واستخدم H3 للتفاصيل، مع FAQ وروابط داخلية ورابط Noon وCTA data-copy-code ومحتوى عربي طبيعي غير مكرر. لا تستخدم تفكيرًا مطولًا واكتب النسخة النهائية مباشرة.
+ممنوع اختلاق نسبة خصم أو شروط. أزل أي متجر منافس، وأزل أي ذكر لسوق نون غير ${t.countryName}، وأزل أي كود NOV غير ${t.code}. المطلوب ${cfg?.rescueMode?'بين 1650 و1850':'بين '+cfg.minWords+' و2000'} كلمة مفيدة، من 6 إلى 9 عناوين H2 فقط وبحد أقصى 10، واستخدم H3 للتفاصيل، مع FAQ وروابط داخلية ورابط Noon وCTA data-copy-code ومحتوى عربي طبيعي غير مكرر. لا تستخدم تفكيرًا مطولًا واكتب النسخة النهائية مباشرة.
 
 المحتوى الحالي:
 ${plain}`;
@@ -223,13 +224,15 @@ export async function generateWithWorkersAI(env,topic,cfg,state,attempt=0,status
       const retryingTechnical=Boolean(i>0&&!article&&lastError);
       const prompt=i===0?basePrompt(topic,cfg,existing):repairing?repairPrompt(topic,cfg,article,audit):retryPrompt(topic,cfg,existing,lastError);
       const selectedModel=retryingTechnical?budget.fallbackModel:budget.model;
-      const out=await callWorkers(env,prompt,{temperature:i===0?.34:.22,maxTokens:i===0?4800:5000,model:selectedModel});
+      const rescueMode=cfg?.rescueMode===true;
+      const out=await callWorkers(env,prompt,{temperature:i===0?(rescueMode?.28:.34):.20,maxTokens:i===0?(rescueMode?5600:4800):(rescueMode?6000:5000),model:selectedModel});
       article=buildArticle(out.html,topic);
       audit=strictAudit(article,topic,cfg,auditGenerated(article,topic,cfg));
       provider=i===0?out.provider:repairing?`${provider} + repair:${out.provider}`:out.provider;
       if(audit.productionReady)break;
       lastError='quality_gate_'+audit.score+'_words_'+audit.wordCount;
-      const repairWorthIt=i===0&&budget.callRemaining>=2&&audit.wordCount>=850&&audit.wordCount<=2100&&Number(audit.score||0)>=90;
+      const rescueMode=cfg?.rescueMode===true,repairFloor=rescueMode?80:90;
+      const repairWorthIt=i===0&&budget.callRemaining>=2&&audit.wordCount>=800&&audit.wordCount<=2100&&Number(audit.score||0)>=repairFloor;
       if(!repairWorthIt)break;
     }catch(e){
       lastError=String(e?.message||e);
@@ -241,5 +244,5 @@ export async function generateWithWorkersAI(env,topic,cfg,state,attempt=0,status
   }
 
   if(!article){const err=new Error(lastError||'workers_ai_no_article');err.workersAiCallsUsed=callsUsed;throw err}
-  return {article,audit,provider,keysReady:true,workersAI:true,budget,callsUsed,repairUsed:callsUsed>1,lastProviderError:lastError&&!audit?.productionReady?lastError:null};
+  return {article,audit,provider,keysReady:true,workersAI:true,budget,callsUsed,repairUsed:callsUsed>1,rescueMode:cfg?.rescueMode===true,lastProviderError:lastError&&!audit?.productionReady?lastError:null};
 }

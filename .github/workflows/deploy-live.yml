@@ -83,6 +83,10 @@ jobs:
           grep -Fq '/sitemap-core.xml' discovery-entry.js
           grep -Fq '/sitemap-images.xml' discovery-entry.js
           grep -Fq '/api/generation-freshness' auto-platform.js
+          grep -Fq 'pickRescueTopic' generator-core-v2.js
+          grep -Fq "policy:'quality-gated-no-idle-v2'" auto-platform.js
+          grep -Fq "rescueMode:true" auto-platform.js
+          grep -Fq 'repairFloor=rescueMode?80:90' workers-ai-generator.js
           grep -Fq '/llms-full.txt' final-platform.js
           grep -Fq 'global_title_cannibalization' quality-index.js
           grep -Fq 'hubOwnedHeadTermsBlocked:true' english-canary.js
@@ -155,7 +159,7 @@ jobs:
           jq -e '[.rows[]|select(.status!=200 or .ok!=true)]|length==0' /tmp/sitemap-health.json >/dev/null
 
           get_ok '/api/generation-freshness' /tmp/fresh.json /tmp/fresh.h
-          jq -e '.ok==true and .targetMaxIdleMinutes==60 and .rescueStartsAfterMinutes==45' /tmp/fresh.json >/dev/null
+          jq -e '.ok==true and .targetMaxIdleMinutes==60 and .rescueStartsAfterMinutes==40 and .rescueCooldownMinutes==8 and .rescueAttemptsBeforeHour==3 and .rescueQualityFloor==95 and .rescueMinWords==1500' /tmp/fresh.json >/dev/null
 
           campaign_health_ok=0
           for i in $(seq 1 8); do
