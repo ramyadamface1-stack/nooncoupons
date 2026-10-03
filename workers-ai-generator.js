@@ -231,7 +231,7 @@ export async function generateWithWorkersAI(env,topic,cfg,state,attempt=0,status
       provider=i===0?out.provider:repairing?`${provider} + repair:${out.provider}`:out.provider;
       if(audit.productionReady)break;
       lastError='quality_gate_'+audit.score+'_words_'+audit.wordCount;
-      const rescueMode=cfg?.rescueMode===true,repairFloor=rescueMode?80:90;
+      const repairFloor=rescueMode?80:90;
       const repairWorthIt=i===0&&budget.callRemaining>=2&&audit.wordCount>=800&&audit.wordCount<=2100&&Number(audit.score||0)>=repairFloor;
       if(!repairWorthIt)break;
     }catch(e){
