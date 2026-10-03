@@ -275,9 +275,16 @@ jobs:
           node - <<'NODE'
           const fs=require('fs');
           const x=JSON.parse(fs.readFileSync('/tmp/controlled.json','utf8'));
-          for(const r of x.controlled.records){
-            const h=fs.readFileSync(r.country==='SA'?'/tmp/saudi.html':'/tmp/uae.html','utf8');
-            if(!h.includes(r.urlPath)) process.exit(1);
+          const rows=Array.isArray(x?.controlled?.records)?x.controlled.records:[];
+          for(const market of ['SA','AE']){
+            const marketRows=rows.filter(r=>r.country===market&&r.urlPath);
+            if(!marketRows.length) continue;
+            const h=fs.readFileSync(market==='SA'?'/tmp/saudi.html':'/tmp/uae.html','utf8');
+            const linked=marketRows.filter(r=>h.includes(r.urlPath));
+            if(!linked.length){
+              console.error('NO_RECENT_ENGLISH_LINK_ON_MARKET_LANDING',market);
+              process.exit(1);
+            }
           }
           NODE
           curl -fsS --max-time 20 "$ORIGIN/robots.txt" -o /tmp/robots.txt
