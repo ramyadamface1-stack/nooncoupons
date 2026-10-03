@@ -33,12 +33,12 @@ jobs:
           grep -Fq 'x-alt-fallback' network-entry.js
           grep -Fq 'x-external-link-safety' network-entry.js
           echo CHECK_BULK_TARGET; grep -Fq '"BULK_DAILY_TARGET": "12000"' wrangler.jsonc
-          echo CHECK_BULK_BATCH; grep -Fq '"BULK_BATCH_SIZE": "9"' wrangler.jsonc
+          echo CHECK_BULK_BATCH; grep -Fq '"BULK_BATCH_SIZE": "46"' wrangler.jsonc
           echo CHECK_CATCHUP_TOTAL; grep -Fq '"BULK_CATCHUP_TOTAL": "30000"' wrangler.jsonc
           echo CHECK_CATCHUP_BATCH; grep -Fq '"BULK_CATCHUP_BATCH_SIZE": "64"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_MIN_BATCH_SIZE": "32"' wrangler.jsonc
           grep -Fq '"BULK_CATCHUP_TARGET_BATCH_MS": "52000"' wrangler.jsonc
-          grep -Fq '"BULK_CANDIDATE_BUDGET_MS": "45000"' wrangler.jsonc
+          grep -Fq '"BULK_CANDIDATE_BUDGET_MS": "12000"' wrangler.jsonc
           grep -Fq 'chooseAdaptiveBulkBatch' admin-runtime.js
           echo CHECK_CATCHUP_WINDOW; grep -Fq '"BULK_CATCHUP_WINDOW_HOURS": "8"' wrangler.jsonc
           echo CHECK_CATCHUP_LOGIC
@@ -53,10 +53,16 @@ jobs:
           echo CHECK_QUALITY_THRESHOLD; grep -Fq '"QUALITY_PUBLISH_THRESHOLD": "95"' wrangler.jsonc
           echo CHECK_MIN_WORDS; grep -Fq '"MIN_ARTICLE_WORDS": "1500"' wrangler.jsonc
           echo CHECK_INDEXNOW_ENABLED; grep -Fq '"INDEXNOW_ENABLED": "true"' wrangler.jsonc
-          echo CHECK_CRON; grep -Fq '"* * * * *"' wrangler.jsonc
+          echo CHECK_CRON; grep -Fq '"*/5 * * * *"' wrangler.jsonc
           grep -Fq '"ENGLISH_DAILY_TARGET": "8000"' wrangler.jsonc
-          grep -Fq '"ENGLISH_BATCH_SIZE": "6"' wrangler.jsonc
+          grep -Fq '"ENGLISH_BATCH_SIZE": "24"' wrangler.jsonc
           grep -Fq '"R2_SAVER_MODE": "true"' wrangler.jsonc
+          grep -Fq '"CPU_SAVER_MODE": "true"' wrangler.jsonc
+          grep -Fq '"ENGLISH_CPU_BUDGET_MS": "12000"' wrangler.jsonc
+          grep -Fq '"head_sampling_rate": 0.05' wrangler.jsonc
+          grep -Fq 'cpuEarlyExitExactCollisions:true' quality-index.js
+          grep -Fq 'lowYieldCandidateThrottle:true' bulk-generator.js
+          grep -Fq 'cpuSaverMode:true' english-canary.js
           grep -Fq '"R2_CLUSTER_FLUSH_MINUTES": "30"' wrangler.jsonc
           grep -Fq '"R2_DAYS_INDEX_FLUSH_MINUTES": "10"' wrangler.jsonc
           grep -Fq "operationalStateBackend:'durable-object'" bulk-generator.js
@@ -75,7 +81,7 @@ jobs:
           grep -Fq 'parallelCatalogShards:true' bulk-generator.js
           grep -Fq 'batchStageTelemetry:true' bulk-generator.js
           grep -Fq 'candidateTimeBudget:true' bulk-generator.js
-          grep -Fq 'defaultCandidateBudgetMs:42000' bulk-generator.js
+          grep -Fq 'defaultCandidateBudgetMs:12000' bulk-generator.js
           grep -Fq 'semanticPreAudit:true' bulk-generator.js
           grep -Fq 'cooperativeYieldEveryTries:8' bulk-generator.js
           grep -Fq 'preAuditSemanticGate' quality-audit.js
@@ -106,7 +112,7 @@ jobs:
             fetch "$ORIGIN/api/generator-health?v=brand-v1-$i" /tmp/generator.json 2>/dev/null || true
             fetch "$ORIGIN/api/commerce-health?v=brand-v1-$i" /tmp/commerce.json 2>/dev/null || true
             fetch "$ORIGIN/api/content-stats?v=brand-v1-$i" /tmp/stats.json 2>/dev/null || true
-            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); s=json.load(open('/tmp/stats.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert s.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==12000; assert int(b.get('batchSize') or 0)==9; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert int(p.get('effectiveBatchSize') or 0)==9; assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0); assert int(p.get('targetBatchDurationMs') or 0)==52000; assert int(p.get('windowHours') or 0)==8; assert int(s.get('dailyTargetArabic') or 0)==12000" 2>/dev/null; then
+            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); s=json.load(open('/tmp/stats.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert s.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==12000; assert int(b.get('batchSize') or 0)==46; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert int(p.get('effectiveBatchSize') or 0)==46; assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0); assert int(p.get('targetBatchDurationMs') or 0)==52000; assert int(p.get('windowHours') or 0)==8; assert int(s.get('dailyTargetArabic') or 0)==12000" 2>/dev/null; then
               ready=1
               echo "RUNTIME_READY attempt=$i"
               break
@@ -189,7 +195,7 @@ jobs:
           assert gt.get('mode')=='explicit-generator-taxonomy' and gt.get('internalLinks') is True, 'generator taxonomy'
           assert gt.get('metadata')==['categoryKey','brandKey','modelKey','comparisonKey','landingPath'], 'metadata contract'
           assert int(lc.get('minWords') or 0)>=5000 and lc.get('seo') is True and lc.get('geoAeo') is True and lc.get('eeat') is True, 'landing quality contract'
-          assert int(b.get('dailyTarget') or 0)==12000 and int(b.get('batchSize') or 0)==9, 'bulk target/batch'
+          assert int(b.get('dailyTarget') or 0)==12000 and int(b.get('batchSize') or 0)==46, 'bulk target/batch'
           p=b.get('catchupPlan') or {}
           assert int(p.get('target') or 0)==30000 and int(p.get('catchupBatchSize') or 0)==64 and int(p.get('windowHours') or 0)==8, '30k catchup plan'
           if int(p.get('remaining') or 0)>0:
