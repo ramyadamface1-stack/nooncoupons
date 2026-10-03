@@ -22,19 +22,19 @@ jobs:
           node --check discovery-entry.js
           node --check commerce-entry.js
           grep -Fq "englishSchedulerOwner:true" discovery-entry.js
-          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:24,timeBudgetMs:45000})" auto-platform.js
+          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:Number(env.ENGLISH_BATCH_SIZE||24),timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)})" auto-platform.js
           grep -Fq "englishSchedulerPriority:'english-uae-core-cron-deadline-safe'" discovery-entry.js
           grep -Fq 'englishSchedulerEffectiveBatch:24' discovery-entry.js
-          grep -Fq 'englishSchedulerTimeBudgetMs:45000' discovery-entry.js
+          grep -Fq 'englishSchedulerTimeBudgetMs:12000' discovery-entry.js
           grep -Fq "englishSchedulerOwner:false" commerce-entry.js
           node --check english-canary-repair.js
           node --check bulk-content-engine.js
           node --check bulk-content-engine-base.js
           grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
           grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "50000"' wrangler.jsonc
-          grep -Fq '"ENGLISH_DAILY_TARGET": "34560"' wrangler.jsonc
+          grep -Fq '"ENGLISH_DAILY_TARGET": "8000"' wrangler.jsonc
           grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "1"' wrangler.jsonc
-          grep -Fq '"ENGLISH_BATCH_SIZE": "24"' wrangler.jsonc
+          grep -Fq '"ENGLISH_BATCH_SIZE": "23"' wrangler.jsonc
           grep -Fq 'function batchSizeFromEnv(env)' english-canary.js
           grep -Fq 'defaultBatchPerTick:24' english-canary.js
           grep -Fq 'const MAX_CONTROLLED_TOTAL=50000;' english-canary.js
@@ -42,7 +42,7 @@ jobs:
           grep -Fq 'const PROFILE_MAX_PER_BATCH=16;' english-canary.js
           grep -Fq 'const INTENT_MAX_PER_BATCH=6;' english-canary.js
           grep -Fq 'const DIVERSITY_WINDOW=24;' english-canary.js
-          grep -Fq 'const MAX_SCAN=1200;' english-canary.js
+          grep -Fq 'const MAX_SCAN=500;' english-canary.js
           grep -Fq 'async function r2HeadSafe' english-canary.js
           grep -Fq 'r2HeadRateLimitFailClosed:true' english-canary.js
           grep -Fq 'r2HeadInternalError10001Retry:true' english-canary.js
@@ -53,7 +53,7 @@ jobs:
           grep -Fq 'englishRelatedArticles:6' english-canary.js
           grep -Fq 'id="english-related-network"' english-canary.js
           grep -Fq 'stateCompaction:true' english-canary.js
-          grep -Fq 'schedulerTimeBudgetMs:45000' english-canary.js
+          grep -Fq 'schedulerTimeBudgetMs:12000' english-canary.js
           grep -Fq 'highDemandShareTarget:100' english-canary.js
           grep -Fq 'goldenHeadShareTarget:70' english-canary.js
           grep -Fq 'commercialSeedShareTarget:100' english-canary.js
@@ -102,7 +102,7 @@ jobs:
           grep -Fq 'queryModifier:null' bulk-content-engine.js
           grep -Fq 'duplicateContinuation:true' english-canary.js
           grep -Fq "duplicateContinuation=result?.duplicate===true||result?.error==='r2_conditional_duplicate'" english-canary.js
-          grep -Fq 'Math.min(36,effective*3)' english-canary.js
+          grep -Fq 'Math.min(24,effective*2)' english-canary.js
           grep -Fq "'Noon discount code UAE'" bulk-content-engine.js
           grep -Fq "'Noon promo code UAE'" bulk-content-engine.js
           grep -Fq "'Noon coupon eligibility UAE'" bulk-content-engine.js
@@ -180,8 +180,8 @@ jobs:
             }
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 &&
               c.target===50000 && c.targetMarket==='AE' && c.marketPolicy==='uae-only-new-v6-batch24' && Number(c.published)>=2 && Number(c.published)<=50000 &&
-              Number(c.remaining)===50000-Number(c.published) && Number(c.dailyTarget)===34560 &&
-              Number(c.minIntervalMinutes)===1 && Number(c.batchSize)===24 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=34560 &&
+              Number(c.remaining)===50000-Number(c.published) && Number(c.dailyTarget)===8000 &&
+              Number(c.minIntervalMinutes)===1 && Number(c.batchSize)===23 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=8000 &&
               Number(c.recordsTotal)===Number(c.published) && rows.length===Number(c.sampleSize) && rows.length>=2 && rows.length<=50 &&
               c.samplePolicy==='canaries-plus-latest-48' && Number(c.r2SampleChecked)===rows.length && Number(c.r2SampleMissing)===0 && Number(c.uniqueProfiles)>=Math.min(7,Number(c.published)) &&
               new Set(slugs).size===rows.length && new Set(keywords).size===rows.length && canaries.length===2 && expanded.length===rows.length-2 &&

@@ -25,9 +25,9 @@ jobs:
           node --check public-entry.js
           grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
           grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "50000"' wrangler.jsonc
-          grep -Fq '"ENGLISH_DAILY_TARGET": "34560"' wrangler.jsonc
+          grep -Fq '"ENGLISH_DAILY_TARGET": "8000"' wrangler.jsonc
           grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "1"' wrangler.jsonc
-          grep -Fq '"ENGLISH_BATCH_SIZE": "24"' wrangler.jsonc
+          grep -Fq '"ENGLISH_BATCH_SIZE": "23"' wrangler.jsonc
           grep -Fq 'defaultBatchPerTick:24' english-canary.js
           grep -Fq 'const MAX_CONTROLLED_TOTAL=50000;' english-canary.js
           grep -Fq 'const PROFILE_DIVERSITY_SLOTS=16;' english-canary.js
@@ -60,7 +60,7 @@ jobs:
             const rows=Array.isArray(x.records)?x.records:[];
             const controlled=x.controlled||{};
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 && rows.length===2 &&
-              Number(controlled.target)===50000 && controlled.targetMarket==='AE' && controlled.marketPolicy==='uae-only-new-v6-batch24' && Number(controlled.published)>=2 && Number(controlled.published)<=50000 && Number(controlled.dailyTarget)===34560 && Number(controlled.minIntervalMinutes)===1 && Number(controlled.batchSize)===24 &&
+              Number(controlled.target)===50000 && controlled.targetMarket==='AE' && controlled.marketPolicy==='uae-only-new-v6-batch24' && Number(controlled.published)>=2 && Number(controlled.published)<=50000 && Number(controlled.dailyTarget)===8000 && Number(controlled.minIntervalMinutes)===1 && Number(controlled.batchSize)===23 &&
               new Set(rows.map(r=>r.slug)).size===2 &&
               rows.every(r=>r.r2Present===true && r.language==='en' && r.languageIntent==='en' &&
                 r.languageSource==='native-intent-v6-canary' && r.canary===true && (!r.phase || r.phase==='canary') &&
