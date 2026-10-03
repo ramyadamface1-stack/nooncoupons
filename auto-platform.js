@@ -304,14 +304,16 @@ function generationFreshnessSnapshot(status){
   return {policy:'quality-gated-no-idle-v2',targetMaxIdleMinutes:60,rescueStartsAfterMinutes:40,rescueCooldownMinutes:8,rescueAttemptsBeforeHour:3,rescueQualityFloor:95,rescueMinWords:1500,lastSuccessfulPublishAt:Number.isFinite(lastMs)?new Date(lastMs).toISOString():null,minutesSinceLastSuccessfulPublish:ageMinutes,withinOneHour:ageMs==null?false:ageMs<NO_IDLE_WINDOW_MS,rescueDue:ageMs==null||ageMs>=NO_IDLE_RESCUE_AFTER_MS,lastRescueAt:status?.bulkNoIdleGuardLastRescueAt||null,lastRescueResult:status?.bulkNoIdleGuardLastRescueResult||null,lastRescueQuality:status?.lastRescueQuality??null,lastRescueWordCount:status?.lastRescueWordCount??null};
 }
 async function guardedBulkTick(env){
+  const statusBefore=await getGeneratorStatus(env),freshBefore=generationFreshnessSnapshot(statusBefore),lastRescueMs=Date.parse(statusBefore.bulkNoIdleGuardLastRescueAt||''),cooldown=Number.isFinite(lastRescueMs)&&Date.now()-lastRescueMs<NO_IDLE_RESCUE_COOLDOWN_MS;
+  if(freshBefore.rescueDue&&!cooldown){
+    const rescue=await runOnce(env,{manual:false,rescue:true}),stamp=now(),result=rescue?.record?'published':String(rescue?.skipped||rescue?.error||'no_publish');
+    await updateGeneratorStatus(env,{bulkNoIdleGuardLastCheckAt:stamp,bulkNoIdleGuardLastRescueAt:stamp,bulkNoIdleGuardLastRescueResult:result,bulkNoIdleGuardRescueAttempts:Number(statusBefore.bulkNoIdleGuardRescueAttempts||0)+1});
+    if(rescue?.record)return {first:null,rescue,guard:'rescue_published_bulk_deferred'};
+  }
   const first=await bulkTick(env),skip=first?.skipped||first?.bulk?.skipped||first?.summary?.bulkLastSkipReason||null;
   if(['bulk_already_running','daily_target_reached','bulk_paused','corpus_audit_in_progress'].includes(String(skip||'')))return {first,rescue:null,guard:'blocked_by_runtime_state'};
-  const status=await getGeneratorStatus(env),fresh=generationFreshnessSnapshot(status),lastRescueMs=Date.parse(status.bulkNoIdleGuardLastRescueAt||''),cooldown=Number.isFinite(lastRescueMs)&&Date.now()-lastRescueMs<NO_IDLE_RESCUE_COOLDOWN_MS;
-  if(!fresh.rescueDue||cooldown)return {first,rescue:null,guard:cooldown?'rescue_cooldown':'fresh'};
-  await new Promise(resolve=>setTimeout(resolve,1200));
-  const rescue=await runOnce(env,{manual:false,rescue:true}),stamp=now(),result=rescue?.record?'published':String(rescue?.skipped||rescue?.error||'no_publish');
-  await updateGeneratorStatus(env,{bulkNoIdleGuardLastCheckAt:stamp,bulkNoIdleGuardLastRescueAt:stamp,bulkNoIdleGuardLastRescueResult:result,bulkNoIdleGuardRescueAttempts:Number(status.bulkNoIdleGuardRescueAttempts||0)+1});
-  return {first,rescue,guard:'rescue_attempted'};
+  const statusAfter=await getGeneratorStatus(env),freshAfter=generationFreshnessSnapshot(statusAfter);
+  return {first,rescue:null,guard:freshAfter.rescueDue?'rescue_attempted_before_bulk':'fresh'};
 }
 
 export default{
