@@ -10,7 +10,7 @@
   "minify": true,
   "triggers": {
     "crons": [
-      "*/5 * * * *"
+      "*/4 * * * *"
     ]
   },
   "vars": {
@@ -24,7 +24,7 @@
     "WORKERS_AI_DAILY_CAP": "60",
     "WORKERS_AI_DAILY_CALL_CAP": "80",
     "BULK_DAILY_TARGET": "12000",
-    "BULK_BATCH_SIZE": "46",
+    "BULK_BATCH_SIZE": "34",
     "BULK_CATCHUP_TOTAL": "30000",
     "BULK_CATCHUP_BATCH_SIZE": "64",
     "BULK_CATCHUP_MIN_BATCH_SIZE": "32",
@@ -39,7 +39,7 @@
     "ENGLISH_CONTROLLED_TOTAL": "50000",
     "ENGLISH_DAILY_TARGET": "8000",
     "ENGLISH_MIN_INTERVAL_MINUTES": "1",
-    "ENGLISH_BATCH_SIZE": "24",
+    "ENGLISH_BATCH_SIZE": "23",
     "AUTO_REPAIR_ROUNDS": "1",
     "INDEXNOW_ENABLED": "true",
     "R2_SAVER_MODE": "true",
