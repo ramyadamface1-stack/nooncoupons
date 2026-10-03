@@ -133,8 +133,8 @@ jobs:
           try{
             const x=JSON.parse(fs.readFileSync('/tmp/repair.json','utf8'));
             const q=x.qualityMarker||{};
-            const pass=x.ok===true && x.version==='english-copy-v2' && Number(x.totalStateRecords)>=2 &&
-              x.controlledQualityClean===true && x.stateClean===true && x.r2MetadataClean===true &&
+            const pass=x.ok===true && x.version==='english-copy-v3-health' && Number(x.totalStateRecords)>=2 &&
+              x.controlledQualityClean===true && x.stateClean===true && x.r2HtmlClean===true && x.r2MetadataMismatchIsDiagnostic===true &&
               x.r2SamplePolicy==='canaries-plus-latest-64' && Number(x.r2SampleSize)>=2 && Number(x.r2SampleSize)<=66 &&
               Array.isArray(x.unexpectedEnglishRecords) && x.unexpectedEnglishRecords.length===0 &&
               Array.isArray(x.unapprovedCouponRecords) && x.unapprovedCouponRecords.length===0 &&
