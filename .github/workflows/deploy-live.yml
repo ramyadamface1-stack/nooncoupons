@@ -63,8 +63,8 @@ jobs:
           grep -Fq '"ENGLISH_DAILY_TARGET": "8000"' wrangler.jsonc
           grep -Fq '"ENGLISH_BATCH_SIZE": "6"' wrangler.jsonc
           grep -Fq '"R2_SAVER_MODE": "true"' wrangler.jsonc
-          grep -Fq '"R2_CLUSTER_FLUSH_MINUTES": "15"' wrangler.jsonc
-          grep -Fq '"R2_DAYS_INDEX_FLUSH_MINUTES": "5"' wrangler.jsonc
+          grep -Fq '"R2_CLUSTER_FLUSH_MINUTES": "30"' wrangler.jsonc
+          grep -Fq '"R2_DAYS_INDEX_FLUSH_MINUTES": "10"' wrangler.jsonc
           grep -Fq "operationalStateBackend:'durable-object'" bulk-generator.js
           grep -Fq "englishStateWritesPerBatch:1" english-canary.js
           grep -Fq "stateBackend:'durable-object'" indexnow.js
