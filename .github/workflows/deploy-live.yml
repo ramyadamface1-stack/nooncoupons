@@ -58,15 +58,15 @@ jobs:
           npx wrangler deploy --dry-run --outdir /tmp/wrangler-dry
           grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "12000"' wrangler.jsonc
-          grep -Fq '"BULK_BATCH_SIZE": "46"' wrangler.jsonc
+          grep -Fq '"BULK_BATCH_SIZE": "34"' wrangler.jsonc
           grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "1"' wrangler.jsonc
           grep -Fq '"ENGLISH_DAILY_TARGET": "8000"' wrangler.jsonc
-          grep -Fq '"ENGLISH_BATCH_SIZE": "24"' wrangler.jsonc
+          grep -Fq '"ENGLISH_BATCH_SIZE": "23"' wrangler.jsonc
           grep -Fq '"R2_SAVER_MODE": "true"' wrangler.jsonc
           grep -Fq '"CPU_SAVER_MODE": "true"' wrangler.jsonc
           grep -Fq '"BULK_CANDIDATE_BUDGET_MS": "12000"' wrangler.jsonc
           grep -Fq '"ENGLISH_CPU_BUDGET_MS": "12000"' wrangler.jsonc
-          grep -Fq '"*/5 * * * *"' wrangler.jsonc
+          grep -Fq '"*/4 * * * *"' wrangler.jsonc
           grep -Fq '"head_sampling_rate": 0.05' wrangler.jsonc
           grep -Fq 'cpuEarlyExitExactCollisions:true' quality-index.js
           grep -Fq 'lowYieldCandidateThrottle:true' bulk-generator.js
