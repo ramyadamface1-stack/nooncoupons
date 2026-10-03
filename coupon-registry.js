@@ -55,6 +55,14 @@ export function injectCouponFreshness(article,status){
 
 export async function writeCouponFreshnessSnapshot(env,at=new Date()){
   if(!env?.CONTENT_FINAL)return null;
+  const intervalMs=Math.max(5,Number(env.R2_COUPON_FRESHNESS_MINUTES||60))*60000,key='freshness/coupon-registry-status.json';
+  try{
+    const existing=await env.CONTENT_FINAL.get(key);
+    if(existing){
+      const current=await existing.json(),generated=Date.parse(current?.generatedAt||'');
+      if(Number.isFinite(generated)&&at.getTime()-generated<intervalMs)return {...current,writeSkipped:true};
+    }
+  }catch{}
   const rows=[];
   for(const code of CODES){
     for(const country of ['SA','AE'])rows.push(couponStatus({code,country},at));
@@ -72,8 +80,8 @@ export async function writeCouponFreshnessSnapshot(env,at=new Date()){
     blocked:rows.filter(x=>!x.publishAllowed).length,
     rows
   };
-  await env.CONTENT_FINAL.put('freshness/coupon-registry-status.json',JSON.stringify(summary),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+  await env.CONTENT_FINAL.put(key,JSON.stringify(summary),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
   return summary;
 }
 
-export const COUPON_REGISTRY_INFO={version:REGISTRY_VERSION,codes:CODES.length,reviewAfterDays:REVIEW_AFTER_DAYS,blockAfterDays:BLOCK_AFTER_DAYS,catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,officialVerification:false,approvedCodeCopyEnforcement:true};
+export const COUPON_REGISTRY_INFO={version:REGISTRY_VERSION,codes:CODES.length,reviewAfterDays:REVIEW_AFTER_DAYS,blockAfterDays:BLOCK_AFTER_DAYS,catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,officialVerification:false,approvedCodeCopyEnforcement:true,r2SaverMode:true,defaultSnapshotMinutes:60};
