@@ -5,6 +5,26 @@ const MAX_CLUSTER_ENTRIES=25000;
 const MAX_RELATED=6;
 const BOOTSTRAP_MAX_DAYS=90;
 const STOP=new Set(['من','على','في','الى','إلى','عن','مع','عند','قبل','بعد','نون','السعودية','الامارات','الإمارات','كود','خصم','طريقة','شراء','استخدام','دليل','هل','يعمل']);
+const CLUSTER_CPU_INDEX=new WeakMap();
+function cpuBucketKey(x){return String(x?.intent||'')+'|'+campaignIntentDimension(x)}
+function clusterCpuIndex(cluster){
+  if(!cluster||typeof cluster!=='object')return null;
+  const entries=Array.isArray(cluster.entries)?cluster.entries:[];
+  const cached=CLUSTER_CPU_INDEX.get(cluster);
+  if(cached&&cached.entries===entries&&cached.length===entries.length)return cached;
+  const idx={entries,length:entries.length,slugs:new Set(),keywords:new Set(),titles:new Set(),intentKeys:new Set(),ownerKeys:new Set(),buckets:new Map()};
+  for(const e of entries){
+    if(!e)continue;
+    if(e.slug)idx.slugs.add(String(e.slug));
+    if(e.primaryKeyword)idx.keywords.add(norm(e.primaryKeyword));
+    if(e.title)idx.titles.add(norm(e.title));
+    if(e.intentKey)idx.intentKeys.add(e.intentKey);
+    idx.ownerKeys.add(e.ownerIntentKey||intentOwnerKey(e));
+    const k=cpuBucketKey(e),arr=idx.buckets.get(k);if(arr)arr.push(e);else idx.buckets.set(k,[e]);
+  }
+  CLUSTER_CPU_INDEX.set(cluster,idx);return idx;
+}
+
 
 const now=()=>new Date().toISOString();
 const norm=s=>String(s||'').toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[إأآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').replace(/\s+/g,' ').trim();
@@ -107,51 +127,55 @@ export async function bootstrapGlobalIndex(env){
 }
 
 export function preflightGlobalGate(topic,cluster){
-  const entries=Array.isArray(cluster?.entries)?cluster.entries:[],kw=norm(topic?.kw||''),slug=String(topic?.slug||''),ik=intentKey(topic),owner=intentOwnerKey(topic);
+  const entries=Array.isArray(cluster?.entries)?cluster.entries:[],idx=clusterCpuIndex(cluster),kw=norm(topic?.kw||''),slug=String(topic?.slug||''),ik=intentKey(topic),owner=intentOwnerKey(topic),reasons=[];
+  if(idx){
+    if(slug&&idx.slugs.has(slug))reasons.push('global_duplicate_slug');
+    if(kw&&idx.keywords.has(kw))reasons.push('global_duplicate_keyword');
+    if(idx.intentKeys.has(ik))reasons.push('global_duplicate_intent');
+    if(idx.ownerKeys.has(owner))reasons.push('global_intent_owner_collision');
+    if(reasons.length)return {pass:false,reasons,maxKeywordSimilarity:0,nearestSlug:null,indexSize:entries.length,intentKey:ik,ownerIntentKey:owner,stage:'preflight',cpuIndexedLookup:true};
+  }
   let maxKeywordSimilarity=0,nearest=null;
-  for(const e of entries){
+  const candidates=idx?(idx.buckets.get(cpuBucketKey(topic))||[]):entries;
+  for(const e of candidates){
     if(!e)continue;
-    const exactReasons=[];
-    if(slug&&String(e.slug||'')===slug)exactReasons.push('global_duplicate_slug');
-    if(kw&&norm(e.primaryKeyword||'')===kw)exactReasons.push('global_duplicate_keyword');
-    if(e.intentKey&&e.intentKey===ik)exactReasons.push('global_duplicate_intent');
-    if((e.ownerIntentKey||intentOwnerKey(e))===owner)exactReasons.push('global_intent_owner_collision');
-    if(exactReasons.length)return {pass:false,reasons:exactReasons,maxKeywordSimilarity:0,nearestSlug:e.slug||null,indexSize:entries.length,intentKey:ik,ownerIntentKey:owner,stage:'preflight',cpuEarlyExit:true};
     const sameContext=(!e.country||e.country===topic?.country)&&(!e.category||e.category===topic?.category)&&campaignIntentDimension(e)===campaignIntentDimension(topic);
     if(sameContext&&(!e.intent||e.intent===topic?.intent)){
       const s=keywordSimilarity(topic?.kw||'',e.primaryKeyword||'');
       if(s>maxKeywordSimilarity){maxKeywordSimilarity=s;nearest=e}
     }
   }
-  const cannibalization=maxKeywordSimilarity>=0.78,reasons=[];
+  const cannibalization=maxKeywordSimilarity>=0.78;
   if(cannibalization)reasons.push('global_keyword_cannibalization');
-  return {pass:reasons.length===0,reasons,maxKeywordSimilarity:Math.round(maxKeywordSimilarity*1000)/1000,nearestSlug:nearest?.slug||null,indexSize:entries.length,intentKey:ik,ownerIntentKey:owner,stage:'preflight'};
+  return {pass:reasons.length===0,reasons,maxKeywordSimilarity:Math.round(maxKeywordSimilarity*1000)/1000,nearestSlug:nearest?.slug||null,indexSize:entries.length,intentKey:ik,ownerIntentKey:owner,stage:'preflight',cpuIndexedLookup:Boolean(idx)};
 }
 
 export function globalGate(article,topic,audit,cluster){
-  const entries=Array.isArray(cluster?.entries)?cluster.entries:[],kw=norm(article?.primaryKeyword||topic?.kw||''),slug=String(article?.slug||''),title=norm(article?.title||''),ik=intentKey(topic),owner=intentOwnerKey(topic);
-  let maxKeywordSimilarity=0,maxTitleSimilarity=0,minDistance=32,nearest=null;
-  for(const e of entries){
-    if(!e)continue;
-    const exactReasons=[];
-    if(String(e.slug||'')===slug)exactReasons.push('global_duplicate_slug');
-    if(kw&&norm(e.primaryKeyword||'')===kw)exactReasons.push('global_duplicate_keyword');
-    if(title&&norm(e.title||'')===title)exactReasons.push('global_duplicate_title');
-    if(e.intentKey&&e.intentKey===ik)exactReasons.push('global_duplicate_intent');
-    if((e.ownerIntentKey||intentOwnerKey(e))===owner)exactReasons.push('global_intent_owner_collision');
-    if(exactReasons.length)return {pass:false,reasons:exactReasons,minDistance:32,maxKeywordSimilarity:0,maxTitleSimilarity:0,nearestSlug:e.slug||null,indexSize:entries.length,intentKey:ik,ownerIntentKey:owner,cpuEarlyExit:true};
-    const sameContext=(!e.country||e.country===topic?.country)&&(!e.category||e.category===topic?.category)&&campaignIntentDimension(e)===campaignIntentDimension(topic);
-    if(sameContext&&(!e.intent||e.intent===topic?.intent)){const ks=keywordSimilarity(article?.primaryKeyword||topic?.kw,e.primaryKeyword||'');if(ks>maxKeywordSimilarity){maxKeywordSimilarity=ks;nearest=e}const ts=keywordSimilarity(article?.title||'',e.title||'');if(ts>maxTitleSimilarity){maxTitleSimilarity=ts;nearest=e}}
-    if(sameContext&&(!e.intent||e.intent===topic?.intent)&&e.signature&&audit?.signature){const d=signatureDistance(audit.signature,e.signature);if(d<minDistance){minDistance=d;nearest=e}}
+  const entries=Array.isArray(cluster?.entries)?cluster.entries:[],idx=clusterCpuIndex(cluster),kw=norm(article?.primaryKeyword||topic?.kw||''),slug=String(article?.slug||''),title=norm(article?.title||''),ik=intentKey(topic),owner=intentOwnerKey(topic),reasons=[];
+  if(idx){
+    if(slug&&idx.slugs.has(slug))reasons.push('global_duplicate_slug');
+    if(kw&&idx.keywords.has(kw))reasons.push('global_duplicate_keyword');
+    if(title&&idx.titles.has(title))reasons.push('global_duplicate_title');
+    if(idx.intentKeys.has(ik))reasons.push('global_duplicate_intent');
+    if(idx.ownerKeys.has(owner))reasons.push('global_intent_owner_collision');
+    if(reasons.length)return {pass:false,reasons,minDistance:32,maxKeywordSimilarity:0,maxTitleSimilarity:0,nearestSlug:null,indexSize:entries.length,intentKey:ik,ownerIntentKey:owner,cpuIndexedLookup:true};
   }
-  const semanticCollision=minDistance<6;
-  const cannibalization=maxKeywordSimilarity>=0.78;
-  const titleCannibalization=maxTitleSimilarity>=0.82;
-  const reasons=[];
+  let maxKeywordSimilarity=0,maxTitleSimilarity=0,minDistance=32,nearest=null;
+  const candidates=idx?(idx.buckets.get(cpuBucketKey(topic))||[]):entries;
+  for(const e of candidates){
+    if(!e)continue;
+    const sameContext=(!e.country||e.country===topic?.country)&&(!e.category||e.category===topic?.category)&&campaignIntentDimension(e)===campaignIntentDimension(topic);
+    if(sameContext&&(!e.intent||e.intent===topic?.intent)){
+      const ks=keywordSimilarity(article?.primaryKeyword||topic?.kw,e.primaryKeyword||'');if(ks>maxKeywordSimilarity){maxKeywordSimilarity=ks;nearest=e}
+      const ts=keywordSimilarity(article?.title||'',e.title||'');if(ts>maxTitleSimilarity){maxTitleSimilarity=ts;nearest=e}
+      if(e.signature&&audit?.signature){const d=signatureDistance(audit.signature,e.signature);if(d<minDistance){minDistance=d;nearest=e}}
+    }
+  }
+  const semanticCollision=minDistance<6,cannibalization=maxKeywordSimilarity>=0.78,titleCannibalization=maxTitleSimilarity>=0.82;
   if(semanticCollision)reasons.push('global_semantic_collision');
   if(cannibalization)reasons.push('global_keyword_cannibalization');
   if(titleCannibalization)reasons.push('global_title_cannibalization');
-  return {pass:reasons.length===0,reasons,minDistance,maxKeywordSimilarity:Math.round(maxKeywordSimilarity*1000)/1000,maxTitleSimilarity:Math.round(maxTitleSimilarity*1000)/1000,nearestSlug:nearest?.slug||null,indexSize:entries.length,intentKey:ik,ownerIntentKey:owner};
+  return {pass:reasons.length===0,reasons,minDistance,maxKeywordSimilarity:Math.round(maxKeywordSimilarity*1000)/1000,maxTitleSimilarity:Math.round(maxTitleSimilarity*1000)/1000,nearestSlug:nearest?.slug||null,indexSize:entries.length,intentKey:ik,ownerIntentKey:owner,cpuIndexedLookup:Boolean(idx)};
 }
 
 function relatedScore(topic,entry){
@@ -182,7 +206,7 @@ export function injectContextualLinks(article,links=[]){
 export function addToCluster(cluster,rec,topic){
   const entry={slug:rec.slug,title:rec.title,primaryKeyword:rec.primaryKeyword,signature:rec.signature,country:rec.country,category:topic?.category||'',intent:topic?.intent||'',intentLabel:topic?.intentLabel||'',campaignId:topic?.campaignId||null,campaignKind:topic?.campaignKind||null,campaignStartKnown:Boolean(topic?.campaignStartKnown),campaignEndKnown:Boolean(topic?.campaignEndKnown),intentKey:intentKey(topic),ownerIntentKey:intentOwnerKey(topic),createdAt:rec.createdAt||now()};
   const entries=[entry,...(cluster.entries||[]).filter(x=>x?.slug!==entry.slug)].slice(0,MAX_CLUSTER_ENTRIES);
-  cluster.version=VERSION;cluster.country=topic?.country||rec.country;cluster.category=topic?.category||cluster.category||'';cluster.updatedAt=now();cluster.entries=entries;return cluster;
+  cluster.version=VERSION;cluster.country=topic?.country||rec.country;cluster.category=topic?.category||cluster.category||'';cluster.updatedAt=now();cluster.entries=entries;CLUSTER_CPU_INDEX.delete(cluster);return cluster;
 }
 
 export async function flushClusters(env,cache,dirtyKeys){
@@ -193,4 +217,4 @@ export async function flushClusters(env,cache,dirtyKeys){
   }
 }
 
-export const GLOBAL_INDEX_INFO={version:VERSION,gateRevision:6,titleCannibalizationSimilarityMax:0.82,intentKeyVersion:4,intentOwnerVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],intentOwnerDimensions:['country','category','intent','useCase','factor','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:6,cannibalizationSimilarityMax:0.78,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:8,r2ReadRetry:3,r2WriteRetry:5,failClosedOnClusterRead:true,preflightGate:true,cpuEarlyExitExactCollisions:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','intent-owner-collision','keyword-cannibalization'],postBuildChecks:['duplicate-title','semantic-collision','title-cannibalization']};
+export const GLOBAL_INDEX_INFO={version:VERSION,gateRevision:7,titleCannibalizationSimilarityMax:0.82,intentKeyVersion:4,intentOwnerVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],intentOwnerDimensions:['country','category','intent','useCase','factor','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:6,cannibalizationSimilarityMax:0.78,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:8,r2ReadRetry:3,r2WriteRetry:5,failClosedOnClusterRead:true,preflightGate:true,cpuEarlyExitExactCollisions:true,cpuIndexedClusterLookup:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','intent-owner-collision','keyword-cannibalization'],postBuildChecks:['duplicate-title','semantic-collision','title-cannibalization']};
