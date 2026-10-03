@@ -5,15 +5,26 @@ const nowIso=()=>new Date().toISOString();
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const clampBatch=n=>Math.max(MIN_SUBMIT,Math.min(MAX_SUBMIT,Number(n)||MAX_SUBMIT));
 
+async function doState(env,path,init){
+  if(!env?.GENERATOR_CONTROL)return null;
+  const id=env.GENERATOR_CONTROL.idFromName('primary');
+  return env.GENERATOR_CONTROL.get(id).fetch('https://generator.internal'+path,init);
+}
 async function readState(env){
+  try{
+    const r=await doState(env,'/indexnow-state');
+    if(r?.ok)return await r.json();
+  }catch{}
   if(!env?.CONTENT_FINAL)return {pending:[],lastAttemptAt:null,lastSuccessAt:null,nextAllowedAt:null,batchSize:MAX_SUBMIT};
   try{const o=await env.CONTENT_FINAL.get(STATE_KEY);return o?await o.json():{pending:[],batchSize:MAX_SUBMIT}}catch{return {pending:[],batchSize:MAX_SUBMIT}}
 }
 async function saveState(env,state){
-  if(!env?.CONTENT_FINAL)return;
-  let last;
-  for(let i=0;i<3;i++){try{return await env.CONTENT_FINAL.put(STATE_KEY,JSON.stringify(state),{httpMetadata:{contentType:'application/json; charset=utf-8'}})}catch(e){last=e;if(i<2)await sleep(60*(i+1))}}
-  throw last;
+  try{
+    const r=await doState(env,'/indexnow-state',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(state)});
+    if(r?.ok)return state;
+  }catch{}
+  if(!env?.CONTENT_FINAL)return state;
+  return state;
 }
 function recordUrls(origin,records=[]){
   return [...new Set(records.filter(r=>r?.slug&&r?.indexable!==false).map(r=>{
@@ -98,4 +109,4 @@ export async function submitIndexNow(env,records=[]){
   return {enabled:true,submitted,queued:nextState.pending.length,deferred:false,status,error,batchSize:nextBatchSize,nextAllowedAt};
 }
 
-export const INDEXNOW_INFO={version:4,urlPathAware:true,endpoint:'https://api.indexnow.org/indexnow',queuedInR2:true,stateKey:STATE_KEY,maxQueue:MAX_QUEUE,maxSubmit:MAX_SUBMIT,minSubmit:MIN_SUBMIT,minIntervalMinutes:5,backoff429Minutes:15,adaptive429Batch:true,honorsRetryAfter:true,nonBlockingForPublication:true};
+export const INDEXNOW_INFO={version:4,urlPathAware:true,endpoint:'https://api.indexnow.org/indexnow',queuedInR2:false,stateBackend:'durable-object',legacyStateKey:STATE_KEY,maxQueue:MAX_QUEUE,maxSubmit:MAX_SUBMIT,minSubmit:MIN_SUBMIT,minIntervalMinutes:5,backoff429Minutes:15,adaptive429Batch:true,honorsRetryAfter:true,nonBlockingForPublication:true};
