@@ -1,0 +1,109 @@
+name: Generation Burst 550 Verified
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/generation-burst-550.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: generation-burst-550
+  cancel-in-progress: false
+
+jobs:
+  burst:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Wait for generation-burst release
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
+          [ -n "${CF_TOKEN:-}" ] || { echo MISSING_CF_TOKEN; exit 10; }
+          echo "::add-mask::$CF_TOKEN"
+          AUTH="Authorization: Bearer $CF_TOKEN"
+          for i in $(seq 1 90); do
+            release="$(curl -fsS --max-time 20 "$ORIGIN/api/revision?burst=$i" | jq -r '.release // ""' || true)"
+            echo "WAIT_RELEASE attempt=$i release=$release"
+            if [ "$release" = "2026-10-06-generation-burst-r2" ]; then exit 0; fi
+            sleep 10
+          done
+          echo RELEASE_NOT_LIVE
+          exit 1
+
+      - name: Publish until verified delta exceeds 550
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
+          AUTH="Authorization: Bearer $CF_TOKEN"
+          STATS='https://noondealsnow.com/api/content-stats'
+          curl -fsS --max-time 30 "$STATS?burst-baseline=${GITHUB_RUN_ID}" -o /tmp/base.json
+          base_total="$(jq -r '.total|tonumber' /tmp/base.json)"
+          base_ar="$(jq -r '.arabic|tonumber' /tmp/base.json)"
+          base_en="$(jq -r '.english|tonumber' /tmp/base.json)"
+          echo "BASE total=$base_total ar=$base_ar en=$base_en"
+          success_steps=0
+          for i in $(seq 1 100); do
+            run_bulk=false
+            if (( i % 4 == 0 )); then run_bulk=true; fi
+            code="$(curl -sS -o /tmp/step.json -w '%{http_code}' --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 90               -X POST -H "$AUTH" -H 'Content-Type: application/json'               --data "{\"englishMax\":23,\"englishBudgetMs\":12000,\"runBulk\":$run_bulk}"               "$ORIGIN/api/internal/generation-burst-step?run=${GITHUB_RUN_ID}-$i" || true)"
+            if [ "$code" = "200" ]; then
+              ed="$(jq -r '.englishDelta // 0' /tmp/step.json)"
+              committed="$(jq -r '.english.published // 0' /tmp/step.json)"
+              persisted="$(jq -r '.english.statePersisted // false' /tmp/step.json)"
+              echo "STEP $i http=$code englishDelta=$ed committed=$committed persisted=$persisted bulk=$run_bulk"
+              if [ "$persisted" = "true" ]; then success_steps=$((success_steps+1)); fi
+            else
+              echo "STEP $i http=$code transient"
+            fi
+            curl -fsS --max-time 30 "$STATS?burst-progress=${GITHUB_RUN_ID}-$i" -o /tmp/now.json
+            now_total="$(jq -r '.total|tonumber' /tmp/now.json)"
+            now_ar="$(jq -r '.arabic|tonumber' /tmp/now.json)"
+            now_en="$(jq -r '.english|tonumber' /tmp/now.json)"
+            delta=$((now_total-base_total))
+            ar_delta=$((now_ar-base_ar))
+            en_delta=$((now_en-base_en))
+            echo "PROGRESS step=$i total=$now_total delta=$delta arDelta=$ar_delta enDelta=$en_delta"
+            if (( delta >= 550 )); then
+              echo "TARGET_REACHED delta=$delta arDelta=$ar_delta enDelta=$en_delta successfulStateSteps=$success_steps"
+              cp /tmp/now.json /tmp/final.json
+              break
+            fi
+            sleep 1
+          done
+          test -f /tmp/final.json || cp /tmp/now.json /tmp/final.json
+          final_total="$(jq -r '.total|tonumber' /tmp/final.json)"
+          final_ar="$(jq -r '.arabic|tonumber' /tmp/final.json)"
+          final_en="$(jq -r '.english|tonumber' /tmp/final.json)"
+          delta=$((final_total-base_total))
+          ar_delta=$((final_ar-base_ar))
+          en_delta=$((final_en-base_en))
+          echo "FINAL total=$final_total delta=$delta arDelta=$ar_delta enDelta=$en_delta"
+          [ "$delta" -ge 550 ] || { echo TARGET_NOT_REACHED; exit 2; }
+          [ "$en_delta" -gt 0 ] || { echo ENGLISH_DID_NOT_ADVANCE; exit 3; }
+
+      - name: Verify sitemap and live English article
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 30 "https://noondealsnow.com/api/content-stats?burst-final=${GITHUB_RUN_ID}" -o /tmp/stats.json
+          curl -fsS --max-time 30 "https://noondealsnow.com/sitemap-en-articles.xml?burst-final=${GITHUB_RUN_ID}" -o /tmp/en.xml
+          expected="$(jq -r '.english|tonumber' /tmp/stats.json)"
+          actual="$(grep -o '<url>' /tmp/en.xml | wc -l | tr -d ' ')"
+          echo "ENGLISH_SITEMAP expected=$expected actual=$actual"
+          [ "$actual" -eq "$expected" ] || exit 4
+          last_slug="$(curl -fsS --max-time 30 'https://noondealsnow.com/api/english-canary-health?light=1&burst-final=1' | jq -r '.controlled.records[-1].slug // empty')"
+          [ -n "$last_slug" ] || exit 5
+          code="$(curl -sS -o /tmp/article.html -w '%{http_code}' --max-time 30 "https://noondealsnow.com/en/articles/$last_slug?burst-final=1")"
+          echo "LAST_ENGLISH slug=$last_slug http=$code bytes=$(wc -c < /tmp/article.html)"
+          [ "$code" = "200" ] || exit 6
+          grep -Fq '<html' /tmp/article.html || exit 7

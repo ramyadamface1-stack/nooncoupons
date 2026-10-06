@@ -122,9 +122,18 @@ function normalizeState(env,state){
 async function writeState(env,state){
   const clean=normalizeState(env,state),payload=JSON.stringify(clean),opts={httpMetadata:{contentType:'application/json; charset=utf-8'}};
   let last=null;
-  for(let attempt=1;attempt<=2;attempt++){
-    try{await withDeadline(env.CONTENT_FINAL.put(STATE_KEY,payload,opts),3500,'english_state_put_timeout');return clean}
-    catch(e){last=e;if(attempt<2)await sleep(180*attempt)}
+  for(let attempt=1;attempt<=5;attempt++){
+    try{
+      await withDeadline(env.CONTENT_FINAL.put(STATE_KEY,payload,opts),12000,'english_state_put_timeout');
+      const verify=await withDeadline(env.CONTENT_FINAL.get(STATE_KEY),5000,'english_state_verify_timeout');
+      if(!verify)throw new Error('english_state_verify_missing');
+      const persisted=await verify.json(),expected=clean.records?.length||0,actual=Array.isArray(persisted?.records)?persisted.records.length:0;
+      if(actual<expected)throw new Error('english_state_verify_regressed:'+actual+'<'+expected);
+      return {...clean,...persisted,records:Array.isArray(persisted.records)?persisted.records:clean.records};
+    }catch(e){
+      last=e;
+      if(attempt<5)await sleep(Math.min(1800,250*attempt*attempt));
+    }
   }
   throw last||new Error('english_state_put_failed');
 }
@@ -313,9 +322,10 @@ export async function runEnglishCanaryBatch(env,{maxPerTick=null,timeBudgetMs=12
     if(scanContinuation||duplicateContinuation)continue;
     if(result?.skipped||result?.ok===false)break;
   }
-  try{sharedState=await writeState(env,sharedState);statePersisted=true}catch{}
-  const durationMs=Date.now()-startedAt;
-  return {ok:results.some(r=>r?.ok!==false)||published>0,maxPerTick:effective,configuredMaxPerTick:configured,published,scanChunks:chunks,maxScanChunks,durationMs,timeBudgetMs:budget,stoppedByBudget,stateWritesPerBatch:1,statePersisted,results};
+  let statePersistError=null;
+  try{sharedState=await writeState(env,sharedState);statePersisted=true}catch(e){statePersistError=String(e?.message||e).slice(0,220)}
+  const durationMs=Date.now()-startedAt,committedPublished=statePersisted?published:0;
+  return {ok:statePersisted&&(results.some(r=>r?.ok!==false)||published>0),maxPerTick:effective,configuredMaxPerTick:configured,published:committedPublished,attemptedPublished:published,scanChunks:chunks,maxScanChunks,durationMs,timeBudgetMs:budget,stoppedByBudget,stateWritesPerBatch:1,statePersisted,statePersistError,recordsTotal:Array.isArray(sharedState?.records)?sharedState.records.length:null,results};
 }
 
 async function schedulerDo(env,path,init){
@@ -338,7 +348,8 @@ export async function runEnglishScheduledTick(env,{maxPerTick=18,timeBudgetMs=12
   await writeEnglishSchedulerState(env,{...base,status:'running',completedAt:null,ok:null,error:null,published:0,skipped:null,resultErrors:[]});
   let batch=null,error=null;
   try{batch=await runEnglishCanaryBatch(env,{maxPerTick,timeBudgetMs:adaptiveBudget,ignoreIntervalFirst:true})}catch(e){error=String(e?.message||e).slice(0,240)}
-  const payload={...base,status:'complete',completedAt:now(),ok:!error&&Boolean(batch?.ok),error,published:Number(batch?.published||0),durationMs:Number(batch?.durationMs||0),stoppedByBudget:Boolean(batch?.stoppedByBudget),skipped:(batch?.results||[]).find(x=>x?.skipped)?.skipped||null,resultErrors:(batch?.results||[]).filter(x=>x?.ok===false).map(x=>String(x?.error||'error').slice(0,180)).slice(0,10)};
+  const persistError=batch?.statePersisted===false?String(batch?.statePersistError||'english_state_not_persisted'):null;
+  const payload={...base,status:'complete',completedAt:now(),ok:!error&&!persistError&&Boolean(batch?.ok),error:error||persistError,published:Number(batch?.published||0),attemptedPublished:Number(batch?.attemptedPublished||batch?.published||0),statePersisted:batch?.statePersisted!==false,recordsTotal:batch?.recordsTotal??null,durationMs:Number(batch?.durationMs||0),stoppedByBudget:Boolean(batch?.stoppedByBudget),skipped:(batch?.results||[]).find(x=>x?.skipped)?.skipped||null,resultErrors:(batch?.results||[]).filter(x=>x?.ok===false).map(x=>String(x?.error||'error').slice(0,180)).slice(0,10)};
   await writeEnglishSchedulerState(env,payload);
   return {ok:payload.ok,batch,scheduler:payload};
 }
@@ -420,4 +431,4 @@ export async function englishCanarySitemap(env,origin){
   return xmlResponse(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
-export const ENGLISH_CANARY_INFO={version:38,r2SaverMode:true,cpuSaverMode:true,adaptiveCpuBudget:true,lowYieldBudgetMs:6000,englishStateWritesPerBatch:1,schedulerStateBackend:'durable-object',hubOwnedHeadTermsBlocked:true,samsungS26IntentHubLink:true,uaeSavingsCtrOverride:true,englishCouponIntentOwners:true,iphone18IntentHubLink:true,iphoneDuoIntentHubLink:true,gscCtrOverrides:Object.keys(GSC_CTR_OVERRIDES).length,coreHighDemandCoverageRelease:true,r2DuplicateStateRecovery:true,marketAwareRelatedLinks:true,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:24,schedulerTimeBudgetMs:12000,schedulerFirstIntervalBypass:true,schedulerStateKey:SCHEDULER_STATE_KEY,schedulerStateVersion:23,adaptiveGoldenMix:true,expandedUaeCandidateProfiles:true,publishedOutputMixEnforced:true,goldenCommercialIntentMixEnforced:true,goldenOutputCycle:UAE_GOLDEN_OUTPUT_CYCLE,goldenOutputSlots:UAE_GOLDEN_OUTPUT_SLOTS,goldenCommercialIntents:[...UAE_GOLDEN_COMMERCIAL_INTENTS],stateCompaction:true,publishStateBeforeIndexNow:true,indexNowPostPublishBudgetMs:1500,boundedR2Ops:true,r2ArticlePutTimeoutMs:3200,r2StatePutTimeoutMs:3500,lateWriteRecovery:true,boundedStateRead:true,stateReadTimeoutMs:2200,boundedAuditLockRead:true,auditLockReadTimeoutMs:1800,multiChunkCandidateScan:true,duplicateContinuation:true,maxScanChunksMultiplier:3,auditFailureDiagnostics:true,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,englishSemanticDiversityV2:true,fastEnglishDiscoveryCache:true,highDemandUaeKeywordTargeting:true,campaignAwareProfileTargeting:true,campaignCalendarVersion:CAMPAIGN_CALENDAR_INFO.version,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:100,goldenHeadShareTarget:70,commercialSeedShareTarget:100,currentUaeModelTerms:true,goldenModifierAppliedToKeyword:true,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:500,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',englishRelatedArticles:6,sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};
+export const ENGLISH_CANARY_INFO={version:39,r2SaverMode:true,cpuSaverMode:true,adaptiveCpuBudget:true,lowYieldBudgetMs:6000,verifiedStatePersistence:true,englishStateWritesPerBatch:1,schedulerStateBackend:'durable-object',hubOwnedHeadTermsBlocked:true,samsungS26IntentHubLink:true,uaeSavingsCtrOverride:true,englishCouponIntentOwners:true,iphone18IntentHubLink:true,iphoneDuoIntentHubLink:true,gscCtrOverrides:Object.keys(GSC_CTR_OVERRIDES).length,coreHighDemandCoverageRelease:true,r2DuplicateStateRecovery:true,marketAwareRelatedLinks:true,evidenceSafeSummary:true,visibleEditorialByline:true,richArticleSchema:true,indexNowOnPublish:true,indexNowUrlPathAware:true,maxArticles:2,controlledMaxArticles:MAX_CONTROLLED_TOTAL,dailyMaxArticles:MAX_DAILY_TARGET,batchMaxPerTick:24,defaultBatchPerTick:24,schedulerEffectiveBatchPerTick:24,schedulerTimeBudgetMs:12000,schedulerFirstIntervalBypass:true,schedulerStateKey:SCHEDULER_STATE_KEY,schedulerStateVersion:23,adaptiveGoldenMix:true,expandedUaeCandidateProfiles:true,publishedOutputMixEnforced:true,goldenCommercialIntentMixEnforced:true,goldenOutputCycle:UAE_GOLDEN_OUTPUT_CYCLE,goldenOutputSlots:UAE_GOLDEN_OUTPUT_SLOTS,goldenCommercialIntents:[...UAE_GOLDEN_COMMERCIAL_INTENTS],stateCompaction:true,publishStateBeforeIndexNow:true,indexNowPostPublishBudgetMs:1500,boundedR2Ops:true,r2ArticlePutTimeoutMs:3200,r2StatePutTimeoutMs:3500,lateWriteRecovery:true,boundedStateRead:true,stateReadTimeoutMs:2200,boundedAuditLockRead:true,auditLockReadTimeoutMs:1800,multiChunkCandidateScan:true,duplicateContinuation:true,maxScanChunksMultiplier:3,auditFailureDiagnostics:true,schedulerRuntimeOwner:'auto-platform',candidateScanDeadline:true,candidateScanBudgetContinuation:true,englishSemanticDiversityV2:true,fastEnglishDiscoveryCache:true,highDemandUaeKeywordTargeting:true,campaignAwareProfileTargeting:true,campaignCalendarVersion:CAMPAIGN_CALENDAR_INFO.version,hardTargetMarketNormalization:true,controlledTargetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',uaePriorityProfiles:[...UAE_PRIORITY_PROFILES],uaeHighDemandProfiles:[...UAE_HIGH_DEMAND_PROFILES],highDemandShareTarget:100,goldenHeadShareTarget:70,commercialSeedShareTarget:100,currentUaeModelTerms:true,goldenModifierAppliedToKeyword:true,r2HeadRetry:true,r2HeadTransientRetry:true,r2HeadInternalError10001Retry:true,r2HeadRateLimitFailClosed:true,r2HeadHotPath:false,conditionalCreateOnly:true,conditionalHeader:'If-None-Match:*',perScanSlugDedup:true,qualityBeforeR2Head:true,maxCandidateScanPerArticle:500,schedulerObservability:true,auditLockHealth:true,healthSampling:true,healthSamplePolicy:'canaries-plus-latest-48',diversityWindow:DIVERSITY_WINDOW,stateKey:STATE_KEY,builder:6,route:'/en/articles/:slug',englishRelatedArticles:6,sitemap:'/sitemap-en-articles.xml',qualityThreshold:95,jaccardThreshold:0.18};

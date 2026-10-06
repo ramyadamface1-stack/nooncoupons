@@ -1,11 +1,12 @@
 import app from './brand-runtime.js';
 import {runEnglishCanaryBatch,englishCanaryRecords} from './english-canary.js';
+import {bulkTick} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
 import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
-const DISCOVERY_RELEASE='2026-10-01-gsc-intent-sitemap-r1';
+const DISCOVERY_RELEASE='2026-10-06-generation-burst-r2';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const enc=s=>encodeURI(String(s||''));
 let latestCache={at:0,value:null};
@@ -402,6 +403,24 @@ export default{
     }
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
     if(req.method==='GET'&&u.pathname==='/api/revision')return new Response(JSON.stringify({ok:true,release:DISCOVERY_RELEASE,layer:'discovery-entry',sitemapHealth:true,imageSitemap:true,englishIntentOwners:true,shoppingIntentOwners:true,noIdleGenerationGuard:true,titleCannibalizationGate:true},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-runtime-revision':DISCOVERY_RELEASE}});
+
+    if(req.method==='POST'&&u.pathname==='/api/internal/generation-burst-step'){
+      if(!await verifyMaintenanceToken(req))return new Response(JSON.stringify({ok:false,reason:'unauthorized'}),{status:401,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+      let englishMax=23,englishBudgetMs=12000,runBulk=false;
+      try{
+        const body=await req.json();
+        englishMax=Math.max(1,Math.min(24,Number(body?.englishMax)||23));
+        englishBudgetMs=Math.max(5000,Math.min(15000,Number(body?.englishBudgetMs)||12000));
+        runBulk=body?.runBulk===true;
+      }catch{}
+      const beforeRecords=await englishCanaryRecords(env);
+      const beforeEnglish=beforeRecords.length;
+      const english=await runEnglishCanaryBatch(env,{maxPerTick:englishMax,timeBudgetMs:englishBudgetMs,ignoreIntervalFirst:true});
+      const afterRecords=await englishCanaryRecords(env);
+      const afterEnglish=afterRecords.length;
+      const bulk=runBulk?await bulkTick(env):null;
+      return new Response(JSON.stringify({ok:Boolean(english?.ok)&&(!runBulk||Boolean(bulk?.ok)),version:2,release:DISCOVERY_RELEASE,beforeEnglish,afterEnglish,englishDelta:Math.max(0,afterEnglish-beforeEnglish),english,bulk},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+    }
     if(req.method==='GET'&&u.pathname==='/api/sitemap-health')return sitemapHealth(req,env,ctx,origin);
     if(req.method==='GET'&&u.pathname==='/sitemap-core.xml'){const r=coreSitemap(origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
     if(req.method==='GET'&&u.pathname==='/sitemap-priority.xml'){const r=await prioritySitemap(env,origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
