@@ -31,7 +31,7 @@ jobs:
           for i in $(seq 1 90); do
             release="$(curl -fsS --max-time 20 "$ORIGIN/api/revision?burst=$i" | jq -r '.release // ""' || true)"
             echo "WAIT_RELEASE attempt=$i release=$release"
-            if [ "$release" = "2026-10-06-generation-burst-r3" ]; then exit 0; fi
+            if [ "$release" = "2026-10-06-generation-burst-r4" ]; then exit 0; fi
             sleep 10
           done
           echo RELEASE_NOT_LIVE
