@@ -6,7 +6,7 @@ import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
-const DISCOVERY_RELEASE='2026-10-06-generation-burst-r6';
+const DISCOVERY_RELEASE='2026-10-06-generation-burst-r7';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const enc=s=>encodeURI(String(s||''));
 let latestCache={at:0,value:null};
@@ -428,7 +428,8 @@ export default{
       }
       const afterRecords=await englishCanaryRecords(env);
       const afterEnglish=afterRecords.length;
-      const bulk=runBulk?await bulkTick(env):null;
+      const bulkEnv=runBulk&&!runEnglish?{...env,BULK_BATCH_SIZE:'64',BULK_CANDIDATE_BUDGET_MS:'24000'}:env;
+      const bulk=runBulk?await bulkTick(bulkEnv):null;
       return new Response(JSON.stringify({ok:Boolean(english?.ok)&&(!runBulk||Boolean(bulk?.ok)),version:2,release:DISCOVERY_RELEASE,beforeEnglish,afterEnglish,englishDelta:Math.max(0,afterEnglish-beforeEnglish),english,bulk},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     if(req.method==='GET'&&u.pathname==='/api/sitemap-health')return sitemapHealth(req,env,ctx,origin);
