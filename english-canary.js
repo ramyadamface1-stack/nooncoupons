@@ -309,23 +309,36 @@ export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=50
 }
 
 export async function runEnglishCanaryBatch(env,{maxPerTick=null,timeBudgetMs=12000,ignoreIntervalFirst=false}={}){
-  const configured=batchSizeFromEnv(env),requested=Number(maxPerTick||configured)||configured,effective=Math.max(1,Math.min(configured,24,requested)),budget=Math.max(5000,Math.min(15000,Number(timeBudgetMs||12000)||12000)),startedAt=Date.now(),results=[],scanBudgetMs=Math.max(700,Math.min(1000,Math.floor((budget-2500)/Math.max(1,effective)))),maxScanChunks=Math.max(effective,Math.min(24,effective*2));
-  let stoppedByBudget=false,published=0,chunks=0,sharedState=null,statePersisted=false;
-  try{sharedState=await readState(env)}catch(e){return {ok:false,error:'english_state_read_failed:'+String(e?.message||e).slice(0,160),published:0,results:[]}}
-  while(published<effective&&chunks<maxScanChunks){
-    if(chunks>0&&Date.now()-startedAt>=budget-1200){stoppedByBudget=true;break}
-    const result=await runEnglishCanary(env,{ignoreInterval:ignoreIntervalFirst||chunks>0,scanBudgetMs,stateOverride:sharedState,deferStateWrite:true});
-    results.push(result);chunks++;
-    if(result?.record){published++;continue}
-    const scanContinuation=result?.skipped==='english_candidate_scan_continue'||result?.skipped==='english_candidate_scan_budget';
-    const duplicateContinuation=result?.duplicate===true||result?.error==='r2_conditional_duplicate';
-    if(scanContinuation||duplicateContinuation)continue;
-    if(result?.skipped||result?.ok===false)break;
+  const runId='english-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
+  let lockAcquired=false;
+  try{
+    const lock=await schedulerDo(env,'/english-lock',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId})});
+    if(lock&&lock.status===409)return {ok:true,skipped:'english_already_running',published:0,attemptedPublished:0,statePersisted:true,runId};
+    if(lock&&!lock.ok)return {ok:false,error:'english_lock_failed:'+lock.status,published:0,attemptedPublished:0,statePersisted:false,runId};
+    lockAcquired=Boolean(lock?.ok);
+    const configured=batchSizeFromEnv(env),requested=Number(maxPerTick||configured)||configured,effective=Math.max(1,Math.min(configured,24,requested)),budget=Math.max(5000,Math.min(15000,Number(timeBudgetMs||12000)||12000)),startedAt=Date.now(),results=[],scanBudgetMs=Math.max(700,Math.min(1000,Math.floor((budget-2500)/Math.max(1,effective)))),maxScanChunks=Math.max(effective,Math.min(24,effective*2));
+    let stoppedByBudget=false,published=0,chunks=0,sharedState=null,statePersisted=false;
+    try{sharedState=await readState(env)}catch(e){return {ok:false,error:'english_state_read_failed:'+String(e?.message||e).slice(0,160),published:0,attemptedPublished:0,statePersisted:false,results:[],runId}}
+    const startCount=Array.isArray(sharedState.records)?sharedState.records.length:0;
+    while(published<effective&&chunks<maxScanChunks){
+      if(chunks>0&&Date.now()-startedAt>=budget-1200){stoppedByBudget=true;break}
+      const result=await runEnglishCanary(env,{ignoreInterval:ignoreIntervalFirst||chunks>0,scanBudgetMs,stateOverride:sharedState,deferStateWrite:true});
+      results.push(result);chunks++;
+      if(result?.record){published++;continue}
+      const scanContinuation=result?.skipped==='english_candidate_scan_continue'||result?.skipped==='english_candidate_scan_budget';
+      const duplicateContinuation=result?.duplicate===true||result?.error==='r2_conditional_duplicate';
+      if(scanContinuation||duplicateContinuation)continue;
+      if(result?.skipped||result?.ok===false)break;
+    }
+    let statePersistError=null;
+    try{sharedState=await writeState(env,sharedState);statePersisted=true}catch(e){statePersistError=String(e?.message||e).slice(0,220)}
+    const durationMs=Date.now()-startedAt,finalCount=Array.isArray(sharedState?.records)?sharedState.records.length:startCount,committedPublished=statePersisted?Math.max(0,finalCount-startCount):0;
+    return {ok:statePersisted&&(results.some(r=>r?.ok!==false)||published>0),runId,maxPerTick:effective,configuredMaxPerTick:configured,published:committedPublished,attemptedPublished:published,scanChunks:chunks,maxScanChunks,durationMs,timeBudgetMs:budget,stoppedByBudget,stateWritesPerBatch:1,statePersisted,statePersistError,startCount,recordsTotal:finalCount,results};
+  }finally{
+    if(lockAcquired){
+      try{await schedulerDo(env,'/english-unlock',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({runId})})}catch{}
+    }
   }
-  let statePersistError=null;
-  try{sharedState=await writeState(env,sharedState);statePersisted=true}catch(e){statePersistError=String(e?.message||e).slice(0,220)}
-  const durationMs=Date.now()-startedAt,committedPublished=statePersisted?published:0;
-  return {ok:statePersisted&&(results.some(r=>r?.ok!==false)||published>0),maxPerTick:effective,configuredMaxPerTick:configured,published:committedPublished,attemptedPublished:published,scanChunks:chunks,maxScanChunks,durationMs,timeBudgetMs:budget,stoppedByBudget,stateWritesPerBatch:1,statePersisted,statePersistError,recordsTotal:Array.isArray(sharedState?.records)?sharedState.records.length:null,results};
 }
 
 async function schedulerDo(env,path,init){

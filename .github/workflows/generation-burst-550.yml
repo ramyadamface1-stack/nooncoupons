@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: generation-burst-550
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   burst:
@@ -31,7 +31,7 @@ jobs:
           for i in $(seq 1 90); do
             release="$(curl -fsS --max-time 20 "$ORIGIN/api/revision?burst=$i" | jq -r '.release // ""' || true)"
             echo "WAIT_RELEASE attempt=$i release=$release"
-            if [ "$release" = "2026-10-06-generation-burst-r2" ]; then exit 0; fi
+            if [ "$release" = "2026-10-06-generation-burst-r3" ]; then exit 0; fi
             sleep 10
           done
           echo RELEASE_NOT_LIVE
@@ -52,7 +52,7 @@ jobs:
           base_en="$(jq -r '.english|tonumber' /tmp/base.json)"
           echo "BASE total=$base_total ar=$base_ar en=$base_en"
           success_steps=0
-          for i in $(seq 1 100); do
+          for i in $(seq 1 120); do
             run_bulk=false
             if (( i % 4 == 0 )); then run_bulk=true; fi
             code="$(curl -sS -o /tmp/step.json -w '%{http_code}' --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 90               -X POST -H "$AUTH" -H 'Content-Type: application/json'               --data "{\"englishMax\":23,\"englishBudgetMs\":12000,\"runBulk\":$run_bulk}"               "$ORIGIN/api/internal/generation-burst-step?run=${GITHUB_RUN_ID}-$i" || true)"

@@ -304,6 +304,19 @@ export class GeneratorControl{
     }
     if(p==='/english-scheduler'&&req.method==='GET')return json((await this.ctx.storage.get('englishScheduler'))||null);
     if(p==='/english-scheduler'&&req.method==='POST'){const b=await req.json();await this.ctx.storage.put('englishScheduler',b);return json(b)}
+    if(p==='/english-lock'&&req.method==='POST'){
+      const b=await req.json(),lock=await this.ctx.storage.get('englishLock');
+      if(lock){
+        const ageMs=Date.now()-Date.parse(lock.at);
+        if(Number.isFinite(ageMs)&&ageMs<120000)return json({ok:false,lock,retryAfterMs:Math.max(0,120000-ageMs)},409);
+      }
+      await this.ctx.storage.put('englishLock',{id:b.runId,at:now()});return json({ok:true,runId:b.runId});
+    }
+    if(p==='/english-unlock'&&req.method==='POST'){
+      const b=await req.json(),lock=await this.ctx.storage.get('englishLock');
+      if(!lock||!b.runId||lock.id===b.runId)await this.ctx.storage.delete('englishLock');
+      return json({ok:true});
+    }
     if(p==='/indexnow-state'&&req.method==='GET')return json((await this.ctx.storage.get('indexNowState'))||{pending:[],batchSize:1000});
     if(p==='/indexnow-state'&&req.method==='POST'){const b=await req.json();await this.ctx.storage.put('indexNowState',b);return json(b)}
 
