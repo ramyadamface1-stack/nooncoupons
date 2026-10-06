@@ -35,7 +35,7 @@ const START_CURSOR=760000;
 const MAX_SCAN=500;
 const PROFILE_TO_CATEGORY={
   mobile:'mobiles',computing:'computers',audio:'audio',screen:'tvs',beauty:'beauty',
-  appliance:'appliances',kitchen:'home-kitchen',home:'home-kitchen',grocery:'grocery',
+  appliance:'appliances',kitchen:'home-kitchen',home:'home-kitchen',fashion:'fashion',grocery:'grocery',
   kids:'baby-kids',baby:'baby-kids',fitness:'sports',travel:'travel',auto:'automotive',
   office:'school-supplies',pets:'pets'
 };
@@ -254,7 +254,7 @@ async function findCandidate(env,state,slot,{deadlineMs=0,maxScan=MAX_SCAN}={}){
     const tier=String(candidate.keywordTier||''),isSearchTier=tier==='uae-golden-commercial-head-v4'||tier==='uae-high-demand-product-v4',isGoldenCommercial=isSearchTier&&UAE_GOLDEN_COMMERCIAL_INTENTS.has(candidate.intent);
     const recentGoldenCount=recentWindow.filter(r=>UAE_GOLDEN_COMMERCIAL_INTENTS.has(r.intent)).length;
     const recentGoldenPct=recentWindow.length?recentGoldenCount/recentWindow.length:0;
-    const enforceGolden=recentWindow.length<10?slotWantsGolden:recentGoldenPct<0.70;
+    const enforceGolden=recentWindow.length<10?slotWantsGolden:recentGoldenPct<0.55;
     const enforceSupporting=recentWindow.length<10&&!slotWantsGolden;
     if(enforceGolden&&!isGoldenCommercial){diag.keywordMixSkip++;continue;}
     if(enforceSupporting&&isGoldenCommercial){diag.keywordMixSkip++;continue;}
@@ -414,7 +414,7 @@ export async function englishCanaryHealth(env,{light=false}={}){
   const sa=allRecords.filter(r=>r.country==='SA').length,ae=allRecords.filter(r=>r.country==='AE').length,profileCount=new Set(allRecords.map(r=>r.profileKey).filter(Boolean)).size;
   const today=publishedToday(allRecords),dailyTarget=dailyTargetFromEnv(env),minIntervalMinutes=minIntervalMinutesFromEnv(env),batchSize=batchSizeFromEnv(env),missing=light?0:verified.filter(r=>!r.r2Present).length;
   const mixWindow=allRecords.filter(r=>r.country==='AE').slice(-20),goldenHead=mixWindow.filter(r=>r.keywordTier==='uae-golden-commercial-head-v4').length,highDemandProduct=mixWindow.filter(r=>r.keywordTier==='uae-high-demand-product-v4').length,goldenCommercial=mixWindow.filter(r=>UAE_GOLDEN_COMMERCIAL_INTENTS.has(r.intent)).length;
-  const keywordMix={window:mixWindow.length,goldenCommercial,supportingIntent:Math.max(0,mixWindow.length-goldenCommercial),goldenCommercialPct:mixWindow.length?Number((goldenCommercial*100/mixWindow.length).toFixed(1)):0,targetGoldenCommercialPct:70,goldenHead,highDemandProduct,outputCycle:UAE_GOLDEN_OUTPUT_CYCLE,outputGoldenSlots:UAE_GOLDEN_OUTPUT_SLOTS};
+  const keywordMix={window:mixWindow.length,goldenCommercial,supportingIntent:Math.max(0,mixWindow.length-goldenCommercial),goldenCommercialPct:mixWindow.length?Number((goldenCommercial*100/mixWindow.length).toFixed(1)):0,targetGoldenCommercialPct:55,goldenHead,highDemandProduct,outputCycle:UAE_GOLDEN_OUTPUT_CYCLE,outputGoldenSlots:UAE_GOLDEN_OUTPUT_SLOTS};
   return {ok:missing===0,version:8,builder:BULK_ENGINE_INFO.englishArticleBuilder,indexNow:{...INDEXNOW_INFO,last:state.lastIndexNow||null},target:canaryTarget,status:records.length>=canaryTarget?'complete':'active',published:records.length,complete:records.length>=canaryTarget,records,lastError:state.lastError||null,lastCandidateDiagnostics:state.lastCandidateDiagnostics||null,updatedAt:state.updatedAt,scheduler:scheduler||null,auditLock:{active:Boolean(auditLock?.active),expired:Boolean(auditLock?.expired),runId:auditLock?.runId||null,expiresAt:auditLock?.expiresAt||null,reason:auditLock?.reason||null},controlled:{target:controlledTarget,targetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',campaignCalendarVersion:CAMPAIGN_CALENDAR_INFO.version,published:allRecords.length,recordsTotal:allRecords.length,remaining:Math.max(0,controlledTarget-allRecords.length),complete:allRecords.length>=controlledTarget,status:allRecords.length>=controlledTarget?'complete':'active',sa,ae,uniqueProfiles:profileCount,publishedToday:today,dailyTarget,minIntervalMinutes,batchSize,keywordMix,nextEligibleAt:nextEligibleAt(state,env),samplePolicy:'canaries-plus-latest-48',sampleSize:verified.length,r2SampleChecked:light?0:verified.length,r2SampleMissing:missing,lightHealth:light,records:verified}};
 }
 
