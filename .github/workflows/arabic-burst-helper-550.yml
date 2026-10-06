@@ -1,0 +1,64 @@
+name: Arabic Burst Helper 550
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/arabic-burst-helper-550.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arabic-burst-helper-550
+  cancel-in-progress: true
+
+jobs:
+  helper:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Wait for burst r5
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
+          [ -n "${CF_TOKEN:-}" ] || exit 10
+          echo "::add-mask::$CF_TOKEN"
+          for i in $(seq 1 90); do
+            release="$(curl -fsS --max-time 20 "$ORIGIN/api/revision?arabic-helper=$i" | jq -r '.release // ""' || true)"
+            echo "WAIT_R5 attempt=$i release=$release"
+            [ "$release" = "2026-10-06-generation-burst-r5" ] && exit 0
+            sleep 10
+          done
+          exit 1
+
+      - name: Bulk until shared 550 target
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
+          STATS='https://noondealsnow.com/api/content-stats'
+          AUTH="Authorization: Bearer $CF_TOKEN"
+          TARGET=105514
+          for i in $(seq 1 80); do
+            curl -fsS --max-time 30 "$STATS?arabic-helper=$i" -o /tmp/stats.json
+            total="$(jq -r '.total|tonumber' /tmp/stats.json)"
+            ar="$(jq -r '.arabic|tonumber' /tmp/stats.json)"
+            en="$(jq -r '.english|tonumber' /tmp/stats.json)"
+            echo "HELPER_PROGRESS step=$i total=$total ar=$ar en=$en target=$TARGET"
+            if [ "$total" -ge "$TARGET" ]; then echo "SHARED_TARGET_REACHED total=$total"; exit 0; fi
+            code="$(curl -sS -o /tmp/bulk.json -w '%{http_code}' --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 90 \
+              -X POST -H "$AUTH" -H 'Content-Type: application/json' \
+              --data '{"runEnglish":false,"runBulk":true}' \
+              "$ORIGIN/api/internal/generation-burst-step?arabic-helper=${GITHUB_RUN_ID}-$i" || true)"
+            echo "HELPER_STEP step=$i http=$code bulkPublished=$(jq -r '.bulk.summary.bulkLastTickPublished // .bulk.bulk.records|length // 0' /tmp/bulk.json 2>/dev/null || echo 0)"
+            sleep 1
+          done
+          curl -fsS --max-time 30 "$STATS?arabic-helper-final=1" -o /tmp/final.json
+          total="$(jq -r '.total|tonumber' /tmp/final.json)"
+          [ "$total" -ge "$TARGET" ] || { echo "SHARED_TARGET_NOT_REACHED total=$total"; exit 2; }

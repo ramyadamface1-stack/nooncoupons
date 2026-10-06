@@ -6,7 +6,7 @@ import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
-const DISCOVERY_RELEASE='2026-10-06-generation-burst-r4';
+const DISCOVERY_RELEASE='2026-10-06-generation-burst-r5';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const enc=s=>encodeURI(String(s||''));
 let latestCache={at:0,value:null};
@@ -406,16 +406,17 @@ export default{
 
     if(req.method==='POST'&&u.pathname==='/api/internal/generation-burst-step'){
       if(!await verifyMaintenanceToken(req))return new Response(JSON.stringify({ok:false,reason:'unauthorized'}),{status:401,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
-      let englishMax=23,englishBudgetMs=12000,runBulk=false;
+      let englishMax=23,englishBudgetMs=12000,runBulk=false,runEnglish=true;
       try{
         const body=await req.json();
         englishMax=Math.max(1,Math.min(24,Number(body?.englishMax)||23));
         englishBudgetMs=Math.max(5000,Math.min(15000,Number(body?.englishBudgetMs)||12000));
         runBulk=body?.runBulk===true;
+        runEnglish=body?.runEnglish!==false;
       }catch{}
       const beforeRecords=await englishCanaryRecords(env);
       const beforeEnglish=beforeRecords.length;
-      const english=await runEnglishCanaryBatch(env,{maxPerTick:englishMax,timeBudgetMs:englishBudgetMs,ignoreIntervalFirst:true});
+      const english=runEnglish?await runEnglishCanaryBatch(env,{maxPerTick:englishMax,timeBudgetMs:englishBudgetMs,ignoreIntervalFirst:true}):{ok:true,skipped:'english_disabled_for_step',published:0,statePersisted:true};
       const afterRecords=await englishCanaryRecords(env);
       const afterEnglish=afterRecords.length;
       const bulk=runBulk?await bulkTick(env):null;
