@@ -6,7 +6,7 @@ import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
-const DISCOVERY_RELEASE='2026-10-06-generation-burst-r5';
+const DISCOVERY_RELEASE='2026-10-06-generation-burst-r6';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const enc=s=>encodeURI(String(s||''));
 let latestCache={at:0,value:null};
@@ -416,7 +416,16 @@ export default{
       }catch{}
       const beforeRecords=await englishCanaryRecords(env);
       const beforeEnglish=beforeRecords.length;
-      const english=runEnglish?await runEnglishCanaryBatch(env,{maxPerTick:englishMax,timeBudgetMs:englishBudgetMs,ignoreIntervalFirst:true}):{ok:true,skipped:'english_disabled_for_step',published:0,statePersisted:true};
+      let english={ok:true,skipped:'english_disabled_for_step',published:0,statePersisted:true,cycles:0,results:[]};
+      if(runEnglish){
+        const cycles=[];
+        for(let cycle=0;cycle<2;cycle++){
+          const part=await runEnglishCanaryBatch(env,{maxPerTick:englishMax,timeBudgetMs:englishBudgetMs,ignoreIntervalFirst:true});
+          cycles.push(part);
+          if(part?.ok===false)break;
+        }
+        english={ok:cycles.every(x=>x?.ok!==false),published:cycles.reduce((n,x)=>n+Number(x?.published||0),0),statePersisted:cycles.every(x=>x?.statePersisted===true),cycles:cycles.length,results:cycles};
+      }
       const afterRecords=await englishCanaryRecords(env);
       const afterEnglish=afterRecords.length;
       const bulk=runBulk?await bulkTick(env):null;
