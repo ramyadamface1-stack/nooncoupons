@@ -17,7 +17,7 @@ const CODES = APPROVED_COUPON_CODES;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const enc = (s) => encodeURI(String(s || ''));
 const safeJson = (x) => JSON.stringify(x).replace(/</g, '\\u003c');
-const EN_CATEGORY_LABELS={electronics:'Electronics',mobiles:'Mobiles',laptops:'Laptops',tablets:'Tablets',tvs:'TVs',computers:'Computers',gaming:'Gaming',audio:'Audio','home-kitchen':'Home & Kitchen',appliances:'Appliances',beauty:'Beauty',,fashion:'Fashion & Accessories''women-fashion':"Women's Fashion",'men-fashion':"Men's Fashion",shoes:'Shoes',bags:'Bags','baby-kids':'Baby & Kids',sports:'Sports',automotive:'Automotive',grocery:'Grocery',travel:'Travel','school-supplies':'School Supplies',gifts:'Gifts',pets:'Pet Supplies'};
+const EN_CATEGORY_LABELS={electronics:'Electronics',mobiles:'Mobiles',laptops:'Laptops',tablets:'Tablets',tvs:'TVs',computers:'Computers',gaming:'Gaming',audio:'Audio','home-kitchen':'Home & Kitchen',appliances:'Appliances',beauty:'Beauty',fashion:'Fashion & Accessories','women-fashion':"Women's Fashion",'men-fashion':"Men's Fashion",shoes:'Shoes',bags:'Bags','baby-kids':'Baby & Kids',sports:'Sports',automotive:'Automotive',grocery:'Grocery',travel:'Travel','school-supplies':'School Supplies',gifts:'Gifts',pets:'Pet Supplies'};
 
 const CSS = `
 :root{--ink:#101828;--muted:#667085;--line:#e7e9ee;--gold:#f5c400;--navy:#0f172a;--soft:#f8fafc}*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial,sans-serif;background:#f8fafc;color:var(--ink)}
