@@ -11,7 +11,7 @@ const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
 function cairoPublishLabel(value){
   if(!value)return '';
   try{
-    const raw=String(value),iso=/Z$|[+-]\\d{2}:?\\d{2}$/.test(raw)?raw:raw.replace(' ','T')+'Z',d=new Date(iso);
+    const raw=String(value),iso=/Z$|[+-]\d{2}:?\d{2}$/.test(raw)?raw:raw.replace(' ','T')+'Z',d=new Date(iso);
     if(Number.isNaN(d.getTime()))return '';
     const date=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',day:'numeric',month:'long',year:'numeric'}).format(d);
     const time=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',hour:'numeric',minute:'2-digit',hour12:true}).format(d);
@@ -20,13 +20,13 @@ function cairoPublishLabel(value){
 }
 function decorateBlogPublishTimes(html,articles){
   const bySlug=new Map((articles||[]).filter(a=>a?.slug).map(a=>[String(a.slug),a]));
-  return String(html||'').replace(/<article class="card\\b[\\s\\S]*?<\\/article>/gi,card=>{
-    const link=card.match(/href=["'][^"']*\\/articles\\/([^"'?#]+)["']/i);
+  return String(html||'').replace(/<article class="card\b[\s\S]*?<\/article>/gi,card=>{
+    const link=card.match(/href=["'][^"']*\/articles\/([^"'?#]+)["']/i);
     if(!link)return card;
     let slug=link[1];try{slug=decodeURIComponent(slug)}catch{}
     const rec=bySlug.get(slug),label=cairoPublishLabel(rec?.publishedAt||rec?.createdAt||rec?.updatedAt);
     if(!label)return card;
-    return card.replace(/(<div class="cardMeta">[\\s\\S]*?<span class="tag">[^<]*<\\/span>\\s*<span>)[^<]*(<\\/span>)/i,'$1'+esc(label)+'$2');
+    return card.replace(/(<div class="cardMeta">[\s\S]*?<span class="tag">[^<]*<\/span>\s*<span>)[^<]*(<\/span>)/i,'$1'+esc(label)+'$2');
   });
 }
 
@@ -50,8 +50,8 @@ async function enhanceArticle(req,env,res){
   if(!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
   let html=await res.text();
   const publishLabel=cairoPublishLabel(published);
-  if(publishLabel)html=html.replace(/(<aside class="article-byline"[\\s\\S]*?<span>)\\s*·\\s*نُشر\\s+[^<]*?(\\s*·\\s*آخر تحديث\\s+[^<]*<\\/span>)/i,'$1 · نُشر '+esc(publishLabel)+'$2');
-  if(!html.includes('id="article-topic-path"'))html=html.replace(/<\\/body>/i,articleTopicPathHtml(rec)+'</body>');
+  if(publishLabel)html=html.replace(/(<aside class="article-byline"[\s\S]*?<span>)\s*·\s*نُشر\s+[^<]*?(\s*·\s*آخر تحديث\s+[^<]*<\/span>)/i,'$1 · نُشر '+esc(publishLabel)+'$2');
+  if(!html.includes('id="article-topic-path"'))html=html.replace(/<\/body>/i,articleTopicPathHtml(rec)+'</body>');
   const h=new Headers(res.headers);h.delete('content-length');h.set('x-article-topic-path','v1');h.set('x-publish-time-zone','Africa/Cairo');
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
@@ -67,7 +67,7 @@ async function enhanceBlog(req,env,res){
     res=new Response(html,{status:res.status,statusText:res.statusText,headers:h});
   }
   if(u.search){
-    const keys=[...u.searchParams.keys()],pageOnly=keys.length===1&&keys[0]==='page'&&/^\\d+$/.test(u.searchParams.get('page')||'');
+    const keys=[...u.searchParams.keys()],pageOnly=keys.length===1&&keys[0]==='page'&&/^\d+$/.test(u.searchParams.get('page')||'');
     if(!pageOnly){const h=new Headers(res.headers);h.set('x-robots-tag','noindex, follow');return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h})}
   }
   return res;
