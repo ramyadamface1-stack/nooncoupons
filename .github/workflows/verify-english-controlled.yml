@@ -212,7 +212,13 @@ jobs:
           ORIGIN="https://noondealsnow.com"
           while IFS=$'\t' read -r path market category slug; do
             test -n "$path"
-            code="$(curl -sS -D /tmp/page.h -o /tmp/page.html -w '%{http_code}' --max-time 20 "$ORIGIN$path")"
+            code="0"
+            for attempt in 1 2 3 4 5; do
+              code="$(curl -sS -D /tmp/page.h -o /tmp/page.html -w '%{http_code}' --max-time 20 "$ORIGIN$path" || true)"
+              [ "$code" = "200" ] && break
+              echo "ENGLISH_ROUTE_EVENTUAL_RETRY slug=$slug attempt=$attempt http=$code"
+              sleep $((attempt*2))
+            done
             test "$code" = "200"
             grep -Fiq 'content-language: en' /tmp/page.h
             grep -Fiq 'x-english-canary: v1' /tmp/page.h
