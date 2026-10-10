@@ -60,7 +60,7 @@ jobs:
           grep -Fq '"CPU_SAVER_MODE": "true"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_PACE_MODE": "true"' wrangler.jsonc
           grep -Fq '"BULK_PACE_CANDIDATE_BUDGET_MS": "18000"' wrangler.jsonc
-          grep -Fq '"BULK_PACE_MAX_ROUNDS": "3"' wrangler.jsonc
+          grep -Fq '"BULK_PACE_MAX_ROUNDS": "5"' wrangler.jsonc
           grep -Fq 'scenarioAwareIntentOwnership:true' quality-index.js
           grep -Fq 'const PAGE_SIZE=15' archive-pages.js
           grep -Fq '"ENGLISH_CPU_BUDGET_MS": "12000"' wrangler.jsonc
