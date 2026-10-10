@@ -419,7 +419,7 @@ export default{
       let english={ok:true,skipped:'english_disabled_for_step',published:0,statePersisted:true,cycles:0,results:[]};
       if(runEnglish){
         const cycles=[];
-        for(let cycle=0;cycle<2;cycle++){
+        for(let cycle=0;cycle<4;cycle++){
           const part=await runEnglishCanaryBatch(env,{maxPerTick:englishMax,timeBudgetMs:englishBudgetMs,ignoreIntervalFirst:true});
           cycles.push(part);
           if(part?.ok===false)break;
@@ -428,9 +428,10 @@ export default{
       }
       const afterRecords=await englishCanaryRecords(env);
       const afterEnglish=afterRecords.length;
-      const bulkEnv=runBulk?new Proxy(env,{get(target,prop){if(prop==='BULK_BATCH_SIZE')return '64';if(prop==='BULK_CANDIDATE_BUDGET_MS')return '24000';if(prop==='BULK_BURST_MODE')return 'true';return Reflect.get(target,prop)}}):env;
-      const bulk=runBulk?await bulkTick(bulkEnv):null;
-      return new Response(JSON.stringify({ok:Boolean(english?.ok)&&(!runBulk||Boolean(bulk?.ok)),version:2,release:DISCOVERY_RELEASE,beforeEnglish,afterEnglish,englishDelta:Math.max(0,afterEnglish-beforeEnglish),english,bulk},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+      const effectiveBulk=runBulk||runEnglish;
+      const bulkEnv=effectiveBulk?new Proxy(env,{get(target,prop){if(prop==='BULK_BATCH_SIZE')return '64';if(prop==='BULK_CANDIDATE_BUDGET_MS')return '24000';if(prop==='BULK_BURST_MODE')return 'true';return Reflect.get(target,prop)}}):env;
+      const bulk=effectiveBulk?await bulkTick(bulkEnv):null;
+      return new Response(JSON.stringify({ok:Boolean(english?.ok)&&(!effectiveBulk||Boolean(bulk?.ok)),version:3,release:DISCOVERY_RELEASE,beforeEnglish,afterEnglish,englishDelta:Math.max(0,afterEnglish-beforeEnglish),english,effectiveBulk,bulk},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     if(req.method==='GET'&&u.pathname==='/api/sitemap-health')return sitemapHealth(req,env,ctx,origin);
     if(req.method==='GET'&&u.pathname==='/sitemap-core.xml'){const r=coreSitemap(origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
@@ -508,4 +509,4 @@ export default{
   }
 };
 
-export const DISCOVERY_ENTRY_INFO={version:26,dailyPaceRecovery:true,burstBulkAlwaysEnabled:true,cpuSaverMode:true,cronCadenceMinutes:4,coreSitemap:true,coreSitemapPath:'/sitemap-core.xml',release:DISCOVERY_RELEASE,revisionEndpoint:'/api/revision',hubSitemap:true,hubSitemapPath:'/sitemap-hubs.xml',edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:12000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:34,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:26,dailyPaceRecovery:true,burstBulkAlwaysEnabled:true,recoveryEnglishCycles:4,recoveryBulkEveryStep:true,cpuSaverMode:true,cronCadenceMinutes:4,coreSitemap:true,coreSitemapPath:'/sitemap-core.xml',release:DISCOVERY_RELEASE,revisionEndpoint:'/api/revision',hubSitemap:true,hubSitemapPath:'/sitemap-hubs.xml',edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:12000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:34,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};

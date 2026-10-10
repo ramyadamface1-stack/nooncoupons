@@ -42,7 +42,7 @@ export async function archiveLanding(path,url,env){
     const cards=slice.map(a=>`<article class="card" dir="ltr"><small>UAE · English</small><h2><a href="/en/articles/${enc(a.slug)}">${esc(a.title||a.primaryKeyword||a.slug)}</a></h2><p>${esc((a.metaDescription||'').slice(0,180))}</p><a href="/en/articles/${enc(a.slug)}"><strong>Open guide →</strong></a></article>`).join('');
     const pager=`<nav class="pager">${page>1?`<a href="${href(page-1)}">Newer</a>`:''}<span>Page ${page} / ${pages} · ${rows.length.toLocaleString('en-US')} guides</span>${page<pages?`<a href="${href(page+1)}">Older</a>`:''}</nav>`;
     const body=`<header class="hero"><div class="w"><a href="/blog/archive">← الأرشيف</a><h1>English UAE guides</h1><p>${rows.length.toLocaleString('en-US')} published English guides, 15 per page, each linked to its live article.</p></div></header><main class="w"><section class="cards">${cards}</section>${pager}</main>`;
-    return new Response(shell('English UAE archive',body),{headers:headers(120)});
+    return new Response(shell('English UAE archive',body),{headers:headers(15)});
   }
   if(path==='/blog/archive'){
     const manifest=await read(env,'bulk/days.json',{days:[]}),days=(manifest.days||[]).filter(x=>validDay(x.day)&&Number(x.count)>0).slice(0,365);
