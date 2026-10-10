@@ -8,6 +8,27 @@ const LEGACY_ORIGIN='https://noondealsnow.com';
 const enc=s=>encodeURI(String(s||''));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
+function cairoPublishLabel(value){
+  if(!value)return '';
+  try{
+    const raw=String(value),iso=/Z$|[+-]\\d{2}:?\\d{2}$/.test(raw)?raw:raw.replace(' ','T')+'Z',d=new Date(iso);
+    if(Number.isNaN(d.getTime()))return '';
+    const date=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',day:'numeric',month:'long',year:'numeric'}).format(d);
+    const time=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',hour:'numeric',minute:'2-digit',hour12:true}).format(d);
+    return date+' · '+time+' بتوقيت مصر';
+  }catch{return ''}
+}
+function decorateBlogPublishTimes(html,articles){
+  const bySlug=new Map((articles||[]).filter(a=>a?.slug).map(a=>[String(a.slug),a]));
+  return String(html||'').replace(/<article class="card\\b[\\s\\S]*?<\\/article>/gi,card=>{
+    const link=card.match(/href=["'][^"']*\\/articles\\/([^"'?#]+)["']/i);
+    if(!link)return card;
+    let slug=link[1];try{slug=decodeURIComponent(slug)}catch{}
+    const rec=bySlug.get(slug),label=cairoPublishLabel(rec?.publishedAt||rec?.createdAt||rec?.updatedAt);
+    if(!label)return card;
+    return card.replace(/(<div class="cardMeta">[\\s\\S]*?<span class="tag">[^<]*<\\/span>\\s*<span>)[^<]*(<\\/span>)/i,'$1'+esc(label)+'$2');
+  });
+}
 
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
 function requestOriginEnv(req,env){const u=new URL(req.url),host=u.hostname;const canonicalOrigin=host.endsWith('.workers.dev')?(env.SITE_ORIGIN||u.origin):u.origin;return new Proxy(env,{get(target,prop){if(prop==='SITE_ORIGIN')return canonicalOrigin;return Reflect.get(target,prop)}})}
@@ -17,9 +38,40 @@ async function injectHead(res,add,marker,lang){if(!res.ok||!(res.headers.get('co
 function intentGroup(a){const i=a?.intent||'';if(['decision','smartbuy','budget','checklist'].includes(i))return'buying';if(['trouble','eligibility','howto','question','timing','coupon'].includes(i))return'coupon';if(['compare','finalprice','value','cart','multi'].includes(i))return'price';if(['returns','warranty','seller'].includes(i))return'trust';return'other'}
 function blogBrowser(url,articles){const q=url.searchParams,market=['SA','AE'].includes(q.get('market'))?q.get('market'):'all',topic=['buying','coupon','price','trust'].includes(q.get('topic'))?q.get('topic'):'all',page=Math.max(1,Math.min(20,Number(q.get('page')||1)||1)),size=15;let rows=(articles||[]).filter(a=>a?.slug&&a.indexable!==false);if(market!=='all')rows=rows.filter(a=>a.country===market);if(topic!=='all')rows=rows.filter(a=>intentGroup(a)===topic);const pages=Math.max(1,Math.ceil(rows.length/size)),current=Math.min(page,pages),slice=rows.slice((current-1)*size,current*size);const href=(m,t,p=1)=>{const s=new URLSearchParams;if(m!=='all')s.set('market',m);if(t!=='all')s.set('topic',t);if(p>1)s.set('page',String(p));return'/blog'+(s.toString()?'?'+s.toString():'')};const chip=(label,m,t)=>`<a class="pb-chip${market===m&&topic===t?' active':''}" href="${href(m,t)}">${label}</a>`;const cards=slice.map(a=>`<article class="pb-card"><small>${a.country==='AE'?'الإمارات':'السعودية'} · ${esc(a.intentLabel||a.intent||'دليل')}</small><h3><a href="/articles/${enc(a.slug)}">${esc(a.title||a.primaryKeyword||a.slug)}</a></h3><p>${esc((a.metaDescription||'').slice(0,170))}</p><a class="pb-read" href="/articles/${enc(a.slug)}">اقرأ الدليل ←</a></article>`).join('');const pager=`<nav class="pb-pages" aria-label="صفحات المقالات">${current>1?`<a href="${href(market,topic,current-1)}">السابق</a>`:''}<span>صفحة ${current} من ${pages}</span>${current<pages?`<a href="${href(market,topic,current+1)}">التالي</a>`:''}</nav>`;return `<section id="premium-blog-browser"><div class="pb-wrap"><div class="pb-head"><div><span>تصفّح ذكي</span><h2>أحدث أدلة نون حسب هدفك</h2><p>فلترة حسب السوق ونية البحث بدون إنشاء صفحات فهرسة مكررة.</p></div><div class="pb-head-actions"><a class="pb-all" href="/blog/archive">أرشيف الأيام</a><a class="pb-all" href="/blog/archive/all">كل المقالات</a><a class="pb-all" href="/blog/archive/english">English UAE</a><a class="pb-all" href="/blog">إعادة الضبط</a></div></div><div class="pb-filters"><div>${chip('الكل','all',topic)}${chip('السعودية','SA',topic)}${chip('الإمارات','AE',topic)}</div><div>${chip('كل الأهداف',market,'all')}${chip('أدلة شراء',market,'buying')}${chip('مشاكل الكوبون',market,'coupon')}${chip('السعر والسلة',market,'price')}${chip('الإرجاع والبائع',market,'trust')}</div></div><div class="pb-grid">${cards||'<p class="pb-empty">لا توجد أدلة مطابقة لهذا الفلتر في أحدث المحتوى.</p>'}</div>${pager}</div></section>`}
 
-async function enhanceArticle(req,env,res){const u=new URL(req.url),slug=decodeURIComponent(u.pathname.split('/').filter(Boolean).pop()||'');if(!slug||!env.CONTENT_FINAL)return res;let md={};try{const o=await env.CONTENT_FINAL.head('articles/'+slug+'.html');md=o?.customMetadata||{}}catch{}const latest=await r2json(env,'bulk/latest.json',{articles:[]}),rec=(latest.articles||[]).find(a=>a?.slug===slug)||{slug,country:md.c||'SA'};const origin=env.SITE_ORIGIN||u.origin,published=md.at||rec.createdAt||new Date().toISOString(),modified=md.ua||rec.updatedAt||published,isAE=(rec.country||md.c)==='AE',market=isAE?'الإمارات':'السعودية',lang=isAE?'ar-AE':'ar-SA',canonical=origin+'/articles/'+enc(slug);const add=`<meta name="author" content="فريق تحرير كوبونات نون"><meta property="og:site_name" content="كوبونات نون"><meta property="article:published_time" content="${esc(published)}"><meta property="article:modified_time" content="${esc(modified)}"><meta property="article:section" content="نون ${market}"><link rel="alternate" hreflang="${lang}" href="${esc(canonical)}"><link rel="alternate" hreflang="x-default" href="${esc(canonical)}"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}">`;res=await injectHead(res,add,'article-v6',lang);if(!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;let html=await res.text();if(!html.includes('id="article-topic-path"'))html=html.replace(/<\/body>/i,articleTopicPathHtml(rec)+'</body>');const h=new Headers(res.headers);h.delete('content-length');h.set('x-article-topic-path','v1');return new Response(html,{status:res.status,statusText:res.statusText,headers:h})}
+async function enhanceArticle(req,env,res){
+  const u=new URL(req.url),slug=decodeURIComponent(u.pathname.split('/').filter(Boolean).pop()||'');
+  if(!slug||!env.CONTENT_FINAL)return res;
+  let md={};
+  try{const o=await env.CONTENT_FINAL.head('articles/'+slug+'.html');md=o?.customMetadata||{}}catch{}
+  const latest=await r2json(env,'bulk/latest.json',{articles:[]}),rec=(latest.articles||[]).find(a=>a?.slug===slug)||{slug,country:md.c||'SA'};
+  const origin=env.SITE_ORIGIN||u.origin,published=md.at||rec.publishedAt||rec.createdAt||rec.updatedAt||new Date().toISOString(),modified=md.ua||rec.updatedAt||published,isAE=(rec.country||md.c)==='AE',market=isAE?'الإمارات':'السعودية',lang=isAE?'ar-AE':'ar-SA',canonical=origin+'/articles/'+enc(slug);
+  const add=`<meta name="author" content="فريق تحرير كوبونات نون"><meta property="og:site_name" content="كوبونات نون"><meta property="article:published_time" content="${esc(published)}"><meta property="article:modified_time" content="${esc(modified)}"><meta property="article:section" content="نون ${market}"><link rel="alternate" hreflang="${lang}" href="${esc(canonical)}"><link rel="alternate" hreflang="x-default" href="${esc(canonical)}"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}">`;
+  res=await injectHead(res,add,'article-v7',lang);
+  if(!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
+  let html=await res.text();
+  const publishLabel=cairoPublishLabel(published);
+  if(publishLabel)html=html.replace(/(<aside class="article-byline"[\\s\\S]*?<span>)\\s*·\\s*نُشر\\s+[^<]*?(\\s*·\\s*آخر تحديث\\s+[^<]*<\\/span>)/i,'$1 · نُشر '+esc(publishLabel)+'$2');
+  if(!html.includes('id="article-topic-path"'))html=html.replace(/<\\/body>/i,articleTopicPathHtml(rec)+'</body>');
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-article-topic-path','v1');h.set('x-publish-time-zone','Africa/Cairo');
+  return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
+}
 
-async function enhanceBlog(req,env,res){const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin,latest=await r2json(env,'bulk/latest.json',{articles:[]}),all=(latest.articles||[]).filter(a=>a?.slug&&a?.indexable!==false),rows=all.slice(0,12);const graph={'@context':'https://schema.org','@graph':[{'@type':'CollectionPage','@id':origin+'/blog#collection',url:origin+'/blog',name:'مدونة كوبونات نون',description:'أحدث أدلة نون السعودية والإمارات.',inLanguage:'ar',isPartOf:{'@id':origin+'/#website'},mainEntity:{'@id':origin+'/blog#items'}},{'@type':'ItemList','@id':origin+'/blog#items',name:'أحدث أدلة كوبونات نون',numberOfItems:rows.length,itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+'/articles/'+enc(a.slug),name:a.title||a.primaryKeyword||a.slug}))}]};const add=`<meta property="og:type" content="website"><meta property="og:site_name" content="كوبونات نون"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}"><script type="application/ld+json" data-schema="blog-collection">${safeJson(graph)}</script>`;res=await injectHead(res,add,'blog-v7','ar');if(u.search){const keys=[...u.searchParams.keys()],pageOnly=keys.length===1&&keys[0]==='page'&&/^\d+$/.test(u.searchParams.get('page')||'');if(!pageOnly){const h=new Headers(res.headers);h.set('x-robots-tag','noindex, follow');return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h})}}return res}
+async function enhanceBlog(req,env,res){
+  const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin,latest=await r2json(env,'bulk/latest.json',{articles:[]}),all=(latest.articles||[]).filter(a=>a?.slug&&a?.indexable!==false),rows=all.slice(0,12);
+  const graph={'@context':'https://schema.org','@graph':[{'@type':'CollectionPage','@id':origin+'/blog#collection',url:origin+'/blog',name:'مدونة كوبونات نون',description:'أحدث أدلة نون السعودية والإمارات.',inLanguage:'ar',isPartOf:{'@id':origin+'/#website'},mainEntity:{'@id':origin+'/blog#items'}},{'@type':'ItemList','@id':origin+'/blog#items',name:'أحدث أدلة كوبونات نون',numberOfItems:rows.length,itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+'/articles/'+enc(a.slug),name:a.title||a.primaryKeyword||a.slug}))}]};
+  const add=`<meta property="og:type" content="website"><meta property="og:site_name" content="كوبونات نون"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}"><script type="application/ld+json" data-schema="blog-collection">${safeJson(graph)}</script>`;
+  res=await injectHead(res,add,'blog-v8','ar');
+  if(res.ok&&(res.headers.get('content-type')||'').includes('text/html')){
+    const html=decorateBlogPublishTimes(await res.text(),all),h=new Headers(res.headers);
+    h.delete('content-length');h.set('x-blog-publish-time-zone','Africa/Cairo');
+    res=new Response(html,{status:res.status,statusText:res.statusText,headers:h});
+  }
+  if(u.search){
+    const keys=[...u.searchParams.keys()],pageOnly=keys.length===1&&keys[0]==='page'&&/^\\d+$/.test(u.searchParams.get('page')||'');
+    if(!pageOnly){const h=new Headers(res.headers);h.set('x-robots-tag','noindex, follow');return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h})}
+  }
+  return res;
+}
 
 async function keywordLayer(req,env,res){if(!res.ok)return res;const u=new URL(req.url),path=u.pathname.replace(/\/+$/,'')||'/',origin=env.SITE_ORIGIN||u.origin,type=(res.headers.get('content-type')||'').toLowerCase();if(!(type.includes('text/html')||type.includes('xml')))return res;let text=await res.text();if(type.includes('text/html'))text=applyKeywordMap(path,text,origin);if(type.includes('xml')){text=augmentKeywordSitemap(path,text,origin);text=augmentWithTopicSitemap(path,text,origin)}const h=new Headers(res.headers);h.delete('content-length');h.set('x-keyword-map',KEYWORD_MAP_VERSION);h.set('x-topic-hubs',String(TOPIC_HUB_INFO.version));h.set('x-archive-version',String(ARCHIVE_INFO.version));return new Response(text,{status:res.status,statusText:res.statusText,headers:h})}
 async function topicNavLayer(req,res){return res}
