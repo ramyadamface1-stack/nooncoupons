@@ -1,4 +1,4 @@
-name: Generation Burst 550 Verified
+name: Generation Daily Pace Recovery
 
 on:
   push:
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   burst:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 240
     steps:
       - name: Wait for generation-burst release
         env:
@@ -31,13 +31,13 @@ jobs:
           for i in $(seq 1 90); do
             release="$(curl -fsS --max-time 20 "$ORIGIN/api/revision?burst=$i" | jq -r '.release // ""' || true)"
             echo "WAIT_RELEASE attempt=$i release=$release"
-            if [ "$release" = "2026-10-06-generation-burst-r4" ]; then exit 0; fi
+            if [ "$release" = "2026-10-10-daily-pace-r9" ]; then exit 0; fi
             sleep 10
           done
           echo RELEASE_NOT_LIVE
           exit 1
 
-      - name: Publish until verified delta exceeds 550
+      - name: Publish verified catch-up toward daily minimum
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
         shell: bash
@@ -52,10 +52,10 @@ jobs:
           base_en="$(jq -r '.english|tonumber' /tmp/base.json)"
           echo "BASE total=$base_total ar=$base_ar en=$base_en"
           success_steps=0
-          for i in $(seq 1 120); do
+          for i in $(seq 1 240); do
             run_bulk=false
-            if (( i % 4 == 0 )); then run_bulk=true; fi
-            code="$(curl -sS -o /tmp/step.json -w '%{http_code}' --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 90               -X POST -H "$AUTH" -H 'Content-Type: application/json'               --data "{\"englishMax\":23,\"englishBudgetMs\":12000,\"runBulk\":$run_bulk}"               "$ORIGIN/api/internal/generation-burst-step?run=${GITHUB_RUN_ID}-$i" || true)"
+            if (( i % 2 == 0 )); then run_bulk=true; fi
+            code="$(curl -sS -o /tmp/step.json -w '%{http_code}' --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 90               -X POST -H "$AUTH" -H 'Content-Type: application/json'               --data "{\"englishMax\":23,\"englishBudgetMs\":15000,\"runBulk\":$run_bulk}"               "$ORIGIN/api/internal/generation-burst-step?run=${GITHUB_RUN_ID}-$i" || true)"
             if [ "$code" = "200" ]; then
               ed="$(jq -r '.englishDelta // 0' /tmp/step.json)"
               committed="$(jq -r '.english.published // 0' /tmp/step.json)"
@@ -73,8 +73,8 @@ jobs:
             ar_delta=$((now_ar-base_ar))
             en_delta=$((now_en-base_en))
             echo "PROGRESS step=$i total=$now_total delta=$delta arDelta=$ar_delta enDelta=$en_delta"
-            if (( delta >= 550 )); then
-              echo "TARGET_REACHED delta=$delta arDelta=$ar_delta enDelta=$en_delta successfulStateSteps=$success_steps"
+            if (( delta >= 12000 )); then
+              echo "DAILY_MINIMUM_REACHED delta=$delta arDelta=$ar_delta enDelta=$en_delta successfulStateSteps=$success_steps"
               cp /tmp/now.json /tmp/final.json
               break
             fi
@@ -88,7 +88,7 @@ jobs:
           ar_delta=$((final_ar-base_ar))
           en_delta=$((final_en-base_en))
           echo "FINAL total=$final_total delta=$delta arDelta=$ar_delta enDelta=$en_delta"
-          [ "$delta" -ge 550 ] || { echo TARGET_NOT_REACHED; exit 2; }
+          [ "$delta" -ge 12000 ] || { echo DAILY_MINIMUM_NOT_REACHED_WITHIN_RECOVERY_RUN; exit 2; }
           [ "$en_delta" -gt 0 ] || { echo ENGLISH_DID_NOT_ADVANCE; exit 3; }
 
       - name: Verify sitemap and live English article
@@ -107,3 +107,5 @@ jobs:
           echo "LAST_ENGLISH slug=$last_slug http=$code bytes=$(wc -c < /tmp/article.html)"
           [ "$code" = "200" ] || exit 6
           grep -Fq '<html' /tmp/article.html || exit 7
+
+# daily-pace-policy: minimum 12000 verified live delta; 2026-10-10

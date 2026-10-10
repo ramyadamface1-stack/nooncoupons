@@ -150,7 +150,7 @@ const UAE_POPULAR_SEARCHES={
   office:['printer','keyboard','mouse','office chair','school supplies']
 };
 const UAE_INTENT_SUFFIX={coupon:'coupon code',timing:'coupon timing guide',value:'shopping value guide',smartbuy:'buying guide',cart:'promo code',finalprice:'final price',eligibility:'coupon eligibility'};
-const UAE_GEO_SEARCH_MARKETS=['Dubai','Abu Dhabi','Sharjah'];
+const UAE_GEO_SEARCH_MARKETS=['Dubai','Abu Dhabi','Sharjah','Ajman','Al Ain','Ras Al Khaimah','Fujairah'];
 function naturalUaeCommercialKeyword(subject,intent,geo='UAE'){
   const s=String(subject||'Noon shopping').replace(/\s+/g,' ').trim(),g=String(geo||'UAE').replace(/\s+/g,' ').trim();
   const patterns={
@@ -176,7 +176,7 @@ function naturalUaeCommercialKeyword(subject,intent,geo='UAE'){
   return String(patterns[intent]||`${s} Noon ${g} shopping guide`).replace(/\s+/g,' ').trim();
 }
 function cleanUaeGoldenModifier(modifier){
-  const cleaned=String(modifier||'').replace(/\b(?:UAE|Dubai|Abu Dhabi|Sharjah)\b/gi,' ').replace(/\s+/g,' ').trim();
+  const cleaned=String(modifier||'').replace(/\b(?:UAE|Dubai|Abu Dhabi|Sharjah|Ajman|Al Ain|Ras Al Khaimah|Fujairah)\b/gi,' ').replace(/\s+/g,' ').trim();
   return cleaned||'shopping guide';
 }
 function uaeEnglishPriorityKeyword(candidate){
@@ -184,7 +184,7 @@ function uaeEnglishPriorityKeyword(candidate){
   const profile=String(candidate.profileKey||'general'),category=UAE_QUERY_CATEGORY[profile]||String(candidate.nativeCategory||'').trim();
   const seed=Math.abs(Number(candidate.topicIndex||0)),heads=UAE_COMMERCIAL_HEADS[candidate.intent]||UAE_COMMERCIAL_HEADS.coupon,demand=UAE_POPULAR_SEARCHES[profile]||[];
   const goldenHead=seed%10<7,useDemand=!goldenHead&&demand.length>0,subject=useDemand?demand[seed%demand.length]:category,head=heads[seed%heads.length];
-  const geo=seed%10<7?'UAE':UAE_GEO_SEARCH_MARKETS[seed%UAE_GEO_SEARCH_MARKETS.length];
+  const geo=seed%10<4?'UAE':UAE_GEO_SEARCH_MARKETS[seed%UAE_GEO_SEARCH_MARKETS.length];
   const keyword=(useDemand?naturalUaeCommercialKeyword(subject,candidate.intent,geo):head).replace(/\s+/g,' ').trim();
   const searchClass=String(subject+'-'+(candidate.intent||'commercial')+'-'+geo).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
   return {

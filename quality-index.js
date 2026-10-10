@@ -68,7 +68,7 @@ export function intentKey(topic){
 }
 export function intentOwnerKey(topic){
   return norm([
-    topic?.country,topic?.category,topic?.intent,topic?.useCase,topic?.factor,
+    topic?.country,topic?.category,topic?.intent,topic?.useCase,topic?.factor,topic?.scenario,topic?.queryModifier,
     topic?.catalogLevel,topic?.catalogTarget,topic?.brandKey,topic?.modelKey,topic?.comparisonKey,campaignIntentDimension(topic)
   ].join('|'));
 }
@@ -217,4 +217,4 @@ export async function flushClusters(env,cache,dirtyKeys){
   }
 }
 
-export const GLOBAL_INDEX_INFO={version:VERSION,gateRevision:7,titleCannibalizationSimilarityMax:0.82,intentKeyVersion:4,intentOwnerVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],intentOwnerDimensions:['country','category','intent','useCase','factor','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:6,cannibalizationSimilarityMax:0.78,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:8,r2ReadRetry:3,r2WriteRetry:5,failClosedOnClusterRead:true,preflightGate:true,cpuEarlyExitExactCollisions:true,cpuIndexedClusterLookup:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','intent-owner-collision','keyword-cannibalization'],postBuildChecks:['duplicate-title','semantic-collision','title-cannibalization']};
+export const GLOBAL_INDEX_INFO={version:VERSION,gateRevision:8,titleCannibalizationSimilarityMax:0.82,intentKeyVersion:4,intentOwnerVersion:2,intentKeyDimensions:['country','category','intent','useCase','factor','scenario','queryModifier','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],intentOwnerDimensions:['country','category','intent','useCase','factor','catalogLevel','catalogTarget','brandKey','modelKey','comparisonKey','campaignId(exact-dated-campaign-only)'],maxClusterEntries:MAX_CLUSTER_ENTRIES,semanticDistanceMin:6,cannibalizationSimilarityMax:0.78,relatedLinksMax:MAX_RELATED,bootstrapMaxDays:BOOTSTRAP_MAX_DAYS,clusterWriteConcurrency:8,r2ReadRetry:3,r2WriteRetry:5,failClosedOnClusterRead:true,preflightGate:true,cpuEarlyExitExactCollisions:true,cpuIndexedClusterLookup:true,scenarioAwareIntentOwnership:true,queryModifierAwareIntentOwnership:true,preflightChecks:['duplicate-slug','duplicate-keyword','duplicate-intent','intent-owner-collision','keyword-cannibalization'],postBuildChecks:['duplicate-title','semantic-collision','title-cannibalization']};

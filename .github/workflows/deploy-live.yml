@@ -58,7 +58,7 @@ jobs:
           npx wrangler deploy --dry-run --outdir /tmp/wrangler-dry
           grep -Fq '"main": "discovery-entry.js"' wrangler.jsonc
           grep -Fq '"BULK_DAILY_TARGET": "12000"' wrangler.jsonc
-          grep -Fq '"BULK_BATCH_SIZE": "34"' wrangler.jsonc
+          grep -Fq '"BULK_BATCH_SIZE": "64"' wrangler.jsonc
           grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "1"' wrangler.jsonc
           grep -Fq '"ENGLISH_DAILY_TARGET": "8000"' wrangler.jsonc
           grep -Fq '"ENGLISH_BATCH_SIZE": "23"' wrangler.jsonc
@@ -66,7 +66,12 @@ jobs:
           grep -Fq "u.hostname.toLowerCase()==='www.noondealsnow.com'" discovery-entry.js
           grep -Fq "'x-canonical-host-redirect':'www-to-apex-v1'" discovery-entry.js
           grep -Fq '"CPU_SAVER_MODE": "true"' wrangler.jsonc
-          grep -Fq '"BULK_CANDIDATE_BUDGET_MS": "12000"' wrangler.jsonc
+          grep -Fq '"BULK_DAILY_PACE_MODE": "true"' wrangler.jsonc
+          grep -Fq '"BULK_PACE_CANDIDATE_BUDGET_MS": "18000"' wrangler.jsonc
+          grep -Fq '"BULK_PACE_MAX_ROUNDS": "3"' wrangler.jsonc
+          grep -Fq 'scenarioAwareIntentOwnership:true' quality-index.js
+          grep -Fq 'const PAGE_SIZE=15' archive-pages.js
+          grep -Fq '"BULK_CANDIDATE_BUDGET_MS": "15000"' wrangler.jsonc
           grep -Fq '"ENGLISH_CPU_BUDGET_MS": "12000"' wrangler.jsonc
           grep -Fq '"*/4 * * * *"' wrangler.jsonc
           grep -Fq '"head_sampling_rate": 0.05' wrangler.jsonc
