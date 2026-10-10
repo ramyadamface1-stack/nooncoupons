@@ -1,5 +1,6 @@
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const enc=s=>encodeURI(String(s||''));
+const dec=s=>{try{return decodeURIComponent(String(s||''))}catch{return String(s||'')}};
 const PAGE_SIZE=15,SHARD_SIZE=100;
 const DISCOVERY_CURRENT='maintenance/article-discovery-v1/current.json',ENGLISH_STATE='english-canary/state.json';
 async function read(env,key,fallback){try{const o=await env.CONTENT_FINAL?.get(key);return o?await o.json():fallback}catch{return fallback}}
@@ -8,6 +9,23 @@ function headers(maxAge=120){return {'content-type':'text/html; charset=utf-8','
 function validDay(s){return /^\d{4}-\d{2}-\d{2}$/.test(s||'')}
 function card(a){return `<article class="card"><small>${a.country==='AE'?'الإمارات':'السعودية'} · ${esc(a.intentLabel||a.intent||'دليل')}</small><h2><a href="/articles/${enc(a.slug)}">${esc(a.title||a.primaryKeyword||a.slug)}</a></h2><p>${esc((a.metaDescription||'').slice(0,180))}</p><a href="/articles/${enc(a.slug)}"><strong>اقرأ الدليل ←</strong></a></article>`}
 export async function archiveLanding(path,url,env){
+  if(path==='/blog/archive/all'){
+    if(!env.CONTENT_FINAL)return new Response('Archive unavailable',{status:503,headers:{...headers(30),'x-robots-tag':'noindex,nofollow'}});
+    const cursor=String(url.searchParams.get('cursor')||'').trim()||undefined;
+    let listing;
+    try{listing=await env.CONTENT_FINAL.list({prefix:'articles/',limit:15,...(cursor?{cursor}:{}),include:['customMetadata']})}
+    catch(e){return new Response('Archive listing temporarily unavailable',{status:503,headers:{...headers(30),'x-robots-tag':'noindex,nofollow'}})}
+    const objects=(listing.objects||[]).filter(o=>String(o?.key||'').startsWith('articles/')&&String(o.key).endsWith('.html'));
+    const cards=objects.map(o=>{
+      const md=o.customMetadata||{},slug=String(o.key).slice('articles/'.length,-'.html'.length),isEnglish=String(md.lang||'').toLowerCase()==='en'||slug.startsWith('en-'),country=(md.c||md.country)==='AE'?'AE':'SA',rawTitle=md.t||md.title||slug,title=dec(rawTitle).replace(/[-_]+/g,' ').replace(/\s+/g,' ').trim(),href=(isEnglish?'/en/articles/':'/articles/')+enc(slug),uploaded=o.uploaded?new Date(o.uploaded).toISOString().slice(0,10):'';
+      if(md.status&&md.status!=='published')return '';
+      return `<article class="card" dir="${isEnglish?'ltr':'rtl'}"><small>${isEnglish?'English UAE':country==='AE'?'الإمارات':'السعودية'}${uploaded?' · '+esc(uploaded):''}</small><h2><a href="${href}">${esc(title)}</a></h2><p class="muted">R2 article object · ${esc(slug)}</p><a href="${href}"><strong>${isEnglish?'Open article →':'افتح المقال ←'}</strong></a></article>`;
+    }).filter(Boolean).join('');
+    const next=listing.truncated&&listing.cursor?'/blog/archive/all?cursor='+encodeURIComponent(listing.cursor):'',count=await read(env,'_ops/article-count.json',null),known=Number(count?.count||0);
+    const pager=`<nav class="pager"><span>15 مقالًا لكل دفعة${known?' · آخر عدّ R2: '+known.toLocaleString('ar-EG'):''}</span>${next?`<a href="${next}">التالي ←</a>`:''}</nav>`;
+    const body=`<header class="hero"><div class="w"><a href="/blog/archive">← الأرشيف</a><h1>كل ملفات المقالات المحفوظة</h1><p>تصفح مباشر لمحتوى articles/ في R2، 15 عنصرًا في الصفحة. هذا المسار لا يعتمد على عداد التوليد أو manifest، لذلك يغطي المقالات القديمة والجديدة المحفوظة فعليًا.</p><div class="back"><a href="/blog">أحدث المقالات</a><a href="/blog/archive/english">English UAE</a></div></div></header><main class="w"><section class="cards">${cards||'<p>لا توجد عناصر قابلة للعرض في هذه الدفعة.</p>'}</section>${pager}</main>`;
+    return new Response(shell('كل المقالات المحفوظة',body),{headers:{...headers(120),'x-r2-direct-archive':'v1'}});
+  }
   if(path==='/blog/archive/full'){
     const discovery=await read(env,DISCOVERY_CURRENT,null);
     if(!discovery?.complete||!discovery?.runId||Number(discovery?.shards||0)<1)return new Response('Archive index unavailable',{status:503,headers:{...headers(30),'x-robots-tag':'noindex,nofollow'}});
@@ -29,7 +47,7 @@ export async function archiveLanding(path,url,env){
   if(path==='/blog/archive'){
     const manifest=await read(env,'bulk/days.json',{days:[]}),days=(manifest.days||[]).filter(x=>validDay(x.day)&&Number(x.count)>0).slice(0,365);
     const rows=days.map(x=>`<article class="day"><a href="/blog/archive/${esc(x.day)}"><strong>${esc(x.day)}</strong><span>${Number(x.count).toLocaleString('ar-EG')} مقال · ${Number(x.shards)||Math.ceil(Number(x.count)/SHARD_SIZE)} أجزاء</span></a></article>`).join('');
-    const body=`<header class="hero"><div class="w"><a href="/blog">← المدونة</a><h1>أرشيف أدلة نون</h1><p>تصفّح المحتوى الأقدم حسب يوم النشر. الأرشيف مخصص للمستخدم والربط الداخلي ولا ينافس المقالات في نتائج البحث.</p><div class="back"><a href="/blog/archive/full">الفهرس العربي الكامل</a><a href="/blog/archive/english">English UAE</a><a href="/topics/saudi">نون السعودية</a><a href="/topics/uae">نون الإمارات</a><a href="/topics/buying-guides">أدلة الشراء</a></div></div></header><main class="w"><section class="days">${rows||'<p>لا توجد أيام محفوظة في الأرشيف حتى الآن.</p>'}</section></main>`;
+    const body=`<header class="hero"><div class="w"><a href="/blog">← المدونة</a><h1>أرشيف أدلة نون</h1><p>تصفّح المحتوى الأقدم حسب يوم النشر. الأرشيف مخصص للمستخدم والربط الداخلي ولا ينافس المقالات في نتائج البحث.</p><div class="back"><a href="/blog/archive/all">كل المقالات المحفوظة</a><a href="/blog/archive/full">فهرس الجودة العربي</a><a href="/blog/archive/english">English UAE</a><a href="/topics/saudi">نون السعودية</a><a href="/topics/uae">نون الإمارات</a><a href="/topics/buying-guides">أدلة الشراء</a></div></div></header><main class="w"><section class="days">${rows||'<p>لا توجد أيام محفوظة في الأرشيف حتى الآن.</p>'}</section></main>`;
     return new Response(shell('أرشيف أدلة نون',body),{headers:headers(300)});
   }
   if(!path.startsWith('/blog/archive/'))return null;
@@ -49,4 +67,4 @@ export async function archiveLanding(path,url,env){
   return new Response(shell(`مقالات ${day}`,body),{headers:headers(day===new Date().toISOString().slice(0,10)?30:600)});
 }
 export function archiveNavLink(){return '<a href="/blog/archive">أرشيف المقالات</a>'}
-export const ARCHIVE_INFO={version:2,fullDiscoveryArchive:true,englishArchive:true,pageSize:PAGE_SIZE,shardSize:SHARD_SIZE,indexable:false,maxShardReadsPerPage:2};
+export const ARCHIVE_INFO={version:3,directR2Archive:true,fullDiscoveryArchive:true,englishArchive:true,pageSize:PAGE_SIZE,shardSize:SHARD_SIZE,indexable:false,maxShardReadsPerPage:2};
