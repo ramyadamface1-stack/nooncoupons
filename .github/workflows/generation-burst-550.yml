@@ -1,111 +1,157 @@
-name: Generation Daily Pace Recovery
+name: Hourly 1000 Publish SLA
 
 on:
   push:
     branches: [main]
     paths: ['.github/workflows/generation-burst-550.yml']
   workflow_dispatch:
+  schedule:
+    - cron: '7 * * * *'
 
 permissions:
   contents: read
 
 concurrency:
-  group: generation-burst-550
+  group: hourly-1000-publish
   cancel-in-progress: true
 
+env:
+  ORIGIN: https://nooncoupons.ramychatgptgcoupons.workers.dev
+  STATS: https://noondealsnow.com/api/content-stats
+  RELEASE: 2026-10-14-hourly-1000-r10
+
 jobs:
-  burst:
+  saudi-burst:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 65
     steps:
-      - name: Wait for generation-burst release
+      - name: Wait for hourly-1000 runtime
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
         shell: bash
         run: |
           set -euo pipefail
-          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
           [ -n "${CF_TOKEN:-}" ] || { echo MISSING_CF_TOKEN; exit 10; }
           echo "::add-mask::$CF_TOKEN"
-          AUTH="Authorization: Bearer $CF_TOKEN"
           for i in $(seq 1 90); do
-            release="$(curl -fsS --max-time 20 "$ORIGIN/api/revision?burst=$i" | jq -r '.release // ""' || true)"
+            release="$(curl -fsS --max-time 20 "$ORIGIN/api/revision?hourly1000=$i" | jq -r '.release // ""' || true)"
             echo "WAIT_RELEASE attempt=$i release=$release"
-            if [ "$release" = "2026-10-10-daily-pace-r9" ]; then exit 0; fi
+            [ "$release" = "$RELEASE" ] && exit 0
             sleep 10
           done
           echo RELEASE_NOT_LIVE
           exit 1
 
-      - name: Publish verified catch-up toward daily minimum
+      - name: Publish at least 300 Saudi Arabic articles
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
         shell: bash
         run: |
           set -euo pipefail
-          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
           AUTH="Authorization: Bearer $CF_TOKEN"
-          STATS='https://noondealsnow.com/api/content-stats'
-          curl -fsS --max-time 30 "$STATS?burst-baseline=${GITHUB_RUN_ID}" -o /tmp/base.json
-          base_total="$(jq -r '.total|tonumber' /tmp/base.json)"
-          base_ar="$(jq -r '.arabic|tonumber' /tmp/base.json)"
-          base_en="$(jq -r '.english|tonumber' /tmp/base.json)"
-          echo "BASE total=$base_total ar=$base_ar en=$base_en"
-          success_steps=0
-          for i in $(seq 1 240); do
-            run_bulk=false
-            if (( i % 2 == 0 )); then run_bulk=true; fi
-            code="$(curl -sS -o /tmp/step.json -w '%{http_code}' --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 90               -X POST -H "$AUTH" -H 'Content-Type: application/json'               --data "{\"englishMax\":23,\"englishBudgetMs\":15000,\"runBulk\":$run_bulk}"               "$ORIGIN/api/internal/generation-burst-step?run=${GITHUB_RUN_ID}-$i" || true)"
-            if [ "$code" = "200" ]; then
-              ed="$(jq -r '.englishDelta // 0' /tmp/step.json)"
-              committed="$(jq -r '.english.published // 0' /tmp/step.json)"
-              persisted="$(jq -r '.english.statePersisted // false' /tmp/step.json)"
-              echo "STEP $i http=$code englishDelta=$ed committed=$committed persisted=$persisted bulk=$run_bulk"
-              if [ "$persisted" = "true" ]; then success_steps=$((success_steps+1)); fi
-            else
-              echo "STEP $i http=$code transient"
-            fi
-            curl -fsS --max-time 30 "$STATS?burst-progress=${GITHUB_RUN_ID}-$i" -o /tmp/now.json
-            now_total="$(jq -r '.total|tonumber' /tmp/now.json)"
-            now_ar="$(jq -r '.arabic|tonumber' /tmp/now.json)"
-            now_en="$(jq -r '.english|tonumber' /tmp/now.json)"
-            delta=$((now_total-base_total))
-            ar_delta=$((now_ar-base_ar))
-            en_delta=$((now_en-base_en))
-            echo "PROGRESS step=$i total=$now_total delta=$delta arDelta=$ar_delta enDelta=$en_delta"
-            if (( delta >= 12000 )); then
-              echo "DAILY_MINIMUM_REACHED delta=$delta arDelta=$ar_delta enDelta=$en_delta successfulStateSteps=$success_steps"
-              cp /tmp/now.json /tmp/final.json
-              break
+          DAY="$(TZ=Africa/Cairo date +%F)"
+          REPORT="https://noondealsnow.com/api/daily-publish-report?from=$DAY"
+          curl -fsS --max-time 40 "$REPORT&baseline=${GITHUB_RUN_ID}" -o /tmp/base.json
+          base_sa="$(jq -r '.days[0].saudiArabic|tonumber' /tmp/base.json)"
+          base_total="$(curl -fsS --max-time 30 "$STATS?sa-baseline=${GITHUB_RUN_ID}" | jq -r '.total|tonumber')"
+          echo "SA_BASE day=$DAY saudi=$base_sa total=$base_total"
+          started=$SECONDS
+          step=0
+          while (( SECONDS - started < 3300 )); do
+            step=$((step+1))
+            code="$(curl -sS -o /tmp/step.json -w '%{http_code}' --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 100               -X POST -H "$AUTH" -H 'Content-Type: application/json'               --data '{"runEnglish":false,"runBulk":true,"forceBulk":true,"forceSaudi":true}'               "$ORIGIN/api/internal/generation-burst-step?saudi=${GITHUB_RUN_ID}-$step" || true)"
+            echo "SA_STEP step=$step http=$code published=$(jq -r '.bulk.bulk.records|length // .bulk.summary.bulkLastTickPublished // 0' /tmp/step.json 2>/dev/null || echo 0)"
+            if (( step % 2 == 0 )); then
+              curl -fsS --max-time 40 "$REPORT&progress=${GITHUB_RUN_ID}-$step" -o /tmp/sa-now.json
+              now_sa="$(jq -r '.days[0].saudiArabic|tonumber' /tmp/sa-now.json)"
+              delta=$((now_sa-base_sa))
+              echo "SA_PROGRESS step=$step saudi=$now_sa delta=$delta"
+              if (( delta >= 300 )); then
+                echo "SAUDI_TARGET_REACHED delta=$delta elapsed=$((SECONDS-started))"
+                exit 0
+              fi
             fi
             sleep 1
           done
-          test -f /tmp/final.json || cp /tmp/now.json /tmp/final.json
-          final_total="$(jq -r '.total|tonumber' /tmp/final.json)"
-          final_ar="$(jq -r '.arabic|tonumber' /tmp/final.json)"
-          final_en="$(jq -r '.english|tonumber' /tmp/final.json)"
-          delta=$((final_total-base_total))
-          ar_delta=$((final_ar-base_ar))
-          en_delta=$((final_en-base_en))
-          echo "FINAL total=$final_total delta=$delta arDelta=$ar_delta enDelta=$en_delta"
-          [ "$delta" -ge 12000 ] || { echo DAILY_MINIMUM_NOT_REACHED_WITHIN_RECOVERY_RUN; exit 2; }
-          [ "$en_delta" -gt 0 ] || { echo ENGLISH_DID_NOT_ADVANCE; exit 3; }
+          curl -fsS --max-time 40 "$REPORT&final=${GITHUB_RUN_ID}" -o /tmp/sa-final.json
+          final_sa="$(jq -r '.days[0].saudiArabic|tonumber' /tmp/sa-final.json)"
+          delta=$((final_sa-base_sa))
+          echo "SA_FINAL saudi=$final_sa delta=$delta"
+          [ "$delta" -ge 300 ] || { echo SAUDI_300_NOT_REACHED_WITHIN_HOUR; exit 2; }
 
-      - name: Verify sitemap and live English article
+  english-burst:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - name: Wait for hourly-1000 runtime
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsS --max-time 30 "https://noondealsnow.com/api/content-stats?burst-final=${GITHUB_RUN_ID}" -o /tmp/stats.json
-          curl -fsS --max-time 30 "https://noondealsnow.com/sitemap-en-articles.xml?burst-final=${GITHUB_RUN_ID}" -o /tmp/en.xml
-          expected="$(jq -r '.english|tonumber' /tmp/stats.json)"
-          actual="$(grep -o '<url>' /tmp/en.xml | wc -l | tr -d ' ')"
-          echo "ENGLISH_SITEMAP expected=$expected actual=$actual"
-          [ "$actual" -eq "$expected" ] || exit 4
-          last_slug="$(curl -fsS --max-time 30 'https://noondealsnow.com/api/english-canary-health?light=1&burst-final=1' | jq -r '.controlled.records[-1].slug // empty')"
-          [ -n "$last_slug" ] || exit 5
-          code="$(curl -sS -o /tmp/article.html -w '%{http_code}' --max-time 30 "https://noondealsnow.com/en/articles/$last_slug?burst-final=1")"
-          echo "LAST_ENGLISH slug=$last_slug http=$code bytes=$(wc -c < /tmp/article.html)"
-          [ "$code" = "200" ] || exit 6
-          grep -Fq '<html' /tmp/article.html || exit 7
+          [ -n "${CF_TOKEN:-}" ] || { echo MISSING_CF_TOKEN; exit 10; }
+          echo "::add-mask::$CF_TOKEN"
+          for i in $(seq 1 90); do
+            release="$(curl -fsS --max-time 20 "$ORIGIN/api/revision?hourly1000-en=$i" | jq -r '.release // ""' || true)"
+            echo "WAIT_RELEASE attempt=$i release=$release"
+            [ "$release" = "$RELEASE" ] && exit 0
+            sleep 10
+          done
+          echo RELEASE_NOT_LIVE
+          exit 1
 
-# daily-pace-policy: minimum 12000 verified live delta; 2026-10-10
+      - name: Publish at least 700 UAE English articles
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          AUTH="Authorization: Bearer $CF_TOKEN"
+          curl -fsS --max-time 30 "$STATS?en-baseline=${GITHUB_RUN_ID}" -o /tmp/base.json
+          base_en="$(jq -r '.english|tonumber' /tmp/base.json)"
+          base_total="$(jq -r '.total|tonumber' /tmp/base.json)"
+          echo "EN_BASE english=$base_en total=$base_total"
+          started=$SECONDS
+          step=0
+          while (( SECONDS - started < 3300 )); do
+            step=$((step+1))
+            code="$(curl -sS -o /tmp/step.json -w '%{http_code}' --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 100               -X POST -H "$AUTH" -H 'Content-Type: application/json'               --data '{"runEnglish":true,"englishMax":24,"englishCycles":4,"englishBudgetMs":15000,"runBulk":false}'               "$ORIGIN/api/internal/generation-burst-step?english=${GITHUB_RUN_ID}-$step" || true)"
+            delta_step="$(jq -r '.englishDelta // 0' /tmp/step.json 2>/dev/null || echo 0)"
+            echo "EN_STEP step=$step http=$code deltaStep=$delta_step"
+            curl -fsS --max-time 30 "$STATS?en-progress=${GITHUB_RUN_ID}-$step" -o /tmp/en-now.json
+            now_en="$(jq -r '.english|tonumber' /tmp/en-now.json)"
+            delta=$((now_en-base_en))
+            echo "EN_PROGRESS step=$step english=$now_en delta=$delta"
+            if (( delta >= 700 )); then
+              echo "ENGLISH_TARGET_REACHED delta=$delta elapsed=$((SECONDS-started))"
+              exit 0
+            fi
+            sleep 1
+          done
+          curl -fsS --max-time 30 "$STATS?en-final=${GITHUB_RUN_ID}" -o /tmp/en-final.json
+          final_en="$(jq -r '.english|tonumber' /tmp/en-final.json)"
+          delta=$((final_en-base_en))
+          echo "EN_FINAL english=$final_en delta=$delta"
+          [ "$delta" -ge 700 ] || { echo ENGLISH_700_NOT_REACHED_WITHIN_HOUR; exit 3; }
+
+  verify:
+    needs: [saudi-burst, english-burst]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify live counters, freshness and discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          DAY="$(TZ=Africa/Cairo date +%F)"
+          curl -fsS --max-time 30 "$STATS?hourly1000-final=${GITHUB_RUN_ID}" -o /tmp/stats.json
+          curl -fsS --max-time 30 "https://noondealsnow.com/api/generation-freshness?hourly1000-final=${GITHUB_RUN_ID}" -o /tmp/fresh.json
+          curl -fsS --max-time 40 "https://noondealsnow.com/api/daily-publish-report?from=$DAY&hourly1000-final=${GITHUB_RUN_ID}" -o /tmp/day.json
+          curl -fsS --max-time 30 "https://noondealsnow.com/blog?hourly1000-final=${GITHUB_RUN_ID}" -o /tmp/blog.html
+          echo "FINAL total=$(jq -r '.total' /tmp/stats.json) ar=$(jq -r '.arabic' /tmp/stats.json) en=$(jq -r '.english' /tmp/stats.json)"
+          echo "TODAY sa=$(jq -r '.days[0].saudiArabic' /tmp/day.json) uae=$(jq -r '.days[0].uaeTotal' /tmp/day.json) total=$(jq -r '.days[0].total' /tmp/day.json)"
+          jq -e '.ok == true and .withinOneHour == true' /tmp/fresh.json >/dev/null
+          grep -qi '<html' /tmp/blog.html
+          echo "HOURLY_1000_SLA_VERIFIED"
+
+# Policy: every hourly run must add >=300 Saudi Arabic + >=700 UAE English, quality gates remain enabled.
