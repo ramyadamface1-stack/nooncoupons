@@ -1,5 +1,5 @@
 import {expandNoonTopic,NOON_TOPIC_EXPANSION_INFO} from './noon-topic-expansion.js';
-import {APPROVED_COUPON_CODES} from './approved-coupons.js';
+import {APPROVED_COUPON_CODES,salesWeightedCoupon} from './approved-coupons.js';
 
 const slugify=s=>String(s||'').toLowerCase().trim().replace(/[^a-z0-9\u0600-\u06ff]+/g,'-').replace(/^-+|-+$/g,'').slice(0,120);
 const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
@@ -180,8 +180,8 @@ export function applyKeywordStrategy(topic){
   const expanded=expandNoonTopic(topic,topic.topicIndex??topic.diversitySeed??0),rawIntent=expanded.intent,intent=effectiveIntent(expanded),s=scenario(expanded,intent),builder=BUILDERS[intent]||BUILDERS.decision;
   const baseKw=fitKeyword(builder(expanded,s),expanded,intent,s),specificKw=addSpecificity(baseKw,expanded,intent,s),distinctKw=distinctKeyword(specificKw,expanded,intent,s),contextKw=preserveDecisionContext(distinctKw,expanded,intent),kw=preserveSeasonalTerm(contextKw,expanded,intent),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
   const couponSeed=Math.abs(Number(topic.topicIndex??topic.diversitySeed??0));
-  const code=APPROVED_COUPON_CODES[couponSeed%APPROVED_COUPON_CODES.length];
-  return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,code,keywordStrategy:'search-intent-v7-demand-aware',keywordWordCount:words,searchIntentFamily:intent};
+  const code=salesWeightedCoupon(couponSeed,expanded.country||topic.country||'SA');
+  return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,code,keywordStrategy:'search-intent-v8-sales-weighted',keywordWordCount:words,searchIntentFamily:intent,couponSelection:'homepage-sales-weighted'};
 }
 
-export const KEYWORD_STRATEGY_INFO={version:'search-intent-v7-demand-aware',philosophy:'noon-category-to-product-hierarchy-with-seasonal-commercial-intent',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,distinctSpecificity:true,decisionContextPreserved:true,hierarchyTargetPreserved:true,seasonalKeywords:true,campaignSeasonalPreservation:true,automaticCalendarFreshness:false,seasonalMonth:null,topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,approvedCouponCount:APPROVED_COUPON_CODES.length,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation','unapproved-coupon-code'],maxRecommendedWords:16,maxKeywordCharacters:70};
+export const KEYWORD_STRATEGY_INFO={version:'search-intent-v8-sales-weighted',philosophy:'noon-category-to-product-hierarchy-with-sales-weighted-coupon-selection',markets:['SA','AE'],intents:Object.keys(BUILDERS),productIntentCompatibility:true,diversityModifier:true,distinctSpecificity:true,decisionContextPreserved:true,hierarchyTargetPreserved:true,seasonalKeywords:true,campaignSeasonalPreservation:true,automaticCalendarFreshness:false,seasonalMonth:null,topicExpansion:NOON_TOPIC_EXPANSION_INFO.version,approvedCouponCount:APPROVED_COUPON_CODES.length,avoids:['keyword-stuffing','coupon-claim-invention','country-leakage','product-intent-mismatch','title-intent-truncation','unapproved-coupon-code'],maxRecommendedWords:16,maxKeywordCharacters:70};
