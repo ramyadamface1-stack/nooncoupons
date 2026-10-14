@@ -108,7 +108,8 @@ jobs:
           grep -Fq "'Noon coupon eligibility UAE'" bulk-content-engine.js
           ! grep -Fq "'Noon first order coupon UAE'" bulk-content-engine.js
           grep -Fq "h2>=6&&h2<=18" quality-audit.js
-          grep -Fq "const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];" bulk-content-engine-base.js
+          grep -Fq "const CODES=[...APPROVED_COUPON_CODES];" bulk-content-engine-base.js
+          grep -Fq "salesWeightedCoupon(Math.floor(raw/7)+q,country)" bulk-content-engine-base.js
           grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
           grep -Fq "normalizeApprovedCoupon(rawCandidate.code" english-canary.js
           grep -Fq "repairCouponWhitelist" english-canary-repair.js
