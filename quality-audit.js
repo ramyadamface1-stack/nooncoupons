@@ -46,6 +46,7 @@ export function auditSeoArticle(article,topic,opts={}){
   addCheck(checks,'seo','article_identity',Boolean(keyword&&title&&slug),3,{critical:true});
   addCheck(checks,'seo','title_length',title.length>=28&&title.length<=72,2);
   addCheck(checks,'seo','title_keyword_alignment',overlap(title,keyword)>=0.55,3,{critical:true});
+  addCheck(checks,'seo','title_avoids_literal_coupon_code',!/\b(?:NOV|OPS)\d+\b/i.test(title),2,{critical:true,note:'Coupon code belongs in CTA/body unless this is a dedicated coupon landing page'});
   addCheck(checks,'seo','meta_length',meta.length>=105&&meta.length<=165,2);
   addCheck(checks,'seo','meta_alignment',overlap(meta,keyword)>=0.3&&meta.includes(market),2);
   addCheck(checks,'seo','clean_slug',slug.length>=12&&slug.length<=120&&!/--/.test(slug),2);
