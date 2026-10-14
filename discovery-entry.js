@@ -493,7 +493,7 @@ export default{
         if(prop==='BULK_CANDIDATE_BUDGET_MS')return '24000';
         if(prop==='BULK_BURST_MODE')return 'true';
         if(prop==='BULK_BURST_FORCE_COUNTRY'&&forceSaudi)return 'SA';
-        if(prop==='BULK_BURST_PRIORITY_PROFILES'&&forceSaudi)return 'mobile,grocery,computing,auto';
+        if(prop==='BULK_BURST_PRIORITY_PROFILES'&&forceSaudi)return 'mobile,grocery,computing,auto,audio,screen,beauty,appliance,kitchen';
         return Reflect.get(target,prop);
       }}):env;
       const bulk=effectiveBulk?await bulkTick(bulkEnv):{ok:true,skipped:paceOwnsBulk&&!forceBulk?'daily_pace_owns_bulk':'bulk_not_requested'};
