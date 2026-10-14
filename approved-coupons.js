@@ -34,6 +34,20 @@ export function normalizeApprovedCoupon(code,fallback='NOV170'){
   return APPROVED.has(safeFallback)?safeFallback:APPROVED_COUPON_CODES[0];
 }
 
+// Market eligibility is stricter than the global allowlist: no cross-market coupons.
+export function isApprovedMarketCoupon(code,country='SA'){
+  const market=String(country||'SA').toUpperCase()==='AE'?'AE':'SA';
+  return HOMEPAGE_COUPONS_BY_MARKET[market].includes(String(code||'').trim().toUpperCase());
+}
+export function normalizeMarketCoupon(code,country='SA'){
+  const market=String(country||'SA').toUpperCase()==='AE'?'AE':'SA';
+  const value=String(code||'').trim().toUpperCase();
+  return isApprovedMarketCoupon(value,market)?value:PRIMARY_COUPON_BY_MARKET[market];
+}
+export function replaceWrongMarketCouponTokens(text,country='SA'){
+  return String(text??'').replace(/\b(?:OPS\d+|NOV\d+)\b/gi,code=>normalizeMarketCoupon(code,country));
+}
+
 export function salesWeightedCoupon(seed=0,country='SA'){
   const market=String(country||'SA').toUpperCase()==='AE'?'AE':'SA',rows=SALES_WEIGHTED_BY_MARKET[market];
   const total=rows.reduce((n,[,w])=>n+w,0),slot=Math.abs(Math.trunc(Number(seed)||0))%Math.max(1,total);
