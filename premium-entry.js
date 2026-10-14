@@ -75,6 +75,76 @@ async function enhanceBlog(req,env,res){
 
 async function keywordLayer(req,env,res){if(!res.ok)return res;const u=new URL(req.url),path=u.pathname.replace(/\/+$/,'')||'/',origin=env.SITE_ORIGIN||u.origin,type=(res.headers.get('content-type')||'').toLowerCase();if(!(type.includes('text/html')||type.includes('xml')))return res;let text=await res.text();if(type.includes('text/html'))text=applyKeywordMap(path,text,origin);if(type.includes('xml')){text=augmentKeywordSitemap(path,text,origin);text=augmentWithTopicSitemap(path,text,origin)}const h=new Headers(res.headers);h.delete('content-length');h.set('x-keyword-map',KEYWORD_MAP_VERSION);h.set('x-topic-hubs',String(TOPIC_HUB_INFO.version));h.set('x-archive-version',String(ARCHIVE_INFO.version));return new Response(text,{status:res.status,statusText:res.statusText,headers:h})}
 async function topicNavLayer(req,res){return res}
-async function polishAndCanonicalize(req,env,res){const type=(res.headers.get('content-type')||'').toLowerCase(),textual=type.includes('text/html')||type.includes('xml')||type.includes('text/plain'),u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin,h=new Headers(res.headers),location=h.get('location');if(location&&origin!==LEGACY_ORIGIN&&location.startsWith(LEGACY_ORIGIN))h.set('location',origin+location.slice(LEGACY_ORIGIN.length));if(!textual)return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});let text=await res.text();if(origin!==LEGACY_ORIGIN)text=text.split(LEGACY_ORIGIN).join(origin);if(type.includes('text/html')){const polish=`<meta name="theme-color" content="#111827"><style id="site-polish-v2">:root{color-scheme:light}html{scroll-behavior:smooth}a,button{touch-action:manipulation}:focus-visible{outline:3px solid #facc15!important;outline-offset:3px!important}#article-topic-path{margin:36px 0 0;padding:30px 16px;background:#f8fafc;border-top:1px solid #e5e7eb}.article-topic-path-inner{width:min(900px,94%);margin:auto}.article-topic-kicker{font-weight:900;color:#6d28d9}.article-topic-actions{display:flex;gap:10px;flex-wrap:wrap}.article-topic-actions a{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:10px 14px;text-decoration:none;color:#111827;font-weight:800}#premium-blog-browser{padding:34px 0;background:#fff}.pb-wrap{width:min(1180px,92%);margin:auto}.pb-head{display:flex;justify-content:space-between;gap:18px;align-items:end}.pb-head-actions{display:flex;gap:12px;flex-wrap:wrap}.pb-head span{font-weight:900;color:#6d28d9}.pb-head h2{margin:5px 0}.pb-head p{color:#667085}.pb-all{font-weight:900}.pb-filters{display:grid;gap:10px;margin:22px 0}.pb-filters>div{display:flex;gap:8px;overflow:auto;padding-bottom:4px}.pb-chip{white-space:nowrap;padding:9px 12px;border:1px solid #e5e7eb;border-radius:999px;text-decoration:none;color:#111827;font-weight:800}.pb-chip.active{background:#111827;color:#fff;border-color:#111827}.pb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.pb-card{border:1px solid #e5e7eb;border-radius:18px;padding:18px;background:#fff}.pb-card h3{line-height:1.6}.pb-card h3 a,.pb-read{text-decoration:none;color:#111827}.pb-card p{color:#667085;line-height:1.8}.pb-read{font-weight:900;color:#6d28d9}.pb-pages{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:24px}.pb-pages a{padding:9px 14px;border:1px solid #e5e7eb;border-radius:999px;text-decoration:none;color:#111827;font-weight:800}@media(max-width:900px){.pb-grid{grid-template-columns:1fr 1fr}.pb-head{align-items:start}}@media(max-width:640px){.pb-grid{grid-template-columns:1fr}.pb-head{display:block}.pb-head-actions{margin-top:10px}.pb-all{display:inline-block;margin-top:8px}}@media(max-width:850px){.head .nav{display:grid!important;grid-template-columns:1fr auto!important;row-gap:10px!important}.head .links{display:flex!important;grid-column:1/-1!important;overflow-x:auto!important;white-space:nowrap!important;padding:0 0 8px!important;scrollbar-width:none!important}.head .links::-webkit-scrollbar{display:none}.head .links a{flex:0 0 auto}.head .btn.primary{white-space:nowrap}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto!important}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}</style>`;text=text.replace(/<style id="site-polish-v1">[\s\S]*?<\/style>/i,'');if(!text.includes('site-polish-v2'))text=/<\/head>/i.test(text)?text.replace(/<\/head>/i,polish+'</head>'):polish+text}h.delete('content-length');h.set('x-canonical-origin',origin);return new Response(text,{status:res.status,statusText:res.statusText,headers:h})}
+function llmsText(origin){
+  return `# Noon Deals Now
 
-export default{async fetch(req,env,ctx){const runtimeEnv=requestOriginEnv(req,env),u=new URL(req.url),path=u.pathname.replace(/\/+$/,'')||'/',origin=runtimeEnv.SITE_ORIGIN||u.origin;if(req.method==='GET'&&path==='/sitemap-topics.xml')return hardened(await polishAndCanonicalize(req,runtimeEnv,topicSitemap(origin)));let res=req.method==='GET'?await archiveLanding(path,u,runtimeEnv):null;if(!res)res=req.method==='GET'?await topicLanding(path,origin,runtimeEnv):null;if(!res)res=req.method==='GET'?keywordLanding(path,origin):null;if(!res)res=await app.fetch(req,runtimeEnv,ctx);if(req.method==='GET'&&u.pathname.startsWith('/articles/'))res=await enhanceArticle(req,runtimeEnv,res);else if(req.method==='GET'&&u.pathname==='/blog')res=await enhanceBlog(req,runtimeEnv,res);res=await keywordLayer(req,runtimeEnv,res);res=await topicNavLayer(req,res);res=await polishAndCanonicalize(req,runtimeEnv,res);return hardened(res)},async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}};
+> Independent Noon coupon and shopping-guide site for Saudi Arabia and the UAE. Coupon eligibility, discount value, seller, shipping and final payable total can change; the live Noon cart is the final commercial reference.
+
+## Primary markets
+- Saudi Arabia: ${origin}/saudi
+- UAE: ${origin}/uae
+
+## Coupon references
+- Current homepage-approved coupons: ${origin}/coupons
+- Saudi coupon hub: ${origin}/saudi-arabia/noon-coupon-code
+- UAE coupon hub: ${origin}/uae/noon-coupon-code
+- Coupon verification methodology: ${origin}/coupon-verification
+
+## Shopping content
+- Blog: ${origin}/blog
+- Saudi categories: ${origin}/saudi/categories
+- UAE categories: ${origin}/uae/categories
+- Shopping guides: ${origin}/guides
+
+## Trust and provenance
+- Editorial policy: ${origin}/editorial-policy
+- Editorial team: ${origin}/authors/editorial-team
+- Research and methodology: ${origin}/research
+- Glossary: ${origin}/glossary
+
+## Discovery
+- XML sitemap: ${origin}/sitemap.xml
+- Topic sitemap: ${origin}/sitemap-topics.xml
+- RSS/Atom feed: ${origin}/feed.xml
+
+## Content rules
+- Do not infer a fixed discount percentage unless explicitly sourced.
+- Do not assume a coupon works for every account, seller, product or market.
+- Prefer market-specific pages and the most specific category/brand/model page.
+- For purchase decisions, use the current Noon cart total and seller terms as the final reference.
+`;
+}
+function conversionAnalyticsScript(){
+  return `<script id="conversion-analytics-v1">
+(function(){
+ if(window.__ndnConversionAnalytics)return;window.__ndnConversionAnalytics=true;
+ function market(){var p=location.pathname;return /^\\/uae(?:\\/|$)/.test(p)?'AE':'SA'}
+ function emit(name,params){
+   var payload=Object.assign({page_path:location.pathname,market:market()},params||{});
+   window.dataLayer=window.dataLayer||[];
+   window.dataLayer.push(Object.assign({event:name},payload));
+   if(typeof window.gtag==='function')try{window.gtag('event',name,payload)}catch(e){}
+ }
+ document.addEventListener('click',function(e){
+   var copy=e.target&&e.target.closest?e.target.closest('[data-copy-code],[data-copy]'):null;
+   if(copy){
+     var code=(copy.getAttribute('data-copy-code')||copy.getAttribute('data-copy')||'').trim().toUpperCase();
+     emit('coupon_copy',{coupon_code:code||'unknown',cta_position:copy.closest('header,.hero')?'hero':copy.closest('footer')?'footer':'content'});
+     return;
+   }
+   var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;
+   try{
+     var u=new URL(a.href,location.href);
+     if(/(^|\\.)noon\\.com$/i.test(u.hostname)){
+       var text=(a.textContent||'').trim().slice(0,80);
+       var code=((document.body.innerText||'').match(/\\bNOV\\d+\\b/i)||[])[0]||'';
+       emit('noon_outbound',{coupon_code:code.toUpperCase(),link_text:text,cta_position:a.closest('header,.hero')?'hero':a.closest('footer')?'footer':'content'});
+     }
+   }catch(err){}
+ },true);
+})();
+</script>`;
+}
+async function polishAndCanonicalize(req,env,res){const type=(res.headers.get('content-type')||'').toLowerCase(),textual=type.includes('text/html')||type.includes('xml')||type.includes('text/plain'),u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin,h=new Headers(res.headers),location=h.get('location');if(location&&origin!==LEGACY_ORIGIN&&location.startsWith(LEGACY_ORIGIN))h.set('location',origin+location.slice(LEGACY_ORIGIN.length));if(!textual)return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});let text=await res.text();if(origin!==LEGACY_ORIGIN)text=text.split(LEGACY_ORIGIN).join(origin);if(type.includes('text/html')){const analytics=conversionAnalyticsScript();if(!text.includes('conversion-analytics-v1'))text=/<\/body>/i.test(text)?text.replace(/<\/body>/i,analytics+'</body>'):text+analytics;const polish=`<meta name="theme-color" content="#111827"><style id="site-polish-v2">:root{color-scheme:light}html{scroll-behavior:smooth}a,button{touch-action:manipulation}:focus-visible{outline:3px solid #facc15!important;outline-offset:3px!important}#article-topic-path{margin:36px 0 0;padding:30px 16px;background:#f8fafc;border-top:1px solid #e5e7eb}.article-topic-path-inner{width:min(900px,94%);margin:auto}.article-topic-kicker{font-weight:900;color:#6d28d9}.article-topic-actions{display:flex;gap:10px;flex-wrap:wrap}.article-topic-actions a{background:#fff;border:1px solid #e5e7eb;border-radius:999px;padding:10px 14px;text-decoration:none;color:#111827;font-weight:800}#premium-blog-browser{padding:34px 0;background:#fff}.pb-wrap{width:min(1180px,92%);margin:auto}.pb-head{display:flex;justify-content:space-between;gap:18px;align-items:end}.pb-head-actions{display:flex;gap:12px;flex-wrap:wrap}.pb-head span{font-weight:900;color:#6d28d9}.pb-head h2{margin:5px 0}.pb-head p{color:#667085}.pb-all{font-weight:900}.pb-filters{display:grid;gap:10px;margin:22px 0}.pb-filters>div{display:flex;gap:8px;overflow:auto;padding-bottom:4px}.pb-chip{white-space:nowrap;padding:9px 12px;border:1px solid #e5e7eb;border-radius:999px;text-decoration:none;color:#111827;font-weight:800}.pb-chip.active{background:#111827;color:#fff;border-color:#111827}.pb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.pb-card{border:1px solid #e5e7eb;border-radius:18px;padding:18px;background:#fff}.pb-card h3{line-height:1.6}.pb-card h3 a,.pb-read{text-decoration:none;color:#111827}.pb-card p{color:#667085;line-height:1.8}.pb-read{font-weight:900;color:#6d28d9}.pb-pages{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:24px}.pb-pages a{padding:9px 14px;border:1px solid #e5e7eb;border-radius:999px;text-decoration:none;color:#111827;font-weight:800}@media(max-width:900px){.pb-grid{grid-template-columns:1fr 1fr}.pb-head{align-items:start}}@media(max-width:640px){.pb-grid{grid-template-columns:1fr}.pb-head{display:block}.pb-head-actions{margin-top:10px}.pb-all{display:inline-block;margin-top:8px}}@media(max-width:850px){.head .nav{display:grid!important;grid-template-columns:1fr auto!important;row-gap:10px!important}.head .links{display:flex!important;grid-column:1/-1!important;overflow-x:auto!important;white-space:nowrap!important;padding:0 0 8px!important;scrollbar-width:none!important}.head .links::-webkit-scrollbar{display:none}.head .links a{flex:0 0 auto}.head .btn.primary{white-space:nowrap}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto!important}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}</style>`;text=text.replace(/<style id="site-polish-v1">[\s\S]*?<\/style>/i,'');if(!text.includes('site-polish-v2'))text=/<\/head>/i.test(text)?text.replace(/<\/head>/i,polish+'</head>'):polish+text}h.delete('content-length');h.set('x-canonical-origin',origin);return new Response(text,{status:res.status,statusText:res.statusText,headers:h})}
+
+export default{async fetch(req,env,ctx){const runtimeEnv=requestOriginEnv(req,env),u=new URL(req.url),path=u.pathname.replace(/\/+$/,'')||'/',origin=runtimeEnv.SITE_ORIGIN||u.origin;if(req.method==='GET'&&path==='/llms.txt')return hardened(await polishAndCanonicalize(req,runtimeEnv,new Response(llmsText(origin),{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public,max-age=300'}})));if(req.method==='GET'&&path==='/sitemap-topics.xml')return hardened(await polishAndCanonicalize(req,runtimeEnv,topicSitemap(origin)));let res=req.method==='GET'?await archiveLanding(path,u,runtimeEnv):null;if(!res)res=req.method==='GET'?await topicLanding(path,origin,runtimeEnv):null;if(!res)res=req.method==='GET'?keywordLanding(path,origin):null;if(!res)res=await app.fetch(req,runtimeEnv,ctx);if(req.method==='GET'&&u.pathname.startsWith('/articles/'))res=await enhanceArticle(req,runtimeEnv,res);else if(req.method==='GET'&&u.pathname==='/blog')res=await enhanceBlog(req,runtimeEnv,res);res=await keywordLayer(req,runtimeEnv,res);res=await topicNavLayer(req,res);res=await polishAndCanonicalize(req,runtimeEnv,res);return hardened(res)},async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}};
