@@ -111,7 +111,9 @@ jobs:
           grep -Fq "const CODES=[...APPROVED_COUPON_CODES];" bulk-content-engine-base.js
           grep -Fq "salesWeightedCoupon(Math.floor(raw/7)+q,country)" bulk-content-engine-base.js
           grep -Fq "'NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'" approved-coupons.js
-          grep -Fq "normalizeApprovedCoupon(rawCandidate.code" english-canary.js
+          grep -Fq "code:normalizeMarketCoupon(rawCandidate.code,desiredCountry)" english-canary.js
+          grep -Fq "isApprovedMarketCoupon(candidate.code,desiredCountry)" english-canary.js
+          grep -Fq "replaceWrongMarketCouponTokens" approved-coupons.js
           grep -Fq "repairCouponWhitelist" english-canary-repair.js
           grep -Fq "audit.minJaccardDistance<0.18" english-canary.js
           grep -Fq "provider:isCanary?'programmatic-cloudflare:english-v6-canary':'programmatic-cloudflare:english-v6-controlled'" english-canary.js
