@@ -18,7 +18,7 @@ concurrency:
 env:
   ORIGIN: https://nooncoupons.ramychatgptgcoupons.workers.dev
   STATS: https://noondealsnow.com/api/content-stats
-  RELEASE: 2026-10-14-hourly-1000-r11
+  RELEASE: 2026-10-14-hourly-1000-r12
 
 jobs:
   saudi-burst:
