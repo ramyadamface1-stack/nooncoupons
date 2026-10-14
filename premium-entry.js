@@ -120,7 +120,13 @@ function conversionAnalyticsScript(){
  if(window.__ndnConversionAnalytics)return;window.__ndnConversionAnalytics=true;
  function market(){var p=location.pathname,l=(document.documentElement.lang||'').toUpperCase();if(/AE$/.test(l)||/^\\/uae(?:\\/|$)/.test(p)||/^\\/en\\/uae(?:\\/|$)/.test(p))return 'AE';return 'SA'}
  function emit(name,params){
-   var payload=Object.assign({page_path:location.pathname,market:market()},params||{});
+   var article=document.querySelector('article[data-intent]'),payload=Object.assign({
+     page_path:location.pathname,
+     market:article&&article.getAttribute('data-market')||market(),
+     content_intent:article&&article.getAttribute('data-intent')||'',
+     content_coupon:article&&article.getAttribute('data-coupon')||'',
+     content_language:document.documentElement.lang||''
+   },params||{});
    window.dataLayer=window.dataLayer||[];
    window.dataLayer.push(Object.assign({event:name},payload));
    if(typeof window.gtag==='function')try{window.gtag('event',name,payload)}catch(e){}
