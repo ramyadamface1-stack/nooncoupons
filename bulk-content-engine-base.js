@@ -39,24 +39,24 @@ const BASE_TOPIC_SPACE=1036800;
 const TOTAL_TOPIC_SPACE=BASE_TOPIC_SPACE*DECISION_CONTEXTS.length;
 
 const INTENTS=[
+['finalprice',(x)=>`حساب السعر النهائي ${x.category} نون ${x.market} ${x.scenario}`],
 ['coupon',(x)=>`كود خصم نون ${x.market} ${x.category} ${x.useCase} ${x.factor} ${x.scenario}`],
-['howto',(x)=>`طريقة استخدام كود نون ${x.market} لشراء ${x.category} ${x.useCase} ${x.scenario}`],
-['compare',(x)=>`مقارنة سعر ${x.category} على نون ${x.market} ${x.factor} ${x.scenario}`],
+['cart',(x)=>`مراجعة سلة ${x.category} نون ${x.market} ${x.useCase} ${x.scenario}`],
 ['trouble',(x)=>`حل رفض كود نون ${x.market} على ${x.category} ${x.scenario}`],
-['question',(x)=>`هل يعمل كود نون ${x.market} على ${x.category} ${x.useCase} ${x.scenario}`],
+['eligibility',(x)=>`شروط تجربة كود نون ${x.market} مع ${x.category} ${x.scenario}`],
 ['seller',(x)=>`اختيار بائع ${x.category} على نون ${x.market} ${x.factor} ${x.scenario}`],
 ['decision',(x)=>`دليل شراء ${x.category} من نون ${x.market} ${x.useCase} ${x.scenario}`],
-['finalprice',(x)=>`حساب السعر النهائي ${x.category} نون ${x.market} ${x.scenario}`],
+['compare',(x)=>`مقارنة سعر ${x.category} على نون ${x.market} ${x.factor} ${x.scenario}`],
 ['value',(x)=>`التوفير في ${x.category} على نون ${x.market} ${x.factor} ${x.scenario}`],
-['cart',(x)=>`مراجعة سلة ${x.category} نون ${x.market} ${x.useCase} ${x.scenario}`],
-['timing',(x)=>`متى أجرب كوبون نون ${x.market} عند شراء ${x.category} ${x.scenario}`],
+['budget',(x)=>`اختيار ${x.category} على نون ${x.market} بميزانية محددة ${x.factor} ${x.scenario}`],
 ['smartbuy',(x)=>`شراء ${x.category} من نون ${x.market} بذكاء ${x.factor} ${x.scenario}`],
-['eligibility',(x)=>`شروط تجربة كود نون ${x.market} مع ${x.category} ${x.scenario}`],
 ['checklist',(x)=>`خطوات قبل دفع طلب ${x.category} من نون ${x.market} ${x.scenario}`],
-['multi',(x)=>`شراء عدة منتجات ${x.category} من نون ${x.market} ${x.scenario}`],
-['returns',(x)=>`مراجعة الإرجاع قبل شراء ${x.category} نون ${x.market} ${x.scenario}`],
-['warranty',(x)=>`فحص الضمان عند شراء ${x.category} من نون ${x.market} ${x.scenario}`],
-['budget',(x)=>`اختيار ${x.category} على نون ${x.market} بميزانية محددة ${x.factor} ${x.scenario}`]
+['finalprice',(x)=>`السعر النهائي لشراء ${x.category} من نون ${x.market} ${x.scenario}`],
+['cart',(x)=>`فحص سلة ${x.category} على نون ${x.market} ${x.useCase} ${x.scenario}`],
+['trouble',(x)=>`تشخيص رفض كود نون مع ${x.category} في ${x.market} ${x.scenario}`],
+['compare',(x)=>`مقارنة بدائل ${x.category} على نون ${x.market} ${x.factor} ${x.scenario}`],
+['decision',(x)=>`اختيار ${x.category} من نون ${x.market} ${x.useCase} ${x.scenario}`],
+['budget',(x)=>`شراء ${x.category} من نون ${x.market} ضمن ميزانية ${x.factor} ${x.scenario}`]
 ];
 
 const BLUEPRINTS=[
