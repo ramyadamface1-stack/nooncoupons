@@ -1,12 +1,12 @@
 import app from './commerce-entry.js';
 import {APPROVED_COUPON_CODES,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {intentOwnerKey} from './quality-index.js';
+import {readRecentPublicManifest} from './r2-public-manifest.js';
 export {ControlPlane,GeneratorControl} from './commerce-entry.js';
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const enc=s=>encodeURI(String(s||''));
-let latestCache={at:0,value:null};
-async function latestManifest(env){const now=Date.now();if(latestCache.value&&now-latestCache.at<120000)return latestCache.value;try{const o=await env.CONTENT_FINAL?.get('bulk/latest.json');const value=o?await o.json():{articles:[]};latestCache={at:now,value};return value}catch{return latestCache.value||{articles:[]}}}
+async function latestManifest(env){return readRecentPublicManifest(env)}
 function scoreRelated(a,rec){let s=0;if(a.country===rec.country)s+=8;if(a.category&&rec.category&&a.category===rec.category)s+=6;if(a.categoryKey&&rec.categoryKey&&a.categoryKey===rec.categoryKey)s+=6;if(a.intent&&rec.intent&&a.intent===rec.intent)s+=4;if(a.brandKey&&rec.brandKey&&a.brandKey===rec.brandKey)s+=4;if(a.modelKey&&rec.modelKey&&a.modelKey===rec.modelKey)s+=3;if(a.comparisonKey&&rec.comparisonKey&&a.comparisonKey===rec.comparisonKey)s+=2;return s}
 function eligibleRecord(a){const q=Number(a?.quality),f=Number(a?.qualityFloor);return Boolean(a?.slug&&a.status==='published'&&a.indexable!==false&&a.superseded!==true&&a.orphan!==true&&a.duplicateIntent!==true&&Number.isFinite(q)&&q>=95&&(a.qualityFloor==null||(Number.isFinite(f)&&f>=88))&&(a.wordCount==null||Number(a.wordCount)>=1500)&&(!Array.isArray(a.p0)||a.p0.length===0)&&(!a.indexation||a.indexation.indexable!==false))}
 function relatedRows(all,rec){const owner=intentOwnerKey(rec);return (all||[]).filter(a=>eligibleRecord(a)&&a.slug!==rec.slug&&a.country===rec.country&&intentOwnerKey(a)!==owner).map((a,i)=>({a,s:scoreRelated(a,rec),i})).sort((x,y)=>y.s-x.s||x.i-y.i).slice(0,6).map(x=>x.a)}
