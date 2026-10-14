@@ -1,0 +1,50 @@
+name: R2 Class B Cost Watch
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/r2-cost-watch.yml]
+  workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  r2-class-b:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check 24 hour R2 operations
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+        run: |
+          node --input-type=module <<'NODE'
+          import {appendFileSync} from 'node:fs';
+          const token=process.env.CF_TOKEN;
+          if(!token){console.log('::warning::R2_COST_WATCH_UNAVAILABLE: Cloudflare token missing');process.exit(0)}
+          const end=new Date(),start=new Date(end.getTime()-86400000);
+          const query='query R2Watch($accountTag: string!, $startDate: Time, $endDate: Time, $bucketName: string) { viewer { accounts(filter: {accountTag: $accountTag}) { r2OperationsAdaptiveGroups(limit: 1000, filter: {datetime_geq: $startDate, datetime_leq: $endDate, bucketName: $bucketName}) { sum { requests } dimensions { actionType } } } } }';
+          const variables={accountTag:'c82274152a942dea53044eae7153cfd7',bucketName:'nooncoupons-content-v2',startDate:start.toISOString(),endDate:end.toISOString()};
+          let payload;
+          try{
+            const res=await fetch('https://api.cloudflare.com/client/v4/graphql',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({query,variables})});
+            payload=await res.json();
+            if(!res.ok||payload.errors?.length)throw new Error('Cloudflare GraphQL denied or unavailable (HTTP '+res.status+')');
+          }catch(err){console.log('::warning::R2_COST_WATCH_UNVERIFIED: '+err.message+'; existing token may need Account Analytics Read');process.exit(0)}
+          const groups=payload?.data?.viewer?.accounts?.[0]?.r2OperationsAdaptiveGroups;
+          if(!Array.isArray(groups)){console.log('::warning::R2_COST_WATCH_NO_DATA');process.exit(0)}
+          const rows=groups.map(g=>({type:String(g.dimensions?.actionType||''),count:Number(g.sum?.requests||0)})).sort((a,b)=>b.count-a.count);
+          for(const row of rows.slice(0,20))console.log('R2_OPERATION '+row.type+' '+row.count);
+          const reads=rows.filter(r=>/^(GetObject|HeadObject)$/i.test(r.type)).reduce((s,r)=>s+r.count,0);
+          const total=rows.reduce((s,r)=>s+r.count,0);
+          console.log('R2_24H_GET_HEAD='+reads+' R2_24H_TOTAL='+total);
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY,'### R2 Cost Watch\nBucket: nooncoupons-content-v2\nGetObject + HeadObject (24h): '+reads+'\nAll operations (24h): '+total+'\nTarget <= 300,000 reads/day; critical > 1,000,000 reads/day.\n');
+          if(reads>1000000){console.error('::error::R2_CLASS_B_SPIKE '+reads+' reads in 24h');process.exitCode=1}
+          else if(reads>300000)console.log('::warning::R2_CLASS_B_ELEVATED '+reads+' in 24h');
+          else console.log('R2_COST_WATCH=PASS');
+          NODE
