@@ -345,11 +345,11 @@ async function pacedBulkTick(env){
   }});
   const results=[];let published=0;
   for(let i=0;i<pace.rounds;i++){
-    if(i>0&&i%2===0){const status=await getGeneratorStatus(env),lease=Date.parse(String(status.bulkBurstPriorityUntil||''));if(Number.isFinite(lease)&&lease>Date.now())break}
+    if(i>0){const status=await getGeneratorStatus(env),lease=Date.parse(String(status.bulkBurstPriorityUntil||''));if(Number.isFinite(lease)&&lease>Date.now())break}
     const r=await bulkTick(paceEnv);results.push(r);
     const n=Number(r?.summary?.bulkLastTickPublished||r?.bulk?.records?.length||0);published+=Math.max(0,n);
     const skip=String(r?.skipped||r?.bulk?.skipped||r?.summary?.bulkLastSkipReason||'');
-    if(['daily_target_reached','corpus_audit_in_progress','bulk_paused'].includes(skip))break;
+    if(['bulk_already_running','daily_target_reached','corpus_audit_in_progress','bulk_paused'].includes(skip))break;
   }
   const after=await getGeneratorStatus(env),afterPace=dailyPaceSnapshot(env,after);
   await updateGeneratorStatus(env,{bulkPaceMode:true,bulkPaceExpectedNow:afterPace.expectedNow,bulkPaceDeficit:afterPace.deficit,bulkPaceRoundsPlanned:pace.rounds,bulkPaceRoundsCompleted:results.length,bulkPacePublishedThisCron:published,bulkPaceLastCheckAt:now()});
