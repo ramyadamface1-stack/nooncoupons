@@ -87,7 +87,7 @@ export function auditSeoArticle(article,topic,opts={}){
   addCheck(checks,'aeo','question_headings',count(html,/<h[23]\b[^>]*>[^<]*(?:كيف|هل|ماذا|متى|لماذا)/gi)>=4,3);
   addCheck(checks,'aeo','visible_faq',/class=["'][^"']*faq/i.test(html)&&count(html,/<details\b/gi)>=4,4);
   addCheck(checks,'aeo','faq_data',Array.isArray(article?.faq)&&article.faq.length>=4,3);
-  addCheck(checks,'aeo','faq_schema',/FAQPage/i.test(html)&&/application\/ld\+json/i.test(html),2);
+  addCheck(checks,'aeo','article_schema',/"@type"\s*:\s*"(?:Article|BlogPosting|NewsArticle)"/i.test(html)&&/application\/ld\+json/i.test(html),2);
   addCheck(checks,'aeo','atomic_answers',count(html,/class=["'][^"']*atomic-answer/gi)>=2,2);
 
   addCheck(checks,'geo','country_localization',plain.includes(market),4,{critical:true});
