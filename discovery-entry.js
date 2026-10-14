@@ -1,12 +1,12 @@
 import app from './brand-runtime.js';
 import {runEnglishCanaryBatch,englishCanaryRecords} from './english-canary.js';
-import {bulkTick} from './admin-runtime.js';
+import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
 import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
-const DISCOVERY_RELEASE='2026-10-14-hourly-1000-r11';
+const DISCOVERY_RELEASE='2026-10-14-hourly-1000-r12';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const enc=s=>encodeURI(String(s||''));
 let latestCache={at:0,value:null};
@@ -487,6 +487,12 @@ export default{
       const afterEnglish=afterRecords.length;
       const paceOwnsBulk=String(env.BULK_DAILY_PACE_MODE||'true').toLowerCase()==='true';
       const effectiveBulk=runBulk&&(forceBulk||!paceOwnsBulk);
+      if(effectiveBulk&&forceSaudi&&forceBulk){
+        const state=await getGeneratorStatus(env),lease=Date.parse(String(state.bulkBurstPriorityUntil||''));
+        if(!Number.isFinite(lease)||lease-Date.now()<45000){
+          await updateGeneratorStatus(env,{bulkBurstPriorityUntil:new Date(Date.now()+90000).toISOString(),bulkBurstPriorityMarket:'SA'});
+        }
+      }
       const bulkEnv=effectiveBulk?new Proxy(env,{get(target,prop){
         if(prop==='BULK_BATCH_SIZE')return '64';
         if(prop==='BULK_CATCHUP_BATCH_SIZE')return '64';
