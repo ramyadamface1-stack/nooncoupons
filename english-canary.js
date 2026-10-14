@@ -1,6 +1,6 @@
 import {buildBulkTopic,buildEnglishNativeCandidate,buildEnglishUsefulArticle,BULK_ENGINE_INFO} from './bulk-content-engine.js';
 import {auditEnglishSeoArticle} from './quality-audit.js';
-import {normalizeApprovedCoupon,isApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
+import {normalizeApprovedCoupon,isApprovedCoupon,replaceUnapprovedCouponTokens,isApprovedMarketCoupon,normalizeMarketCoupon,replaceWrongMarketCouponTokens} from './approved-coupons.js';
 import {getCampaignWindow,campaignGenerationPlan,applyCampaignPlan,CAMPAIGN_CALENDAR_INFO} from './campaign-calendar.js';
 import {submitIndexNow,INDEXNOW_INFO} from './indexnow.js';
 import {publicationBlockedByArticleAudit,readArticleAuditLock} from './article-audit-lock.js';
@@ -172,7 +172,7 @@ async function persistState(env,state,defer=false){
   Object.assign(state,clean);
   return state;
 }
-function publicRecord(r){if(!r)return r;const {plain,...safe}=r;return safe}
+function publicRecord(r){if(!r)return r;const {plain,...safe}=r;return {...safe,coupon:normalizeMarketCoupon(safe.coupon,safe.country),metaDescription:replaceWrongMarketCouponTokens(safe.metaDescription||'',safe.country)}}
 function recentForAudit(records){return (records||[]).slice(-64).map(r=>({slug:r.slug,primaryKeyword:r.primaryKeyword,signature:r.signature,plain:r.plain||'',blueprint:r.blueprint}))}
 function qualityFloor(audit){const values=Object.values(audit?.groups||{}).map(Number).filter(Number.isFinite);return values.length?Math.min(...values):0}
 function categoryKeyFor(profileKey){return PROFILE_TO_CATEGORY[profileKey]||null}
@@ -247,9 +247,9 @@ async function findCandidate(env,state,slot,{deadlineMs=0,maxScan=MAX_SCAN}={}){
     if(!categoryKey){diag.missingCategory++;continue;}
     const rawCandidate=buildEnglishNativeCandidate(topic);
     if(!rawCandidate){diag.noNativeCandidate++;continue;}
-    const fallbackCode=desiredCountry==='AE'?'NOV188':'NOV170',candidate={...rawCandidate,code:normalizeApprovedCoupon(rawCandidate.code,fallbackCode)};
+    const fallbackCode=desiredCountry==='AE'?'NOV188':'NOV170',candidate={...rawCandidate,code:normalizeMarketCoupon(rawCandidate.code,desiredCountry)};
     if(UAE_HUB_OWNED_KEYWORD_CLUSTERS.has(String(candidate.keywordCluster||'').toLowerCase())){diag.hubOwnedIntentSkip++;continue;}
-    if(!isApprovedCoupon(candidate.code)){diag.invalidCoupon++;continue;}
+    if(!isApprovedMarketCoupon(candidate.code,desiredCountry)){diag.invalidCoupon++;continue;}
     const slotWantsGolden=(slot%UAE_GOLDEN_OUTPUT_CYCLE)<UAE_GOLDEN_OUTPUT_SLOTS;
     const tier=String(candidate.keywordTier||''),isSearchTier=tier==='uae-golden-commercial-head-v4'||tier==='uae-high-demand-product-v4',isGoldenCommercial=isSearchTier&&UAE_GOLDEN_COMMERCIAL_INTENTS.has(candidate.intent);
     const recentGoldenCount=recentWindow.filter(r=>UAE_GOLDEN_COMMERCIAL_INTENTS.has(r.intent)).length;
@@ -443,13 +443,13 @@ export async function serveEnglishCanaryArticle(req,env){
   if(!rec){
     const md=o.customMetadata||{},decode=v=>{try{return decodeURIComponent(String(v||''))}catch{return String(v||'')}},country=String(md.c||md.country||'AE').toUpperCase()==='SA'?'SA':'AE',quality=Number(md.q||md.quality||0),floor=Number(md.qf||md.qualityFloor||0),status=String(md.status||'published').toLowerCase();
     if(status&&status!=='published')return null;
-    const title=decode(md.t||md.title||slug.replace(/^en-/,'').replace(/-/g,' ')).replace(/\s+/g,' ').trim(),metaDescription=decode(md.m||md.metaDescription||('Archived Noon '+(country==='AE'?'UAE':'Saudi Arabia')+' shopping guide.')).replace(/\s+/g,' ').trim(),createdAt=String(md.at||o.uploaded||now()),coupon=normalizeApprovedCoupon(md.cp||md.coupon,country==='AE'?'NOV188':'NOV170'),indexable=quality>=95&&floor>=88;
-    const stored=replaceUnapprovedCouponTokens(await o.text(),coupon),bodyMatch=stored.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i),content=bodyMatch?bodyMatch[1]:stored,origin=env.SITE_ORIGIN||u.origin,canonical=origin+'/en/articles/'+enc(slug),marketLang=country==='SA'?'en-SA':'en-AE',countryPath=country==='SA'?'/en/saudi':'/en/uae',robots=indexable?'index,follow,max-image-preview:large':'noindex,follow',safeMeta=metaDescription.slice(0,180);
+    const title=decode(md.t||md.title||slug.replace(/^en-/,'').replace(/-/g,' ')).replace(/\s+/g,' ').trim(),metaDescription=decode(md.m||md.metaDescription||('Archived Noon '+(country==='AE'?'UAE':'Saudi Arabia')+' shopping guide.')).replace(/\s+/g,' ').trim(),createdAt=String(md.at||o.uploaded||now()),coupon=normalizeMarketCoupon(md.cp||md.coupon,country),indexable=quality>=95&&floor>=88;
+    const stored=replaceWrongMarketCouponTokens(await o.text(),country),bodyMatch=stored.match(/<body\b[^>]*>([\s\S]*?)<\/body>/i),content=bodyMatch?bodyMatch[1]:stored,origin=env.SITE_ORIGIN||u.origin,canonical=origin+'/en/articles/'+enc(slug),marketLang=country==='SA'?'en-SA':'en-AE',countryPath=country==='SA'?'/en/saudi':'/en/uae',robots=indexable?'index,follow,max-image-preview:large':'noindex,follow',safeMeta=metaDescription.slice(0,180);
     const head=`<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><meta name="description" content="${esc(safeMeta)}"><meta name="robots" content="${robots}"><link rel="canonical" href="${esc(canonical)}"><meta property="og:type" content="article"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(safeMeta)}"><meta property="og:url" content="${esc(canonical)}">${pageCss()}`;
     const body=`<header class="top"><div class="topin"><div class="brand"><a href="${countryPath}">NoonCoupons</a></div><nav><a href="${countryPath}">${country==='SA'?'Saudi Arabia':'UAE'}</a><a href="/blog/archive/all">All archived guides</a></nav></div></header><main class="wrap"><div class="canary-note">Recovered from the stored article archive · original URL preserved</div>${content}</main>`;
     return new Response(`<!doctype html><html lang="${marketLang}" dir="ltr"><head>${head}</head><body>${body}</body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=60,s-maxage=120','content-language':'en','x-english-archive-fallback':'v1','x-english-canary':'archive-fallback','x-robots-tag':indexable?'index, follow':'noindex, follow','x-content-type-options':'nosniff'}});
   }
-  const safeCoupon=normalizeApprovedCoupon(rec.coupon,rec.country==='AE'?'NOV188':'NOV170'),raw=replaceUnapprovedCouponTokens(await o.text(),safeCoupon),origin=env.SITE_ORIGIN||u.origin,canonical=origin+'/en/articles/'+enc(slug),countryLabel=rec.country==='SA'?'Saudi Arabia':'UAE',countryPath=rec.country==='SA'?'/en/saudi':'/en/uae',categoryPath=rec.categoryKey?`${countryPath}/category/${rec.categoryKey}`:countryPath,marketLang=rec.country==='SA'?'en-SA':'en-AE',arabicLang=rec.country==='SA'?'ar-SA':'ar-AE',arabicPath=rec.country==='SA'?'/saudi':'/uae';
+  const safeCoupon=normalizeMarketCoupon(rec.coupon,rec.country),raw=replaceWrongMarketCouponTokens(await o.text(),rec.country),origin=env.SITE_ORIGIN||u.origin,canonical=origin+'/en/articles/'+enc(slug),countryLabel=rec.country==='SA'?'Saudi Arabia':'UAE',countryPath=rec.country==='SA'?'/en/saudi':'/en/uae',categoryPath=rec.categoryKey?`${countryPath}/category/${rec.categoryKey}`:countryPath,marketLang=rec.country==='SA'?'en-SA':'en-AE',arabicLang=rec.country==='SA'?'ar-SA':'ar-AE',arabicPath=rec.country==='SA'?'/saudi':'/uae';
   const imgPath=`/assets/coupon-svg/${encodeURIComponent(slug)}/1.svg?v=9&coupon=${encodeURIComponent(safeCoupon)}&country=${rec.country}`,featured=origin+imgPath,images=[1,2,3,4,5].map(v=>origin+`/assets/coupon-svg/${encodeURIComponent(slug)}/${v}.svg?v=9&coupon=${encodeURIComponent(safeCoupon)}&country=${rec.country}`);
   const graph={'@context':'https://schema.org','@graph':[
     {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',url:origin+'/',logo:{'@type':'ImageObject',url:origin+'/favicon.svg',contentUrl:origin+'/favicon.svg',width:64,height:64}},
