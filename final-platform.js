@@ -1,6 +1,7 @@
 import app from './visual-platform.js';
 import {APPROVED_COUPON_CODES} from './approved-coupons.js';
 import {englishCanaryRecords} from './english-canary.js';
+import {readRecentPublicManifest} from './r2-public-manifest.js';
 export {ControlPlane} from './platform.js';
 
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
@@ -18,9 +19,7 @@ async function stateViaApp(origin,env,ctx){
   try{return await r.json()}catch{return {articles:[]}}
 }
 
-async function latestBulk(env){
-  try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get('bulk/latest.json'):null;return o?await o.json():{articles:[]}}catch{return {articles:[]}}
-}
+async function latestBulk(env){return readRecentPublicManifest(env)}
 
 function harden(res){
   const h=new Headers(res.headers);
