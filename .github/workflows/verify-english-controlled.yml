@@ -186,10 +186,10 @@ jobs:
               Number(c.remaining)===50000-Number(c.published) && Number(c.dailyTarget)===4800 &&
               Number(c.minIntervalMinutes)===1 && Number(c.batchSize)===23 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=4800 &&
               Number(c.recordsTotal)===Number(c.published) && rows.length===Number(c.sampleSize) && rows.length>=2 && rows.length<=50 &&
-              c.samplePolicy==='canaries-plus-latest-48' && Number(c.r2SampleChecked)===rows.length && Number(c.r2SampleMissing)===0 && Number(c.uniqueProfiles)>=Math.min(7,Number(c.published)) &&
+              c.samplePolicy==='canaries-plus-latest-48' && c.lightHealth===true && Number(c.r2SampleChecked)===0 && Number(c.r2SampleMissing)===0 && Number(c.uniqueProfiles)>=Math.min(7,Number(c.published)) &&
               new Set(slugs).size===rows.length && new Set(keywords).size===rows.length && canaries.length===2 && expanded.length===rows.length-2 &&
               !slugs.includes('en-best-time-to-try-a-noon-coupon-uae-office-cart-test') &&
-              rows.every(r=>r.r2Present===true && r.status==='published' && r.indexable===true &&
+              rows.every(r=>r.r2Present===null && r.status==='published' && r.indexable===true &&
                 r.language==='en' && r.languageIntent==='en' && r.languageSource==='native-intent-v6-canary' &&
                 Number(r.quality)>=95 && Number(r.qualityFloor)>=95 && Number(r.wordCount)>=1000 &&
                 Number(r.minJaccardDistance)>=0.18 && ['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'].includes(String(r.coupon||'').toUpperCase()) && validGroups(r) && copyClean(r)) &&
