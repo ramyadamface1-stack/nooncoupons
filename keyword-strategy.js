@@ -189,6 +189,19 @@ function fitKeyword(raw,t,intent,s){
   return fitKeywordWithoutScenario(t,intent);
 }
 
+export function reconcileKeywordHierarchy(topic={}){
+  const target=clean(topic.catalogTarget||topic.commerceTarget||topic.targetLabel||topic.category),current=clean(topic.kw||topic.title),mk=market(topic);
+  if(!target||current.includes(target))return topic;
+  const label=INTENT_LABELS[topic.intent]||topic.intentLabel||'دليل',ctx=decisionContextTerm(topic);
+  const candidates=[
+    clean(`${label} ${target} نون ${mk}${ctx?' '+ctx:''}`),
+    clean(`${label} ${target} نون ${mk}`),
+    clean(`${target} نون ${mk}`)
+  ];
+  const kw=candidates.find(x=>x.length<=70)||candidates[2];
+  return {...topic,kw,title:kw,slug:slugify(kw),keywordWordCount:kw.split(/\s+/).filter(Boolean).length,hierarchyKeywordReconciled:true};
+}
+
 export function applyKeywordStrategy(topic){
   const expanded=expandNoonTopic(topic,topic.topicIndex??topic.diversitySeed??0),rawIntent=expanded.intent,intent=effectiveIntent(expanded),s=scenario(expanded,intent),builder=BUILDERS[intent]||BUILDERS.decision;
   const baseKw=fitKeyword(builder(expanded,s),expanded,intent,s),specificKw=addSpecificity(baseKw,expanded,intent,s),distinctKw=distinctKeyword(specificKw,expanded,intent,s),contextKw=preserveDecisionContext(distinctKw,expanded,intent),seasonalKw=preserveSeasonalTerm(contextKw,expanded,intent),kw=preserveHierarchyTarget(seasonalKw,expanded,intent),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
