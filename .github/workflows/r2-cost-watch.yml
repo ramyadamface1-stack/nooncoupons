@@ -42,6 +42,21 @@ jobs:
           for(const row of rows.slice(0,20))console.log('R2_OPERATION '+row.type+' '+row.count);
           const reads=rows.filter(r=>/^(GetObject|HeadObject)$/i.test(r.type)).reduce((s,r)=>s+r.count,0);
           const total=rows.reduce((s,r)=>s+r.count,0);
+          // Diagnostic sample: identify which object names are repeatedly HEAD-ed, never disclose secrets.
+          try{
+            const byNameQuery='query R2Heads($accountTag: string!, $startDate: Time, $endDate: Time, $bucketName: string) { viewer { accounts(filter: {accountTag: $accountTag}) { r2OperationsAdaptiveGroups(limit: 1000, orderBy: [sum_requests_DESC], filter: {datetime_geq: $startDate, datetime_leq: $endDate, bucketName: $bucketName, actionType: "HeadObject"}) { sum { requests } dimensions { objectName } } } } }';
+            const headResponse=await fetch('https://api.cloudflare.com/client/v4/graphql',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({query:byNameQuery,variables})});
+            const headData=await headResponse.json();
+            const sample=headData?.data?.viewer?.accounts?.[0]?.r2OperationsAdaptiveGroups;
+            if(!headResponse.ok||headData.errors?.length||!Array.isArray(sample))throw new Error('object-name breakdown query unavailable');
+            const groups=new Map();
+            for(const row of sample){
+              const name=String(row.dimensions?.objectName||''),kind=name.startsWith('articles/')?'articles':name.startsWith('bulk/')?'bulk':name.startsWith('quality/')?'quality':name.startsWith('_ops/')?'ops':'other';
+              groups.set(kind,(groups.get(kind)||0)+Number(row.sum?.requests||0));
+            }
+            console.log('R2_HEAD_TOP_1000_PREFIX_SAMPLE='+JSON.stringify(Object.fromEntries(groups)));
+            for(const row of sample.slice(0,12))console.log('R2_HOT_HEAD '+String(row.dimensions?.objectName||'').slice(0,140)+' '+Number(row.sum?.requests||0));
+          }catch(e){console.log('::warning::R2_HEAD_OBJECTNAME_BREAKDOWN_UNAVAILABLE '+e.message)}
           console.log('R2_24H_GET_HEAD='+reads+' R2_24H_TOTAL='+total);
           appendFileSync(process.env.GITHUB_STEP_SUMMARY,'### R2 Cost Watch\nBucket: nooncoupons-content-v2\nGetObject + HeadObject (24h): '+reads+'\nAll operations (24h): '+total+'\nTarget <= 300,000 reads/day; critical > 1,000,000 reads/day.\n');
           if(reads>1000000){console.error('::error::R2_CLASS_B_SPIKE '+reads+' reads in 24h');process.exitCode=1}
