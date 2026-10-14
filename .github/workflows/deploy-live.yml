@@ -105,7 +105,7 @@ jobs:
           echo 'SOURCE_AUDIT=PASS'
 
       - name: R2 Class B savings regression gate
-        run: node --test tests/r2-saver.test.mjs
+        run: node --test tests/r2-saver.test.mjs tests/r2-head-health.test.mjs
 
       - name: Validate Cloudflare deploy token
         env:
