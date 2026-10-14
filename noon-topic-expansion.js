@@ -7,8 +7,8 @@ const uniq=xs=>[...new Set((xs||[]).filter(Boolean))];
 // Curated product-family seeds used only to diversify category coverage.
 // They are not claims about search volume, current stock, launch status, discount eligibility or popularity.
 const PRODUCT_FAMILY_SEEDS={
-  mobiles:['iPhone 17','iPhone 17 Pro','iPhone 17 Pro Max','iPhone 17 Air','iPhone 16','Samsung Galaxy S25 Ultra','Samsung Galaxy S24 Ultra','Samsung Galaxy Flip 6','Samsung Galaxy Fold 6','Huawei Phone','Nothing Phone'],
-  laptops:['MacBook Air','MacBook Pro','Acer Laptops','ASUS Laptops','Dell Laptops','HP Laptops','Huawei Laptops','Lenovo Laptops','MSI Laptops','Razer Laptops','Samsung Laptops','Gaming Laptop'],
+  mobiles:['iPhone 17','iPhone 17 Pro','iPhone 17 Pro Max','iPhone 17 Air','iPhone 16','Samsung Galaxy S25 Ultra','Samsung Galaxy S24 Ultra','Samsung Galaxy A series','Samsung Galaxy Z Fold','Samsung Galaxy Z Flip','Xiaomi Redmi Note','Xiaomi Poco','Honor Magic','Honor X series','Huawei Pura','Huawei Nova','Motorola Edge','OPPO Reno','vivo V series','Nothing Phone'],
+  laptops:['MacBook Air','MacBook Pro','Acer Aspire','Acer Nitro','ASUS VivoBook','ASUS Zenbook','ASUS ROG','Dell Inspiron','Dell Latitude','HP Pavilion','HP Victus','Huawei MateBook','Lenovo IdeaPad','Lenovo ThinkPad','Lenovo Legion','MSI Gaming Laptop','Razer Laptop','Samsung Laptop','Gaming Laptop','Business Laptop','Student Laptop'],
   audio:['AirPods 4','AirPods Pro','Bose Speakers','Harman Kardon Speaker','JBL Speakers','Marshall Speaker','Sony Speaker'],
   gaming:['PS5','PlayStation','Xbox','Nintendo Switch','Nintendo Switch Games','Gaming Laptop'],
   appliances:['LG Fridge','Samsung Fridge','Whirlpool Fridge','Ninja Air Fryer','Nutricook Air Fryer','Philips Air Fryer'],
@@ -16,8 +16,10 @@ const PRODUCT_FAMILY_SEEDS={
   bags:['Aldo Bags','Handbags','Travel Luggage'],
   sports:['Fitbit Fitness Trackers','Bike For Kids'],
   'baby-kids':['Barbie','Lego','Squishmallows','Bike For Kids'],
-  computers:['Mac Studio','Apple iMac','Desktop'],
-  tablets:['Tablet'],
+  computers:['Mac Studio','Apple iMac','Desktop PC','Mini PC','All in One PC','Mechanical Keyboard','Wireless Keyboard','Gaming Mouse','USB C Hub','External SSD','Portable SSD','WiFi Router','Laser Printer','Ink Tank Printer','Webcam','Document Scanner'],
+  tablets:['iPad','Samsung Galaxy Tab','Xiaomi Pad','Huawei MatePad','Android Tablet'],
+  grocery:['Coffee Beans','Ground Coffee','Instant Coffee','Coffee Capsules','Bottled Water','Breakfast Cereal','Protein Snacks','Chocolate Box','Laundry Detergent','Dishwasher Tablets','Paper Towels','Baby Wipes','Olive Oil','Rice Pack','Cooking Oil','Tea Bags'],
+  automotive:['Car Phone Holder','Car Charger','Dash Cam','Tire Inflator','Portable Jump Starter','Car Vacuum','Car Organizer','Car Cleaning Kit','Windshield Wipers','Seat Covers','Floor Mats','OBD Scanner','Air Compressor','Battery Charger','Car Air Freshener'],
   tvs:['Samsung TV','LG TV','Sony TV']
 };
 
