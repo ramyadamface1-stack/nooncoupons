@@ -5,15 +5,19 @@ export const APPROVED_COUPON_CODES=Object.freeze([
 // Sales-weighted from the user's Noon export, restricted strictly to codes currently
 // visible on the NoonDealsNow homepage. We intentionally cap the strongest code
 // instead of mirroring raw share 1:1 so the site keeps testing the other live codes.
+export const HOMEPAGE_COUPONS_BY_MARKET=Object.freeze({
+  SA:Object.freeze(['NOV170','NOV174','NOV177','NOV163','NOV195']),
+  AE:Object.freeze(['NOV188','NOV157','NOV186','NOV153','NOV161'])
+});
 export const PRIMARY_COUPON_BY_MARKET=Object.freeze({SA:'NOV170',AE:'NOV188'});
 const SALES_WEIGHTED_BY_MARKET=Object.freeze({
+  // Revenue + order evidence from the user's export, restricted to homepage codes
+  // and locked to the market shown on the homepage.
   SA:Object.freeze([
-    ['NOV170',55],['NOV174',9],['NOV177',8],['NOV195',8],['NOV188',5],
-    ['NOV157',4],['NOV163',4],['NOV161',3],['NOV153',2],['NOV186',2]
+    ['NOV170',60],['NOV195',15],['NOV177',10],['NOV174',10],['NOV163',5]
   ]),
   AE:Object.freeze([
-    ['NOV188',30],['NOV195',20],['NOV186',18],['NOV157',12],['NOV170',8],
-    ['NOV174',3],['NOV177',3],['NOV163',2],['NOV153',2],['NOV161',2]
+    ['NOV188',40],['NOV157',28],['NOV161',23],['NOV153',7],['NOV186',2]
   ])
 });
 
@@ -46,7 +50,9 @@ export const COUPON_SALES_POLICY_INFO=Object.freeze({
   version:1,
   source:'user-sales-export-homepage-codes-only',
   homepageCodes:[...APPROVED_COUPON_CODES],
+  homepageCodesByMarket:HOMEPAGE_COUPONS_BY_MARKET,
   primaryByMarket:PRIMARY_COUPON_BY_MARKET,
-  saPrimaryShareCapPct:55,
-  principle:'sales-weighted-but-diversified'
+  saPrimaryShareCapPct:60,
+  marketLocked:true,
+  principle:'sales-weighted-market-locked-but-diversified'
 });
