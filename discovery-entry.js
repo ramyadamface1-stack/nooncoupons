@@ -80,6 +80,7 @@ async function dailyPublishReport(env,from,to){
   const rows=(manifest.days||[]).filter(x=>x?.day>=sourceFrom&&x?.day<=sourceTo&&Number(x?.count)>0);
   const out=new Map();
   for(let d=from;d<=to;d=isoDayAdd(d,1))out.set(d,{day:d,saudiArabic:0,uaeArabic:0,uaeEnglish:0,total:0,bulkArchiveDayCount:0});
+  const seenBulk=new Set();
   for(const row of rows){
     if(out.has(row.day))out.get(row.day).bulkArchiveDayCount=Number(row.count)||0;
     const shards=Math.max(0,Number(row.shards)||Math.ceil(Number(row.count||0)/100));
@@ -89,6 +90,9 @@ async function dailyPublishReport(env,from,to){
       const data=await obj.json();
       for(const a of (data.articles||[])){
         if(!a?.slug)continue;
+        const unique=String(a.slug);
+        if(seenBulk.has(unique))continue;
+        seenBulk.add(unique);
         const day=cairoDayKey(a.publishedAt||a.createdAt||a.updatedAt,row.day);
         const rec=out.get(day);if(!rec)continue;
         if(a.country==='AE')rec.uaeArabic++;else rec.saudiArabic++;
@@ -485,7 +489,7 @@ export default{
       return new Response(JSON.stringify({ok:Boolean(english?.ok)&&(!effectiveBulk||Boolean(bulk?.ok)),version:3,release:DISCOVERY_RELEASE,beforeEnglish,afterEnglish,englishDelta:Math.max(0,afterEnglish-beforeEnglish),english,effectiveBulk,bulk},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     if(req.method==='GET'&&u.pathname==='/api/daily-publish-report'){
-      const from=String(u.searchParams.get('from')||''),to=String(u.searchParams.get('to')||from);
+      const range=String(u.searchParams.get('range')||'').split('..'),from=String(u.searchParams.get('from')||range[0]||''),to=String(u.searchParams.get('to')||range[1]||from);
       const report=await dailyPublishReport(env,from,to);
       return new Response(JSON.stringify(report,null,2),{status:report.ok?200:400,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-report-time-zone':'Africa/Cairo'}});
     }
