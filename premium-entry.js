@@ -2,6 +2,7 @@ import app from './auto-platform.js';
 import {applyKeywordMap,keywordLanding,augmentKeywordSitemap,KEYWORD_MAP_VERSION} from './keyword-pages.js';
 import {topicLanding,topicSitemap,augmentWithTopicSitemap,topicNavHtml,articleTopicPathHtml,TOPIC_HUB_INFO} from './topic-hubs.js';
 import {archiveLanding,ARCHIVE_INFO} from './archive-pages.js';
+import {readRecentPublicManifest} from './r2-public-manifest.js';
 export {ControlPlane,GeneratorControl} from './auto-platform.js';
 
 const LEGACY_ORIGIN='https://noondealsnow.com';
@@ -42,8 +43,14 @@ async function enhanceArticle(req,env,res){
   const u=new URL(req.url),slug=decodeURIComponent(u.pathname.split('/').filter(Boolean).pop()||'');
   if(!slug||!env.CONTENT_FINAL)return res;
   let md={};
-  try{const o=await env.CONTENT_FINAL.head('articles/'+slug+'.html');md=o?.customMetadata||{}}catch{}
-  const latest=await r2json(env,'bulk/latest.json',{articles:[]}),rec=(latest.articles||[]).find(a=>a?.slug===slug)||{slug,country:md.c||'SA'};
+  // The article renderer already fetched R2 metadata with the article body.
+  // Legacy article routes without these headers keep the safe HEAD fallback.
+  if(res.headers.get('x-r2-article-metadata')==='v1'){
+    md={c:res.headers.get('x-article-country')||'SA',at:res.headers.get('x-article-published-at')||'',ua:res.headers.get('x-article-modified-at')||''};
+  }else{
+    try{const o=await env.CONTENT_FINAL.head('articles/'+slug+'.html');md=o?.customMetadata||{}}catch{}
+  }
+  const latest=await readRecentPublicManifest(env),rec=(latest.articles||[]).find(a=>a?.slug===slug)||{slug,country:md.c||'SA'};
   const origin=env.SITE_ORIGIN||u.origin,published=md.at||rec.publishedAt||rec.createdAt||rec.updatedAt||new Date().toISOString(),modified=md.ua||rec.updatedAt||published,isAE=(rec.country||md.c)==='AE',market=isAE?'الإمارات':'السعودية',lang=isAE?'ar-AE':'ar-SA',canonical=origin+'/articles/'+enc(slug);
   const add=`<meta name="author" content="فريق تحرير كوبونات نون"><meta property="og:site_name" content="كوبونات نون"><meta property="article:published_time" content="${esc(published)}"><meta property="article:modified_time" content="${esc(modified)}"><meta property="article:section" content="نون ${market}"><link rel="alternate" hreflang="${lang}" href="${esc(canonical)}"><link rel="alternate" hreflang="x-default" href="${esc(canonical)}"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}">`;
   res=await injectHead(res,add,'article-v7',lang);
@@ -57,7 +64,7 @@ async function enhanceArticle(req,env,res){
 }
 
 async function enhanceBlog(req,env,res){
-  const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin,latest=await r2json(env,'bulk/latest.json',{articles:[]}),all=(latest.articles||[]).filter(a=>a?.slug&&a?.indexable!==false),rows=all.slice(0,12);
+  const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin,latest=await readRecentPublicManifest(env),all=(latest.articles||[]).filter(a=>a?.slug&&a?.indexable!==false),rows=all.slice(0,12);
   const graph={'@context':'https://schema.org','@graph':[{'@type':'CollectionPage','@id':origin+'/blog#collection',url:origin+'/blog',name:'مدونة كوبونات نون',description:'أحدث أدلة نون السعودية والإمارات.',inLanguage:'ar',isPartOf:{'@id':origin+'/#website'},mainEntity:{'@id':origin+'/blog#items'}},{'@type':'ItemList','@id':origin+'/blog#items',name:'أحدث أدلة كوبونات نون',numberOfItems:rows.length,itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+'/articles/'+enc(a.slug),name:a.title||a.primaryKeyword||a.slug}))}]};
   const add=`<meta property="og:type" content="website"><meta property="og:site_name" content="كوبونات نون"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}"><script type="application/ld+json" data-schema="blog-collection">${safeJson(graph)}</script>`;
   res=await injectHead(res,add,'blog-v8','ar');
