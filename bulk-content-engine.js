@@ -185,7 +185,12 @@ function uaeEnglishPriorityKeyword(candidate){
   const seed=Math.abs(Number(candidate.topicIndex||0)),heads=UAE_COMMERCIAL_HEADS[candidate.intent]||UAE_COMMERCIAL_HEADS.coupon,demand=UAE_POPULAR_SEARCHES[profile]||[];
   const goldenHead=seed%10<7,useDemand=!goldenHead&&demand.length>0,subject=useDemand?demand[seed%demand.length]:category,head=heads[seed%heads.length];
   const geo=seed%10<4?'UAE':UAE_GEO_SEARCH_MARKETS[seed%UAE_GEO_SEARCH_MARKETS.length];
-  const keyword=(useDemand?naturalUaeCommercialKeyword(subject,candidate.intent,geo):head).replace(/\s+/g,' ').trim();
+  // Preserve the commercial head but vary the actual product and buying decision.
+  // Reusing only the finite generic head pool saturates legitimate unique SEO intents.
+  const headFacets=['final checkout price','seller comparison','coupon eligibility','shipping cost','mobile checkout','budget decision','model comparison','return conditions'];
+  const headSubject=demand.length?demand[Math.floor(seed/11)%demand.length]:category;
+  const headFacet=headFacets[Math.floor(seed/173)%headFacets.length];
+  const keyword=(useDemand?naturalUaeCommercialKeyword(subject,candidate.intent,geo):`${head} ${headSubject} ${headFacet}`).replace(/\s+/g,' ').trim();
   const searchClass=String(subject+'-'+(candidate.intent||'commercial')+'-'+geo).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
   return {
     keyword,
