@@ -1,6 +1,9 @@
 name: Hourly 1000 Publish SLA
 
 on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/generation-burst-550.yml']
   workflow_dispatch:
   schedule:
     - cron: '7 * * * *'
