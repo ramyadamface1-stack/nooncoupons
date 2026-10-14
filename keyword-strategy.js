@@ -80,6 +80,19 @@ function preserveSeasonalTerm(kw,t,intent){
   const prefix=clean(`${label} نون ${mk} ${term}`),room=Math.max(10,70-prefix.length-1),shortCategory=category.slice(0,room).replace(/\s+\S*$/,'').trim()||category.slice(0,room).trim();
   return clean(`${label} ${shortCategory} نون ${mk} ${term}`).slice(0,70).trim();
 }
+function preserveHierarchyTarget(kw,t,intent){
+  const target=clean(t.catalogTarget||t.category),mk=market(t),current=clean(kw);
+  if(!target||current.includes(target))return current;
+  const label=INTENT_LABELS[intent]||'دليل',baseWithLabel=clean(`${label} ${target} نون ${mk}`),base=baseWithLabel.length<=70?baseWithLabel:clean(`${target} نون ${mk}`);
+  const extras=[decisionContextTerm(t),clean(t.queryModifier),clean(t.factor),clean(t.useCase)].filter(Boolean);
+  let out=base;
+  for(const extra of [...new Set(extras)]){
+    const candidate=clean(`${out} ${extra}`);
+    if(candidate.length<=70){out=candidate;break}
+  }
+  return out.length<=72?out:clean(`${target} نون ${mk}`);
+}
+
 function specificityParts(t,intent){
   const u=clean(t.useCase),f=clean(t.factor),modifier=clean(t.queryModifier),base=['compare','seller','value','finalprice','warranty'].includes(intent)?[f,u]:[u,f];
   const natural=[...new Set(base.filter(Boolean))].sort((a,b)=>a.length-b.length);
@@ -178,7 +191,7 @@ function fitKeyword(raw,t,intent,s){
 
 export function applyKeywordStrategy(topic){
   const expanded=expandNoonTopic(topic,topic.topicIndex??topic.diversitySeed??0),rawIntent=expanded.intent,intent=effectiveIntent(expanded),s=scenario(expanded,intent),builder=BUILDERS[intent]||BUILDERS.decision;
-  const baseKw=fitKeyword(builder(expanded,s),expanded,intent,s),specificKw=addSpecificity(baseKw,expanded,intent,s),distinctKw=distinctKeyword(specificKw,expanded,intent,s),contextKw=preserveDecisionContext(distinctKw,expanded,intent),kw=preserveSeasonalTerm(contextKw,expanded,intent),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
+  const baseKw=fitKeyword(builder(expanded,s),expanded,intent,s),specificKw=addSpecificity(baseKw,expanded,intent,s),distinctKw=distinctKeyword(specificKw,expanded,intent,s),contextKw=preserveDecisionContext(distinctKw,expanded,intent),seasonalKw=preserveSeasonalTerm(contextKw,expanded,intent),kw=preserveHierarchyTarget(seasonalKw,expanded,intent),slug=slugify(kw),title=kw,words=kw.split(/\s+/).filter(Boolean).length;
   const couponSeed=Math.abs(Number(topic.topicIndex??topic.diversitySeed??0));
   const code=salesWeightedCoupon(couponSeed,expanded.country||topic.country||'SA');
   return {...expanded,rawIntent,intent,intentLabel:INTENT_LABELS[intent]||expanded.intentLabel||'دليل',kw,slug,title,code,keywordStrategy:'search-intent-v8-sales-weighted',keywordWordCount:words,searchIntentFamily:intent,couponSelection:'homepage-sales-weighted'};
