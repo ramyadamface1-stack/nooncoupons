@@ -80,7 +80,8 @@ function imageBlock({slug,coupon,country,keyword},start,countNeeded){
   for(let i=0;i<countNeeded;i++){
     const v=Math.min(5,start+i),role=roles[i%roles.length];
     const src=`/assets/coupon-svg/${encodeURIComponent(slug)}/${v}.svg?v=9&coupon=${encodeURIComponent(coupon)}&country=${country}`;
-    out+=`<figure class="article-visual legacy-quality-visual"><img src="${src}" alt="${esc(keyword)} — ${esc(role)} — ${esc(coupon)}" title="${esc(role)}" width="1200" height="760" loading="lazy" decoding="async"><figcaption>${esc(role)} في نون ${market} عند تجربة ${esc(coupon)}</figcaption></figure>`;
+    const alt=`${keyword||'دليل نون'} — ${role} في نون ${market} مع كود ${coupon}`;
+    out+=`<figure class="article-visual legacy-quality-visual"><img src="${src}" alt="${esc(alt)}" title="${esc(role)}" width="1200" height="760" loading="lazy" decoding="async"><figcaption>${esc(role)} في نون ${market} عند تجربة ${esc(coupon)}</figcaption></figure>`;
   }
   return out;
 }
