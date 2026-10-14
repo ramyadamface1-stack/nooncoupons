@@ -70,9 +70,9 @@ function catalogTargetKeys(topic,categoryKey){
 export function boundedCoverageCorrection(seed,underTarget=[]){
  const n=Math.abs(Number(seed)||0),u=new Set(Array.isArray(underTarget)?underTarget:[]);
  if(u.has('category')&&n%11===0)return 'category';
- if(u.has('brand')&&n%13===0)return 'brand';
+ if(u.has('brand')&&n%3===0)return 'brand';
+ if(u.has('comparison')&&n%5===0)return 'comparison';
  if(u.has('model')&&n%17===0)return 'model';
- if(u.has('comparison')&&n%19===0)return 'comparison';
  return '';
 }
 
