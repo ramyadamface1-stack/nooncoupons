@@ -3,13 +3,14 @@ import {runEnglishCanaryBatch,englishCanaryRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
 import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
+import {readRecentPublicManifest} from './r2-public-manifest.js';
+import {publicEdgeCacheEligible,publicEdgeTtlSeconds} from './r2-public-cache-policy.js';
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
-const DISCOVERY_RELEASE='2026-10-14-hourly-1000-r12';
+const DISCOVERY_RELEASE='2026-10-14-r2-classb-saver-r13';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const enc=s=>encodeURI(String(s||''));
-let latestCache={at:0,value:null};
 const CLOUDFLARE_ACCOUNT_ID='c82274152a942dea53044eae7153cfd7';
 const AUDIT_DISCOVERY_CURRENT_KEY='maintenance/article-discovery-v1/current.json';
 
@@ -44,17 +45,7 @@ async function verifyMaintenanceToken(req){
   }catch{return false}
 }
 
-async function latest(env){
-  const now=Date.now();
-  if(latestCache.value&&now-latestCache.at<120000)return latestCache.value;
-  try{
-    if(!env.CONTENT_FINAL)return latestCache.value||{articles:[]};
-    const o=await env.CONTENT_FINAL.get('bulk/latest.json');
-    const value=o?await o.json():{articles:[]};
-    latestCache={at:now,value};
-    return value;
-  }catch{return latestCache.value||{articles:[]}}
-}
+async function latest(env){return readRecentPublicManifest(env)}
 
 function cairoDayKey(value,fallback=''){
   if(!value)return fallback;
@@ -417,21 +408,12 @@ async function sitemapHealth(req,env,ctx,origin){
   return new Response(JSON.stringify({ok:rows.every(x=>x.ok),origin,checkedAt:new Date().toISOString(),rows},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-sitemap-self-audit':'v1'}});
 }
 
+const EDGE_CACHE_POLICY_REVISION='r2-classb-saver-r13';
 function edgePageCacheKey(u){
-  return new Request(u.origin+u.pathname,{method:'GET'});
+  return new Request(u.origin+u.pathname+'?__ndn_edge_policy='+EDGE_CACHE_POLICY_REVISION,{method:'GET'});
 }
-function edgePageCacheEligible(req,u){
-  if(req.method!=='GET'||u.search||req.headers.has('authorization')||req.headers.has('cookie')||req.headers.has('range'))return false;
-  const p=u.pathname.replace(/\/+$/,'')||'/';
-  if(['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide','/en/coupons','/en/uae/saving-guide','/en/saudi','/en/uae'].includes(p))return true;
-  if(/^\/(?:saudi|uae)\/(?:category|brand|model|compare)\/[^/]+(?:\/[^/]+)?$/.test(p))return true;
-  if(/^\/en\/(?:saudi|uae)\/noon-coupon-code$/.test(p))return true;
-  if(/^\/en\/(?:saudi|uae)\/(?:category|product)\/[^/]+$/.test(p))return true;
-  if(/^\/(?:articles|en\/articles)\/[^/]+$/.test(p))return true;
-  if(/^\/(?:saudi-arabia|uae)\/noon-coupon-code(?:-today|-2026)?$/.test(p))return true;
-  if(/^\/(?:saudi-arabia|uae)\/coupon\/[^/]+$/.test(p))return true;
-  return false;
-}
+function edgePageCacheEligible(req,u){return publicEdgeCacheEligible(req,u)}
+
 async function edgePageCacheGet(req,u){
   if(!edgePageCacheEligible(req,u))return null;
   const hit=await caches.default.match(edgePageCacheKey(u));
@@ -442,8 +424,8 @@ async function edgePageCacheGet(req,u){
 function edgePageCachePut(req,u,res,ctx){
   if(!edgePageCacheEligible(req,u)||!res?.ok)return res;
   const type=(res.headers.get('content-type')||'').toLowerCase(),cc=(res.headers.get('cache-control')||'').toLowerCase();
-  if(!type.includes('text/html')||res.headers.has('set-cookie')||cc.includes('private')||cc.includes('no-store'))return res;
-  const h=new Headers(res.headers);h.delete('content-length');h.set('cache-control','public, max-age=30, s-maxage=120, stale-while-revalidate=600');h.set('x-edge-page-cache','MISS');
+  if(!(type.includes('text/html')||type.includes('application/xml')||type.includes('text/xml'))||res.headers.has('set-cookie')||cc.includes('private')||cc.includes('no-store'))return res;
+  const h=new Headers(res.headers);h.delete('content-length');h.set('cache-control','public, max-age=30, s-maxage='+publicEdgeTtlSeconds(u.pathname)+', stale-while-revalidate=600');h.set('x-edge-page-cache','MISS');h.set('x-edge-policy',EDGE_CACHE_POLICY_REVISION);
   const out=new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
   ctx?.waitUntil?.(caches.default.put(edgePageCacheKey(u),out.clone()));
   return out;
@@ -586,4 +568,4 @@ export default{
   }
 };
 
-export const DISCOVERY_ENTRY_INFO={version:26,dailyPaceRecovery:true,burstBulkAlwaysEnabled:true,recoveryEnglishCycles:4,recoveryBulkEveryStep:false,recoveryBulkOwner:'daily-pace',cpuSaverMode:true,cronCadenceMinutes:2,coreSitemap:true,coreSitemapPath:'/sitemap-core.xml',release:DISCOVERY_RELEASE,revisionEndpoint:'/api/revision',hubSitemap:true,hubSitemapPath:'/sitemap-hubs.xml',edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:12000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:34,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120};
+export const DISCOVERY_ENTRY_INFO={version:26,dailyPaceRecovery:true,burstBulkAlwaysEnabled:true,recoveryEnglishCycles:4,recoveryBulkEveryStep:false,recoveryBulkOwner:'daily-pace',cpuSaverMode:true,cronCadenceMinutes:2,coreSitemap:true,coreSitemapPath:'/sitemap-core.xml',release:DISCOVERY_RELEASE,revisionEndpoint:'/api/revision',hubSitemap:true,hubSitemapPath:'/sitemap-hubs.xml',edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:12000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:34,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120,r2PublicManifestCoalesced:true,edgeCachePolicy:EDGE_CACHE_POLICY_REVISION};
