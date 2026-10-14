@@ -73,7 +73,7 @@ jobs:
           grep -Fq 'const PAGE_SIZE=15' archive-pages.js
           grep -Fq '"BULK_CANDIDATE_BUDGET_MS": "15000"' wrangler.jsonc
           grep -Fq '"ENGLISH_CPU_BUDGET_MS": "12000"' wrangler.jsonc
-          grep -Fq '"*/4 * * * *"' wrangler.jsonc
+          grep -Fq '"*/2 * * * *"' wrangler.jsonc
           grep -Fq '"head_sampling_rate": 0.05' wrangler.jsonc
           grep -Fq 'cpuEarlyExitExactCollisions:true' quality-index.js
           grep -Fq 'lowYieldCandidateThrottle:true' bulk-generator.js
