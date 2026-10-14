@@ -1,4 +1,4 @@
-import {APPROVED_COUPON_CODES,isApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
+import {APPROVED_COUPON_CODES,isApprovedCoupon,replaceUnapprovedCouponTokens,HOMEPAGE_COUPONS_BY_MARKET,replaceWrongMarketCouponTokens} from './approved-coupons.js';
 
 const DAY=86400000;
 const OWNER_CATALOG_UPDATED_AT='2026-09-18T00:00:00.000Z';
@@ -10,7 +10,7 @@ const REGISTRY_VERSION='owner-approved-nov-v1-strict-copy';
 export const COUPON_REGISTRY=Object.freeze(Object.fromEntries(CODES.map(code=>[code,Object.freeze({
   code,
   active:true,
-  markets:['SA','AE'],
+  markets:Object.freeze(Object.keys(HOMEPAGE_COUPONS_BY_MARKET).filter(market=>HOMEPAGE_COUPONS_BY_MARKET[market].includes(code))),
   evidence:'owner-approved-code-list',
   officialVerified:false,
   catalogUpdatedAt:OWNER_CATALOG_UPDATED_AT,
@@ -41,10 +41,10 @@ export function couponStatus(topic,at=new Date()){
 export function injectCouponFreshness(article,status){
   if(!article?.html||!status)return article;
   const approved=status.code||APPROVED_COUPON_CODES[0];
-  article.html=replaceUnapprovedCouponTokens(article.html,approved);
-  if(article.title)article.title=replaceUnapprovedCouponTokens(article.title,approved);
-  if(article.metaDescription)article.metaDescription=replaceUnapprovedCouponTokens(article.metaDescription,approved);
-  if(article.primaryKeyword)article.primaryKeyword=replaceUnapprovedCouponTokens(article.primaryKeyword,approved);
+  article.html=replaceWrongMarketCouponTokens(article.html,status.country);
+  if(article.title)article.title=replaceWrongMarketCouponTokens(article.title,status.country);
+  if(article.metaDescription)article.metaDescription=replaceWrongMarketCouponTokens(article.metaDescription,status.country);
+  if(article.primaryKeyword)article.primaryKeyword=replaceWrongMarketCouponTokens(article.primaryKeyword,status.country);
   const date=String(status.catalogUpdatedAt||'').slice(0,10);
   const section=`<section class="coupon-freshness" data-coupon-state="${status.state}"><h2>حالة الكوبون وطريقة التحقق</h2><p>الكود <strong>${approved}</strong> موجود في قائمة الأكواد المعتمدة من مالك الموقع، وآخر تحديث للقائمة كان ${date||'غير محدد'}. هذا لا يعني ضمان قبوله لكل حساب أو سلة؛ شروط نون الحالية وصفحة الدفع هما المرجع النهائي.</p><p>لا ننسب للكود نسبة خصم أو مبلغ توفير ثابت من دون مصدر رسمي. إذا تغيّرت أهلية الحساب أو البائع أو المنتج أو طريقة الدفع، اختبر الكود على نفس السلة وسجّل الإجمالي قبل وبعد التطبيق.</p></section>`;
   article.html=String(article.html).replace(/<section class="sources">/i,section+'<section class="sources">');
