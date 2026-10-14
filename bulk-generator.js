@@ -85,9 +85,9 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     if(Date.now()-candidateLoopStartedMs>=candidateBudgetMs){candidateBudgetHit=true;break}
     const currentCursor=cursor++;tries++;if((tries&7)===0)await sleep(0);
     // Explore a different region of the existing 33m-topic space on one in three
-    // country-locked Saudi burst candidates. All duplicate, semantic and SEO gates
+    // Saudi bursts and low-yield paced candidates. All duplicate, semantic and SEO gates
     // below still run unchanged; the persistent cursor remains monotonic.
-    const candidateTopicSeed=burstMode&&burstForceCountry==='SA'&&tries%3===0
+    const candidateTopicSeed=burstMode&&(burstForceCountry==='SA'||Number(status.bulkLastBatchYieldPct||0)<2)&&tries%3===0
       ?(Math.imul((currentCursor+1)>>>0,2654435761)>>>0)%BULK_ENGINE_INFO.topicSpace
       :currentCursor;
     const campaignPlan=campaignGenerationPlan(currentCursor,campaignWindow),campaignKey=campaignPlan.active?campaignPlan.id:'evergreen';campaignAttemptCounts[campaignKey]=(campaignAttemptCounts[campaignKey]||0)+1;const rawTopicBase=buildRawBulkTopic(candidateTopicSeed,{forceCountry:(burstForceCountry==='SA'||burstForceCountry==='AE')?burstForceCountry:(campaignPlan.forceCountry||''),forceProfiles:burstPriorityProfiles.length?burstPriorityProfiles:(campaignPlan.forceProfiles||[]),independentPriority:burstPriorityProfiles.length>0}),rawTopic=applyCampaignPlan(rawTopicBase,campaignPlan),languageIntent='ar',revenueEligible=['coupon','finalprice','value','cart','timing','smartbuy','eligibility','checklist','multi'].includes(rawTopic.intent),revenueNudge=revenueSignal.underTarget&&revenueEligible&&currentCursor%7===0?{...rawTopic,scenario:HIGH_VALUE_SCENARIO_BY_CURSOR(currentCursor,rawTopic.scenario)}:rawTopic,topic=reconcileKeywordHierarchy(applyCommerceTarget(applyKeywordStrategy(revenueNudge),currentCursor,coverageSignal)),demandPolicy=evaluateSearchDemandPolicy(topic);if(!demandPolicy.createStandalone){rejectedDemandRouting++;demandRouteReasons[demandPolicy.reason]=(demandRouteReasons[demandPolicy.reason]||0)+1;continue}const coupon=couponStatus(topic);if(!coupon.publishAllowed){rejectedCoupon++;continue}
