@@ -39,3 +39,16 @@ test('health probe cache never contaminates duplicate-detection publisher',async
   assert.match(health,/await withDeadline\(env\.CONTENT_FINAL\.head\(key\)/);
   assert.match(health,/onlyIf=new Headers\(\{'If-None-Match':'\*'\}\)/);
 });
+
+
+test('public content status never performs expensive full R2 health scans',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const english=readFileSync(new URL('../english-canary.js',import.meta.url),'utf8');
+  const commerce=readFileSync(new URL('../commerce-entry.js',import.meta.url),'utf8');
+  assert.match(english,/export async function englishCanaryHealth\(env,\{light=true\}=\{\}\)/);
+  assert.match(english,/export async function serveEnglishCanaryHealth\(env,req=null\)\{return jsonResponse\(await englishCanaryHealth\(env,\{light:true\}\)\)\}/);
+  assert.match(commerce,/english=await englishCanaryHealth\(env,\{light:true\}\)/);
+  // Full object presence is still verifiable internally, but never triggered by public status requests.
+  assert.match(english,/if\(light\)\{/);
+  assert.match(english,/await healthR2ObjectExists\(env,'articles\/'\+r\.slug\+'\.html'\)/);
+});

@@ -99,7 +99,7 @@ async function contentStats(req,env,ctx){
     generator=await r.json();
   }catch{}
   let english={};
-  try{english=await englishCanaryHealth(env)}catch{}
+  try{english=await englishCanaryHealth(env,{light:true})}catch{}
   let couponMigration={ok:false,done:false,scanned:0,updated:0,replaced:0};
   try{couponMigration=await readCouponR2MigrationState(env)}catch{}
   const freshCount=new URL(req.url).searchParams.get('fresh')==='1';
