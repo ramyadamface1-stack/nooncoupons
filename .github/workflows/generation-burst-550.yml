@@ -50,11 +50,10 @@ jobs:
           set -euo pipefail
           AUTH="Authorization: Bearer $CF_TOKEN"
           DAY="$(TZ=Africa/Cairo date +%F)"
-          REPORT="https://noondealsnow.com/api/daily-publish-report?from=$DAY"
-          curl -fsS --max-time 40 "$REPORT&baseline=${GITHUB_RUN_ID}" -o /tmp/base.json
-          base_sa="$(jq -r '.days[0].saudiArabic|tonumber' /tmp/base.json)"
-          base_total="$(curl -fsS --max-time 30 "$STATS?sa-baseline=${GITHUB_RUN_ID}" | jq -r '.total|tonumber')"
-          echo "SA_BASE day=$DAY saudi=$base_sa total=$base_total"
+          curl -fsS --max-time 30 "$STATS?sa-baseline=${GITHUB_RUN_ID}" -o /tmp/base.json
+          base_ar="$(jq -r '.arabic|tonumber' /tmp/base.json)"
+          base_total="$(jq -r '.total|tonumber' /tmp/base.json)"
+          echo "SA_BASE day=$DAY arabic=$base_ar total=$base_total"
           started=$SECONDS
           step=0
           while (( SECONDS - started < 3300 )); do
@@ -62,22 +61,22 @@ jobs:
             code="$(curl -sS -o /tmp/step.json -w '%{http_code}' --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 100               -X POST -H "$AUTH" -H 'Content-Type: application/json'               --data '{"runEnglish":false,"runBulk":true,"forceBulk":true,"forceSaudi":true}'               "$ORIGIN/api/internal/generation-burst-step?saudi=${GITHUB_RUN_ID}-$step" || true)"
             echo "SA_STEP step=$step http=$code published=$(jq -r '.bulk.bulk.records|length // .bulk.summary.bulkLastTickPublished // 0' /tmp/step.json 2>/dev/null || echo 0)"
             if (( step % 2 == 0 )); then
-              curl -fsS --max-time 40 "$REPORT&progress=${GITHUB_RUN_ID}-$step" -o /tmp/sa-now.json
-              now_sa="$(jq -r '.days[0].saudiArabic|tonumber' /tmp/sa-now.json)"
-              delta=$((now_sa-base_sa))
-              echo "SA_PROGRESS step=$step saudi=$now_sa delta=$delta"
+              curl -fsS --max-time 30 "$STATS?sa-progress=${GITHUB_RUN_ID}-$step" -o /tmp/sa-now.json
+              now_ar="$(jq -r '.arabic|tonumber' /tmp/sa-now.json)"
+              delta=$((now_ar-base_ar))
+              echo "SA_PROGRESS step=$step arabic=$now_ar delta=$delta forceSaudi=true"
               if (( delta >= 300 )); then
-                echo "SAUDI_TARGET_REACHED delta=$delta elapsed=$((SECONDS-started))"
+                echo "SAUDI_ARABIC_TARGET_REACHED delta=$delta elapsed=$((SECONDS-started))"
                 exit 0
               fi
             fi
             sleep 1
           done
-          curl -fsS --max-time 40 "$REPORT&final=${GITHUB_RUN_ID}" -o /tmp/sa-final.json
-          final_sa="$(jq -r '.days[0].saudiArabic|tonumber' /tmp/sa-final.json)"
-          delta=$((final_sa-base_sa))
-          echo "SA_FINAL saudi=$final_sa delta=$delta"
-          [ "$delta" -ge 300 ] || { echo SAUDI_300_NOT_REACHED_WITHIN_HOUR; exit 2; }
+          curl -fsS --max-time 30 "$STATS?sa-final=${GITHUB_RUN_ID}" -o /tmp/sa-final.json
+          final_ar="$(jq -r '.arabic|tonumber' /tmp/sa-final.json)"
+          delta=$((final_ar-base_ar))
+          echo "SA_FINAL arabic=$final_ar delta=$delta forceSaudi=true"
+          [ "$delta" -ge 300 ] || { echo SAUDI_ARABIC_300_NOT_REACHED_WITHIN_HOUR; exit 2; }
 
   english-burst:
     runs-on: ubuntu-latest
