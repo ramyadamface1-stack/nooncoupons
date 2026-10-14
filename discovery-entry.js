@@ -56,6 +56,56 @@ async function latest(env){
   }catch{return latestCache.value||{articles:[]}}
 }
 
+function cairoDayKey(value,fallback=''){
+  if(!value)return fallback;
+  try{
+    const d=new Date(value);if(Number.isNaN(d.getTime()))return fallback;
+    const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d);
+    const get=t=>parts.find(x=>x.type===t)?.value||'';
+    const y=get('year'),m=get('month'),day=get('day');
+    return y&&m&&day?`${y}-${m}-${day}`:fallback;
+  }catch{return fallback}
+}
+function isoDayAdd(day,delta){
+  const d=new Date(String(day)+'T00:00:00Z');if(Number.isNaN(d.getTime()))return day;
+  d.setUTCDate(d.getUTCDate()+delta);return d.toISOString().slice(0,10);
+}
+async function dailyPublishReport(env,from,to){
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(from)||!/^\\d{4}-\\d{2}-\\d{2}$/.test(to)||from>to)return {ok:false,error:'invalid_range'};
+  const span=Math.round((Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z'))/86400000)+1;
+  if(span<1||span>45)return {ok:false,error:'range_too_large'};
+  const daysObj=await env.CONTENT_FINAL.get('bulk/days.json');
+  const manifest=daysObj?await daysObj.json():{days:[]};
+  const sourceFrom=isoDayAdd(from,-1),sourceTo=isoDayAdd(to,1);
+  const rows=(manifest.days||[]).filter(x=>x?.day>=sourceFrom&&x?.day<=sourceTo&&Number(x?.count)>0);
+  const out=new Map();
+  for(let d=from;d<=to;d=isoDayAdd(d,1))out.set(d,{day:d,saudiArabic:0,uaeArabic:0,uaeEnglish:0,total:0,bulkArchiveDayCount:0});
+  for(const row of rows){
+    if(out.has(row.day))out.get(row.day).bulkArchiveDayCount=Number(row.count)||0;
+    const shards=Math.max(0,Number(row.shards)||Math.ceil(Number(row.count||0)/100));
+    for(let shard=0;shard<shards;shard++){
+      const obj=await env.CONTENT_FINAL.get(`bulk/day/${row.day}/${shard}.json`);
+      if(!obj)continue;
+      const data=await obj.json();
+      for(const a of (data.articles||[])){
+        if(!a?.slug)continue;
+        const day=cairoDayKey(a.publishedAt||a.createdAt||a.updatedAt,row.day);
+        const rec=out.get(day);if(!rec)continue;
+        if(a.country==='AE')rec.uaeArabic++;else rec.saudiArabic++;
+      }
+    }
+  }
+  let english=[];
+  try{english=await englishCanaryRecords(env)}catch{}
+  for(const a of (english||[])){
+    if(!a?.slug||a.status!=='published')continue;
+    const day=cairoDayKey(a.publishedAt||a.createdAt||a.updatedAt,'');
+    const rec=out.get(day);if(rec)rec.uaeEnglish++;
+  }
+  const result=[...out.values()].map(x=>({...x,uaeTotal:x.uaeArabic+x.uaeEnglish,total:x.saudiArabic+x.uaeArabic+x.uaeEnglish}));
+  return {ok:true,timeZone:'Africa/Cairo',from,to,days:result,totals:result.reduce((a,x)=>({saudi:a.saudi+x.saudiArabic,uaeArabic:a.uaeArabic+x.uaeArabic,uaeEnglish:a.uaeEnglish+x.uaeEnglish,uae:a.uae+x.uaeTotal,total:a.total+x.total}),{saudi:0,uaeArabic:0,uaeEnglish:0,uae:0,total:0})};
+}
+
 function keyPages(origin){
   return [
     '/',
@@ -433,6 +483,11 @@ export default{
       const bulkEnv=effectiveBulk?new Proxy(env,{get(target,prop){if(prop==='BULK_BATCH_SIZE')return '64';if(prop==='BULK_CANDIDATE_BUDGET_MS')return '24000';if(prop==='BULK_BURST_MODE')return 'true';return Reflect.get(target,prop)}}):env;
       const bulk=effectiveBulk?await bulkTick(bulkEnv):{ok:true,skipped:paceOwnsBulk?'daily_pace_owns_bulk':'bulk_not_requested'};
       return new Response(JSON.stringify({ok:Boolean(english?.ok)&&(!effectiveBulk||Boolean(bulk?.ok)),version:3,release:DISCOVERY_RELEASE,beforeEnglish,afterEnglish,englishDelta:Math.max(0,afterEnglish-beforeEnglish),english,effectiveBulk,bulk},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+    }
+    if(req.method==='GET'&&u.pathname==='/api/daily-publish-report'){
+      const from=String(u.searchParams.get('from')||''),to=String(u.searchParams.get('to')||from);
+      const report=await dailyPublishReport(env,from,to);
+      return new Response(JSON.stringify(report,null,2),{status:report.ok?200:400,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-report-time-zone':'Africa/Cairo'}});
     }
     if(req.method==='GET'&&u.pathname==='/api/sitemap-health')return sitemapHealth(req,env,ctx,origin);
     if(req.method==='GET'&&u.pathname==='/sitemap-core.xml'){const r=coreSitemap(origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
