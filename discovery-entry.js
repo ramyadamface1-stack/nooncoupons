@@ -6,7 +6,7 @@ import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
-const DISCOVERY_RELEASE='2026-10-10-daily-pace-r9';
+const DISCOVERY_RELEASE='2026-10-14-hourly-1000-r10';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const enc=s=>encodeURI(String(s||''));
 let latestCache={at:0,value:null};
@@ -460,20 +460,23 @@ export default{
 
     if(req.method==='POST'&&u.pathname==='/api/internal/generation-burst-step'){
       if(!await verifyMaintenanceToken(req))return new Response(JSON.stringify({ok:false,reason:'unauthorized'}),{status:401,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
-      let englishMax=23,englishBudgetMs=12000,runBulk=false,runEnglish=true;
+      let englishMax=23,englishBudgetMs=12000,englishCycles=4,runBulk=false,runEnglish=true,forceBulk=false,forceSaudi=false;
       try{
         const body=await req.json();
         englishMax=Math.max(1,Math.min(24,Number(body?.englishMax)||23));
         englishBudgetMs=Math.max(5000,Math.min(15000,Number(body?.englishBudgetMs)||12000));
+        englishCycles=Math.max(1,Math.min(4,Number(body?.englishCycles)||4));
         runBulk=body?.runBulk===true;
         runEnglish=body?.runEnglish!==false;
+        forceBulk=body?.forceBulk===true;
+        forceSaudi=body?.forceSaudi===true;
       }catch{}
       const beforeRecords=await englishCanaryRecords(env);
       const beforeEnglish=beforeRecords.length;
       let english={ok:true,skipped:'english_disabled_for_step',published:0,statePersisted:true,cycles:0,results:[]};
       if(runEnglish){
         const cycles=[];
-        for(let cycle=0;cycle<4;cycle++){
+        for(let cycle=0;cycle<englishCycles;cycle++){
           const part=await runEnglishCanaryBatch(env,{maxPerTick:englishMax,timeBudgetMs:englishBudgetMs,ignoreIntervalFirst:true});
           cycles.push(part);
           if(part?.ok===false)break;
@@ -483,10 +486,18 @@ export default{
       const afterRecords=await englishCanaryRecords(env);
       const afterEnglish=afterRecords.length;
       const paceOwnsBulk=String(env.BULK_DAILY_PACE_MODE||'true').toLowerCase()==='true';
-      const effectiveBulk=runBulk&&!paceOwnsBulk;
-      const bulkEnv=effectiveBulk?new Proxy(env,{get(target,prop){if(prop==='BULK_BATCH_SIZE')return '64';if(prop==='BULK_CANDIDATE_BUDGET_MS')return '24000';if(prop==='BULK_BURST_MODE')return 'true';return Reflect.get(target,prop)}}):env;
-      const bulk=effectiveBulk?await bulkTick(bulkEnv):{ok:true,skipped:paceOwnsBulk?'daily_pace_owns_bulk':'bulk_not_requested'};
-      return new Response(JSON.stringify({ok:Boolean(english?.ok)&&(!effectiveBulk||Boolean(bulk?.ok)),version:3,release:DISCOVERY_RELEASE,beforeEnglish,afterEnglish,englishDelta:Math.max(0,afterEnglish-beforeEnglish),english,effectiveBulk,bulk},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+      const effectiveBulk=runBulk&&(forceBulk||!paceOwnsBulk);
+      const bulkEnv=effectiveBulk?new Proxy(env,{get(target,prop){
+        if(prop==='BULK_BATCH_SIZE')return '64';
+        if(prop==='BULK_CATCHUP_BATCH_SIZE')return '64';
+        if(prop==='BULK_CANDIDATE_BUDGET_MS')return '24000';
+        if(prop==='BULK_BURST_MODE')return 'true';
+        if(prop==='BULK_BURST_FORCE_COUNTRY'&&forceSaudi)return 'SA';
+        if(prop==='BULK_BURST_PRIORITY_PROFILES'&&forceSaudi)return 'mobile,grocery,computing,auto';
+        return Reflect.get(target,prop);
+      }}):env;
+      const bulk=effectiveBulk?await bulkTick(bulkEnv):{ok:true,skipped:paceOwnsBulk&&!forceBulk?'daily_pace_owns_bulk':'bulk_not_requested'};
+      return new Response(JSON.stringify({ok:Boolean(english?.ok)&&(!effectiveBulk||Boolean(bulk?.ok)),version:4,release:DISCOVERY_RELEASE,beforeEnglish,afterEnglish,englishDelta:Math.max(0,afterEnglish-beforeEnglish),english,effectiveBulk,forceBulk,forceSaudi,bulk},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     if(req.method==='GET'&&u.pathname==='/api/daily-publish-report'){
       const range=String(u.searchParams.get('range')||'').split('..'),from=String(u.searchParams.get('from')||range[0]||''),to=String(u.searchParams.get('to')||range[1]||from);
