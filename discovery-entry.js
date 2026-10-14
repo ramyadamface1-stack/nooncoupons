@@ -71,7 +71,7 @@ function isoDayAdd(day,delta){
   d.setUTCDate(d.getUTCDate()+delta);return d.toISOString().slice(0,10);
 }
 async function dailyPublishReport(env,from,to){
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(from)||!/^\\d{4}-\\d{2}-\\d{2}$/.test(to)||from>to)return {ok:false,error:'invalid_range'};
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||from>to)return {ok:false,error:'invalid_range'};
   const span=Math.round((Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z'))/86400000)+1;
   if(span<1||span>45)return {ok:false,error:'range_too_large'};
   const daysObj=await env.CONTENT_FINAL.get('bulk/days.json');
