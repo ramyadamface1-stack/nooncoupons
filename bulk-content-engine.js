@@ -143,11 +143,11 @@ const UAE_POPULAR_SEARCHES={
   kitchen:['Ninja air fryer','Philips air fryer','air fryer','coffee machine','blender','microwave'],
   home:['furniture','mattress','home storage','home organization','bedding'],
   fitness:['smartwatch','fitness tracker','treadmill','dumbbells','yoga mat'],
-  grocery:['coffee','snacks','protein powder','grocery shopping'],
-  kids:['LEGO','kids toys','school supplies','kids fashion'],
-  baby:['baby stroller','diapers','baby monitor','baby essentials'],
-  travel:['travel luggage','cabin bag','travel backpack','suitcase'],
-  office:['printer','keyboard','mouse','office chair','school supplies']
+  grocery:['coffee','coffee beans','ground coffee','instant coffee','coffee capsules','snacks','protein powder','breakfast cereal','bottled water','olive oil','rice','tea bags','laundry detergent','dishwasher tablets','paper towels','baby wipes','grocery shopping'],
+  kids:['LEGO','LEGO Technic','educational toys','kids toys','school supplies','kids fashion','board games','building blocks','art supplies'],
+  baby:['baby stroller','travel stroller','diapers','diaper pants','baby monitor','baby wipes','feeding bottles','car seat','baby essentials'],
+  travel:['travel luggage','cabin bag','travel backpack','hard shell suitcase','carry on luggage','packing cubes','travel organizer','laptop backpack'],
+  office:['laser printer','ink tank printer','mechanical keyboard','wireless keyboard','gaming mouse','wireless mouse','USB C hub','portable SSD','document scanner','webcam','office chair','school supplies']
 };
 const UAE_INTENT_SUFFIX={coupon:'coupon code',timing:'coupon timing guide',value:'shopping value guide',smartbuy:'buying guide',cart:'promo code',finalprice:'final price',eligibility:'coupon eligibility'};
 const UAE_GEO_SEARCH_MARKETS=['Dubai','Abu Dhabi','Sharjah','Ajman','Al Ain','Ras Al Khaimah','Fujairah'];
