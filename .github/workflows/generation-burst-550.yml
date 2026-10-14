@@ -18,7 +18,7 @@ concurrency:
 env:
   ORIGIN: https://nooncoupons.ramychatgptgcoupons.workers.dev
   STATS: https://noondealsnow.com/api/content-stats
-  RELEASE: 2026-10-14-hourly-1000-r10
+  RELEASE: 2026-10-14-hourly-1000-r11
 
 jobs:
   saudi-burst:
@@ -69,7 +69,10 @@ jobs:
               sa_step="$(jq -r '[.bulk.bulk.records[]? | select(.country == "SA" and (.status == "published"))] | length' /tmp/step.json)"
               sa_confirmed=$((sa_confirmed+sa_step))
             fi
-            echo "SA_STEP step=$step http=$code saPublished=$sa_step saConfirmed=$sa_confirmed"
+            skip="$(jq -r '.bulk.skipped // .bulk.bulk.skipped // .bulk.summary.bulkLastSkipReason // "none"' /tmp/step.json 2>/dev/null || echo "unreadable")"
+            candidate_tries="$(jq -r '.bulk.bulk.tries // 0' /tmp/step.json 2>/dev/null || echo 0)"
+            candidate_yield="$(jq -r '.bulk.bulk.records|length // 0' /tmp/step.json 2>/dev/null || echo 0)"
+            echo "SA_STEP step=$step http=$code saPublished=$sa_step saConfirmed=$sa_confirmed skip=$skip tries=$candidate_tries yield=$candidate_yield"
             if (( step % 2 == 0 )); then
               curl -fsS --max-time 30 "$STATS?sa-progress=${GITHUB_RUN_ID}-$step" -o /tmp/sa-now.json
               now_ar="$(jq -r '.arabic|tonumber' /tmp/sa-now.json)"
@@ -80,7 +83,7 @@ jobs:
                 exit 0
               fi
             fi
-            sleep 1
+            if [[ "$skip" == "bulk_already_running" ]]; then sleep 4; else sleep 1; fi
           done
           curl -fsS --max-time 30 "$STATS?sa-final=${GITHUB_RUN_ID}" -o /tmp/sa-final.json
           final_ar="$(jq -r '.arabic|tonumber' /tmp/sa-final.json)"
