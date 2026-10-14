@@ -58,6 +58,24 @@ function injectSeoExtras(html,settings){
   if(tags.length)out=/<\/head>/i.test(out)?out.replace(/<\/head>/i,tags.join('')+'</head>'):tags.join('')+out;
   return out;
 }
+function ensureGa4Public(html){
+  const out=String(html||''),id='G-1551Z7DJ2C';
+  if(out.includes(id)||out.includes('googletagmanager.com/gtag/js'))return out;
+  const tag=`<script async src="https://www.googletagmanager.com/gtag/js?id=${id}"></script><script id="ga4-public-fallback">window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}window.gtag=window.gtag||gtag;gtag('js',new Date());gtag('config','${id}',{anonymize_ip:true});</script>`;
+  return /<\/head>/i.test(out)?out.replace(/<\/head>/i,tag+'</head>'):tag+out;
+}
+function cairoEnglishPublishTime(html,path){
+  if(!/^\/en\/articles\//.test(String(path||'')))return String(html||'');
+  const out=String(html||''),m=out.match(/"datePublished":"([^"]+)"/i);
+  if(!m)return out;
+  try{
+    const d=new Date(m[1]);if(Number.isNaN(d.getTime()))return out;
+    const date=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Cairo',day:'numeric',month:'long',year:'numeric'}).format(d);
+    const time=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Cairo',hour:'numeric',minute:'2-digit',hour12:true}).format(d);
+    const label='Published '+date+' · '+time+' Egypt time';
+    return out.replace(/Published\s+\d{1,2}\s+[A-Z][a-z]{2}\s+\d{4}/,label);
+  }catch{return out}
+}
 function applySeoSettings(html,settings,path,origin){
   if(!settings)return html;
   let out=String(html),route=routeOverrideFor(settings,path);
@@ -351,7 +369,7 @@ function botLikeRequest(req){
 function conversionTrackingScript(){
   return `<script id="conversion-events-v2">(function(){
     function dims(el,extra){var code=(el&&el.getAttribute&&(el.getAttribute('data-shop-click')||el.getAttribute('data-copy-code')||el.getAttribute('data-code')||el.getAttribute('data-copy')))||'';var market=(el&&el.getAttribute&&el.getAttribute('data-market'))||(location.pathname.startsWith('/uae')?'AE':'SA');var placement=(el&&el.getAttribute&&el.getAttribute('data-placement'))||'unspecified';return Object.assign({coupon_code:String(code||'').toUpperCase().slice(0,24),market:String(market||'UNSPECIFIED').toUpperCase().slice(0,16),placement:String(placement||'unspecified').slice(0,80)},extra||{})}
-    function send(type,label,data){if(!type)return;var payload=JSON.stringify(Object.assign({type:type,path:location.pathname,label:String(label||'').slice(0,120)},data||{}));try{if(navigator.sendBeacon){navigator.sendBeacon('/api/track-event',new Blob([payload],{type:'application/json'}));return}}catch(e){}fetch('/api/track-event',{method:'POST',headers:{'content-type':'application/json'},body:payload,keepalive:true}).catch(function(){})}
+    function send(type,label,data){if(!type)return;var eventData=Object.assign({type:type,path:location.pathname,label:String(label||'').slice(0,120)},data||{}),payload=JSON.stringify(eventData);try{var gaName=type==='copy_code'?'coupon_copy':((type==='shop_click'||type==='open_noon')?'noon_outbound':type);if(typeof window.gtag==='function')window.gtag('event',gaName,{page_path:eventData.path,coupon_code:eventData.coupon_code||'',market:eventData.market||'',placement:eventData.placement||'',destination_host:eventData.destination_host||'',event_label:eventData.label||''})}catch(e){}try{if(navigator.sendBeacon){navigator.sendBeacon('/api/track-event',new Blob([payload],{type:'application/json'}));return}}catch(e){}fetch('/api/track-event',{method:'POST',headers:{'content-type':'application/json'},body:payload,keepalive:true}).catch(function(){})}
     document.addEventListener('click',function(e){
       var el=e.target&&e.target.closest?e.target.closest('a,button,[data-copy-code],[data-code],[data-copy],[data-share],[data-shop-click]'):null;if(!el)return;
       var share=(el.getAttribute('data-share')||'').toLowerCase();
@@ -426,6 +444,8 @@ export default{
     let html=applySeoSettings(brandHead(visibleSanitized.html),settings,u.pathname,origin);
     html=injectSeoExtras(html,settings);
     const finalSchemaRepair=repairJsonLd(html,origin,settings);html=finalSchemaRepair.html;
+    html=ensureGa4Public(html);
+    html=cairoEnglishPublishTime(html,u.pathname);
     html=normalizeInternalOrigin(html,origin);
     html=ensureCanonicalLink(html,origin,u.pathname);
     html=deconflictCoreH1(html,u.pathname);
