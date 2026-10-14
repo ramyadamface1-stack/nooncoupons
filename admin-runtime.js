@@ -300,6 +300,7 @@ export class GeneratorControl{
       next.lastSuccess=maxIsoStamp(current.lastSuccess,next.lastSuccess);
       next.bulkLastTickAt=maxIsoStamp(current.bulkLastTickAt,next.bulkLastTickAt);
       next.bulkLastRun=maxIsoStamp(current.bulkLastRun,next.bulkLastRun);
+      next.bulkBurstPriorityUntil=maxIsoStamp(current.bulkBurstPriorityUntil,next.bulkBurstPriorityUntil);
       await this.ctx.storage.put('status',next);return json(next);
     }
     if(p==='/english-scheduler'&&req.method==='GET')return json((await this.ctx.storage.get('englishScheduler'))||null);
