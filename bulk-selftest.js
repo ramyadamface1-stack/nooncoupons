@@ -16,7 +16,7 @@ const seedProbeCursor=BULK_ENGINE_INFO.topicSpace+118851;
 const seedProbe=buildBulkTopic(seedProbeCursor);
 if(Number(seedProbe.topicIndex)!==seedProbeCursor)throw new Error('topic_index_not_full_cursor:'+JSON.stringify({expected:seedProbeCursor,actual:seedProbe.topicIndex}));
 if(Number(seedProbe.diversitySeed)!==seedProbeCursor)throw new Error('diversity_seed_not_full_cursor:'+JSON.stringify({expected:seedProbeCursor,actual:seedProbe.diversitySeed}));
-if(BULK_ENGINE_INFO.topicSeedModel!=='expanded-cycle-context-v2')throw new Error('topic_seed_model_missing:'+String(BULK_ENGINE_INFO.topicSeedModel||''));
+if(BULK_ENGINE_INFO.topicSeedModel!=='interleaved-context-v3')throw new Error('topic_seed_model_missing:'+String(BULK_ENGINE_INFO.topicSeedModel||''));
 console.log('TOPIC_SEED_FULL_CURSOR_PASS='+seedProbeCursor);
 const expandedProbe=buildBulkTopic(1036800+118851),baseProbe=buildBulkTopic(118851);
 if(!expandedProbe.decisionContext)throw new Error('expanded_context_missing');
