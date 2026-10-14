@@ -80,6 +80,7 @@ jobs:
             console.log('R2_HEAD_2H_BY_STATUS='+JSON.stringify(Object.fromEntries(statuses)));
             for(const [when,count] of [...series].sort((a,b)=>a[0].localeCompare(b[0])))console.log('R2_HEAD_5MIN '+when+' '+count);
             console.log('R2_HEAD_LAST_HOUR='+lastHourHead);
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\nHEAD last hour: '+lastHourHead+'\nHEAD two-hour statuses: '+JSON.stringify(Object.fromEntries(statuses))+'\n');
           }catch(err){console.log('::warning::R2_HEAD_SERIES_UNAVAILABLE '+err.message)}
           appendFileSync(process.env.GITHUB_STEP_SUMMARY,'### R2 Cost Watch\nBucket: nooncoupons-content-v2\nGetObject + HeadObject (24h): '+reads+'\nAll operations (24h): '+total+'\nTarget <= 12,500 HEAD/hour; critical > 42,000 HEAD/hour. 24h historical total reported separately.\n');
           if(lastHourHead!==null && lastHourHead>42000){console.error('::error::R2_CLASS_B_HOURLY_HEAD_SPIKE '+lastHourHead+' HeadObject operations in last hour');process.exitCode=1}
