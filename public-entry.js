@@ -1,5 +1,6 @@
 import app from './premium-entry.js';
 import {isApprovedCoupon,normalizeApprovedCoupon} from './approved-coupons.js';
+import {readRecentPublicManifest} from './r2-public-manifest.js';
 export {ControlPlane,GeneratorControl} from './premium-entry.js';
 
 const GOOGLE_SITE_VERIFICATION='LmU-uUjdxfArIxwpCxeSn7eKDIcUrc3zU2CqS8zmxrQ';
@@ -8,7 +9,6 @@ const NOON_MARKETS={
   'ar-AE':'https://www.noon.com/uae-ar/',
   'ar-SA':'https://www.noon.com/saudi-ar/'
 };
-let articleManifestCache={at:0,value:null};
 
 function cleanPublicQa(html,path){
   let out=String(html||'');
@@ -49,17 +49,7 @@ function mobileCouponBar(html,noonUrl,fallbackCode='',market='SA'){
   return /<\/body>/i.test(html)?html.replace(/<\/body>/i,bar+'</body>'):html+bar;
 }
 
-async function latestArticleManifest(env){
-  const now=Date.now();
-  if(articleManifestCache.value&&now-articleManifestCache.at<120000)return articleManifestCache.value;
-  try{
-    if(!env?.CONTENT_FINAL)return articleManifestCache.value||{articles:[]};
-    const obj=await env.CONTENT_FINAL.get('bulk/latest.json');
-    const value=obj?await obj.json():{articles:[]};
-    articleManifestCache={at:now,value};
-    return value;
-  }catch{return articleManifestCache.value||{articles:[]}}
-}
+async function latestArticleManifest(env){return readRecentPublicManifest(env)}
 
 async function articleRecord(env,path){
   const latest=await latestArticleManifest(env);
