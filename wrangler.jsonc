@@ -10,7 +10,7 @@
   "minify": true,
   "triggers": {
     "crons": [
-      "*/4 * * * *"
+      "*/2 * * * *"
     ]
   },
   "vars": {
