@@ -2,6 +2,9 @@ name: Hourly 1000 Publish SLA
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/generation-burst-550.yml']
   schedule:
     - cron: '7 * * * *'
 
@@ -10,7 +13,7 @@ permissions:
 
 concurrency:
   group: hourly-1000-publish
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 env:
   ORIGIN: https://nooncoupons.ramychatgptgcoupons.workers.dev
@@ -53,17 +56,27 @@ jobs:
           echo "SA_BASE day=$DAY arabic=$base_ar total=$base_total"
           started=$SECONDS
           step=0
+          sa_confirmed=0
           while (( SECONDS - started < 3300 )); do
             step=$((step+1))
             code="$(curl -sS -o /tmp/step.json -w '%{http_code}' --retry 2 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 100               -X POST -H "$AUTH" -H 'Content-Type: application/json'               --data '{"runEnglish":false,"runBulk":true,"forceBulk":true,"forceSaudi":true}'               "$ORIGIN/api/internal/generation-burst-step?saudi=${GITHUB_RUN_ID}-$step" || true)"
-            echo "SA_STEP step=$step http=$code published=$(jq -r '.bulk.bulk.records|length // .bulk.summary.bulkLastTickPublished // 0' /tmp/step.json 2>/dev/null || echo 0)"
+            sa_step=0
+            if [[ "$code" == "200" ]] && jq -e '.ok == true and .bulk.statusPersisted == true' /tmp/step.json >/dev/null 2>&1; then
+              # Count ONLY articles returned as durably published by the forced-Saudi burst.
+              # A background UAE Arabic cron tick must never satisfy the Saudi SLA.
+              wrong_market="$(jq -r '[.bulk.bulk.records[]? | select(.country != "SA")] | length' /tmp/step.json)"
+              if (( wrong_market > 0 )); then echo "MARKET_LOCK_VIOLATION count=$wrong_market"; exit 4; fi
+              sa_step="$(jq -r '[.bulk.bulk.records[]? | select(.country == "SA" and (.status == "published"))] | length' /tmp/step.json)"
+              sa_confirmed=$((sa_confirmed+sa_step))
+            fi
+            echo "SA_STEP step=$step http=$code saPublished=$sa_step saConfirmed=$sa_confirmed"
             if (( step % 2 == 0 )); then
               curl -fsS --max-time 30 "$STATS?sa-progress=${GITHUB_RUN_ID}-$step" -o /tmp/sa-now.json
               now_ar="$(jq -r '.arabic|tonumber' /tmp/sa-now.json)"
               delta=$((now_ar-base_ar))
-              echo "SA_PROGRESS step=$step arabic=$now_ar delta=$delta forceSaudi=true"
-              if (( delta >= 800 )); then
-                echo "SAUDI_ARABIC_800_TARGET_REACHED delta=$delta elapsed=$((SECONDS-started))"
+              echo "SA_PROGRESS step=$step arabic=$now_ar delta=$delta saConfirmed=$sa_confirmed forceSaudi=true"
+              if (( sa_confirmed >= 800 && delta >= sa_confirmed )); then
+                echo "SAUDI_ARABIC_800_TARGET_REACHED confirmedSA=$sa_confirmed arabicDelta=$delta elapsed=$((SECONDS-started))"
                 exit 0
               fi
             fi
@@ -72,8 +85,8 @@ jobs:
           curl -fsS --max-time 30 "$STATS?sa-final=${GITHUB_RUN_ID}" -o /tmp/sa-final.json
           final_ar="$(jq -r '.arabic|tonumber' /tmp/sa-final.json)"
           delta=$((final_ar-base_ar))
-          echo "SA_FINAL arabic=$final_ar delta=$delta forceSaudi=true"
-          [ "$delta" -ge 800 ] || { echo SAUDI_ARABIC_800_NOT_REACHED_WITHIN_HOUR; exit 2; }
+          echo "SA_FINAL arabic=$final_ar delta=$delta confirmedSA=$sa_confirmed forceSaudi=true"
+          (( sa_confirmed >= 800 && delta >= sa_confirmed )) || { echo SAUDI_ARABIC_800_NOT_VERIFIED_BY_MARKET_AND_PRODUCTION; exit 2; }
 
   english-burst:
     runs-on: ubuntu-latest
@@ -104,7 +117,8 @@ jobs:
           set -euo pipefail
           AUTH="Authorization: Bearer $CF_TOKEN"
           curl -fsS --max-time 30 "$STATS?en-baseline=${GITHUB_RUN_ID}" -o /tmp/base.json
-          base_en="$(jq -r '.english|tonumber' /tmp/base.json)"
+          jq -e '(.englishByCountry.AE|tonumber) == (.english|tonumber) and (.englishByCountry.SA|tonumber) == 0' /tmp/base.json >/dev/null
+          base_en="$(jq -r '.englishByCountry.AE|tonumber' /tmp/base.json)"
           base_total="$(jq -r '.total|tonumber' /tmp/base.json)"
           echo "EN_BASE english=$base_en total=$base_total"
           started=$SECONDS
@@ -115,7 +129,8 @@ jobs:
             delta_step="$(jq -r '.englishDelta // 0' /tmp/step.json 2>/dev/null || echo 0)"
             echo "EN_STEP step=$step http=$code deltaStep=$delta_step"
             curl -fsS --max-time 30 "$STATS?en-progress=${GITHUB_RUN_ID}-$step" -o /tmp/en-now.json
-            now_en="$(jq -r '.english|tonumber' /tmp/en-now.json)"
+            jq -e '(.englishByCountry.AE|tonumber) == (.english|tonumber) and (.englishByCountry.SA|tonumber) == 0' /tmp/en-now.json >/dev/null
+            now_en="$(jq -r '.englishByCountry.AE|tonumber' /tmp/en-now.json)"
             delta=$((now_en-base_en))
             echo "EN_PROGRESS step=$step english=$now_en delta=$delta"
             if (( delta >= 200 )); then
@@ -125,7 +140,8 @@ jobs:
             sleep 1
           done
           curl -fsS --max-time 30 "$STATS?en-final=${GITHUB_RUN_ID}" -o /tmp/en-final.json
-          final_en="$(jq -r '.english|tonumber' /tmp/en-final.json)"
+          jq -e '(.englishByCountry.AE|tonumber) == (.english|tonumber) and (.englishByCountry.SA|tonumber) == 0' /tmp/en-final.json >/dev/null
+          final_en="$(jq -r '.englishByCountry.AE|tonumber' /tmp/en-final.json)"
           delta=$((final_en-base_en))
           echo "EN_FINAL english=$final_en delta=$delta"
           [ "$delta" -ge 200 ] || { echo ENGLISH_200_NOT_REACHED_WITHIN_HOUR; exit 3; }
@@ -150,4 +166,4 @@ jobs:
           grep -qi '<html' /tmp/blog.html
           echo "HOURLY_1000_SLA_VERIFIED"
 
-# Policy: every hourly run must add >=800 Saudi Arabic + >=200 UAE English = >=1000 total, quality gates remain enabled.
+# Policy: every hourly run must confirm >=800 Saudi Arabic from persisted country-locked burst records plus >=200 UAE English from live country counters; never weaken quality gates.
