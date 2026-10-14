@@ -21,6 +21,9 @@ jobs:
           node-version: '20'
       - name: Validate package
         run: node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('package.json ok')"
+      - name: R2 Class B savings regression tests
+        run: node --test tests/r2-saver.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |
@@ -34,6 +37,8 @@ jobs:
             network-entry.js
             brand-runtime.js
             discovery-entry.js
+            r2-public-manifest.js
+            r2-public-cache-policy.js
             english-canary.js
             quality-index.js
             bulk-content-engine.js
