@@ -35,7 +35,17 @@ jobs:
             echo "SOURCE_R2_FIRST_PAGE_COUNT=$(cat /tmp/source-count)"
           else
             echo "SOURCE_R2_LIST=failed"
-            grep -Eo 'AccessDenied|SignatureDoesNotMatch|NoSuchBucket|InvalidAccessKeyId|ExpiredToken|InvalidToken|Unauthorized|Forbidden' /tmp/source-err | head -1 || true
+            python3 - <<'PY'
+          import re
+          msg=open('/tmp/source-err',encoding='utf8',errors='replace').read()
+          code=re.search(r'An error occurred \(([^)]{1,60})\)',msg)
+          if code:
+              print("SOURCE_R2_ERROR_CODE="+re.sub(r'[^a-zA-Z0-9_-]','',code.group(1)))
+          else:
+              terms=('Could not connect','SSL validation failed','Unable to locate credentials','endpoint URL','Invalid endpoint','argument','Permission denied','Timeout','ProxyConnectionError','Connection was closed')
+              hit=next((p for p in terms if p.lower() in msg.lower()),'other')
+              print('SOURCE_R2_ERROR_CATEGORY='+re.sub(r'[^A-Za-z0-9_]', '_',hit))
+          PY
             exit 3
           fi
 
@@ -86,6 +96,14 @@ jobs:
           VERIFY_HTTP=$(curl --silent --show-error --output /tmp/verify.json --write-out '%{http_code}' \
             -H "Authorization: Bearer $CF_TOKEN" \
             "https://api.cloudflare.com/client/v4/user/tokens/verify")
+          if [ "$VERIFY_HTTP" = "401" ] || [ "$VERIFY_HTTP" = "403" ]; then
+            VERIFY_HTTP=$(curl --silent --show-error --output /tmp/verify.json --write-out '%{http_code}' \
+              -H "Authorization: Bearer $CF_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/e4c35f8a50a7b2e4cfb9d6c534962603/tokens/verify")
+            echo "DESTINATION_TOKEN_VERIFY_MODE=account"
+          else
+            echo "DESTINATION_TOKEN_VERIFY_MODE=user"
+          fi
           ACTIVE=$(jq -r '.result.status // "unknown"' /tmp/verify.json)
           echo "DESTINATION_TOKEN_VERIFY_HTTP=$VERIFY_HTTP"
           echo "DESTINATION_TOKEN_STATUS=$ACTIVE"
