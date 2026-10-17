@@ -1,0 +1,86 @@
+name: NoonDealsNow Complete R2 Source Inventory
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migration-complete-inventory.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-r2-complete:
+    name: Bounded complete R2 keys and sizes (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Install S3 pagination client
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Inventory without HEAD GET PUT or DELETE
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import boto3, os, time, collections, re, sys, botocore
+          aid=os.environ.get('AWS_ACCESS_KEY_ID','').strip()
+          sk=os.environ.get('AWS_SECRET_ACCESS_KEY','').strip()
+          if not re.fullmatch('[0-9a-fA-F]{32}',aid) or not re.fullmatch('[0-9a-fA-F]{64}',sk):
+              print('INVENTORY=invalid_credentials_shape')
+              sys.exit(2)
+          s3=boto3.client('s3',region_name='auto',aws_access_key_id=aid,aws_secret_access_key=sk,endpoint_url='https://c82274152a942dea53044eae7153cfd7.r2.cloudflarestorage.com',config=botocore.config.Config(signature_version='s3v4',read_timeout=30,connect_timeout=10,retries={'max_attempts':4,'mode':'standard'}))
+          bucket='nooncoupons-content-v2'
+          counts=collections.Counter()
+          bytes_by_prefix=collections.Counter()
+          total=0
+          byte_total=0
+          first=time.monotonic()
+          continuation=None
+          complete=False
+          limit_pages=3000
+          for page_num in range(1,limit_pages+1):
+              if time.monotonic()-first > 1750:
+                  print('INVENTORY_STOP_REASON=TIME_BUDGET')
+                  break
+              kwargs={'Bucket':bucket,'MaxKeys':1000}
+              if continuation: kwargs['ContinuationToken']=continuation
+              page=s3.list_objects_v2(**kwargs)
+              for item in page.get('Contents',()):
+                  key=item['Key']
+                  group=key.split('/',1)[0] if '/' in key else '(root)'
+                  n=max(0,int(item.get('Size',0)))
+                  counts[group]+=1
+                  bytes_by_prefix[group]+=n
+                  total+=1
+                  byte_total+=n
+              if page_num%100==0:
+                  print('INVENTORY_PROGRESS_PAGES='+str(page_num)+';OBJECTS='+str(total),flush=True)
+              if not page.get('IsTruncated'):
+                  complete=True
+                  break
+              token=page.get('NextContinuationToken')
+              if not token or token==continuation:
+                  print('INVENTORY_STOP_REASON=INVALID_NEXT_TOKEN')
+                  sys.exit(3)
+              continuation=token
+          print('INVENTORY_COMPLETE='+str(complete).lower())
+          print('INVENTORY_PAGES='+str(page_num))
+          print('INVENTORY_OBJECTS='+str(total))
+          print('INVENTORY_BYTES='+str(byte_total))
+          print('INVENTORY_SECONDS='+str(round(time.monotonic()-first,1)))
+          for group,cnt in counts.most_common(20):
+              print('INVENTORY_PREFIX='+group+';OBJECTS='+str(cnt)+';BYTES='+str(bytes_by_prefix[group]))
+          summary=os.environ.get('GITHUB_STEP_SUMMARY')
+          if summary:
+              with open(summary,'a') as f:
+                  f.write('### R2 old-account read-only source inventory\n\n')
+                  f.write(f'Complete: **{complete}**; pages: **{page_num}**; objects: **{total}**; bytes: **{byte_total}**\n\n')
+                  f.write('| Prefix | Objects | Bytes |\n|---|---:|---:|\n')
+                  for group,cnt in counts.most_common(20):
+                      f.write(f'| {group} | {cnt} | {bytes_by_prefix[group]} |\n')
+              if not complete: print('INVENTORY=partial_max_budget')
+          PY
