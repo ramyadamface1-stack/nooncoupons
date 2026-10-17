@@ -1,4 +1,5 @@
 import {GENERATOR_DEFAULTS,readState} from './generator-core-v2.js';
+import {snapshotDurableObjectKeys} from './do-migration-state.js';
 import {runProgrammaticBatch,BULK_RUNTIME_LIMITS} from './bulk-generator.js';
 import {runLegacyUpgradeBatchV2} from './legacy-upgrader-v2.js';
 import {gscSeoDropsSnapshot} from './gsc-snapshot.js';
@@ -275,6 +276,7 @@ export class GeneratorControl{
   async status(){const s=await this.ctx.storage.get('status');return s||{attempts:0,published:0,failed:0,lastRun:null,lastSuccess:null,lastError:null,recent:[],bulkPublishedTotal:0,bulkPublishedToday:0,bulkCursor:0,legacyUpgradeTotal:0,legacyUpgradeRemaining:null,legacyUpgradeComplete:false,legacyUpgradeCursorV2:0,legacyUpgradePassV2:1,legacyUpgradePausedForConsolidation:false,backend:'do-v2',storageBackend:'durable-object'}}
   async fetch(req){
     const u=new URL(req.url),p=u.pathname;
+    if(p==='/__migration/export'&&req.method==='POST')return snapshotDurableObjectKeys(this.ctx.storage,this.env,'GeneratorControl');
     if(p==='/config'&&req.method==='GET')return json(await this.config());
     if(p==='/config'&&req.method==='POST'){
       const b=await req.json(),c=await this.config(),next={...c};
