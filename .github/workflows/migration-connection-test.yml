@@ -45,6 +45,11 @@ jobs:
               terms=('Could not connect','SSL validation failed','Unable to locate credentials','endpoint URL','Invalid endpoint','argument','Permission denied','Timeout','ProxyConnectionError','Connection was closed')
               hit=next((p for p in terms if p.lower() in msg.lower()),'other')
               print('SOURCE_R2_ERROR_CATEGORY='+re.sub(r'[^A-Za-z0-9_]', '_',hit))
+          scrub=re.sub(r'https?://[^\s]+','[ENDPOINT]',msg)
+          scrub=re.sub(r'(?i)(?:access.?key|secret.?key|bearer|token)\s*[:=]?\s*\S+','[REDACTED]',scrub)
+          scrub=re.sub(r'\b[A-Za-z0-9+/=_-]{16,}\b','[REDACTED]',scrub)
+          scrub=' '.join(scrub.split())
+          print('SOURCE_R2_ERROR_SUMMARY='+scrub[:250])
           PY
             exit 3
           fi
