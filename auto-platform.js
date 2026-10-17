@@ -422,6 +422,12 @@ export default{
         const en=await runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)});
         if(Number(en?.batch?.published||0)===0)await guardedBulkTick(env);
       })());
-    }else ctx.waitUntil(guardedBulkTick(env));
+    }else ctx.waitUntil((async()=>{
+      const sa=await guardedBulkTick(env);
+      const published=Number(sa?.first?.bulk?.records?.length||0)+(sa?.rescue?.record?1:0);
+      // Preserve the one-slot global cap. A failed Arabic quality batch
+      // may give this minute to a compliant UAE English candidate instead.
+      if(published===0)await runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)});
+    })());
   }
 };
