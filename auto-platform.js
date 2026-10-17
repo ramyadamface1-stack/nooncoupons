@@ -10,6 +10,7 @@ import {BULK_ENGINE_INFO,BULK_RUNTIME_LIMITS,CAMPAIGN_CALENDAR_INFO} from './bul
 import {APPROVED_COUPON_CODES,normalizeApprovedCoupon,replaceUnapprovedCouponTokens,normalizeMarketCoupon,replaceWrongMarketCouponTokens} from './approved-coupons.js';
 import {ensureRuntimeArticleQuality,normalizeRuntimeTitle,normalizeRuntimeMeta,RUNTIME_ARTICLE_QUALITY_INFO} from './article-quality-runtime.js';
 import {runEnglishScheduledTick} from './english-canary.js';
+import {getPublicationSlotStatus} from './publication-rate-limit.js';
 import {getCampaignWindow} from './campaign-calendar.js';
 
 const VERSION='generator-5.0-quality-first';
@@ -359,6 +360,7 @@ async function pacedBulkTick(env){
 export default{
   async fetch(req,env,ctx){
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
+    if(u.pathname==='/api/publication-rate'&&req.method==='GET')return json(await getPublicationSlotStatus(env));
     if(u.pathname==='/sitemap.xml')return xml(await sitemapIndex(env,origin));
     {
       const m=u.pathname.match(/^\/sitemap-(pages|guides|coupons|coupons-saudi|coupons-uae)\.xml$/);
@@ -410,10 +412,16 @@ export default{
     return app.fetch(req,env,ctx);
   },
   async scheduled(event,env,ctx){
-    const englishRun=runEnglishScheduledTick(env,{maxPerTick:Number(env.ENGLISH_BATCH_SIZE||24),timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)});
-    ctx.waitUntil(englishRun);
-    await Promise.race([englishRun,new Promise(resolve=>setTimeout(resolve,9000))]);
+    // One cron tick per minute; one market per tick (4 Saudi, 1 UAE).
+    // A single Durable Object permit, shared by both markets and legacy
+    // scheduled/manual paths, enforces the 60-second rolling global maximum.
     if(app.scheduled)ctx.waitUntil(app.scheduled(event,env,ctx));
-    ctx.waitUntil(pacedBulkTick(env));
+    const minute=Math.floor(Number(event?.scheduledTime||Date.now())/60000);
+    if(minute%5===0){
+      ctx.waitUntil((async()=>{
+        const en=await runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)});
+        if(Number(en?.batch?.published||0)===0)await guardedBulkTick(env);
+      })());
+    }else ctx.waitUntil(guardedBulkTick(env));
   }
 };
