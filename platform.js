@@ -1,4 +1,5 @@
 import publicApp from './seo-layer.js';
+import {snapshotDurableObjectKeys} from './do-migration-state.js';
 import {QUALITY_CRITERIA_COUNT} from './quality-criteria.js';
 import {SEED_ARTICLES} from './seed-articles.js';
 import {SEED_BATCH_A} from './seed-batch-a.js';
@@ -176,6 +177,7 @@ export class ControlPlane{
   async fetch(req){
     try{
     const u=new URL(req.url);
+    if(u.pathname==='/__migration/export'&&req.method==='POST')return snapshotDurableObjectKeys(this.ctx.storage,this.env,'ControlPlane');
     if(u.pathname==='/ping')return json({ok:true,class:'ControlPlane',version:5,uniqueArticleVisits:true,rawIpStored:false,conversionEvents:true,conversionAttributionV2:true,eventPiiStored:false});
     if(u.pathname==='/state')return json(await this.get());
     if(u.pathname==='/visit'&&req.method==='POST'){
