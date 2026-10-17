@@ -1,0 +1,99 @@
+name: NoonDealsNow Safe R2 Migration Pilot
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migration-r2-pilot.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  r2-pilot:
+    name: Copy 15 small articles and verify SHA256 (no deletes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OLD_ACCESS: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      OLD_SECRET: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      NEW_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Install R2 client
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Validate credentials and copy bounded pilot samples
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import os,hashlib,re,sys
+          import boto3
+          import botocore
+          from botocore.config import Config
+          def key(name,n):
+              v=os.environ.get(name,'').strip()
+              if not re.fullmatch('[0-9a-fA-F]{'+str(n)+'}',v):
+                  raise RuntimeError('invalid_credential_format_'+name)
+              return v
+          config=Config(signature_version='s3v4',connect_timeout=10,read_timeout=30,retries={'max_attempts':4,'mode':'standard'})
+          def client(account,aid,secret):
+              return boto3.client('s3',endpoint_url='https://'+account+'.r2.cloudflarestorage.com',region_name='auto',aws_access_key_id=key(aid,32),aws_secret_access_key=key(secret,64),config=config)
+          old=client('c82274152a942dea53044eae7153cfd7','OLD_ACCESS','OLD_SECRET')
+          new=client('e4c35f8a50a7b2e4cfb9d6c534962603','NEW_ACCESS','NEW_SECRET')
+          bucket='nooncoupons-content-v2'
+          # Only 15 small, regular article bodies. Avoid bulk indexes/control metadata for the pilot.
+          MAX_OBJECTS=15
+          MAX_OBJECT_BYTES=2*1024*1024
+          page=old.list_objects_v2(Bucket=bucket,Prefix='articles/',MaxKeys=150)
+          choices=[x for x in page.get('Contents',[]) if x.get('Key','').endswith('.html') and 0<int(x.get('Size',0))<=MAX_OBJECT_BYTES][:MAX_OBJECTS]
+          if len(choices)<MAX_OBJECTS:
+              raise RuntimeError('not_enough_small_articles_for_safe_pilot')
+          copied=0
+          matched=0
+          verified_bytes=0
+          for item in choices:
+              name=item['Key']
+              src=old.get_object(Bucket=bucket,Key=name)
+              try:
+                  data=src['Body'].read(MAX_OBJECT_BYTES+1)
+              finally:
+                  src['Body'].close()
+              if len(data)!=int(item['Size']) or len(data)>MAX_OBJECT_BYTES:
+                  raise RuntimeError('article_size_mismatch_or_oversize')
+              checksum=hashlib.sha256(data).hexdigest()
+              kwargs={'Bucket':bucket,'Key':name,'Body':data,'IfNoneMatch':'*'}
+              for k in ('ContentType','CacheControl','ContentDisposition','ContentEncoding','ContentLanguage','Expires'):
+                  if src.get(k) is not None: kwargs[k]=src[k]
+              if src.get('Metadata'): kwargs['Metadata']=src['Metadata']
+              try:
+                  new.put_object(**kwargs)
+                  copied+=1
+              except botocore.exceptions.ClientError as exc:
+                  code=exc.response.get('Error',{}).get('Code','')
+                  if code not in ('PreconditionFailed','412','ConditionalRequestConflict'):
+                      raise
+              dst=new.get_object(Bucket=bucket,Key=name)
+              try:
+                  copied_data=dst['Body'].read(MAX_OBJECT_BYTES+1)
+              finally:
+                  dst['Body'].close()
+              if hashlib.sha256(copied_data).hexdigest()!=checksum:
+                  raise RuntimeError('sha256_mismatch')
+              if (src.get('ContentType') or 'binary/octet-stream')!=(dst.get('ContentType') or 'binary/octet-stream'):
+                  raise RuntimeError('content_type_mismatch')
+              if src.get('Metadata',{})!=dst.get('Metadata',{}):
+                  raise RuntimeError('custom_metadata_mismatch')
+              matched+=1
+              verified_bytes+=len(data)
+          if matched!=MAX_OBJECTS:
+              raise RuntimeError('pilot_verification_incomplete')
+          print('R2_PILOT_STATUS=verified')
+          print('R2_PILOT_COPIED='+str(copied))
+          print('R2_PILOT_VERIFIED='+str(matched))
+          print('R2_PILOT_TOTAL_BYTES='+str(verified_bytes))
+          print('R2_PILOT_SHA256_AND_METADATA_MATCH=true')
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              f.write(f'### NoonDealsNow cross-account R2 copy pilot\n\n**PASS**: {matched} SHA256 verified articles; {copied} newly copied, {verified_bytes} bytes. No deletes, DNS changes or Worker deploy.\n')
+          PY
