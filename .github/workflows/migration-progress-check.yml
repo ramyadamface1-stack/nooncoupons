@@ -1,0 +1,56 @@
+name: NoonDealsNow Migration Progress Read-Only Check
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migration-progress-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SOURCE_ACCESS: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      SOURCE_SECRET: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      TARGET_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      TARGET_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Install R2 S3 client
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Wait for cron snapshot, check staging R2 keys and source manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import boto3,os,time,botocore
+          from botocore.config import Config
+          cfg=Config(signature_version='s3v4',read_timeout=30,connect_timeout=10,retries={'max_attempts':3})
+          def c(account,k,s):
+              return boto3.client('s3',region_name='auto',endpoint_url='https://'+account+'.r2.cloudflarestorage.com',aws_access_key_id=os.environ[k].strip(),aws_secret_access_key=os.environ[s].strip(),config=cfg)
+          source=c('c82274152a942dea53044eae7153cfd7','SOURCE_ACCESS','SOURCE_SECRET')
+          target=c('e4c35f8a50a7b2e4cfb9d6c534962603','TARGET_ACCESS','TARGET_SECRET')
+          bucket='nooncoupons-content-v2'
+          page=target.list_objects_v2(Bucket=bucket,Prefix='articles/',MaxKeys=1000)
+          print('DESTINATION_ARTICLE_FIRST_PAGE='+str(page.get('KeyCount',len(page.get('Contents',[])))))
+          print('DESTINATION_ARTICLE_HAS_MORE='+str(page.get('IsTruncated',False)).lower())
+          print('DESTINATION_ARTICLE_SAMPLE_OBJECT_BYTES='+str(sum(item['Size'] for item in page.get('Contents',()))))
+          prefix='migration/do-state/20261017-baseline/'
+          for attempt in range(1,7):
+              m=source.list_objects_v2(Bucket=bucket,Prefix=prefix,MaxKeys=1000)
+              keys=[obj['Key'] for obj in m.get('Contents',())]
+              print('SOURCE_DO_EXPORT_ATTEMPT='+str(attempt)+';OBJECTS='+str(len(keys))+';HAS_MORE='+str(m.get('IsTruncated',False)).lower())
+              for typ in ('ControlPlane','GeneratorControl'):
+                  name=prefix+typ+'/manifest.json'
+                  manifest=name in keys
+                  print('SOURCE_DO_MANIFEST_'+typ+'='+('present' if manifest else 'pending'))
+              if any(key.endswith('/manifest.json') for key in keys):
+                  break
+              if attempt<6:time.sleep(45)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              f.write('### Migration progress checkpoint\\n\\n')
+              f.write(f'Destination first article page: {page.get("KeyCount",0)}, further pages: {page.get("IsTruncated",False)}. Source DO export objects visible: {len(keys)}.\\n')
+          PY
