@@ -1,3 +1,4 @@
+import {claimPublicationSlot} from './publication-rate-limit.js';
 import {applyCommerceTarget,decorateArticleCommerce,commerceRecordFields} from './commerce-generator-taxonomy.js';
 import {APPROVED_COUPON_CODES,isApprovedCoupon,normalizeApprovedCoupon,replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {publicationBlockedByArticleAudit} from './article-audit-lock.js';
@@ -98,6 +99,8 @@ export async function publishGenerated(env,article,topic,audit,provider){
   const slug=slugify(decorated.slug||decorated.title||decorated.primaryKeyword),duplicate=(st.articles||[]).find(x=>x.slug===slug||norm(x.primaryKeyword||'')===norm(decorated.primaryKeyword||''));
   if(duplicate)throw new Error('keyword_or_slug_cannibalization');if(!env.CONTENT_FINAL)throw new Error('r2_binding_missing');
   const fields=commerceRecordFields(targeted),rec={id:crypto.randomUUID(),slug,title:decorated.title||slug,metaDescription:decorated.metaDescription||'',country:targeted.country,coupon:approvedCode,status:'published',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider,primaryKeyword:decorated.primaryKeyword||targeted.kw,category:targeted.category,...fields};
+  const publicationPermit=await claimPublicationSlot(env,rec.country,'legacy-manual-generator');
+  if(!publicationPermit.ok)throw new Error('publication_rate_limit:'+String(publicationPermit.nextEligibleAt||'wait_60s'));
   await env.CONTENT_FINAL.put('articles/'+slug+'.html',String(decorated.html||''),{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:rec.title,country:rec.country,c:rec.country,status:'published',provider:String(provider).slice(0,100),cat:fields.categoryKey,bk:fields.brandKey||'',mk:fields.modelKey||'',ck:fields.comparisonKey||'',lp:fields.landingPath}});
   const r=await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});if(!r.ok)throw new Error('control_article_'+r.status);return rec;
 }
