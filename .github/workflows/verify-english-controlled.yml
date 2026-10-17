@@ -22,7 +22,7 @@ jobs:
           node --check discovery-entry.js
           node --check commerce-entry.js
           grep -Fq "englishSchedulerOwner:true" discovery-entry.js
-          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:Number(env.ENGLISH_BATCH_SIZE||24),timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)})" auto-platform.js
+          grep -Fq "runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)})" auto-platform.js
           grep -Fq "englishSchedulerPriority:'english-uae-core-cron-deadline-safe'" discovery-entry.js
           grep -Fq 'englishSchedulerEffectiveBatch:24' discovery-entry.js
           grep -Fq 'englishSchedulerTimeBudgetMs:12000' discovery-entry.js
@@ -32,7 +32,7 @@ jobs:
           node --check bulk-content-engine-base.js
           grep -Fq '"ENGLISH_CANARY_TOTAL": "2"' wrangler.jsonc
           grep -Fq '"ENGLISH_CONTROLLED_TOTAL": "50000"' wrangler.jsonc
-          grep -Fq '"ENGLISH_DAILY_TARGET": "4800"' wrangler.jsonc
+          grep -Fq '"ENGLISH_DAILY_TARGET": "288"' wrangler.jsonc
           grep -Fq '"ENGLISH_MIN_INTERVAL_MINUTES": "1"' wrangler.jsonc
           grep -Fq '"ENGLISH_BATCH_SIZE": "23"' wrangler.jsonc
           grep -Fq 'function batchSizeFromEnv(env)' english-canary.js
@@ -183,8 +183,8 @@ jobs:
             }
             const pass=x.builder===6 && x.target===2 && x.complete===true && x.published===2 &&
               c.target===50000 && c.targetMarket==='AE' && c.marketPolicy==='uae-only-new-v6-batch24' && Number(c.published)>=2 && Number(c.published)<=50000 &&
-              Number(c.remaining)===50000-Number(c.published) && Number(c.dailyTarget)===4800 &&
-              Number(c.minIntervalMinutes)===1 && Number(c.batchSize)===23 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=4800 &&
+              Number(c.remaining)===50000-Number(c.published) && Number(c.dailyTarget)===288 &&
+              Number(c.minIntervalMinutes)===1 && Number(c.batchSize)===23 && Number(c.publishedToday)>=0 && Number(c.publishedToday)<=288 &&
               Number(c.recordsTotal)===Number(c.published) && rows.length===Number(c.sampleSize) && rows.length>=2 && rows.length<=50 &&
               c.samplePolicy==='canaries-plus-latest-48' && c.lightHealth===true && Number(c.r2SampleChecked)===0 && Number(c.r2SampleMissing)===0 && Number(c.uniqueProfiles)>=Math.min(7,Number(c.published)) &&
               new Set(slugs).size===rows.length && new Set(keywords).size===rows.length && canaries.length===2 && expanded.length===rows.length-2 &&
