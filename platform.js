@@ -1,3 +1,4 @@
+import {claimPublicationSlot} from './publication-rate-limit.js';
 import publicApp from './seo-layer.js';
 import {snapshotDurableObjectKeys,restoreDurableObjectKeys} from './do-migration-state.js';
 import {QUALITY_CRITERIA_COUNT} from './quality-criteria.js';
@@ -75,6 +76,11 @@ async function save(req,env){
   if(conflict)return json({error:'keyword_or_slug_cannibalization',conflictsWith:{slug:conflict.slug,title:conflict.title}},409);
   if(!audit.productionReady&&!b.forceDraft)return json({error:'quality_gate_failed',audit},422);
   if(!env.CONTENT_FINAL)return json({error:'R2 binding missing'},503);
+  const previouslyPublished=(current.articles||[]).some(x=>x.slug===slug&&x.status==='published');
+  if((b.status||'draft')==='published'&&!previouslyPublished){
+    const permit=await claimPublicationSlot(env,a.country,'manual-publish');
+    if(!permit.ok)return json({error:'publication_rate_limit',policy:'one-article-per-minute-global-v1',nextEligibleAt:permit.nextEligibleAt||null},429);
+  }
   const rec={id:crypto.randomUUID(),slug,title:a.title||slug,metaDescription:a.metaDescription||'',country:a.country,coupon:a.coupon||'',status:b.status||'draft',scheduledAt:b.scheduledAt||null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider:a.provider||null,primaryKeyword:a.primaryKeyword||''};
   await env.CONTENT_FINAL.put('articles/'+slug+'.html',String(a.html||''),{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:rec.title,country:rec.country,status:rec.status}});
   const r=await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});
@@ -91,6 +97,8 @@ async function seedIfNeeded(env){
     const a={...source,coupon,title:replaceUnapprovedCouponTokens(source.title,coupon),metaDescription:replaceUnapprovedCouponTokens(source.metaDescription,coupon),primaryKeyword:replaceUnapprovedCouponTokens(source.primaryKeyword||'',coupon),html:replaceUnapprovedCouponTokens(source.html,coupon)};
     const audit=auditArticle({...a,minWords:1000});
     const rec={id:crypto.randomUUID(),slug:a.slug,title:a.title,metaDescription:a.metaDescription,country:a.country,coupon:a.coupon,status:'published',scheduledAt:null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider:'manual-openai-seed',primaryKeyword:a.primaryKeyword||''};
+    const permit=await claimPublicationSlot(env,a.country,'seed');
+    if(!permit.ok)break;
     await env.CONTENT_FINAL.put('articles/'+a.slug+'.html',a.html,{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:a.title,country:a.country,status:'published',coupon:a.coupon}});
     await ctl(env,'/article',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(rec)});
     existing.add(a.slug);seeded++;
@@ -241,9 +249,16 @@ export class ControlPlane{
       await this.ctx.storage.put('state',s);return json(rec);
     }
     if(u.pathname==='/publish-due'&&req.method==='POST'){
-      const s=await this.get(),t=Date.now();let n=0;
-      for(const a of s.articles)if(a.status==='scheduled'&&a.scheduledAt&&Date.parse(a.scheduledAt)<=t){a.status='published';a.updatedAt=now();n++}
-      if(n)await this.ctx.storage.put('state',s);return json({published:n});
+      const s=await this.get(),t=Date.now();let n=0,nextEligibleAt=null;
+      for(const a of s.articles){
+        if(a.status!=='scheduled'||!a.scheduledAt||Date.parse(a.scheduledAt)>t)continue;
+        const permit=await claimPublicationSlot(this.env,a.country,'scheduled-publish');
+        if(!permit.ok){nextEligibleAt=permit.nextEligibleAt||null;break}
+        a.status='published';a.updatedAt=now();n++;break;
+      }
+      if(n)await this.ctx.storage.put('state',s);
+      return json({published:n,policy:'one-article-per-minute-global-v1',nextEligibleAt});
+
     }
     return json({error:'not_found'},404);
     }catch(e){return json({error:'control_plane_exception',message:String(e?.message||e).slice(0,500)},500)}
