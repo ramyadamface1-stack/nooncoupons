@@ -1,0 +1,37 @@
+name: Test R2 Migration Resume Safety
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migration-resume-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm migration script compiles and retains no-delete guard
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .github/scripts/migrate-r2-resumable.py
+          python3 - <<'PY'
+          from pathlib import Path
+          script=Path('.github/scripts/migrate-r2-resumable.py').read_text()
+          config=Path('.github/workflows/migration-r2-full-copy.yml').read_text()
+          assert 'COPY_CHECKPOINT' in script
+          assert 'write_checkpoint(idx,next_token,"copying")' in script
+          assert 'while futures: futures=drain_once(futures)' in script
+          assert 'write_checkpoint(len(PREFIXES),None,"initial_complete")' in script
+          assert 'migration/do-state/' in script
+          assert 'delete_object(' not in script
+          assert 'delete_objects(' not in script
+          assert 'sync(' not in script
+          assert 'group: noondealsnow-r2-source-to-destination-copy' in config
+          assert "cron: '23 */6 * * *'" in config
+          print('COPY_CHECKPOINT_SAFETY=passed')
+          PY

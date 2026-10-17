@@ -2,9 +2,13 @@ name: NoonDealsNow R2 Copy to New Cloudflare (Safe Resume)
 
 on:
   push:
+    branches: [main]
     paths:
       - '.github/workflows/migration-r2-full-copy.yml'
+      - '.github/scripts/migrate-r2-resumable.py'
   workflow_dispatch:
+  schedule:
+    - cron: '23 */6 * * *'
 
 permissions:
   contents: read
@@ -17,7 +21,7 @@ jobs:
   source-to-new-r2:
     name: Copy source keys, SHA256-verify all, no delete or overwrite
     runs-on: ubuntu-latest
-    timeout-minutes: 335
+    timeout-minutes: 330
     env:
       NOON_OLD_R2_ACCESS_KEY_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
       NOON_OLD_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
