@@ -36,6 +36,15 @@ jobs:
               valid=bool(re.fullmatch(r'[a-fA-F0-9]{'+str(expected)+r'}',v))
               print(f'SOURCE_R2_{label}_FORMAT=' + ('valid' if valid else 'invalid') + f';length={len(v)};whitespace={any(c.isspace() for c in v)}')
           PY
+          CLEAN_ID=$(python3 -c 'import os,sys;sys.stdout.write(os.environ["AWS_ACCESS_KEY_ID"].strip())')
+          if [ "$CLEAN_ID" != "$AWS_ACCESS_KEY_ID" ]; then
+            echo "SOURCE_R2_ACCESS_KEY_ID_WHITESPACE_NORMALIZED=yes"
+          fi
+          if [ "$CLEAN_ID" = "" ]; then
+            echo "SOURCE_R2_ACCESS_KEY_ID=empty_after_normalization"
+            exit 2
+          fi
+          export AWS_ACCESS_KEY_ID="$CLEAN_ID"
           if aws s3api list-objects-v2 --bucket nooncoupons-content-v2 --max-keys 1 \
             --endpoint-url https://c82274152a942dea53044eae7153cfd7.r2.cloudflarestorage.com \
             --query 'KeyCount' --output text > /tmp/source-count 2> /tmp/source-err; then
