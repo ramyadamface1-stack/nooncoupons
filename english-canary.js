@@ -1,3 +1,4 @@
+import {claimPublicationSlot,getPublicationSlotStatus} from './publication-rate-limit.js';
 import {buildBulkTopic,buildEnglishNativeCandidate,buildEnglishUsefulArticle,BULK_ENGINE_INFO} from './bulk-content-engine.js';
 import {healthR2ObjectExists,HEALTH_HEAD_TTL_MS} from './r2-health-head-cache.js';
 import {auditEnglishSeoArticle} from './quality-audit.js';
@@ -303,6 +304,12 @@ export async function runEnglishCanary(env,{ignoreInterval=false,scanBudgetMs=50
     categoryKey,intent:candidate.intent,keywordTier:candidate.keywordTier||null,keywordCluster:candidate.keywordCluster||null,campaignId:candidate.campaignId||null,campaignName:candidate.campaignName||null,campaignPhase:candidate.campaignPhase||null,campaignTentative:Boolean(candidate.campaignTentative),campaignCalendarVersion:candidate.campaignCalendarVersion||null,language:'en',languageIntent:'en',languageSource:'native-intent-v6-canary',canary:isCanary,
     phase:isCanary?'canary':'controlled',minJaccardDistance:audit.minJaccardDistance,urlPath,marketPath:candidate.country==='SA'?'/en/saudi':'/en/uae'
   };
+  const publicationPermit=await claimPublicationSlot(env,candidate.country,'english-controlled');
+  if(!publicationPermit.ok){
+    state.lastAttemptAt=now();
+    state=await persistState(env,state,deferStateWrite);
+    return {ok:true,skipped:'publication_rate_limit',published:state.records.length,nextEligibleAt:publicationPermit.nextEligibleAt||null};
+  }
   const write=await r2PutArticleCreateOnly(env,'articles/'+article.slug+'.html',String(article.html||''),{
     httpMetadata:{contentType:'text/html; charset=utf-8'},
     customMetadata:{lang:'en',ls:'native-intent-v6-canary',t:encodeURIComponent(record.title).slice(0,900),m:encodeURIComponent(record.metaDescription).slice(0,900),c:record.country,cp:record.coupon,q:String(record.quality),qf:String(record.qualityFloor),qc:String(record.qualityChecks),p:record.provider,kw:encodeURIComponent(record.primaryKeyword).slice(0,900),kt:String(record.keywordTier||'').slice(0,120),kc:String(record.keywordCluster||'').slice(0,120),bp:String(record.blueprint),at:createdAt,status:'published',canary:isCanary?'1':'0',phase:record.phase}
@@ -345,7 +352,9 @@ export async function runEnglishCanaryBatch(env,{maxPerTick=null,timeBudgetMs=12
     if(lock&&lock.status===409)return {ok:true,skipped:'english_already_running',published:0,attemptedPublished:0,statePersisted:true,runId};
     if(lock&&!lock.ok)return {ok:false,error:'english_lock_failed:'+lock.status,published:0,attemptedPublished:0,statePersisted:false,runId};
     lockAcquired=Boolean(lock?.ok);
-    const configured=batchSizeFromEnv(env),requested=Number(maxPerTick||configured)||configured,effective=Math.max(1,Math.min(configured,24,requested)),budget=Math.max(5000,Math.min(15000,Number(timeBudgetMs||12000)||12000)),startedAt=Date.now(),results=[],scanBudgetMs=Math.max(700,Math.min(1000,Math.floor((budget-2500)/Math.max(1,effective)))),maxScanChunks=Math.max(effective,Math.min(24,effective*2));
+    const publicationPace=await getPublicationSlotStatus(env);
+    if(!publicationPace.ok||!publicationPace.eligible)return {ok:true,skipped:'publication_rate_limit',published:0,statePersisted:true,nextEligibleAt:publicationPace.nextEligibleAt||null,runId};
+    const configured=batchSizeFromEnv(env),requested=Number(maxPerTick||configured)||configured,effective=1,budget=Math.max(5000,Math.min(15000,Number(timeBudgetMs||12000)||12000)),startedAt=Date.now(),results=[],scanBudgetMs=Math.max(700,Math.min(1000,Math.floor((budget-2500)/Math.max(1,effective)))),maxScanChunks=Math.max(effective,Math.min(24,effective*2));
     let stoppedByBudget=false,published=0,chunks=0,sharedState=null,statePersisted=false;
     try{sharedState=await readState(env)}catch(e){return {ok:false,error:'english_state_read_failed:'+String(e?.message||e).slice(0,160),published:0,attemptedPublished:0,statePersisted:false,results:[],runId}}
     const startCount=Array.isArray(sharedState.records)?sharedState.records.length:0;
