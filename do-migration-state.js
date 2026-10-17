@@ -21,7 +21,15 @@ export async function snapshotDurableObjectKeys(storage,env,type){
   if(!/^[a-zA-Z0-9_-]{4,60}$/.test(tag))return json({ok:false,reason:'invalid_tag'},400);
   const stateKey='__noondealsnow_migration_export_'+type+'_'+tag;
   const state=await storage.get(stateKey)||{nextPart:1,cursor:null,scanned:0,exported:0,complete:false};
-  if(state.complete)return json({ok:true,complete:true,...state});
+  if(state.complete){
+    if(!state.manifestSaved){
+      const manifest={version:1,type,tag,complete:true,parts:state.nextPart-1,scanned:state.scanned,exported:state.exported,completedAt:new Date().toISOString()};
+      await env.CONTENT_FINAL.put('migration/do-state/'+tag+'/'+type+'/manifest.json',JSON.stringify(manifest),{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+      state.manifestSaved=true;
+      await storage.put(stateKey,state);
+    }
+    return json({ok:true,complete:true,...state});
+  }
   const pagesPerRequest=2,pageSize=128;
   let scanned=0,exported=0,lastPart=0;
   for(let i=0;i<pagesPerRequest;i++){
