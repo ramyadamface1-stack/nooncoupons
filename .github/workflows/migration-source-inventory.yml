@@ -1,0 +1,78 @@
+name: NoonDealsNow Source R2 Inventory (Read Only)
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migration-source-inventory.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  r2-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Enumerate existing R2 objects without content downloads or writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, subprocess, json, collections, sys, time
+          access=os.environ.get("AWS_ACCESS_KEY_ID","").strip()
+          secret=os.environ.get("AWS_SECRET_ACCESS_KEY","").strip()
+          if not access or not secret:
+              print("INVENTORY=missing_credentials")
+              sys.exit(2)
+          env={**os.environ,"AWS_ACCESS_KEY_ID":access,"AWS_SECRET_ACCESS_KEY":secret}
+          bucket="nooncoupons-content-v2"
+          endpoint="https://c82274152a942dea53044eae7153cfd7.r2.cloudflarestorage.com"
+          counts=collections.Counter()
+          sizes=collections.Counter()
+          total=0
+          total_bytes=0
+          token=None
+          max_pages=200
+          complete=False
+          begin=time.time()
+          for i in range(max_pages):
+              cmd=["aws","s3api","list-objects-v2","--bucket",bucket,"--max-keys","1000","--endpoint-url",endpoint,"--no-paginate","--output","json"]
+              if token: cmd.extend(["--continuation-token",token])
+              p=subprocess.run(cmd,env=env,capture_output=True,text=True,timeout=65)
+              if p.returncode:
+                  print("INVENTORY=error;page="+str(i+1))
+                  sys.exit(3)
+              page=json.loads(p.stdout)
+              objs=page.get("Contents",[])
+              for obj in objs:
+                  key=str(obj.get("Key",""))
+                  group=key.split("/",1)[0] if "/" in key else "(root)"
+                  size=max(0,int(obj.get("Size",0)))
+                  counts[group]+=1
+                  sizes[group]+=size
+                  total+=1
+                  total_bytes+=size
+              if (i+1)%25==0: print("INVENTORY_PROGRESS_PAGES="+str(i+1)+";OBJECTS="+str(total))
+              if not page.get("IsTruncated",False):
+                  complete=True
+                  break
+              next_token=page.get("NextContinuationToken")
+              if not next_token or next_token==token:
+                  print("INVENTORY=invalid_pagination_token")
+                  sys.exit(4)
+              token=next_token
+          print("INVENTORY_COMPLETE="+str(complete).lower())
+          print("INVENTORY_PAGES="+str(i+1))
+          print("INVENTORY_OBJECTS="+str(total))
+          print("INVENTORY_BYTES="+str(total_bytes))
+          print("INVENTORY_SECONDS="+str(round(time.time()-begin,1)))
+          for group,n in counts.most_common(16):
+              print("INVENTORY_PREFIX="+group+";OBJECTS="+str(n)+";BYTES="+str(sizes[group]))
+          if not complete: print("INVENTORY_LIMIT_REACHED=200000_objects_max;requires_bounded_followup")
+          PY

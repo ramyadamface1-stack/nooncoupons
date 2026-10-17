@@ -1,0 +1,25 @@
+name: Verify Dormant Durable Object Migration Helper
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migration-do-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safe-state:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check do-migration-state.js
+      - run: node --check platform.js
+      - run: node --check admin-runtime.js
+      - run: node --check brand-runtime.js
+      - run: node --test tests/do-migration-state.test.mjs

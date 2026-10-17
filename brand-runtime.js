@@ -482,7 +482,21 @@ export default{
     h.set('x-legacy-coupon-tokens-fixed',String(sanitized.state.tokens));h.set('x-visible-coupon-tokens-fixed',String(visibleSanitized.tokens));h.set('x-coupon-whitelist-version','nov-owner-v1');
     return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
   },
-  async scheduled(event,env,ctx){if(app.scheduled)return app.scheduled(event,env,ctx)}
+  async scheduled(event,env,ctx){
+    if(String(env.DO_MIGRATION_EXPORT_ENABLED||'')==='true'){
+      for(const [binding,label] of [['CONTROL','ControlPlane'],['GENERATOR_CONTROL','GeneratorControl']]){
+        const namespace=env[binding];
+        if(!namespace)continue;
+        const id=namespace.idFromName('primary');
+        ctx.waitUntil(namespace.get(id).fetch('https://migration.internal/__migration/export',{method:'POST'}).then(async response=>{
+          const status=await response.json();
+          if(!response.ok||status.ok!==true)throw new Error(label+':'+String(status.reason||response.status));
+          console.log('do_migration_export_progress',label,status.totalExported,status.complete);
+        }).catch(error=>console.warn('do_migration_export_failed',label,String(error.message||error).slice(0,180))));
+      }
+    }
+    if(app.scheduled)return app.scheduled(event,env,ctx);
+  }
 };
 
 export const BRAND_RUNTIME_INFO={version:26,renderedTitleDeduplication:true,coreH1Deconflict:true,categoryIntentOwnerLinks:true,coreIntentOwnerLinks:true,coreIntentMetaDeconflict:true,canonicalOriginRedirect:true,internalOriginNormalization:true,canonicalFallback:true,contentVisibilitySections:true,seoSafeLazySections:true,routePatternSeo:true,globalJsonLdSettings:true,safeCustomHeadSettings:true,protectedRobotsExtras:true,organizationSchemaSettings:true,configuredSeoRedirects:true,notFoundNoindex:true,privacySafeConversionEvents:true,conversionAttributionDimensions:true,automationAnalyticsFiltering:true,eventPiiStored:false,analyticsSettingsV2:true,analyticsDisabledByDefault:true,respectDoNotTrack:true,uniqueArticleVisitTracking:true,rawIpStored:false,botVisitFiltering:true,seoSettingsR2:true,seoSettingsCacheSeconds:300,sameOriginRouteOverrides:true,imageLazyLoading:true,lcpImagePreload:true,serviceWorkerStaticCache:true,legacyCanonicalRedirects:true,indexNowKeyFile:true,privateNoindex:true,visibleCouponSanitizer:true,favicon:true,organizationLogoRepair:true,couponUiDedupe:true,legacyCouponSanitizer:true,crawlSafe:true,robotsSitemapGuaranteed:true,approvedCouponCount:APPROVED_COUPON_CODES.length,logoPath:'/favicon.svg',wraps:'network-entry'};
