@@ -1,0 +1,44 @@
+name: Confirm Old R2 Bucket Backup Privacy (Read Only)
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migration-old-bucket-privacy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  private-bucket-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+    steps:
+      - name: Validate no directly public managed or custom bucket domains
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$CF_TOKEN" ]; then
+            echo "R2_PRIVACY_STATUS=unknown_missing_token"
+            exit 2
+          fi
+          BASE="https://api.cloudflare.com/client/v4/accounts/c82274152a942dea53044eae7153cfd7/r2/buckets/nooncoupons-content-v2/domains"
+          MANAGED_HTTP=$(curl -sS --max-time 15 -o /tmp/managed.json -w '%{http_code}' -H "Authorization: Bearer $CF_TOKEN" "$BASE/managed" || true)
+          CUSTOM_HTTP=$(curl -sS --max-time 15 -o /tmp/custom.json -w '%{http_code}' -H "Authorization: Bearer $CF_TOKEN" "$BASE/custom" || true)
+          echo "R2_MANAGED_DOMAIN_HTTP=$MANAGED_HTTP"
+          echo "R2_CUSTOM_DOMAINS_HTTP=$CUSTOM_HTTP"
+          if [ "$MANAGED_HTTP" != "200" ] || [ "$CUSTOM_HTTP" != "200" ]; then
+            echo "R2_PRIVACY_STATUS=unknown_api_permission"
+            exit 3
+          fi
+          MANAGED_ENABLED=$(jq -r '(.result.enabled // false)' /tmp/managed.json)
+          CUSTOM_ENABLED=$(jq -r '[.result.domains[]? | select(.enabled == true)] | length' /tmp/custom.json)
+          echo "R2_MANAGED_PUBLIC_ENABLED=$MANAGED_ENABLED"
+          echo "R2_CUSTOM_PUBLIC_ENABLED_COUNT=$CUSTOM_ENABLED"
+          if [ "$MANAGED_ENABLED" != "false" ] || [ "$CUSTOM_ENABLED" != "0" ]; then
+            echo "R2_PRIVACY_STATUS=exposed_disable_snapshot_export"
+            exit 4
+          fi
+          echo "R2_PRIVACY_STATUS=private"
