@@ -1,0 +1,104 @@
+name: Cloudflare Cross-Account Migration Read-Only Connection Test
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migration-connection-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  old-r2-read:
+    name: Source R2 read-only list
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Check source credentials and list one object
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "SOURCE_R2_CREDENTIALS=missing"
+            exit 2
+          fi
+          if aws s3api list-objects-v2 --bucket nooncoupons-content-v2 --max-keys 1 \
+            --endpoint-url https://c82274152a942dea53044eae7153cfd7.r2.cloudflarestorage.com \
+            --query 'KeyCount' --output text > /tmp/source-count 2> /tmp/source-err; then
+            echo "SOURCE_R2_LIST=ok"
+            echo "SOURCE_R2_FIRST_PAGE_COUNT=$(cat /tmp/source-count)"
+          else
+            echo "SOURCE_R2_LIST=failed"
+            grep -Eo 'AccessDenied|SignatureDoesNotMatch|NoSuchBucket|InvalidAccessKeyId|ExpiredToken|InvalidToken|Unauthorized|Forbidden' /tmp/source-err | head -1 || true
+            exit 3
+          fi
+
+  new-r2-read:
+    name: Destination R2 list, without writing
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Check destination credentials and list one object
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "DESTINATION_R2_CREDENTIALS=missing"
+            exit 2
+          fi
+          if aws s3api list-objects-v2 --bucket nooncoupons-content-v2 --max-keys 1 \
+            --endpoint-url https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com \
+            --query 'KeyCount' --output text > /tmp/dest-count 2> /tmp/dest-err; then
+            echo "DESTINATION_R2_LIST=ok"
+            echo "DESTINATION_R2_FIRST_PAGE_COUNT=$(cat /tmp/dest-count)"
+          else
+            echo "DESTINATION_R2_LIST=failed"
+            grep -Eo 'AccessDenied|SignatureDoesNotMatch|NoSuchBucket|InvalidAccessKeyId|ExpiredToken|InvalidToken|Unauthorized|Forbidden' /tmp/dest-err | head -1 || true
+            exit 3
+          fi
+
+  new-worker-api:
+    name: Destination Workers API read-only check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Verify new token and test Workers scripts list
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$CF_TOKEN" ]; then
+            echo "DESTINATION_WORKERS_TOKEN=missing"
+            exit 2
+          fi
+          VERIFY_HTTP=$(curl --silent --show-error --output /tmp/verify.json --write-out '%{http_code}' \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/user/tokens/verify")
+          ACTIVE=$(jq -r '.result.status // "unknown"' /tmp/verify.json)
+          echo "DESTINATION_TOKEN_VERIFY_HTTP=$VERIFY_HTTP"
+          echo "DESTINATION_TOKEN_STATUS=$ACTIVE"
+          if [ "$VERIFY_HTTP" != "200" ] || [ "$ACTIVE" != "active" ]; then
+            echo "DESTINATION_TOKEN_VERIFY=failed"
+            exit 3
+          fi
+          SCRIPTS_HTTP=$(curl --silent --show-error --output /tmp/scripts.json --write-out '%{http_code}' \
+            -H "Authorization: Bearer $CF_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/e4c35f8a50a7b2e4cfb9d6c534962603/workers/scripts")
+          echo "DESTINATION_WORKERS_LIST_HTTP=$SCRIPTS_HTTP"
+          if [ "$SCRIPTS_HTTP" != "200" ]; then
+            echo "DESTINATION_WORKERS_ACCESS=failed"
+            exit 4
+          fi
+          echo "DESTINATION_WORKERS_ACCESS=ok"
