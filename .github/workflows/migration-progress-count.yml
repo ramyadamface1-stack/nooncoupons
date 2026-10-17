@@ -1,0 +1,82 @@
+name: NoonDealsNow R2 Copy and DO Backup Checkpoint
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migration-progress-count.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checkpoint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      SOURCE_ACCESS: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      SOURCE_SECRET: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      TARGET_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      TARGET_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Install boto3
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Check destination object total and source DO export manifests without reading article bodies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import boto3,os,time,botocore
+          from botocore.config import Config
+          cfg=Config(signature_version='s3v4',read_timeout=35,connect_timeout=10,retries={'max_attempts':3})
+          def c(account,k,s):
+              return boto3.client('s3',region_name='auto',endpoint_url='https://'+account+'.r2.cloudflarestorage.com',aws_access_key_id=os.environ[k].strip(),aws_secret_access_key=os.environ[s].strip(),config=cfg)
+          src=c('c82274152a942dea53044eae7153cfd7','SOURCE_ACCESS','SOURCE_SECRET')
+          dst=c('e4c35f8a50a7b2e4cfb9d6c534962603','TARGET_ACCESS','TARGET_SECRET')
+          bucket='nooncoupons-content-v2'
+          totals={}
+          def count(client,prefix,max_pages=500):
+              continuation=None
+              n=0
+              total_bytes=0
+              for page_id in range(max_pages):
+                  args={'Bucket':bucket,'Prefix':prefix,'MaxKeys':1000}
+                  if continuation:args['ContinuationToken']=continuation
+                  result=client.list_objects_v2(**args)
+                  for obj in result.get('Contents',()):
+                      n+=1
+                      total_bytes+=int(obj.get('Size',0))
+                  if not result.get('IsTruncated'):return n,total_bytes,True
+                  continuation=result.get('NextContinuationToken')
+                  if not continuation:raise RuntimeError('missing_continuation')
+                  if page_id%75==74:print('CHECKPOINT_PAGE_PROGRESS='+str(page_id+1)+';PREFIX='+prefix+';OBJECTS='+str(n),flush=True)
+              return n,total_bytes,False
+          for prefix in ('articles/','quality/','maintenance/','bulk/','english-canary/','_ops/','freshness/','legacy-upgrade/'):
+              n,size,complete=count(dst,prefix,350)
+              totals[prefix]=(n,size,complete)
+              print('DEST_PREFIX='+prefix+';OBJECTS='+str(n)+';BYTES='+str(size)+';COMPLETE='+str(complete).lower(),flush=True)
+          sn=0
+          for typ in ('ControlPlane','GeneratorControl'):
+              p='migration/do-state/20261017-baseline/'+typ+'/'
+              response=src.list_objects_v2(Bucket=bucket,Prefix=p,MaxKeys=1000)
+              keys=[str(obj['Key']) for obj in response.get('Contents',())]
+              files=[key.rsplit('/',1)[-1] for key in keys]
+              manifest=p+'manifest.json'
+              has_manifest=manifest in keys
+              print('SOURCE_DO_TYPE='+typ+';OBJECTS='+str(len(files))+';MANIFEST='+str(has_manifest).lower()+';MORE='+str(response.get('IsTruncated',False)).lower(),flush=True)
+              if has_manifest:
+                  blob=src.get_object(Bucket=bucket,Key=manifest)
+                  try:meta=__import__('json').loads(blob['Body'].read(10000).decode('utf-8'))
+                  finally:blob['Body'].close()
+                  print('SOURCE_DO_MANIFEST='+typ+';COMPLETE='+str(meta.get('complete'))+';PARTS='+str(meta.get('parts'))+';EXPORTED_KEYS='+str(meta.get('exported')),flush=True)
+              sn+=len(files)
+          print('DESTINATION_TOTAL_OBJECTS='+str(sum(item[0] for item in totals.values())))
+          print('DESTINATION_TOTAL_BYTES='+str(sum(item[1] for item in totals.values())))
+          print('SOURCE_DO_EXPORT_TOTAL_OBJECTS='+str(sn))
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              f.write('### R2 transfer progress snapshot\n\n| Prefix | Destination objects | Bytes | Complete listing |\n|---|---:|---:|---|\n')
+              for p,(n,b,complete) in totals.items():
+                  f.write(f'| {p} | {n} | {b} | {complete} |\n')
+              f.write(f'\nOld-account DO backup objects currently present: **{sn}**. This is a point-in-time checkpoint; publishing continues at source.\n')
+          PY
