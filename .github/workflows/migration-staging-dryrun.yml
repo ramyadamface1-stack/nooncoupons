@@ -1,0 +1,43 @@
+name: Verify Migration Staging Worker Is Dormant
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migration-staging-dryrun.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Assert staging config cannot serve public traffic or run publishing cron
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const c=JSON.parse(fs.readFileSync('wrangler.migration-staging.jsonc','utf8'));
+          if(c.name!=='noondealsnow-migration-staging')throw Error('Wrong staging Worker name');
+          if(c.workers_dev!==false)throw Error('Staging must not have workers.dev URL');
+          if((c.triggers?.crons||[]).length)throw Error('Staging cron not disabled');
+          if((c.routes||[]).length)throw Error('Staging routes must be absent');
+          if(c.vars.DO_MIGRATION_EXPORT_ENABLED!=='false'||c.vars.DO_MIGRATION_RESTORE_ENABLED!=='false')throw Error('State import/export enabled');
+          if(c.vars.BULK_DAILY_TARGET!=='0'||c.vars.ENGLISH_DAILY_TARGET!=='0')throw Error('Staging publisher not disabled');
+          if(c.ai)throw Error('AI binding must be unavailable on staging');
+          if(c.r2_buckets?.[0]?.bucket_name!=='nooncoupons-content-v2')throw Error('R2 bucket mismatch');
+          console.log('STAGING_ISOLATION_STATIC=PASS');
+          NODE
+      - name: Bundle Worker for new Cloudflare account without deploying
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --config wrangler.migration-staging.jsonc --outdir /tmp/noondeals-migration-dry-run
+          echo STAGING_DRY_RUN=PASS
