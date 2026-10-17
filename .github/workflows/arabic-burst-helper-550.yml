@@ -1,70 +1,10 @@
-name: Saudi Revenue Burst Helper
-
+name: Saudi Revenue Burst Helper (retired - 1 article/minute policy)
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/arabic-burst-helper-550.yml']
   workflow_dispatch:
-
 permissions:
   contents: read
-
-concurrency:
-  group: saudi-revenue-burst-helper
-  cancel-in-progress: true
-
 jobs:
-  helper:
+  retired:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
     steps:
-      - name: Wait for hourly 1000 runtime
-        env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
-          [ -n "${CF_TOKEN:-}" ] || { echo MISSING_CF_TOKEN; exit 10; }
-          echo "::add-mask::$CF_TOKEN"
-          for i in $(seq 1 60); do
-            release="$(curl -fsS --max-time 20 "$ORIGIN/api/revision?saudi-helper=$i" | jq -r '.release // ""' || true)"
-            echo "WAIT_RUNTIME attempt=$i release=$release"
-            [ "$release" = "2026-10-14-hourly-1000-r10" ] && exit 0
-            sleep 5
-          done
-          echo RUNTIME_NOT_READY
-          exit 1
-
-      - name: Add 300 Saudi focused Arabic articles
-        env:
-          CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          ORIGIN='https://nooncoupons.ramychatgptgcoupons.workers.dev'
-          STATS='https://noondealsnow.com/api/content-stats'
-          AUTH="Authorization: Bearer $CF_TOKEN"
-          curl -fsS --max-time 30 "$STATS?sa-helper-baseline=${GITHUB_RUN_ID}" -o /tmp/base.json
-          base="$(jq -r '.arabic|tonumber' /tmp/base.json)"
-          echo "SA_HELPER_BASE arabic=$base"
-          started=$SECONDS
-          step=0
-          while (( SECONDS - started < 3000 )); do
-            step=$((step+1))
-            curl -sS -o /tmp/bulk.json --retry 2 --retry-all-errors --retry-delay 1 --connect-timeout 10 --max-time 100               -X POST -H "$AUTH" -H 'Content-Type: application/json'               --data '{"runEnglish":false,"runBulk":true,"forceBulk":true,"forceSaudi":true}'               "$ORIGIN/api/internal/generation-burst-step?saudi-helper=${GITHUB_RUN_ID}-$step" >/dev/null || true
-            curl -fsS --max-time 30 "$STATS?sa-helper-progress=${GITHUB_RUN_ID}-$step" -o /tmp/now.json
-            current="$(jq -r '.arabic|tonumber' /tmp/now.json)"
-            delta=$((current-base))
-            echo "SA_HELPER_PROGRESS step=$step arabic=$current delta=$delta"
-            if (( delta >= 300 )); then
-              echo "SA_HELPER_TARGET_REACHED delta=$delta elapsed=$((SECONDS-started))"
-              exit 0
-            fi
-            sleep 1
-          done
-          curl -fsS --max-time 30 "$STATS?sa-helper-final=${GITHUB_RUN_ID}" -o /tmp/final.json
-          current="$(jq -r '.arabic|tonumber' /tmp/final.json)"
-          delta=$((current-base))
-          echo "SA_HELPER_FINAL arabic=$current delta=$delta"
-          [ "$delta" -ge 300 ] || { echo SA_HELPER_TARGET_NOT_REACHED; exit 2; }
+      - run: echo "Bulk publishing disabled. Production permits max one global article every 60 seconds on Cloudflare."
