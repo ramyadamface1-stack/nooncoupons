@@ -1,0 +1,90 @@
+name: NoonDealsNow Migration Read-Only Preflight
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-preflight-readonly.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    env:
+      NOON_OLD_R2_ACCESS_KEY_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      NOON_OLD_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      OLD_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NEW_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Install boto3 for R2 read-only preflight
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Verify DO restore, complete article delta and zone readiness without writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,collections,boto3
+          from botocore.config import Config
+          from botocore.exceptions import ClientError
+          import urllib.request,urllib.parse
+          bucket='nooncoupons-content-v2'
+          cfg=Config(signature_version='s3v4',connect_timeout=12,read_timeout=45,max_pool_connections=12,retries={'max_attempts':4,'mode':'standard'})
+          accounts={'OLD':'c82274152a942dea53044eae7153cfd7','NEW':'e4c35f8a50a7b2e4cfb9d6c534962603'}
+          def r2(label):
+              aid=accounts[label]
+              return boto3.client('s3',region_name='auto',endpoint_url='https://'+aid+'.r2.cloudflarestorage.com',
+                  aws_access_key_id=os.environ['NOON_'+label+'_R2_ACCESS_KEY_ID'].strip(),
+                  aws_secret_access_key=os.environ['NOON_'+label+'_R2_SECRET_ACCESS_KEY'].strip(),config=cfg)
+          old,new=r2('OLD'),r2('NEW')
+          for typ in ('ControlPlane','GeneratorControl'):
+              key='migration/restore-progress/20261017-baseline/'+typ+'.json'
+              try:
+                  obj=new.get_object(Bucket=bucket,Key=key)
+                  try: data=json.loads(obj['Body'].read(50000))
+                  finally:obj['Body'].close()
+                  allowed={k:data.get(k) for k in ('complete','partsDone','partsTotal','keysRestored','keysTotal','updatedAt')}
+                  print('RESTORE_PROGRESS_'+typ+'='+json.dumps(allowed),flush=True)
+              except ClientError as e:
+                  if str(e.response['Error'].get('Code')) in ('404','NoSuchKey','NotFound'): print('RESTORE_PROGRESS_'+typ+'=missing')
+                  else:raise
+          def inventory(client,label):
+              keys={}
+              for page in client.get_paginator('list_objects_v2').paginate(Bucket=bucket,Prefix='articles/',PaginationConfig={'PageSize':1000}):
+                  for obj in page.get('Contents',()):
+                      k=obj['Key']
+                      if k.endswith('.html'):
+                          if k in keys: raise RuntimeError('duplicate_r2_inventory')
+                          keys[k]=int(obj['Size'])
+              print('ARTICLES_'+label+'='+str(len(keys)),flush=True)
+              return keys
+          src=inventory(old,'OLD')
+          dst=inventory(new,'NEW')
+          missing=[k for k in src if k not in dst]
+          conflicts=[k for k in src if k in dst and src[k]!=dst[k]]
+          print('ARTICLES_MISSING_ON_NEW='+str(len(missing)),flush=True)
+          print('ARTICLES_SIZE_CONFLICTS='+str(len(conflicts)),flush=True)
+          print('ARTICLES_EXTRA_ON_NEW='+str(len(dst.keys()-src.keys())),flush=True)
+          for label,token in [('OLD',os.environ.get('OLD_TOKEN','')),('NEW',os.environ.get('NEW_TOKEN',''))]:
+              url='https://api.cloudflare.com/client/v4/zones?'+urllib.parse.urlencode({'name':'noondealsnow.com','account.id':accounts[label]})
+              req=urllib.request.Request(url,headers={'Authorization':'Bearer '+token})
+              try:
+                  with urllib.request.urlopen(req,timeout=15) as response: data=json.loads(response.read())
+                  zones=data.get('result') or []
+                  print('ZONE_'+label+'_COUNT='+str(len(zones)),flush=True)
+                  for zone in zones:
+                      print('ZONE_'+label+'_STATUS='+str(zone.get('status')),flush=True)
+                      zid=zone.get('id')
+                      if zid and label=='OLD':
+                          r=urllib.request.Request('https://api.cloudflare.com/client/v4/zones/'+zid+'/dns_records?per_page=100',headers={'Authorization':'Bearer '+token})
+                          try:
+                              with urllib.request.urlopen(r,timeout=15) as rr: dns=json.loads(rr.read())
+                              summary=collections.Counter(x.get('type') for x in dns.get('result',[]))
+                              print('OLD_DNS_TYPES='+json.dumps(summary),flush=True)
+                              print('OLD_DNS_TOTAL_REPORTED='+str(dns.get('result_info',{}).get('total_count','unknown')),flush=True)
+                          except Exception as ex:print('OLD_DNS_READ=unavailable:'+type(ex).__name__,flush=True)
+              except Exception as ex: print('ZONE_'+label+'_READ=unavailable:'+type(ex).__name__,flush=True)
+          print('PREFLIGHT_READ_ONLY=complete',flush=True)
+          PY
