@@ -25,7 +25,7 @@ jobs:
           node --test tests/do-migration-state.test.mjs
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
-          const c=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8').replace(/^\\s*\\/\\/.*$/gm,''));
+          const c=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8').split(String.fromCharCode(10)).filter(x=>!x.trimStart().startsWith('//')).join(String.fromCharCode(10)));
           if(c.vars.DO_MIGRATION_EXPORT_PAGES_PER_TICK!=='6')throw Error('unexpected migration batch');
           if(c.vars.DO_MIGRATION_EXPORT_ENABLED!=='true')throw Error('source export disabled');
           if(c.vars.GLOBAL_PUBLISH_MIN_INTERVAL_SECONDS!=='60')throw Error('publish pacing changed');
