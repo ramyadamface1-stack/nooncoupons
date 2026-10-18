@@ -1,0 +1,29 @@
+name: Migration Missing Articles Delta One-Time
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-delta-once.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: noondealsnow-r2-source-to-destination-copy
+  cancel-in-progress: false
+jobs:
+  copy-missing-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      NOON_OLD_R2_ACCESS_KEY_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      NOON_OLD_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify immutable missing-only algorithm and copy absent source article objects
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check boto3
+          python3 -m unittest discover -s tests -p 'test_r2_article_delta.py' -v
+          python3 -u .github/scripts/migrate-r2-article-delta.py
