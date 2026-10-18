@@ -1,4 +1,5 @@
 name: NoonDealsNow R2 Copy and DO Backup Checkpoint
+# Fresh checkpoint: 2026-10-18 early morning
 
 on:
   push:
