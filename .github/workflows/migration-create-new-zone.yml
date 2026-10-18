@@ -39,8 +39,8 @@ jobs:
               code,body=call(token,'GET','/zones?'+query)
               if code!=200 or not body.get('success'):raise RuntimeError('zone_list_denied_'+str(code))
               return body.get('result') or []
-          old_token=os.environ.get('OLD_TOKEN','')
-          new_token=os.environ.get('NEW_TOKEN','')
+          old_token=os.environ.get('OLD_TOKEN','').strip()
+          new_token=os.environ.get('NEW_TOKEN','').strip()
           if not old_token or not new_token:raise RuntimeError('cloudflare_token_missing')
           old=list_zones(old_token,old_id)
           if len(old)!=1 or old[0].get('status')!='active':
