@@ -68,9 +68,9 @@ test('article metadata uses existing R2 GET response without billable public HEA
   assert.match(render,/'x-r2-article-metadata':'v1'/);
   assert.match(render,/'x-article-published-at':published/);
   assert.match(enhance,/res\.headers\.get\('x-r2-article-metadata'\)==='v1'/);
-  assert.doesNotMatch(enhance,/CONTENT_FINAL\\.head\\s*\\(/);
-  assert.match(enhance,/pickDate\\('datePublished'\\)/);
-  assert.match(enhance,/x-r2-head-avoided/);
+  assert.equal(enhance.includes('CONTENT_FINAL.head('),false);
+  assert.equal(enhance.includes("pickDate('datePublished')"),true);
+  assert.equal(enhance.includes('x-r2-head-avoided'),true);
   assert.match(edge,/EDGE_CACHE_POLICY_REVISION/);
   assert.match(edge,/publicEdgeCacheEligible\(req,u\)/);
 });
