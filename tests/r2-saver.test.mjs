@@ -61,14 +61,16 @@ test('public edge caching is strict: no authenticated, admin or personalized res
   assert.equal(publicEdgeTtlSeconds('/blog'),300);
 });
 
-test('article metadata uses existing R2 GET response and leaves a backward compatible fallback',()=>{
+test('article metadata uses existing R2 GET response without billable public HEAD',()=>{
   const render=readFileSync(new URL('../auto-platform.js',import.meta.url),'utf8');
   const enhance=readFileSync(new URL('../premium-entry.js',import.meta.url),'utf8');
   const edge=readFileSync(new URL('../discovery-entry.js',import.meta.url),'utf8');
   assert.match(render,/'x-r2-article-metadata':'v1'/);
   assert.match(render,/'x-article-published-at':published/);
   assert.match(enhance,/res\.headers\.get\('x-r2-article-metadata'\)==='v1'/);
-  assert.match(enhance,/else\{\s*try\{const o=await env\.CONTENT_FINAL\.head/);
+  assert.doesNotMatch(enhance,/CONTENT_FINAL\\.head\\s*\\(/);
+  assert.match(enhance,/pickDate\\('datePublished'\\)/);
+  assert.match(enhance,/x-r2-head-avoided/);
   assert.match(edge,/EDGE_CACHE_POLICY_REVISION/);
   assert.match(edge,/publicEdgeCacheEligible\(req,u\)/);
 });
