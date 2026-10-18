@@ -1,4 +1,5 @@
 name: Test Manifest-Gated Destination DO Restore
+# Test private progress marker accuracy
 
 on:
   push:
