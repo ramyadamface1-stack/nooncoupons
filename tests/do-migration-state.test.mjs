@@ -39,6 +39,11 @@ test('exports DO state into paginated R2 archive and restores without modifying 
   assert.equal(imported.status,200);
   imported=await restoreDurableObjectKeys(destination,restoreEnv(r2),'ControlPlane');
   assert.equal((await imported.json()).complete,true);
+  const progress=JSON.parse(r2.objects.get('migration/restore-progress/migration-test/ControlPlane.json'));
+  assert.equal(progress.keysRestored,4);
+  assert.equal(progress.keysTotal,4);
+  assert.equal(progress.partsDone,1);
+  assert.equal(progress.complete,true);
   for(const [k,v] of Object.entries(data)){
     assert.deepEqual(destination.raw.get(k),v);
     assert.deepEqual(original.raw.get(k),v);
