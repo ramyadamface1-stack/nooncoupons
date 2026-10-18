@@ -53,8 +53,8 @@ async function enhanceArticle(req,env,res){
       const x=body.match(new RegExp('"'+key+'"\\s*:\\s*"([^"]+)"','i'));
       return x?.[1]||'';
     };
-    const firstTime=body.match(/<time\\b[^>]*\\bdatetime=["']([^"']+)["']/i)?.[1]||'';
-    md={c:/<html[^>]+lang=["']en[-_]AE["']/i.test(body)||/\\ben-[^"']*uae/i.test(slug)?'AE':'SA',
+    const firstTime=body.match(/<time\b[^>]*\bdatetime=["']([^"']+)["']/i)?.[1]||'';
+    md={c:/<html[^>]+lang=["']en[-_]AE["']/i.test(body)||/\ben-[^"']*uae/i.test(slug)?'AE':'SA',
       at:pickDate('datePublished')||firstTime,
       ua:pickDate('dateModified')};
     res=new Response(body,{status:res.status,statusText:res.statusText,headers:res.headers});
