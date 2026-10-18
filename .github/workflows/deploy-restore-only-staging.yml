@@ -1,0 +1,90 @@
+name: Restore-Only Staging Worker on NEW Cloudflare
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-restore-only-staging.yml'
+      - 'wrangler.migration-staging.jsonc'
+      - 'do-migration-state.js'
+      - 'brand-runtime.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noondealsnow-new-account-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fail closed if staging could publish or expose production routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const j=JSON.parse(fs.readFileSync('wrangler.migration-staging.jsonc','utf8'));
+          const vars=j.vars||{};
+          const good=(j.name==='noondealsnow-migration-staging'
+            && j.workers_dev===false
+            && (!j.routes||j.routes.length===0)
+            && j.triggers?.crons?.length===1
+            && j.triggers.crons[0]==='* * * * *'
+            && vars.DO_MIGRATION_RESTORE_ENABLED==='true'
+            && vars.DO_MIGRATION_RESTORE_PARTS_PER_TICK==='20'
+            && vars.DO_MIGRATION_EXPORT_ENABLED==='false'
+            && vars.BULK_DAILY_TARGET==='0'
+            && vars.ENGLISH_DAILY_TARGET==='0'
+            && vars.INDEXNOW_ENABLED==='false'
+            && !j.ai
+            && j.r2_buckets?.some(b=>b.binding==='CONTENT_FINAL'&&b.bucket_name==='nooncoupons-content-v2'));
+          if(!good)throw Error('unsafe_migration_staging_config');
+          const source=fs.readFileSync('brand-runtime.js','utf8');
+          const restoreAt=source.indexOf("if(String(env.DO_MIGRATION_RESTORE_ENABLED||'')==='true')");
+          const normalAt=source.indexOf('if(app.scheduled)return app.scheduled(event,env,ctx);',restoreAt);
+          if(restoreAt<0||normalAt<restoreAt||!source.slice(restoreAt,normalAt).includes('      return;'))
+            throw Error('staging_must_return_before_publisher_cron');
+          console.log('NEW_ACCOUNT_RESTORE_ONLY_ISOLATION=PASS');
+          NODE
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "NEW_CF_DEPLOY_TOKEN=missing"; exit 2; fi
+      - name: Cloudflare new-account credential check
+        shell: bash
+        run: |
+          set -euo pipefail
+          http=$(curl -sS -o /tmp/verify.json -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify")
+          if [ "$http" != 200 ]; then echo "NEW_CF_VERIFY_HTTP=$http"; exit 3; fi
+          jq -e '.success==true and .result.status=="active"' /tmp/verify.json >/dev/null
+          echo "NEW_CF_DEPLOY_TOKEN=active"
+      - run: npm install --no-audit --no-fund --ignore-scripts
+      - run: node --test tests/do-migration-state.test.mjs
+      - run: npx wrangler deploy --dry-run --config wrangler.migration-staging.jsonc --outdir /tmp/new-stage
+      - name: Deploy isolated restore-only Worker
+        run: npx wrangler deploy --config wrangler.migration-staging.jsonc
+      - name: Verify Worker exists on NEW account via API
+        shell: bash
+        run: |
+          set -euo pipefail
+          http=$(curl -sS -o /tmp/workers.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts")
+          echo "NEW_ACCOUNT_WORKERS_HTTP=$http"
+          test "$http" = 200
+          jq -e --arg worker noondealsnow-migration-staging \
+            '.success==true and any(.result[]?; .id==$worker or .name==$worker)' /tmp/workers.json >/dev/null
+          echo "NEW_RESTORE_ONLY_WORKER=deployed"
+          echo "NEW_WORKER_PUBLIC_ROUTE=none"
+          echo "NEW_WORKER_PUBLISHING=disabled"
+          echo "NEW_WORKER_RESTORE=manifest-gated"

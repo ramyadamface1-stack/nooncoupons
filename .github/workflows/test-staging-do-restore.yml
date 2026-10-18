@@ -1,0 +1,36 @@
+name: Test Manifest-Gated Destination DO Restore
+
+on:
+  push:
+    paths:
+      - '.github/workflows/test-staging-do-restore.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check brand-runtime.js && node --check do-migration-state.js
+      - run: node --test tests/do-migration-state.test.mjs
+      - name: Verify staging is non-public and cannot run article publisher
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const j=JSON.parse(fs.readFileSync('wrangler.migration-staging.jsonc','utf8'));
+          const s=fs.readFileSync('brand-runtime.js','utf8');
+          const a=s.indexOf("if(String(env.DO_MIGRATION_RESTORE_ENABLED||'')==='true')");
+          const b=s.indexOf('if(app.scheduled)return app.scheduled(event,env,ctx);',a);
+          if(a<0||b<a||!s.slice(a,b).includes('      return;'))throw Error('restore must not invoke publisher');
+          if(j.workers_dev!==false||j.routes?.length||(j.triggers?.crons||[]).length!==1)throw Error('staging cannot have public route');
+          if(j.vars.BULK_DAILY_TARGET!=='0'||j.vars.ENGLISH_DAILY_TARGET!=='0'||j.vars.INDEXNOW_ENABLED!=='false')throw Error('publishing must remain off');
+          if(j.vars.DO_MIGRATION_RESTORE_ENABLED!=='true'||j.vars.DO_MIGRATION_EXPORT_ENABLED!=='false')throw Error('restore-only misconfigured');
+          console.log('RESTORE_ONLY_STAGING_GUARDS=PASS');
+          NODE

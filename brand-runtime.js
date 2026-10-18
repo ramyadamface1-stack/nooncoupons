@@ -483,6 +483,25 @@ export default{
     return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
   },
   async scheduled(event,env,ctx){
+    // Isolated destination staging: restore backup state, NEVER run the
+    // article generator/publisher while preparing a migration.
+    if(String(env.DO_MIGRATION_RESTORE_ENABLED||'')==='true'){
+      for(const [binding,label] of [['CONTROL','ControlPlane'],['GENERATOR_CONTROL','GeneratorControl']]){
+        const namespace=env[binding];
+        if(!namespace)continue;
+        const id=namespace.idFromName('primary');
+        ctx.waitUntil(namespace.get(id).fetch('https://migration.internal/__migration/restore',{method:'POST'}).then(async response=>{
+          const result=await response.json();
+          if(response.status===409&&result.reason==='source_export_manifest_not_ready'){
+            console.log('do_migration_restore_waiting',label);
+            return;
+          }
+          if(!response.ok||result.ok!==true)throw new Error(label+':'+String(result.reason||response.status));
+          console.log('do_migration_restore_progress',label,result.totalImported,result.partsRemaining,result.complete);
+        }).catch(error=>console.warn('do_migration_restore_failed',label,String(error.message||error).slice(0,160))));
+      }
+      return;
+    }
     if(String(env.DO_MIGRATION_EXPORT_ENABLED||'')==='true'){
       for(const [binding,label] of [['CONTROL','ControlPlane'],['GENERATOR_CONTROL','GeneratorControl']]){
         const namespace=env[binding];

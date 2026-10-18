@@ -7,7 +7,7 @@ const makeStorage=(init={})=>{
   return {
     raw:m,
     async get(k){return m.get(k)},
-    async put(k,v){m.set(k,v)},
+    async put(k,v){if(arguments.length===1&&k&&typeof k==='object'){for(const [key,val] of Object.entries(k))m.set(key,val)}else m.set(k,v)},
     async list({limit=128,startAfter=null}={}){
       const entries=[...m.entries()].sort((a,b)=>a[0].localeCompare(b[0])).filter(([k])=>startAfter===null||k>startAfter).slice(0,limit);
       return new Map(entries);
@@ -92,4 +92,34 @@ test('configured export rate is clamped to 20 and default remains 2 pages',async
   const another=makeStorage(input),r2b=makeR2();
   const baseline=await snapshotDurableObjectKeys(another,exportEnv(r2b),'ControlPlane');
   assert.equal((await baseline.json()).lastPart,2);
+});
+
+test('a complete 3000-key DO manifest restores in <=20-part batches without double writes',async()=>{
+  const input={};
+  for(let i=0;i<3000;i++)input['article-'+String(i).padStart(5,'0')]={slug:'article-'+i,score:95};
+  const src=makeStorage(input),r2=makeR2(),dst=makeStorage();
+  const env={...exportEnv(r2),DO_MIGRATION_EXPORT_PAGES_PER_TICK:'20'};
+  for(let i=0;i<4;i++){
+    const v=await snapshotDurableObjectKeys(src,env,'ControlPlane');
+    if((await v.json()).complete)break;
+  }
+  const restore={...restoreEnv(r2),DO_MIGRATION_RESTORE_PARTS_PER_TICK:'20'};
+  const first=await restoreDurableObjectKeys(dst,restore,'ControlPlane');
+  const result=await first.json();
+  assert.equal(result.complete,false);
+  assert.equal(result.importedParts,20);
+  let next=await restoreDurableObjectKeys(dst,restore,'ControlPlane');
+  assert.equal((await next.json()).complete,true);
+  const again=await restoreDurableObjectKeys(dst,restore,'ControlPlane');
+  assert.equal((await again.json()).complete,true);
+  assert.equal(dst.raw.get('article-02999').slug,'article-2999');
+  assert.equal(dst.raw.get('article-00001').slug,'article-1');
+  assert.equal(dst.raw.get('__noondealsnow_migration_import_ControlPlane_migration-test').restored,3000);
+});
+
+test('restore cannot begin until completed manifest arrives',async()=>{
+  const storage=makeStorage(),r2=makeR2();
+  const response=await restoreDurableObjectKeys(storage,restoreEnv(r2),'ControlPlane');
+  assert.equal(response.status,409);
+  assert.equal(storage.raw.size,0);
 });
