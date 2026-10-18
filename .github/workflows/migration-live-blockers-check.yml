@@ -1,4 +1,5 @@
 name: NoonDealsNow Live Migration Blocker Check
+# Closeout readiness probe after initial R2 copy verified
 # Follow-up manifest check after ControlPlane export acceleration
 
 on:
