@@ -30,9 +30,15 @@ export async function snapshotDurableObjectKeys(storage,env,type){
     }
     return json({ok:true,complete:true,...state});
   }
-  const pagesPerRequest=2,pageSize=128;
+  // Bounded acceleration for emergency source-account migration:
+  // the default remains two pages; production opts into six, never more.
+  const configured=Number.parseInt(String(env.DO_MIGRATION_EXPORT_PAGES_PER_TICK||'2'),10);
+  const pagesPerRequest=Number.isFinite(configured)?Math.max(1,Math.min(6,configured)):2;
+  const pageSize=128,startedAt=Date.now();
   let scanned=0,exported=0,lastPart=0;
   for(let i=0;i<pagesPerRequest;i++){
+    // Do not monopolize a single cron invocation; progress is persisted each page.
+    if(i>0&&Date.now()-startedAt>12000)break;
     const args={limit:pageSize};
     if(state.cursor)args.startAfter=state.cursor;
     const data=await storage.list(args);
