@@ -1,4 +1,5 @@
 name: NoonDealsNow R2 Copy and DO Backup Checkpoint
+# Snapshot 2026-10-18T07:24Z after mutable-index fix
 # Fresh checkpoint: 2026-10-18 early morning
 
 on:
