@@ -1,4 +1,5 @@
 name: NoonDealsNow Live Migration Blocker Check
+# Follow-up manifest check after ControlPlane export acceleration
 
 on:
   push:
