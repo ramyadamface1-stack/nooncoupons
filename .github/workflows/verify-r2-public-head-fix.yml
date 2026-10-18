@@ -1,4 +1,5 @@
 name: Verify Public R2 HEAD Cost Fix
+# Regression gate v2: deterministic SVG asset and article metadata paths
 
 on:
   push:
