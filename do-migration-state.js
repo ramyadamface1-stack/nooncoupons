@@ -76,6 +76,15 @@ export async function snapshotDurableObjectKeys(storage,env,type){
 }
 
 
+async function writeRestoreProgress(env,type,tag,state,manifest){
+  const key='migration/restore-progress/'+tag+'/'+type+'.json';
+  const body=JSON.stringify({version:1,type,tag,complete:Boolean(state.complete),
+    partsDone:state.nextPart-1,partsTotal:manifest.parts,
+    keysRestored:state.restored,keysTotal:manifest.exported,
+    updatedAt:new Date().toISOString()});
+  await env.CONTENT_FINAL.put(key,body,{httpMetadata:{contentType:'application/json; charset=utf-8'}});
+}
+
 export async function restoreDurableObjectKeys(storage,env,type){
   if(String(env?.DO_MIGRATION_RESTORE_ENABLED||'')!=='true')return json({ok:false,reason:'restore_disabled'},404);
   if(!SAFE_DO_TYPES.has(type)||!env?.CONTENT_FINAL)return json({ok:false,reason:'invalid_config'},503);
@@ -93,7 +102,14 @@ export async function restoreDurableObjectKeys(storage,env,type){
     return json({ok:false,reason:'invalid_export_manifest'},422);
   const stateKey='__noondealsnow_migration_import_'+type+'_'+tag;
   const state=await storage.get(stateKey)||{nextPart:1,restored:0,complete:false};
-  if(state.complete)return json({ok:true,type,tag,...state});
+  if(state.complete){
+    if(!state.progressSaved){
+      await writeRestoreProgress(env,type,tag,state,manifest);
+      state.progressSaved=true;
+      await storage.put(stateKey,state);
+    }
+    return json({ok:true,type,tag,...state});
+  }
   if(!Number.isInteger(state.nextPart)||state.nextPart<1||state.nextPart>manifest.parts+1)
     return json({ok:false,reason:'invalid_restore_checkpoint'},422);
   const count=Number.parseInt(String(env.DO_MIGRATION_RESTORE_PARTS_PER_TICK||'1'),10);
@@ -133,6 +149,11 @@ export async function restoreDurableObjectKeys(storage,env,type){
       return json({ok:false,reason:'restored_count_mismatch',
                    actual:state.restored,expected:manifest.exported},409);
     state.complete=true;
+    await storage.put(stateKey,state);
+  }
+  await writeRestoreProgress(env,type,tag,state,manifest);
+  if(state.complete){
+    state.progressSaved=true;
     await storage.put(stateKey,state);
   }
   return json({ok:true,type,tag,complete:Boolean(state.complete),
