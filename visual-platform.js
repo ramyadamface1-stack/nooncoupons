@@ -28,19 +28,18 @@ function fallbackRec(html,slug){
   return {slug,title,primaryKeyword:title,coupon:validCoupon(coupon,country),country,status:'published',metaDescription:''};
 }
 
-async function r2ArticleMeta(env,slug){
-  try{
-    const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.head('articles/'+slug+'.html'):null;
-    const md=o?.customMetadata||{};
-    if(!o)return null;
-    const dec=x=>{try{return decodeURIComponent(String(x||''))}catch{return String(x||'')}};
-    const country=md.c==='AE'?'AE':'SA';
-    return {slug,title:dec(md.t)||slug,primaryKeyword:dec(md.kw)||dec(md.t)||slug,coupon:validCoupon(md.cp,country),country,status:'published'};
-  }catch{return null}
+// Public SVGs are deterministic from their URL: five images per article must
+// never cause five billable R2 HEAD requests (nor vary when R2 is unavailable).
+function assetRecord(slug,query){
+  const country=validCountry(query.get('country'));
+  const coupon=validCoupon(query.get('coupon'),country);
+  const kw=String(query.get('kw')||'').replace(/[<>\u0000-\u001f]/g,' ').replace(/\s+/g,' ').trim().slice(0,120);
+  const title=kw||String(slug).replace(/[-_]+/g,' ').slice(0,120);
+  return {slug,title,primaryKeyword:title,coupon,country,status:'published'};
 }
 
 function params(rec){
-  return new URLSearchParams({v:'9',coupon:validCoupon(rec.coupon,validCountry(rec.country)),country:validCountry(rec.country)}).toString();
+  return new URLSearchParams({v:'10',coupon:validCoupon(rec.coupon,validCountry(rec.country)),country:validCountry(rec.country),kw:keywordOf(rec).slice(0,120)}).toString();
 }
 function couponSrc(rec,v){return `/assets/coupon-svg/${encodeURIComponent(rec.slug)}/${v}.svg?${params(rec)}`}
 function featuredSrc(rec){return couponSrc(rec,1)}
@@ -102,7 +101,7 @@ function css(){return `<style id="visual-v5">
 @media(max-width:640px){.blog-grid{grid-template-columns:1fr}.coupon-live-actions{gap:8px;padding-inline:10px}.coupon-copy-btn,.coupon-try-btn{min-width:0;flex:1;padding:12px 8px;font-size:14px}.a{font-size:16px;width:min(100%,calc(100% - 24px))!important}.article-featured,.coupon-visual,.article-visual{width:100%;max-width:100%;margin:22px 0;border-radius:14px}.article-featured figcaption,.coupon-visual figcaption,.article-visual figcaption{font-size:12px;padding-inline:12px}}
 </style>`}
 
-function js(){return `<script>(()=>{const fire=(name,data)=>{try{if(typeof window.gtag==='function')window.gtag('event',name,data);else{window.dataLayer=window.dataLayer||[];window.dataLayer.push({event:name,...data})}}catch{}};document.addEventListener('error',e=>{const img=e.target;if(!(img instanceof HTMLImageElement)||img.dataset.fallbackApplied==='1')return;const m=location.pathname.match(/^\/articles\/(.+)$/);if(!m)return;img.dataset.fallbackApplied='1';const code=document.querySelector('[data-copy-code]')?.dataset.copyCode||'NOV170',market=document.querySelector('[data-market]')?.dataset.market||'SA';img.src='/assets/coupon-svg/'+m[1]+'/1.svg?v=9&coupon='+encodeURIComponent(code)+'&country='+encodeURIComponent(market)},true);document.addEventListener('click',async e=>{const shop=e.target.closest('[data-shop-click]');if(shop)fire('shop_click',{coupon_code:shop.dataset.shopClick||'',market:shop.dataset.market||'UNSPECIFIED',page_path:location.pathname,placement:shop.dataset.placement||'article_visual',destination:shop.href||''});const b=e.target.closest('[data-copy-code]');if(!b)return;const code=b.dataset.copyCode||'',market=b.dataset.market||'UNSPECIFIED',placement=b.dataset.placement||'article_visual';let ok=false;try{await navigator.clipboard.writeText(code);ok=true;const old=b.textContent;b.classList.add('copied');b.textContent='تم النسخ ✓';setTimeout(()=>{b.textContent=old;b.classList.remove('copied')},1600)}catch{b.textContent=code}fire('copy_code',{coupon_code:code,market,page_path:location.pathname,placement,copy_success:ok})})})();</script>`}
+function js(){return `<script>(()=>{const fire=(name,data)=>{try{if(typeof window.gtag==='function')window.gtag('event',name,data);else{window.dataLayer=window.dataLayer||[];window.dataLayer.push({event:name,...data})}}catch{}};document.addEventListener('error',e=>{const img=e.target;if(!(img instanceof HTMLImageElement)||img.dataset.fallbackApplied==='1')return;const m=location.pathname.match(/^\/articles\/(.+)$/);if(!m)return;img.dataset.fallbackApplied='1';const code=document.querySelector('[data-copy-code]')?.dataset.copyCode||'NOV170',market=document.querySelector('[data-market]')?.dataset.market||'SA';img.src='/assets/coupon-svg/'+m[1]+'/1.svg?v=10&coupon='+encodeURIComponent(code)+'&country='+encodeURIComponent(market)},true);document.addEventListener('click',async e=>{const shop=e.target.closest('[data-shop-click]');if(shop)fire('shop_click',{coupon_code:shop.dataset.shopClick||'',market:shop.dataset.market||'UNSPECIFIED',page_path:location.pathname,placement:shop.dataset.placement||'article_visual',destination:shop.href||''});const b=e.target.closest('[data-copy-code]');if(!b)return;const code=b.dataset.copyCode||'',market=b.dataset.market||'UNSPECIFIED',placement=b.dataset.placement||'article_visual';let ok=false;try{await navigator.clipboard.writeText(code);ok=true;const old=b.textContent;b.classList.add('copied');b.textContent='تم النسخ ✓';setTimeout(()=>{b.textContent=old;b.classList.remove('copied')},1600)}catch{b.textContent=code}fire('copy_code',{coupon_code:code,market,page_path:location.pathname,placement,copy_success:ok})})})();</script>`}
 
 function imageSchema(rec,origin){
   const keyword=keywordOf(rec),featured=origin+featuredSrc(rec);
@@ -122,23 +121,19 @@ async function assetResponse(req,env,ctx){
   const u=new URL(req.url);
   let m=u.pathname.match(/^\/assets\/coupon-svg\/([^/]+)\/([1-5])\.svg$/);
   if(m){
-    const slug=decodeURIComponent(m[1]),v=Number(m[2]),queryCountry=validCountry(u.searchParams.get('country'));
-    let rec=null;
-    try{rec=await r2ArticleMeta(env,slug)}catch{}
-    if(!rec)rec={slug,coupon:validCoupon(u.searchParams.get('coupon'),queryCountry),country:queryCountry,title:slug,primaryKeyword:String(slug).replace(/[-_]+/g,' '),status:'published'};
+    const slug=decodeURIComponent(m[1]),v=Number(m[2]);
+    const rec=assetRecord(slug,u.searchParams);
     try{
       const svg=couponSvg({coupon:validCoupon(rec.coupon,validCountry(rec.country)),country:validCountry(rec.country),variant:v,brand:'noon',title:keywordOf(rec)});
-      return new Response(svg,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=31536000,immutable','x-content-type-options':'nosniff','x-image-source':'r2-or-safe-v9','x-svg-layout':'responsive-v9'}});
+      return new Response(svg,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=31536000,immutable','x-content-type-options':'nosniff','x-image-source':'deterministic-no-r2-head-v10','x-svg-layout':'responsive-v10'}});
     }catch{
       return new Response(safeFallbackSvg({slug,coupon:rec.coupon,country:rec.country}),{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public,max-age=3600','x-content-type-options':'nosniff','x-image-source':'fallback-v9','x-svg-layout':'responsive-v9'}});
     }
   }
   m=u.pathname.match(/^\/assets\/featured\/([^/]+)\.svg$/);
   if(m){
-    const slug=decodeURIComponent(m[1]),country=validCountry(u.searchParams.get('country'));
-    let rec=null;
-    try{rec=await r2ArticleMeta(env,slug)}catch{}
-    if(!rec)rec={slug,coupon:validCoupon(u.searchParams.get('coupon'),country),country,title:slug,primaryKeyword:String(slug).replace(/[-_]+/g,' '),status:'published'};
+    const slug=decodeURIComponent(m[1]);
+    const rec=assetRecord(slug,u.searchParams);
     return Response.redirect(new URL(couponSrc(rec,1),u.origin).toString(),308);
   }
   return null;
@@ -176,7 +171,7 @@ export default{
     let rec=(s.articles||[]).find(a=>a.slug===slug&&a.status==='published');
     if(!rec)rec=fallbackRec(h,slug);
     h=enhance(h,rec,u.origin);
-    const headers=new Headers(res.headers);headers.set('content-type','text/html; charset=utf-8');headers.set('cache-control','public,max-age=0,s-maxage=60');headers.set('x-visual-layout','responsive-v9');headers.set('x-svg-safe-area','70px');
+    const headers=new Headers(res.headers);headers.set('content-type','text/html; charset=utf-8');headers.set('cache-control','public,max-age=0,s-maxage=60');headers.set('x-visual-layout','responsive-v10');headers.set('x-svg-safe-area','70px');
     return new Response(h,{status:res.status,headers});
   },
   async scheduled(e,env,ctx){if(app.scheduled)return app.scheduled(e,env,ctx)}
