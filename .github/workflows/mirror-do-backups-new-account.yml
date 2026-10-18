@@ -1,4 +1,5 @@
 name: Hourly Protected DO Backup Mirror to New Cloudflare R2
+# Immediate mirror after confirmed ControlPlane manifest completion 2026-10-18 08:59 UTC
 
 on:
   push:
