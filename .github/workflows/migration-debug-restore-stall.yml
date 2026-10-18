@@ -1,0 +1,54 @@
+name: Diagnose NoonDealsNow Restore Stall Safely
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-debug-restore-stall.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+      R2_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inspect stalled restore's next R2 part and target manifest only
+        shell: bash
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check boto3
+          python3 - <<'PY'
+          import os,json,boto3
+          c=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['R2_ID'].strip(),aws_secret_access_key=os.environ['R2_SECRET'].strip())
+          bucket='nooncoupons-content-v2'
+          prefix='migration/do-state/20261017-baseline/ControlPlane/'
+          def read(key):
+              r=c.get_object(Bucket=bucket,Key=key)
+              try:return json.loads(r['Body'].read(200000))
+              finally:r['Body'].close()
+          marker=read('migration/restore-progress/20261017-baseline/ControlPlane.json')
+          manifest=read(prefix+'manifest.json')
+          print('RESTORE_STATE='+json.dumps({k:marker.get(k) for k in ('complete','partsDone','partsTotal','keysRestored','keysTotal','updatedAt')}),flush=True)
+          print('MANIFEST='+json.dumps({k:manifest.get(k) for k in ('complete','parts','exported','scanned')}),flush=True)
+          next_part=marker['partsDone']+1
+          for n in (next_part,next_part+1,manifest['parts']):
+              part=read(prefix+'part-'+str(n).zfill(7)+'.json')
+              keys=[row[0] for row in part['entries']]
+              print('PART_INSPECT '+json.dumps({'number':n,'entryCount':len(keys),'duplicateKeys':len(keys)-len(set(keys)),'type':part.get('type'),'tag':part.get('tag'),'validEntries':all(isinstance(x,list) and len(x)==2 and isinstance(x[0],str) for x in part.get('entries',[])),'maxKeyLength':max((len(k) for k in keys),default=0),'serializedBytes':len(json.dumps(part))}),flush=True)
+          PY
+      - name: Tail one live Cron invocation without modifying script or state
+        shell: bash
+        run: |
+          set +e
+          echo 'CRON_TAIL_START'
+          timeout 90s npx wrangler tail noondealsnow-migration-staging --format=json > /tmp/tail.log 2>/tmp/tail.err
+          result=$?
+          echo "TAIL_EXIT=$result"
+          grep -E 'do_migration_restore_(failed|progress|waiting)|error|exception|limit|exceed|scheduled' /tmp/tail.log | tail -n 35 | cut -c1-400 || true
+          grep -E 'error|Error|permission|Unauthorized|forbidden|tail' /tmp/tail.err | tail -n 12 | cut -c1-400 || true
+          echo 'CRON_TAIL_END'
