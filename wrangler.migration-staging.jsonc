@@ -1,0 +1,96 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "noondealsnow-migration-staging",
+  "main": "discovery-entry.js",
+  "compatibility_date": "2026-09-13",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "minify": true,
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "vars": {
+    "SITE_ORIGIN": "https://noondealsnow.com",
+    "SITE_NAME": "كوبونات نون",
+    "GLOBAL_PUBLISH_MIN_INTERVAL_SECONDS": "60",
+    "GLOBAL_PUBLISH_MAX_PER_MINUTE": "1",
+    "DEFAULT_LANGUAGE": "ar",
+    "DEFAULT_COUNTRY": "SA",
+    "AI_PRIMARY_PROVIDER": "workers-ai",
+    "WORKERS_AI_MODEL": "@cf/zai-org/glm-4.7-flash",
+    "WORKERS_AI_FALLBACK_MODEL": "@cf/google/gemma-4-26b-a4b-it",
+    "WORKERS_AI_DAILY_CAP": "60",
+    "WORKERS_AI_DAILY_CALL_CAP": "80",
+    "BULK_DAILY_TARGET": "0",
+    "BULK_BATCH_SIZE": "64",
+    "BULK_CATCHUP_TOTAL": "30000",
+    "BULK_CATCHUP_BATCH_SIZE": "64",
+    "BULK_CATCHUP_MIN_BATCH_SIZE": "32",
+    "BULK_CATCHUP_TARGET_BATCH_MS": "52000",
+    "BULK_CANDIDATE_BUDGET_MS": "15000",
+    "BULK_CATCHUP_WINDOW_HOURS": "8",
+    "LEGACY_UPGRADE_BATCH_SIZE": "4",
+    "QUALITY_PUBLISH_THRESHOLD": "95",
+    "MIN_ARTICLE_WORDS": "1500",
+    "TARGET_ARTICLE_WORDS": "1500",
+    "ENGLISH_CANARY_TOTAL": "2",
+    "ENGLISH_CONTROLLED_TOTAL": "50000",
+    "ENGLISH_DAILY_TARGET": "0",
+    "ENGLISH_MIN_INTERVAL_MINUTES": "1",
+    "ENGLISH_BATCH_SIZE": "23",
+    "AUTO_REPAIR_ROUNDS": "1",
+    "INDEXNOW_ENABLED": "false",
+    "R2_SAVER_MODE": "true",
+    "CPU_SAVER_MODE": "true",
+    "BULK_DAILY_PACE_MODE": "true",
+    "BULK_PACE_CANDIDATE_BUDGET_MS": "18000",
+    "BULK_PACE_MAX_ROUNDS": "8",
+    "ENGLISH_CPU_BUDGET_MS": "12000",
+    "R2_CLUSTER_FLUSH_MINUTES": "30",
+    "DO_MIGRATION_EXPORT_ENABLED": "false",
+    "DO_MIGRATION_EXPORT_TAG": "20261017-baseline",
+    "R2_DAYS_INDEX_FLUSH_MINUTES": "10",
+    "R2_COUPON_FRESHNESS_MINUTES": "60",
+    "INDEXNOW_KEY": "8a3c907d7cbe7404c97aba32ed3fc7c9",
+    "DO_MIGRATION_RESTORE_ENABLED": "true",
+    "DO_MIGRATION_RESTORE_PARTS_PER_TICK": "20"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.05
+  },
+  "r2_buckets": [
+    {
+      "binding": "CONTENT_FINAL",
+      "bucket_name": "nooncoupons-content-v2"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CONTROL",
+        "class_name": "ControlPlane"
+      },
+      {
+        "name": "GENERATOR_CONTROL",
+        "class_name": "GeneratorControl"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "platform-v1",
+      "new_sqlite_classes": [
+        "ControlPlane"
+      ]
+    },
+    {
+      "tag": "generator-v1",
+      "new_sqlite_classes": [
+        "GeneratorControl"
+      ]
+    }
+  ]
+}
