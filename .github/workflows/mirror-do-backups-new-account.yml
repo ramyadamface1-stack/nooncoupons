@@ -1,0 +1,99 @@
+name: Emergency Mirror Durable Object Backups to New R2
+
+on:
+  push:
+    branches: [migration/new-cloudflare-staging-deploy-20261018]
+    paths:
+      - '.github/workflows/mirror-do-backups-new-account.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noondealsnow-emergency-do-backup-mirror
+  cancel-in-progress: false
+
+jobs:
+  do-backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      SRC_ACCESS: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      SRC_SECRET: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      DEST_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      DEST_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Install boto3
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Mirror current private DO exports, SHA256 verify, no delete
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import boto3,botocore,os,re,hashlib,time,io,json
+          from botocore.config import Config
+          from concurrent.futures import ThreadPoolExecutor,as_completed
+          C=Config(signature_version='s3v4',connect_timeout=10,read_timeout=60,max_pool_connections=20,retries={'max_attempts':4,'mode':'standard'})
+          def cred(name,n):
+              v=os.environ.get(name,'').strip()
+              if not re.fullmatch(r'[a-fA-F0-9]{'+str(n)+'}',v):raise RuntimeError('invalid_key_shape_'+name)
+              return v
+          def client(ac,k,s):
+              return boto3.client('s3',region_name='auto',endpoint_url='https://'+ac+'.r2.cloudflarestorage.com',aws_access_key_id=cred(k,32),aws_secret_access_key=cred(s,64),config=C)
+          old=client('c82274152a942dea53044eae7153cfd7','SRC_ACCESS','SRC_SECRET')
+          new=client('e4c35f8a50a7b2e4cfb9d6c534962603','DEST_ACCESS','DEST_SECRET')
+          bucket='nooncoupons-content-v2'
+          prefix='migration/do-state/20261017-baseline/'
+          paginator=old.get_paginator('list_objects_v2')
+          objs=[item for page in paginator.paginate(Bucket=bucket,Prefix=prefix,PaginationConfig={'PageSize':1000}) for item in page.get('Contents',[])]
+          objs.sort(key=lambda x:(x['Key'].endswith('/manifest.json'),x['Key']))
+          print('SOURCE_DO_BACKUP_OBJECTS='+str(len(objs)),flush=True)
+          if not objs: raise RuntimeError('source_do_backup_not_available')
+          stats={'copied':0,'already_verified':0,'total_verified':0,'bytes_verified':0}
+          def obj_hash(client,key):
+              try:o=client.get_object(Bucket=bucket,Key=key)
+              except botocore.exceptions.ClientError as e:
+                  if str(e.response.get('Error',{}).get('Code')) in ('404','NoSuchKey','NotFound'):return None
+                  raise
+              try:
+                  data=o['Body'].read(16*1024*1024+1)
+                  if len(data)>16*1024*1024:raise RuntimeError('DO_archive_part_gt_16MB')
+                  info={'digest':hashlib.sha256(data).hexdigest(),'metadata':o.get('Metadata') or {},'contentType':o.get('ContentType'),'data':data}
+                  return info
+              finally:o['Body'].close()
+          def one(obj):
+              key=obj['Key']
+              source=obj_hash(old,key)
+              if source is None:raise RuntimeError('source_part_missing_during_copy')
+              target=obj_hash(new,key)
+              if target is None:
+                  new.put_object(Bucket=bucket,Key=key,Body=source['data'],ContentType=source['contentType'] or 'application/json',Metadata=source['metadata'])
+                  copied=True
+                  target=obj_hash(new,key)
+              else:copied=False
+              if target is None or target['digest']!=source['digest'] or target['metadata']!=source['metadata']:
+                  raise RuntimeError('DO_part_SHA256_or_metadata_mismatch_no_overwrite')
+              return copied,len(source['data']),key.endswith('/manifest.json')
+          # Bound concurrency and keep manifests for the very end so incomplete DO source does not falsely look complete.
+          parts=[x for x in objs if not x['Key'].endswith('/manifest.json')]
+          manifests=[x for x in objs if x['Key'].endswith('/manifest.json')]
+          for group in (parts,manifests):
+              with ThreadPoolExecutor(max_workers=8) as pool:
+                  futures=[pool.submit(one,obj) for obj in group]
+                  for i,future in enumerate(as_completed(futures),start=1):
+                      copied,n,is_manifest=future.result()
+                      stats['copied']+=int(copied);stats['already_verified']+=int(not copied)
+                      stats['total_verified']+=1;stats['bytes_verified']+=n
+                      if i%150==0:print('DO_MIRROR_PROGRESS='+str(i)+'/'+str(len(group)),flush=True)
+          print('DO_MIRROR_COPIED='+str(stats['copied']))
+          print('DO_MIRROR_ALREADY_VERIFIED='+str(stats['already_verified']))
+          print('DO_MIRROR_VERIFIED='+str(stats['total_verified']))
+          print('DO_MIRROR_BYTES='+str(stats['bytes_verified']))
+          print('DO_MANIFESTS_COPIED='+str(len(manifests)))
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              f.write('### Emergency DO state mirror to new R2\\n\\n')
+              for k,v in stats.items():f.write(f'- {k}: **{v}**\\n')
+              f.write(f'\\nManifest files at snapshot: **{len(manifests)}**. Production state can continue changing; final locked refresh still required before cutover. No deletes or DNS changes.\\n')
+          PY
