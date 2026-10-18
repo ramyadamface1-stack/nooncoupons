@@ -1,0 +1,52 @@
+name: Cutover Readiness - Current DO and R2 Backup Status
+
+on:
+  push:
+    branches:
+      - migration/activate-new-account-staging-20261018
+    paths:
+      - '.github/workflows/new-cloudflare-cutover-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    name: Read-only latest DO export manifest readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Inspect old-state export completeness, without changing files
+        run: |
+          python3 -u - <<'PY'
+          import boto3,os,json,botocore
+          from botocore.config import Config
+          c=boto3.client('s3',aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'].strip(),aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'].strip(),region_name='auto',endpoint_url='https://c82274152a942dea53044eae7153cfd7.r2.cloudflarestorage.com',config=Config(signature_version='s3v4',retries={'max_attempts':4},read_timeout=30))
+          b='nooncoupons-content-v2'; prefix='migration/do-state/20261017-baseline/'
+          for typ in ('ControlPlane','GeneratorControl'):
+            root=prefix+typ+'/'
+            key=root+'manifest.json'
+            p=c.list_objects_v2(Bucket=b,Prefix=root,MaxKeys=1000)
+            first_page=p.get('Contents',[])
+            files=len(first_page)
+            print('SOURCE_DO_'+typ+'_FIRST_PAGE_OBJECTS='+str(files))
+            print('SOURCE_DO_'+typ+'_HAS_MORE='+str(bool(p.get('IsTruncated'))).lower())
+            try:manifest=c.get_object(Bucket=b,Key=key)
+            except botocore.exceptions.ClientError as exc:
+              if str(exc.response.get('Error',{}).get('Code')) in ('NoSuchKey','404','NotFound'):
+                print('SOURCE_DO_'+typ+'_MANIFEST=pending')
+                continue
+              raise
+            try:doc=json.loads(manifest['Body'].read(10000))
+            finally:manifest['Body'].close()
+            print('SOURCE_DO_'+typ+'_MANIFEST=present')
+            print('SOURCE_DO_'+typ+'_EXPORTED_KEYS='+str(doc.get('exported')))
+            print('SOURCE_DO_'+typ+'_PARTS='+str(doc.get('parts')))
+            print('SOURCE_DO_'+typ+'_COMPLETE='+str(doc.get('complete')).lower())
+          PY
