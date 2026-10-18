@@ -1,0 +1,67 @@
+name: NoonDealsNow Live Migration Blocker Check
+
+on:
+  push:
+    branches: [migration/new-cloudflare-staging-deploy-20261018]
+    paths:
+      - '.github/workflows/migration-live-blockers-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      SOURCE_ACCESS: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      SOURCE_SECRET: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      TARGET_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      TARGET_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Install boto3
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Check manifests, backed-up state parts, resume checkpoint and data volume
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import os, json, boto3,botocore
+          from botocore.config import Config
+          c=Config(signature_version='s3v4',read_timeout=35,connect_timeout=10,retries={'max_attempts':3,'mode':'standard'})
+          b='nooncoupons-content-v2'
+          def conn(account,a,s):
+              return boto3.client('s3',region_name='auto',endpoint_url='https://'+account+'.r2.cloudflarestorage.com',aws_access_key_id=os.environ[a].strip(),aws_secret_access_key=os.environ[s].strip(),config=c)
+          src=conn('c82274152a942dea53044eae7153cfd7','SOURCE_ACCESS','SOURCE_SECRET')
+          dst=conn('e4c35f8a50a7b2e4cfb9d6c534962603','TARGET_ACCESS','TARGET_SECRET')
+          def get_json(client,key):
+              try:r=client.get_object(Bucket=b,Key=key)
+              except botocore.exceptions.ClientError as e:
+                  if str(e.response.get('Error',{}).get('Code')) in ('NoSuchKey','404','NotFound'):return None
+                  raise
+              try:return json.loads(r['Body'].read(100000))
+              finally:r['Body'].close()
+          for typ in ['ControlPlane','GeneratorControl']:
+              prefix='migration/do-state/20261017-baseline/'+typ+'/'
+              for label,client in [('SOURCE',src),('TARGET',dst)]:
+                  first=client.list_objects_v2(Bucket=b,Prefix=prefix,MaxKeys=1000)
+                  keys=[i['Key'] for i in first.get('Contents',[])]
+                  print(f'{label}_{typ.upper()}_FIRST_1000='+str(len(keys)),flush=True)
+                  print(f'{label}_{typ.upper()}_MORE='+str(bool(first.get('IsTruncated'))).lower(),flush=True)
+                  manifest=get_json(client,prefix+'manifest.json')
+                  print(f'{label}_{typ.upper()}_MANIFEST='+('present' if manifest else 'missing'),flush=True)
+                  if manifest:print(f'{label}_{typ.upper()}_PARTS='+str(manifest.get('parts'))+';EXPORTED='+str(manifest.get('exported'))+';COMPLETE='+str(manifest.get('complete')),flush=True)
+          ck=get_json(dst,'migration/transfer/initial-copy-checkpoint-v2.json')
+          print('TARGET_COPY_CHECKPOINT='+('present' if ck else 'missing'))
+          if ck:
+              print('TARGET_COPY_PREFIX_INDEX='+str(ck.get('prefix_index')))
+              print('TARGET_COPY_SAVED_AT='+str(ck.get('savedAt')))
+              print('TARGET_COPY_STATUS='+str(ck.get('status')))
+              print('TARGET_COPY_CURSOR_PRESENT='+str(bool(ck.get('continuation'))).lower())
+          p=dst.list_objects_v2(Bucket=b,Prefix='articles/',MaxKeys=1)
+          print('TARGET_ARTICLES_NONEMPTY='+str(bool(p.get('Contents'))).lower())
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
+              f.write('### Destination migration prerequisites\n\n')
+              f.write('Source ControlPlane manifest is mandatory for final verified restore. Source keeps publishing; full final delta and checksum comparison still required.\n')
+          PY
