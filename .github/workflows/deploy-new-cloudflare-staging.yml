@@ -1,0 +1,73 @@
+name: Deploy Isolated Worker to NEW Cloudflare Account
+
+on:
+  push:
+    branches: [migration/new-cloudflare-staging-deploy-20261018]
+    paths:
+      - '.github/workflows/deploy-new-cloudflare-staging.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noondealsnow-new-account-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Staging isolation invariants
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const x=JSON.parse(fs.readFileSync('wrangler.migration-staging.jsonc','utf8'));
+          if(x.name!=='noondealsnow-migration-staging')throw Error('bad worker name');
+          if(x.workers_dev!==false||(x.routes||[]).length||(x.triggers?.crons||[]).length)throw Error('must not be publicly routable or scheduled');
+          if(x.vars.BULK_DAILY_TARGET!=='0'||x.vars.ENGLISH_DAILY_TARGET!=='0'||x.vars.DO_MIGRATION_RESTORE_ENABLED!=='false'||x.vars.DO_MIGRATION_EXPORT_ENABLED!=='false')throw Error('writer or DO migration accidentally active');
+          if(x.ai||x.vars.INDEXNOW_ENABLED==='false'&&false)throw Error('AI binding unexpected');
+          if(!x.r2_buckets?.some(b=>b.binding==='CONTENT_FINAL'&&b.bucket_name==='nooncoupons-content-v2'))throw Error('bucket missing');
+          console.log('NEW_ACCOUNT_STAGING_ISOLATION=ok');
+          NODE
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo 'NEW_CF_TOKEN=missing'; exit 2; fi
+          echo "::add-mask::$CLOUDFLARE_API_TOKEN"
+      - name: Verify token is scoped to new Cloudflare account
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/new-verify.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify")
+          [ "$code" = 200 ] || { echo "NEW_CF_VERIFY_HTTP=$code"; exit 3; }
+          jq -e '.success==true and .result.status=="active"' /tmp/new-verify.json >/dev/null
+          echo "NEW_CF_TOKEN_ACTIVE=ok"
+      - name: Install Wrangler
+        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Build isolated Worker
+        run: npx wrangler deploy --dry-run --config wrangler.migration-staging.jsonc --outdir /tmp/new-account-stage-build
+      - name: Deploy dormant Worker ONLY to new account
+        run: npx wrangler deploy --config wrangler.migration-staging.jsonc
+      - name: Verify isolated Worker exists on destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          CODE=$(curl -sS -o /tmp/staging-script.json -w '%{http_code}' \
+             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/noondealsnow-migration-staging")
+          echo "NEW_STAGING_WORKER_LOOKUP_HTTP=$CODE"
+          test "$CODE" = 200
+          jq -e '.success==true' /tmp/staging-script.json >/dev/null
+          echo "NEW_STAGING_WORKER_EXISTS=yes"
+          echo "NEW_STAGING_PUBLIC_ROUTES=none_by_config"
+          echo "NEW_STAGING_CRONS=none_by_config"
