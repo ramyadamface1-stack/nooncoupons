@@ -1,0 +1,80 @@
+name: Deploy Dormant NoonDealsNow Worker to New Cloudflare Account
+
+on:
+  push:
+    branches:
+      - migration/activate-new-account-staging-20261018
+    paths:
+      - '.github/workflows/new-cloudflare-staging-deploy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noondealsnow-new-account-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CI: 'true'
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify all safeguards and credentials before creating staging Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const x=JSON.parse(fs.readFileSync('wrangler.migration-staging.jsonc','utf8'));
+          const block=(k)=>{if(!k)throw Error('STAGING_SAFETY_CHECK_FAILED')};
+          block(x.name==='noondealsnow-migration-staging');
+          block(x.workers_dev===false);
+          block(!x.routes||x.routes.length===0);
+          block((x.triggers?.crons||[]).length===0);
+          block(x.vars.BULK_DAILY_TARGET==='0');
+          block(x.vars.ENGLISH_DAILY_TARGET==='0');
+          block(x.vars.DO_MIGRATION_EXPORT_ENABLED==='false');
+          block(x.vars.DO_MIGRATION_RESTORE_ENABLED==='false');
+          block(x.vars.INDEXNOW_ENABLED==='false');
+          block(!x.ai);
+          block(x.r2_buckets?.[0]?.bucket_name==='nooncoupons-content-v2');
+          console.log('STAGING_SAFE_TO_DEPLOY=true');
+          NODE
+      - name: Install Wrangler, bundle Worker without publishing
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --config wrangler.migration-staging.jsonc --dry-run --outdir /tmp/staging-dryrun
+          echo STAGING_BUNDLE=passed
+      - name: Create Worker in new Cloudflare account, no cron / DNS
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --config wrangler.migration-staging.jsonc
+          echo NEW_ACCOUNT_STAGING_DEPLOY=ok
+      - name: Confirm new account script exists through read-only Cloudflare API
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl --silent --show-error --retry 3 --output /tmp/cf-script-result \
+            -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/noondealsnow-migration-staging")
+          echo NEW_ACCOUNT_STAGING_SCRIPT_HTTP="$code"
+          if [ "$code" != "200" ]; then
+            echo "::error::Staging script verification failed; public DNS unchanged"
+            exit 6
+          fi
+          echo NEW_ACCOUNT_STAGING_VERIFIED=true
+          echo '### Migration staging Worker (NEW Cloudflare account)' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Worker exists under new account. No workers.dev, routes, cron, AI, or publishing enabled. No DNS cutover.' >> "$GITHUB_STEP_SUMMARY"
