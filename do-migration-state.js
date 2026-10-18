@@ -31,9 +31,9 @@ export async function snapshotDurableObjectKeys(storage,env,type){
     return json({ok:true,complete:true,...state});
   }
   // Bounded acceleration for emergency source-account migration:
-  // the default remains two pages; production opts into six, never more.
+  // the default remains two pages; production opts into twenty, never more.
   const configured=Number.parseInt(String(env.DO_MIGRATION_EXPORT_PAGES_PER_TICK||'2'),10);
-  const pagesPerRequest=Number.isFinite(configured)?Math.max(1,Math.min(6,configured)):2;
+  const pagesPerRequest=Number.isFinite(configured)?Math.max(1,Math.min(20,configured)):2;
   const pageSize=128,startedAt=Date.now();
   let scanned=0,exported=0,lastPart=0;
   for(let i=0;i<pagesPerRequest;i++){
