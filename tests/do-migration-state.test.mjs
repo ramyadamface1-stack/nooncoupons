@@ -59,3 +59,37 @@ test('unsupported structured clone type blocks export before any writes',async()
   assert.equal(a.status,422);
   assert.equal(r2.objects.size,0);
 });
+
+test('bounded acceleration exports six pages per tick and resumes without losing keys',async()=>{
+  const input={};
+  for(let i=0;i<950;i++)input['article-'+String(i).padStart(5,'0')]={slug:'article-'+i,score:95};
+  const state=makeStorage(input),r2=makeR2();
+  const env={...exportEnv(r2),DO_MIGRATION_EXPORT_PAGES_PER_TICK:'6'};
+  let response=await snapshotDurableObjectKeys(state,env,'ControlPlane');
+  let first=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(first.complete,false);
+  assert.equal(first.lastPart,6);
+  assert.equal(first.totalExported,768);
+  response=await snapshotDurableObjectKeys(state,env,'ControlPlane');
+  const second=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(second.complete,true);
+  assert.equal(second.totalExported,950);
+  const manifest=JSON.parse(r2.objects.get('migration/do-state/migration-test/ControlPlane/manifest.json'));
+  assert.equal(manifest.parts,8);
+  assert.equal(manifest.exported,950);
+  assert.equal(manifest.complete,true);
+  assert.equal(state.raw.get('article-00000').slug,'article-0');
+});
+
+test('malformed export rate is safely clamped and legacy default remains two pages',async()=>{
+  const input={};
+  for(let i=0;i<850;i++)input['row-'+String(i).padStart(5,'0')]=i;
+  const original=makeStorage(input),r2=makeR2();
+  const response=await snapshotDurableObjectKeys(original,{...exportEnv(r2),DO_MIGRATION_EXPORT_PAGES_PER_TICK:'99999'},'ControlPlane');
+  assert.equal((await response.json()).lastPart,6);
+  const another=makeStorage(input),r2b=makeR2();
+  const baseline=await snapshotDurableObjectKeys(another,exportEnv(r2b),'ControlPlane');
+  assert.equal((await baseline.json()).lastPart,2);
+});
