@@ -1,0 +1,36 @@
+name: Test Resumable R2 Copy of Live Mutable Keys
+
+on:
+  push:
+    paths:
+      - '.github/workflows/test-r2-copy-mutable-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --quiet boto3
+      - run: python -m py_compile .github/scripts/migrate-r2-resumable.py tests/test_migration_mutable_r2.py
+      - run: python -m unittest discover -s tests -p 'test_migration_mutable_r2.py' -v
+      - name: Assert no deletes and checkpoint after deferred audit
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path('.github/scripts/migrate-r2-resumable.py').read_text()
+          assert 'delete_object(' not in s
+          assert 'delete_objects(' not in s
+          assert 'save_deferred_page(prefix, token)' in s
+          assert s.index('save_deferred_page(prefix, token)') < s.index('write_checkpoint(idx,next_token,"copying")')
+          assert 'source_size_changed_during_copy' in s
+          assert 'destination_existing_mismatch_no_overwrite' in s
+          print('MUTABLE_R2_COPY_SAFETY=passed')
+          PY
