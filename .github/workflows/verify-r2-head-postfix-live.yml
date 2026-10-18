@@ -1,0 +1,78 @@
+name: Verify Production R2 Public HEAD Savings
+
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-r2-head-postfix-live.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Smoke test live article and public SVG
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check image and article production responses
+        shell: bash
+        run: |
+          set -euo pipefail
+          image='https://noondealsnow.com/assets/coupon-svg/en-samsung-tv-noon-uae-shopping-guide-dubai-deals/1.svg?v=10&coupon=NOV188&country=AE&kw=Samsung%20TV%20UAE'
+          IMG_HTTP=$(curl -L --silent --show-error --connect-timeout 10 --max-time 30 -o /tmp/image.svg -D /tmp/image.headers -w '%{http_code}' "$image")
+          echo "PRODUCTION_SVG_HTTP=$IMG_HTTP"
+          echo "PRODUCTION_SVG_SOURCE=$(grep -i '^x-image-source:' /tmp/image.headers | tail -1 | tr -d '\r' | sed 's/.*: *//I')"
+          grep -qi 'x-image-source: deterministic-no-r2-head-v10' /tmp/image.headers
+          grep -qi '<svg' /tmp/image.svg
+          url="https://noondealsnow.com/articles/en-samsung-tv-noon-uae-shopping-guide-dubai-deals?fix_verify=$GITHUB_RUN_ID"
+          HTTP=$(curl -L --silent --show-error --connect-timeout 10 --max-time 45 -o /tmp/article.html -D /tmp/article.headers -w '%{http_code}' "$url")
+          echo "PRODUCTION_ARTICLE_HTTP=$HTTP"
+          if [ "$HTTP" = "200" ]; then
+            grep -qi 'x-r2-head-avoided: public-article-v1' /tmp/article.headers
+            grep -qi '<html' /tmp/article.html
+            echo "PRODUCTION_ARTICLE_NO_HEAD=verified"
+          else
+            echo "PRODUCTION_ARTICLE_SAMPLE=unavailable_or_noncanonical"
+          fi
+          echo "PRODUCTION_SVG_NO_R2_HEAD=verified"
+
+  metrics:
+    name: Measure R2 HEAD after propagation
+    runs-on: ubuntu-latest
+    needs: smoke
+    timeout-minutes: 19
+    env:
+      CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+    steps:
+      - name: Wait for 10-minute stable post-deploy sample
+        run: sleep 600
+      - name: Measure 5-minute HEAD usage on source R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {appendFileSync} from 'node:fs';
+          const token=process.env.CF_TOKEN;
+          if(!token){console.log('HEAD_POST_FIX=unavailable_missing_read_token');process.exit(2)}
+          const now=Date.now(), start=new Date(now-40*60_000).toISOString(),end=new Date(now).toISOString();
+          const query='query($accountTag: string!, $startDate: Time, $endDate: Time, $bucketName: string){viewer{accounts(filter:{accountTag:$accountTag}){r2OperationsAdaptiveGroups(limit:1000,filter:{datetime_geq:$startDate,datetime_leq:$endDate,bucketName:$bucketName,actionType:"HeadObject"}){sum{requests} dimensions{datetimeFiveMinutes actionStatus}}}}}';
+          const variables={accountTag:'c82274152a942dea53044eae7153cfd7',bucketName:'nooncoupons-content-v2',startDate:start,endDate:end};
+          const res=await fetch('https://api.cloudflare.com/client/v4/graphql',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({query,variables})});
+          const payload=await res.json();
+          if(!res.ok||payload.errors?.length){console.log('HEAD_POST_FIX=analytics_unavailable');process.exit(3)}
+          const groups=payload?.data?.viewer?.accounts?.[0]?.r2OperationsAdaptiveGroups;
+          if(!Array.isArray(groups)){console.log('HEAD_POST_FIX=missing_groups');process.exit(4)}
+          const buckets=new Map();
+          for(const row of groups){const when=row.dimensions?.datetimeFiveMinutes,count=Number(row.sum?.requests||0);if(when)buckets.set(when,(buckets.get(when)||0)+count)}
+          const cutoff=Date.now()-10*60_000;let recent=0,recentBuckets=0;
+          for(const [when,count] of buckets){if(Date.parse(when)>=cutoff){recent+=count;recentBuckets++}}
+          const sorted=[...buckets.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+          for(const [when,count] of sorted.slice(-9))console.log('HEAD_POST_FIX_5MIN '+when+' '+count);
+          console.log('HEAD_POST_FIX_LAST_10MIN='+recent);
+          console.log('HEAD_POST_FIX_LAST_10MIN_BUCKETS='+recentBuckets);
+          console.log('HEAD_POST_FIX_EST_HOURLY='+Math.round(recent*6));
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY,'### R2 HEAD after public SVG fix\n\nLast 10-minute five-minute buckets: **'+recent+'** HEAD (approx. '+Math.round(recent*6)+'/hour equivalent). Compare to 294,964 HEAD/hour baseline on 2026-10-18 00:02 UTC. Data is adaptive, may lag. Bucket: nooncoupons-content-v2.\n');
+          if(recentBuckets<1)console.log('::warning::No complete five-minute buckets in requested sample');
+          if(recent>=42_000/6)console.log('::warning::R2 HEAD still high after patch; inspect remaining producers and external traffic');
+          NODE
