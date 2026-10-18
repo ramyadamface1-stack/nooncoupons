@@ -1,0 +1,32 @@
+name: Migration Fresh Durable Object Restore Check
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-restore-now.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  read-checkpoints:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      R2_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Read actual restored DO part and key totals from new R2 markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,datetime,boto3
+          c=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['R2_ID'].strip(),aws_secret_access_key=os.environ['R2_SECRET'].strip())
+          for typ in ('ControlPlane','GeneratorControl'):
+              key='migration/restore-progress/20261017-baseline/'+typ+'.json'
+              obj=c.get_object(Bucket='nooncoupons-content-v2',Key=key)
+              try:x=json.loads(obj['Body'].read(30000))
+              finally:obj['Body'].close()
+              print('RESTORE_'+typ+'='+json.dumps({k:x.get(k) for k in ('complete','partsDone','partsTotal','keysRestored','keysTotal','updatedAt')}),flush=True)
+          print('CHECK_TIME_UTC='+datetime.datetime.now(datetime.timezone.utc).isoformat(),flush=True)
+          PY
