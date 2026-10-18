@@ -27,3 +27,5 @@ jobs:
           python3 -m pip install --quiet --disable-pip-version-check boto3
           python3 -m unittest discover -s tests -p 'test_r2_article_delta.py' -v
           python3 -u .github/scripts/migrate-r2-article-delta.py
+
+# Repeat safe missing-only delta after checking updated DNS credentials, 2026-10-18.
