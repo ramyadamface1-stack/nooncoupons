@@ -1,0 +1,25 @@
+name: Verify Public R2 HEAD Cost Fix
+# Regression gate v2: deterministic SVG asset and article metadata paths
+
+on:
+  push:
+    paths:
+      - '.github/workflows/verify-r2-public-head-fix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-no-public-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check visual-platform.js && node --check premium-entry.js
+      - run: node --test tests/r2-public-head-storm.test.mjs tests/r2-saver.test.mjs
+      - run: npm install --no-audit --no-fund --ignore-scripts
+      - run: npx wrangler deploy --dry-run --outdir /tmp/r2-head-fix-worker

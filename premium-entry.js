@@ -43,23 +43,35 @@ async function enhanceArticle(req,env,res){
   const u=new URL(req.url),slug=decodeURIComponent(u.pathname.split('/').filter(Boolean).pop()||'');
   if(!slug||!env.CONTENT_FINAL)return res;
   let md={};
-  // The article renderer already fetched R2 metadata with the article body.
-  // Legacy article routes without these headers keep the safe HEAD fallback.
+  // No extra R2 HEAD is allowed on public pages. Read existing response headers,
+  // or recover dates from the HTML/JSON-LD already rendered for legacy articles.
   if(res.headers.get('x-r2-article-metadata')==='v1'){
     md={c:res.headers.get('x-article-country')||'SA',at:res.headers.get('x-article-published-at')||'',ua:res.headers.get('x-article-modified-at')||''};
-  }else{
-    try{const o=await env.CONTENT_FINAL.head('articles/'+slug+'.html');md=o?.customMetadata||{}}catch{}
+  }else if(res.ok&&(res.headers.get('content-type')||'').includes('text/html')){
+    const body=await res.text();
+    const pickDate=(key)=>{
+      const x=body.match(new RegExp('"'+key+'"\\s*:\\s*"([^"]+)"','i'));
+      return x?.[1]||'';
+    };
+    const firstTime=body.match(/<time\b[^>]*\bdatetime=["']([^"']+)["']/i)?.[1]||'';
+    md={c:/<html[^>]+lang=["']en[-_]AE["']/i.test(body)||/\ben-[^"']*uae/i.test(slug)?'AE':'SA',
+      at:pickDate('datePublished')||firstTime,
+      ua:pickDate('dateModified')};
+    res=new Response(body,{status:res.status,statusText:res.statusText,headers:res.headers});
   }
   const latest=await readRecentPublicManifest(env),rec=(latest.articles||[]).find(a=>a?.slug===slug)||{slug,country:md.c||'SA'};
-  const origin=env.SITE_ORIGIN||u.origin,published=md.at||rec.publishedAt||rec.createdAt||rec.updatedAt||new Date().toISOString(),modified=md.ua||rec.updatedAt||published,isAE=(rec.country||md.c)==='AE',market=isAE?'الإمارات':'السعودية',lang=isAE?'ar-AE':'ar-SA',canonical=origin+'/articles/'+enc(slug);
-  const add=`<meta name="author" content="فريق تحرير كوبونات نون"><meta property="og:site_name" content="كوبونات نون"><meta property="article:published_time" content="${esc(published)}"><meta property="article:modified_time" content="${esc(modified)}"><meta property="article:section" content="نون ${market}"><link rel="alternate" hreflang="${lang}" href="${esc(canonical)}"><link rel="alternate" hreflang="x-default" href="${esc(canonical)}"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}">`;
+  const dateOrEmpty=x=>{const n=Date.parse(String(x||''));return Number.isFinite(n)?new Date(n).toISOString():''};
+  const origin=env.SITE_ORIGIN||u.origin,published=dateOrEmpty(md.at||rec.publishedAt||rec.createdAt||rec.updatedAt),modified=dateOrEmpty(md.ua||rec.updatedAt||published),isAE=(rec.country||md.c)==='AE',market=isAE?'الإمارات':'السعودية',lang=isAE?'ar-AE':'ar-SA',canonical=origin+'/articles/'+enc(slug);
+  const pubMeta=published?`<meta property="article:published_time" content="${esc(published)}">`:'';
+  const modMeta=modified?`<meta property="article:modified_time" content="${esc(modified)}">`:'';
+  const add=`<meta name="author" content="فريق تحرير كوبونات نون"><meta property="og:site_name" content="كوبونات نون">${pubMeta}${modMeta}<meta property="article:section" content="نون ${market}"><link rel="alternate" hreflang="${lang}" href="${esc(canonical)}"><link rel="alternate" hreflang="x-default" href="${esc(canonical)}"><link rel="alternate" type="application/rss+xml" title="كوبونات نون — أحدث الأدلة" href="${esc(origin+'/feed.xml')}">`;
   res=await injectHead(res,add,'article-v7',lang);
   if(!res.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
   let html=await res.text();
   const publishLabel=cairoPublishLabel(published);
   if(publishLabel)html=html.replace(/(<aside class="article-byline"[\s\S]*?<span>)\s*·\s*نُشر\s+[^<]*?(\s*·\s*آخر تحديث\s+[^<]*<\/span>)/i,'$1 · نُشر '+esc(publishLabel)+'$2');
   if(!html.includes('id="article-topic-path"'))html=html.replace(/<\/body>/i,articleTopicPathHtml(rec)+'</body>');
-  const h=new Headers(res.headers);h.delete('content-length');h.set('x-article-topic-path','v1');h.set('x-publish-time-zone','Africa/Cairo');
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-article-topic-path','v1');h.set('x-publish-time-zone','Africa/Cairo');h.set('x-r2-head-avoided','public-article-v1');
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
