@@ -30,3 +30,5 @@ jobs:
               print('RESTORE_'+typ+'='+json.dumps({k:x.get(k) for k in ('complete','partsDone','partsTotal','keysRestored','keysTotal','updatedAt')}),flush=True)
           print('CHECK_TIME_UTC='+datetime.datetime.now(datetime.timezone.utc).isoformat(),flush=True)
           PY
+
+# Refresh DO checkpoints during DNS permission recheck, 2026-10-18.
