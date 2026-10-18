@@ -49,6 +49,34 @@ jobs:
           timeout 90s npx wrangler tail noondealsnow-migration-staging --format=json > /tmp/tail.log 2>/tmp/tail.err
           result=$?
           echo "TAIL_EXIT=$result"
-          grep -E 'do_migration_restore_(failed|progress|waiting)|error|exception|limit|exceed|scheduled' /tmp/tail.log | tail -n 35 | cut -c1-400 || true
+          python3 - <<'PY'
+          import json
+          text=open('/tmp/tail.log',errors='replace').read()
+          decoder=json.JSONDecoder()
+          offset=0
+          events=0
+          while offset<len(text):
+              while offset<len(text) and text[offset].isspace():offset+=1
+              try:
+                  obj,new=decoder.raw_decode(text,offset)
+                  offset=new
+              except json.JSONDecodeError:
+                  p=text.find('{',offset+1)
+                  if p<0:break
+                  offset=p
+                  continue
+              if not isinstance(obj,dict):continue
+              events+=1
+              print('CRON_EVENT='+json.dumps({'outcome':obj.get('outcome'),'event':obj.get('event'),'eventTimestamp':obj.get('eventTimestamp')},default=str)[:600],flush=True)
+              for entry in obj.get('logs') or []:
+                  val=entry.get('message') if isinstance(entry,dict) else entry
+                  raw=' '.join(map(str,val)) if isinstance(val,list) else str(val)
+                  if 'do_migration_restore_' in raw or 'Error' in raw or 'limit' in raw.lower():
+                      print('RESTORE_LOG='+raw[:800],flush=True)
+              for error in obj.get('exceptions') or []:
+                  safe={'name':error.get('name'),'message':str(error.get('message',''))[:700]} if isinstance(error,dict) else {'message':str(error)[:700]}
+                  print('CRON_EXCEPTION='+json.dumps(safe),flush=True)
+          print('PARSED_CRON_EVENTS='+str(events),flush=True)
+          PY
           grep -E 'error|Error|permission|Unauthorized|forbidden|tail' /tmp/tail.err | tail -n 12 | cut -c1-400 || true
           echo 'CRON_TAIL_END'
