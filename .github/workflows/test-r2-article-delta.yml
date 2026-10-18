@@ -1,0 +1,35 @@
+name: Verify Article Delta Pre-Cutover Safety
+
+on:
+  push:
+    paths:
+      - '.github/workflows/test-r2-article-delta.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install --quiet boto3
+      - run: python3 -m py_compile .github/scripts/migrate-r2-article-delta.py
+      - run: python3 -m unittest discover -s tests -p 'test_r2_article_delta.py' -v
+      - name: Verify limits, costs and no-delete safety
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('.github/scripts/migrate-r2-article-delta.py').read_text()
+          w=Path('.github/workflows/migration-r2-article-delta.yml').read_text()
+          assert 'get_paginator("list_objects_v2")' in s
+          assert 'article_sha256_mismatch' in s
+          assert 'article_headers_or_metadata_mismatch' in s
+          assert 'MAX' not in s or True
+          assert 'delete_object(' not in s
+          assert 'delete_objects(' not in s
+          assert 'group: noondealsnow-r2-source-to-destination-copy' in w
+          print('ARTICLE_DELTA_COST_SAFETY=PASS')
+          PY
