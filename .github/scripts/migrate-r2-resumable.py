@@ -19,8 +19,14 @@ TRANSFER = TransferConfig(multipart_threshold=16 * CHUNK_SIZE, multipart_chunksi
 CFG = Config(signature_version="s3v4", connect_timeout=10, read_timeout=70,
              max_pool_connections=36, retries={"max_attempts":5,"mode":"standard"})
 FIELDS = ("ContentType", "CacheControl", "ContentDisposition", "ContentEncoding", "ContentLanguage", "Expires")
+# Changing indexes/journals can be rewritten while the original site keeps publishing.
+# NEVER overwrite their destination versions during the initial copy; finalize after
+# the source writer is stopped and a fresh manifest/snapshot is collected.
+VOLATILE_PREFIXES = ("quality/", "maintenance/", "bulk/", "english-canary/", "_ops/", "freshness/", "legacy-upgrade/")
+deferred_by_page = []
+
 lock = threading.Lock()
-totals = {"source_seen":0, "copied":0,"resumed":0, "bytes_copied":0, "bytes_resumed":0, "source_pages":0, "verified":0, "errors":0}
+totals = {"source_seen":0, "copied":0,"resumed":0, "bytes_copied":0, "bytes_resumed":0, "source_pages":0, "verified":0, "deferred":0, "source_changed":0, "errors":0}
 start = time.monotonic()
 # Bounded 310 min run to leave enough time for Actions cleanup.
 time_limit_seconds = 285 * 60
@@ -109,6 +115,34 @@ def existing_hash(key):
     finally:
         o["Body"].close()
 
+def is_volatile(key):
+    return key.startswith(VOLATILE_PREFIXES)
+
+def defer_volatile(key, reason):
+    if not is_volatile(key):
+        raise RuntimeError("unsafe_defer_of_immutable_object: " + key)
+    with lock:
+        totals["deferred"] += 1
+        deferred_by_page.append({"key":key, "reason":reason})
+    return
+
+def save_deferred_page(prefix, cursor):
+    # Write the audit record before advancing the page cursor.
+    # The user can reconcile every skipped mutable key during final quiesced delta.
+    with lock:
+        rows = list(deferred_by_page)
+    if not rows:
+        return
+    digest = hashlib.sha256((prefix+"\x00"+str(cursor or "")).encode("utf8")).hexdigest()
+    key = "migration/transfer/deferred-volatile-v1/" + digest + ".json"
+    doc = {"version":1,"prefix":prefix,"cursorDigest":digest,
+           "sourceStillActive":True,"objects":rows,
+           "recordedAt":int(time.time())}
+    new.put_object(Bucket=BUCKET,Key=key,
+                   Body=json.dumps(doc,separators=(",",":")).encode("utf8"),
+                   ContentType="application/json",CacheControl="private, no-store")
+    print("COPY_VOLATILE_DEFERRED_PAGE="+prefix+";COUNT="+str(len(rows))+";AUDIT_KEY="+key,flush=True)
+
 def migrate_one(entry):
     key=entry["Key"]
     obj=old.get_object(Bucket=BUCKET,Key=key)
@@ -118,13 +152,23 @@ def migrate_one(entry):
         obj["Body"].close()
     try:
         if size!=int(entry["Size"]):
-            raise RuntimeError("source_size_changed_during_copy: "+key)
+            if not is_volatile(key):
+                raise RuntimeError("source_size_changed_during_copy: "+key)
+            # This dynamic index was rewritten between ListObjects and GET.
+            # The bytes returned by GET are the actual candidate we can verify.
+            with lock:
+                totals["source_changed"]+=1
         headers={f:obj[f] for f in FIELDS if obj.get(f) is not None}
         metadata=obj.get("Metadata",{})
         remote=existing_hash(key)
         if remote is not None:
             digest2,n,h,m=remote
             if digest!=digest2 or n!=size or h!=headers or m!=metadata:
+                if is_volatile(key):
+                    # Never replace live-mutating state in the destination during
+                    # a non-quiesced copy. It remains an explicit cutover blocker.
+                    defer_volatile(key,"destination_differs_from_live_source")
+                    return
                 raise RuntimeError("destination_existing_mismatch_no_overwrite: "+key)
             with lock:
                 totals["resumed"]+=1
@@ -186,6 +230,8 @@ def main():
                 if token: args["ContinuationToken"]=token
                 page=old.list_objects_v2(**args)
                 totals["source_pages"]+=1
+                with lock:
+                    deferred_by_page.clear()
                 futures=set()
                 for entry in page.get("Contents",()):
                     totals["source_seen"]+=1
@@ -193,8 +239,9 @@ def main():
                     if len(futures)>=QUEUE_LIMIT:
                         futures=drain_once(futures)
                 while futures: futures=drain_once(futures)
-                if totals["source_seen"]!=totals["verified"]:
+                if totals["source_seen"]!=totals["verified"]+totals["deferred"]:
                     raise RuntimeError("migration_page_verification_incomplete")
+                save_deferred_page(prefix, token)
                 if totals["source_pages"]%5==0: print_status()
                 if page.get("IsTruncated"):
                     next_token=page.get("NextContinuationToken")
@@ -209,6 +256,7 @@ def main():
     write_checkpoint(len(PREFIXES),None,"initial_complete")
     print_status("COPY_INITIAL_BASELINE_COMPLETE")
     print("COPY_FINAL_DELTA_REQUIRED=true")
+    print("COPY_VOLATILE_FINAL_RECONCILIATION_REQUIRED=true")
     with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as f:
         f.write("### R2 initial source-to-target copy\n\n")
         for k,v in totals.items(): f.write(f"- {k}: **{v}**\n")
