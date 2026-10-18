@@ -57,6 +57,31 @@ jobs:
           npm install --no-audit --no-fund --ignore-scripts
           npx wrangler deploy --config wrangler.migration-staging.jsonc --dry-run --outdir /tmp/staging-dryrun
           echo STAGING_BUNDLE=passed
+      - name: Initialize new-account workers.dev namespace (staging stays private)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const account=process.env.CLOUDFLARE_ACCOUNT_ID,token=process.env.CLOUDFLARE_API_TOKEN;
+          const url='https://api.cloudflare.com/client/v4/accounts/'+account+'/workers/subdomain';
+          const check=await fetch(url,{headers:{Authorization:'Bearer '+token}});
+          const result=await check.json().catch(()=>({}));
+          const existing=result?.result?.subdomain;
+          if(check.ok&&existing){console.log('NEW_ACCOUNT_WORKERS_NAMESPACE=already_exists');process.exit(0);}
+          if(![400,404].includes(check.status)&&check.status!==200){
+            console.log('NEW_ACCOUNT_WORKERS_NAMESPACE_CHECK_HTTP='+check.status);
+            throw Error('Unable to inspect new Cloudflare Workers namespace');
+          }
+          const candidate='ndn-'+account.slice(0,10);
+          const create=await fetch(url,{method:'PUT',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({subdomain:candidate})});
+          const reply=await create.json().catch(()=>({}));
+          if(!create.ok||reply.success!==true){
+            const code=reply.errors?.[0]?.code||create.status;
+            console.log('NEW_ACCOUNT_WORKERS_NAMESPACE_INIT_FAILED_CODE='+code);
+            throw Error('Unable to initialize new Workers namespace');
+          }
+          console.log('NEW_ACCOUNT_WORKERS_NAMESPACE=created');
+          NODE
       - name: Create Worker in new Cloudflare account, no cron / DNS
         shell: bash
         run: |
