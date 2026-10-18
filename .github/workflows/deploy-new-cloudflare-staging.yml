@@ -64,10 +64,10 @@ jobs:
           set -euo pipefail
           CODE=$(curl -sS -o /tmp/staging-script.json -w '%{http_code}' \
              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/noondealsnow-migration-staging")
+             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts")
           echo "NEW_STAGING_WORKER_LOOKUP_HTTP=$CODE"
           test "$CODE" = 200
-          jq -e '.success==true' /tmp/staging-script.json >/dev/null
+          jq -e --arg worker noondealsnow-migration-staging '.success==true and any(.result[]?; .id==$worker or .name==$worker)' /tmp/staging-script.json >/dev/null
           echo "NEW_STAGING_WORKER_EXISTS=yes"
           echo "NEW_STAGING_PUBLIC_ROUTES=none_by_config"
           echo "NEW_STAGING_CRONS=none_by_config"
