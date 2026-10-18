@@ -103,3 +103,5 @@ jobs:
           print('DNS_MIRROR_COMPLETE='+str(not any(stats[k] for k in ('conflict_skipped','create_failed','existing_proxy_conflict'))).lower(),flush=True)
           if any(stats[k] for k in ('conflict_skipped','create_failed','existing_proxy_conflict')):raise RuntimeError('dns_mirror_incomplete_review_required')
           PY
+
+# Token-permission recheck after Cloudflare DNS Read access update, 2026-10-18 14:41 Cairo.
