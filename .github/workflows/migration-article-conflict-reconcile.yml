@@ -65,7 +65,7 @@ jobs:
               s,sh,sm,_=get(old,key)
               d,dh,dm,_=get(new,key)
               if len(s)!=a[key]['Size'] or len(d)!=b[key]['Size']:raise RuntimeError('inventory_changed_abort')
-              if not s.lstrip().lower().startswith((b'<!doctype',b'<html',b'<!--')) or not d.lstrip().lower().startswith((b'<!doctype',b'<html',b'<!--')):
+              if not s.lstrip().lower().startswith((b'<!doctype',b'<html',b'<article',b'<!--')) or not d.lstrip().lower().startswith((b'<!doctype',b'<html',b'<article',b'<!--')):
                   raise RuntimeError('html_validation_failed')
               if fingerprint(s)==fingerprint(d):continue
               backup='migration/conflict-backups/20261019/'+hashlib.sha256(key.encode()).hexdigest()[:24]+'/'+fingerprint(d)+'.html'
