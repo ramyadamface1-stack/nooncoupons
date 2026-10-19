@@ -417,7 +417,7 @@ async function sitemapHealth(req,env,ctx,origin){
   return new Response(JSON.stringify({ok:rows.every(x=>x.ok),origin,checkedAt:new Date().toISOString(),rows},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-sitemap-self-audit':'v1'}});
 }
 
-const EDGE_CACHE_POLICY_REVISION='r2-classb-saver-r13';
+const EDGE_CACHE_POLICY_REVISION='r2-public-rescue-cache-r14';
 function edgePageCacheKey(u){
   return new Request(u.origin+u.pathname+'?__ndn_edge_policy='+EDGE_CACHE_POLICY_REVISION,{method:'GET'});
 }
@@ -449,9 +449,11 @@ export default{
     // Emergency public read-only rescue: old account R2 is NotEntitled (10042).
     // Only articles and blog/archive are served from the verified new R2 mirror.
     // Keep ALL admin, cron, DO state, route, and publishing paths unchanged.
-    const rescued=await emergencyPublicR2Response(req,env);
-    if(rescued)return rescued;
+    // Check canonical public Cloudflare Cache API BEFORE cross-account R2 GET.
+    // Without this, every article visit and bot crawl incurs new-account R2 Class B reads.
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
+    const rescued=await emergencyPublicR2Response(req,env);
+    if(rescued)return edgePageCachePut(req,u,rescued,ctx);
     if(req.method==='GET'&&u.pathname==='/api/revision')return new Response(JSON.stringify({ok:true,release:DISCOVERY_RELEASE,layer:'discovery-entry',sitemapHealth:true,imageSitemap:true,englishIntentOwners:true,shoppingIntentOwners:true,noIdleGenerationGuard:true,titleCannibalizationGate:true},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-runtime-revision':DISCOVERY_RELEASE}});
 
     if(req.method==='POST'&&u.pathname==='/api/internal/generation-burst-step'){
