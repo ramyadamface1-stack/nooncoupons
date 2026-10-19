@@ -1,0 +1,80 @@
+name: Audit NoonDealsNow Live Images SEO and AI Discovery
+on:
+  push:
+    branches: [audit/live-seo-images-20261019]
+    paths: ['.github/workflows/audit-live-images-seo.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Live technical SEO, media, discovery and structured data without writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request,urllib.error,urllib.parse,html.parser,json,re,time
+          ORIGIN="https://noondealsnow.com"
+          paths=['/','/blog','/blog/archive/all','/robots.txt','/sitemap.xml','/sitemap-core.xml','/sitemap-images.xml','/llms.txt','/llms-full.txt','/ads.txt','/about','/about-us','/privacy-policy','/terms','/contact','/editorial-policy','/coupon-verification','/saudi-arabia/noon-coupon-code','/uae/noon-coupon-code','/faq','/en/uae/saving-guide','/en/articles/en-noon-uae-coupon-conditions-guide','/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي','/assets/coupon-svg/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي/1.svg?v=9&coupon=NOV170&country=SA','/assets/featured/sample.svg','/favicon.svg']
+          class Extract(html.parser.HTMLParser):
+            def __init__(self):
+              super().__init__();self.images=[];self.scripts=[];self.links=[];self.metatags=[];self.headings=[];self._script=False;self._text=''
+            def handle_starttag(self,tag,attrs):
+              d=dict(attrs)
+              if tag=='img':self.images.append({k:d.get(k) for k in ('src','alt','loading','width','height')})
+              if tag=='link':self.links.append({k:d.get(k) for k in ('rel','href','hreflang','type')})
+              if tag=='meta':self.metatags.append({k:d.get(k) for k in ('name','property','content')})
+              if tag=='script' and d.get('type')=='application/ld+json':self._script=True;self._text=''
+              if tag in ('h1','h2'):self.headings.append(tag)
+            def handle_data(self,data):
+              if self._script:self._text+=data
+            def handle_endtag(self,tag):
+              if tag=='script' and self._script:
+                try:self.scripts.append(json.loads(self._text))
+                except Exception as e:self.scripts.append({"ERROR":str(e)[:100]})
+                self._script=False
+          def req(path,binary=False):
+            u=ORIGIN+path
+            q=urllib.request.Request(u,headers={'User-Agent':'Mozilla/5.0 NoonDealsNowSEO-Audit/20261019','Accept':'*/*'})
+            st=time.monotonic()
+            try:
+              with urllib.request.urlopen(q,timeout=21) as r:
+                data=r.read(400000)
+                return {'status':r.status,'type':r.headers.get('Content-Type'),'bytes':len(data),'time_ms':round(1000*(time.monotonic()-st)),'headers':{k.lower():v for k,v in r.headers.items()},'raw':data}
+            except urllib.error.HTTPError as e:
+              return {'status':e.code,'type':e.headers.get('Content-Type'),'bytes':0,'time_ms':round(1000*(time.monotonic()-st)),'headers':{k.lower():v for k,v in e.headers.items()},'raw':e.read(3000)}
+            except Exception as e:return {'status':'ERROR','reason':type(e).__name__+':'+str(e)[:70],'time_ms':round(1000*(time.monotonic()-st)),'headers':{},'raw':b''}
+          pages={}
+          for p in paths:
+            r=req(p);pages[p]=r
+            typ=(r.get('type') or '').lower(); txt=r['raw'].decode('utf-8','replace')
+            item={'path':p,'status':r['status'],'type':r.get('type'),'bytes':r['bytes'],'ms':r['time_ms'],'cache':r['headers'].get('cache-control'),'robots_header':r['headers'].get('x-robots-tag')}
+            if 'html' in typ:
+              try:
+                parser=Extract();parser.feed(txt)
+                types=[]
+                for node in parser.scripts:
+                  if isinstance(node,dict):
+                    types.extend(x.get('@type') for x in node.get('@graph',[]) if isinstance(x,dict))
+                    if '@type' in node:types.append(node.get('@type'))
+                meta={x['name'] or x['property']:x.get('content') for x in parser.metatags if x['name'] or x['property']}
+                item.update({'h1':parser.headings.count('h1'),'h2':parser.headings.count('h2'),'images_count':len(parser.images),'images':parser.images[:4],'canonicals':[x['href'] for x in parser.links if x['rel']=='canonical'],'hreflang':[x for x in parser.links if x['hreflang']][:4],'structured_types':types[:20],'bad_schema':any('ERROR' in x for x in parser.scripts if isinstance(x,dict)),'meta_robots':meta.get('robots'),'meta_description':meta.get('description','')[:150],'ogimage':meta.get('og:image'),'rescue':r['headers'].get('x-r2-rescue')})
+                if p in ('/blog','/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي','/en/articles/en-noon-uae-coupon-conditions-guide'):
+                  for x in parser.images[:3]:
+                    if x.get('src') and (x['src'].startswith('/') or x['src'].startswith('http')):
+                      url=x['src'];parsed=urllib.parse.urlsplit(url)
+                      image_path=urllib.parse.urlunsplit(('','',parsed.path,parsed.query,'')) if url.startswith('http') else url
+                      check=req(image_path)
+                      item.setdefault('image_tests',[]).append({'src':image_path[:180],'status':check['status'],'type':check.get('type'),'bytes':check['bytes']})
+              except Exception as e:item['parse_error']=str(e)[:100]
+            elif p in ('/robots.txt','/sitemap.xml','/llms.txt','/llms-full.txt','/sitemap-images.xml'):
+              item['prefix']=txt[:260].replace('\n',' ')
+              item['has_sitemap']='sitemap' in txt.lower()
+            print('LIVE_AUDIT='+json.dumps(item,ensure_ascii=False),flush=True)
+          for p in ['/sitemap.xml','/sitemap-core.xml','/sitemap-images.xml']:
+            text=pages[p]['raw'].decode('utf-8','replace');print('XML_CHECK='+json.dumps({'path':p,'url_count':text.count('<url>'),'sitemap_count':text.count('<sitemap>'),'has_article':('/articles/' in text),'has_img':('image:image' in text),'xml_start':text[:85]}),flush=True)
+          print('AUDIT_READ_ONLY=true')
+          PY
