@@ -41,7 +41,9 @@ jobs:
              bytes=$(wc -c </tmp/live_rescue_probe.html || echo 0)
              echo "LOCAL_WORKER_RESCUE_STATUS=$status BYTES=$bytes PATH=$path"
              if [ "$status" != 200 ]; then
-               grep -E 'r2_rescue_error|Error|error' /tmp/rescue-workerd.log | tail -n 14 || true
+               grep -E 'r2_rescue_error|Error|error|fetch|403|Signature' /tmp/rescue-workerd.log | tail -n 30 || true
+               echo 'LOCAL_HTTP_BODY='; head -c 160 /tmp/live_rescue_probe.html; echo
+               echo 'LOCAL_LOG_LASTLINES='; tail -n 35 /tmp/rescue-workerd.log | grep -v 'SECRET_ACCESS_KEY' | cut -c1-300 || true
                exit 1
              fi
              grep -q 'كل المقالات\|شراء الجوالات\|أرشيف\|مدونة' /tmp/live_rescue_probe.html || exit 1
