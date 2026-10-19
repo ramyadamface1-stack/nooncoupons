@@ -1,0 +1,48 @@
+name: Inspect Mirrored Article and Sitemap Sources Read Only
+on:
+  push:
+    branches: [fix/rescue-images-discovery-20261019]
+    paths: ['.github/workflows/inspect-r2-archive-source.yml']
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      SECRET_ACCESS: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Read only article metadata, archive index, English marker and last-modified examples
+        shell: bash
+        run: |
+          python3 -m pip install -q boto3
+          python3 - <<'PY'
+          import boto3,json,os
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['KEY_ID'].strip(),aws_secret_access_key=os.environ['SECRET_ACCESS'].strip())
+          bucket='nooncoupons-content-v2'
+          keys=['bulk/days.json','bulk/latest.json','bulk/day/2026-10-18/0.json','articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي.html','articles/en-noon-uae-coupon-conditions-guide.html','english-canary/latest.json','_ops/article-count.json']
+          for key in keys:
+              try:
+                  response=s.get_object(Bucket=bucket,Key=key)
+                  text=response['Body'].read(300000).decode('utf-8','replace')
+                  response['Body'].close()
+                  row={'key':key,'bytes':response['ContentLength'],'content_type':response.get('ContentType'),'last_modified':response['LastModified'].isoformat(),'metadata':response.get('Metadata',{})}
+                  if key.endswith('.json'):
+                      try:
+                          j=json.loads(text)
+                          row['top_keys']=list(j)[:28] if isinstance(j,dict) else []
+                          for field in ('days','articles','items','rows'):
+                              if isinstance(j,dict) and isinstance(j.get(field),list):
+                                  row[field+'_count']=len(j[field]);row[field+'_example']=j[field][0] if j[field] else None
+                      except Exception as e:row['json_error']=type(e).__name__
+                  else:row['body_tags']={'h1':'<h1' in text,'time':'<time' in text,'img':'<img' in text,'ld_json':'application/ld+json' in text}
+                  print('R2_SAMPLE='+json.dumps(row,ensure_ascii=False,default=str)[:3100],flush=True)
+              except Exception as e:print('R2_SAMPLE_ERROR='+json.dumps({'key':key,'error':str(e)[:150]},ensure_ascii=False),flush=True)
+          for prefix in ['articles/','bulk/','seo/','sitemaps/']:
+              try:
+                  p=s.list_objects_v2(Bucket=bucket,Prefix=prefix,MaxKeys=3)
+                  print('PREFIX='+json.dumps({'prefix':prefix,'count':p.get('KeyCount'),'truncated':p.get('IsTruncated'),'examples':[x['Key'] for x in p.get('Contents',[]) ]},ensure_ascii=False),flush=True)
+              except Exception as e:print('PREFIX_ERROR='+str(e)[:140],flush=True)
+          print('NO_WRITES=true')
+          PY
