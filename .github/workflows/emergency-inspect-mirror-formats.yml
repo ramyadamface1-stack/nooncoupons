@@ -1,0 +1,40 @@
+name: Check New R2 Article Formats for Safe Rescue
+on:
+  push:
+    branches: [fix/emergency-article-availability-20261019]
+    paths: ['.github/workflows/emergency-inspect-mirror-formats.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet boto3
+      - name: Read only first bytes and public index structure from available new R2
+        run: |
+          python3 - <<'PY'
+          import os,boto3,json
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['NOON_NEW_R2_ACCESS_KEY_ID'].strip(),aws_secret_access_key=os.environ['NOON_NEW_R2_SECRET_ACCESS_KEY'].strip())
+          b='nooncoupons-content-v2'
+          keys=['articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي.html','bulk/latest.json','bulk/days.json','bulk/day/2026-10-18/0.json','_ops/article-count.json','maintenance/article-discovery-v1/current.json']
+          for key in keys:
+            try:
+              obj=s.get_object(Bucket=b,Key=key)
+              data=obj['Body'].read(3000);obj['Body'].close()
+              try:
+                parsed=json.loads(data)
+                body={'keys':list(parsed.keys())[:20],'sample_item':str(parsed.get('articles',[None])[0])[:180] if parsed.get('articles') else None,'days':str(parsed.get('days',[None])[0])[:180] if parsed.get('days') else None}
+              except Exception:
+                body={'prefix':data[:240].decode('utf-8',errors='replace')}
+              print('SAMPLE='+json.dumps({'key':key,'size':obj['ContentLength'],'metadata_keys':list((obj.get('Metadata') or {}).keys())[:30],'body':body},ensure_ascii=False)[:1000],flush=True)
+            except Exception as e:print('SAMPLE_ERROR='+json.dumps({'key':key,'error':str(e)[:170]},ensure_ascii=False),flush=True)
+          try:
+            ls=s.list_objects_v2(Bucket=b,Prefix='articles/',MaxKeys=3)
+            print('LIST_AVAILABLE='+json.dumps({'count':ls.get('KeyCount'),'truncated':ls.get('IsTruncated'),'keys':[o['Key'] for o in ls.get('Contents',[])]},ensure_ascii=False)[:1000],flush=True)
+          except Exception as e:print('LIST_ERROR='+str(e)[:200],flush=True)
+          PY
