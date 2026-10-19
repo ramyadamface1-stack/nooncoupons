@@ -1,0 +1,80 @@
+name: Live Verify NoonDealsNow 169k Image and Article SEO Rescue
+on:
+  push:
+    branches: [audit/live-curated-sitemap-rescue-20261019]
+    paths: ['.github/workflows/live-verify-curated-rescue-20261019.yml']
+permissions: {contents: read}
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check on production article media, crawl XML, GPT/Google bots, structured data
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json,re,html.parser,xml.etree.ElementTree as ET
+          base='https://noondealsnow.com'
+          paths=['/','/blog','/blog/archive/all','/articles/en-noon-uae-coupon-conditions-guide','/en/articles/en-noon-uae-coupon-conditions-guide','/sitemap.xml','/sitemap-images.xml','/sitemap-rescue-articles-0.xml','/sitemap-rescue-articles-84.xml','/sitemap-rescue-images-0.xml','/sitemap-rescue-images-84.xml','/robots.txt','/llms.txt']
+          class Extract(html.parser.HTMLParser):
+            def __init__(self):super().__init__();self.img=[];self.schema=[];self.meta=[];self.s=False;self.t=''
+            def handle_starttag(self,tag,attrs):
+              x=dict(attrs)
+              if tag=='img':self.img.append(x)
+              if tag=='meta':self.meta.append(x)
+              if tag=='script' and x.get('type')=='application/ld+json':self.s=True;self.t=''
+            def handle_data(self,d):
+              if self.s:self.t+=d
+            def handle_endtag(self,tag):
+              if tag=='script' and self.s:
+                try:self.schema.append(json.loads(self.t))
+                except Exception:self.schema.append({'PARSE_ERROR':True})
+                self.s=False
+          failures=[]
+          def get(path,bot='Mozilla/5.0'):
+            req=urllib.request.Request(base+path,headers={'User-Agent':bot})
+            try:
+              with urllib.request.urlopen(req,timeout=22) as r:
+                body=r.read(3000000)
+                return r.status,body,dict(r.headers)
+            except Exception as e:return getattr(e,'code',0),b'',{}
+          for path in paths:
+            status,body,headers=get(path)
+            text=body.decode('utf-8','replace')
+            item={'path':path,'status':status,'bytes':len(body),'content_type':headers.get('Content-Type')}
+            if path.endswith('.xml'):
+              try:
+                doc=ET.fromstring(body)
+                item['locs']=sum(1 for x in doc.iter() if x.tag.endswith('loc'))
+                item['sitemap_children']=sum(1 for x in doc if x.tag.endswith('sitemap'))
+                item['image_entries']=sum(1 for x in doc.iter() if x.tag.endswith('image'))
+                if path=='/sitemap.xml' and item['sitemap_children']<160:failures.append('root sitemap missing shards')
+                if path.endswith('0.xml') and '/sitemap-rescue-' in path and item['locs']<1000:failures.append(path+' <1000 URLs')
+                if path.endswith('84.xml') and item['locs']<1000:failures.append(path+' last shard <1000 URLs')
+                if path.startswith('/sitemap-rescue-images-') and item['image_entries']<1000:failures.append(path+' <1000 images')
+                if path=='/sitemap-images.xml' and item['image_entries']<1000:failures.append('image root missing images')
+              except Exception as e:failures.append(path+': invalid XML '+str(e)[:110])
+            if path in ['/blog','/blog/archive/all','/en/articles/en-noon-uae-coupon-conditions-guide']:
+              parser=Extract();parser.feed(text)
+              item['images']=len(parser.img)
+              item['valid_schema']=not any('PARSE_ERROR' in x for x in parser.schema)
+              item['og_image']=any(x.get('property')=='og:image' for x in parser.meta)
+              if not parser.img:failures.append(path+': no images')
+              if path.startswith('/en/articles/') and not item['og_image']:failures.append('english article no OG image')
+              if not item['valid_schema']:failures.append(path+': invalid JSON-LD')
+              if parser.img:
+                src=parser.img[0].get('src','')
+                if src.startswith('/'):
+                  sc,_,hd=get(src)
+                  item['first_image_http']=sc
+                  if sc!=200:failures.append(path+': image not 200')
+            if status!=200:failures.append(path+': non-200')
+            print('PRODUCTION_AUDIT='+json.dumps(item,ensure_ascii=False),flush=True)
+          for agent in ['Googlebot','Bingbot','GPTBot','OAI-SearchBot','Google-Extended']:
+            status,body,h=get('/blog',agent)
+            print('BOT_HTTP='+json.dumps({'agent':agent,'status':status,'bytes':len(body)},ensure_ascii=False),flush=True)
+            if status!=200:failures.append('crawler refused '+agent)
+          print('CHECKS_FAILED='+json.dumps(failures,ensure_ascii=False),flush=True)
+          print('LIVE_QA_COMPLETE='+str(not failures).lower(),flush=True)
+          if failures:raise SystemExit(1)
+          PY
