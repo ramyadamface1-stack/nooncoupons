@@ -1,5 +1,6 @@
 import app from './brand-runtime.js';
 import {emergencyPublicR2Response} from './r2-emergency-readonly.js';
+import {rescueSitemapResponse} from './r2-sitemap-rescue.js';
 import {runEnglishCanaryBatch,englishCanaryRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
@@ -356,7 +357,8 @@ async function augmentRootSitemap(res,origin){
       ['priority',origin+'/sitemap-priority.xml'],
       ['english',origin+'/sitemap-en-articles.xml'],
       ['hubs',origin+'/sitemap-hubs.xml'],
-      ['images',origin+'/sitemap-images.xml']
+      ['images',origin+'/sitemap-images.xml'],
+      ['rescue-recent',origin+'/sitemap-rescue-recent.xml']
     ];
     for(const [,loc] of additions){
       if(!body.includes(loc))body=body.replace(/<\/sitemapindex>/i,`<sitemap><loc>${esc(loc)}</loc></sitemap></sitemapindex>`);
@@ -381,12 +383,14 @@ async function augmentRobots(res,origin){
   const english=`Sitemap: ${origin}/sitemap-en-articles.xml`;
   const hubs=`Sitemap: ${origin}/sitemap-hubs.xml`;
   const images=`Sitemap: ${origin}/sitemap-images.xml`;
+  const rescueRecent=`Sitemap: ${origin}/sitemap-rescue-recent.xml`;
   if(!body.includes(root))body=(body.trimEnd()+`\n${root}\n`).replace(/^\n+/, '');
   if(!body.includes(core))body=(body.trimEnd()+`\n${core}\n`).replace(/^\n+/, '');
   if(!body.includes(priority))body=(body.trimEnd()+`\n${priority}\n`).replace(/^\n+/, '');
   if(!body.includes(english))body=(body.trimEnd()+`\n${english}\n`).replace(/^\n+/, '');
   if(!body.includes(hubs))body=(body.trimEnd()+`\n${hubs}\n`).replace(/^\n+/, '');
   if(!body.includes(images))body=(body.trimEnd()+`\n${images}\n`).replace(/^\n+/, '');
+  if(!body.includes(rescueRecent))body=(body.trimEnd()+`\n${rescueRecent}\n`).replace(/^\n+/, '');
   const h=new Headers(res.headers);h.delete('content-length');h.set('x-priority-sitemap-robots','v1');h.set('x-english-sitemap-robots','v1');h.set('x-hub-sitemap-robots','v1');
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
@@ -498,6 +502,8 @@ export default{
       const report=await dailyPublishReport(env,from,to);
       return new Response(JSON.stringify(report,null,2),{status:report.ok?200:400,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-report-time-zone':'Africa/Cairo'}});
     }
+    const rescueSitemap=await rescueSitemapResponse(req,env);
+    if(rescueSitemap)return rescueSitemap;
     if(req.method==='GET'&&u.pathname==='/api/sitemap-health')return sitemapHealth(req,env,ctx,origin);
     if(req.method==='GET'&&u.pathname==='/sitemap-core.xml'){const r=coreSitemap(origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
     if(req.method==='GET'&&u.pathname==='/sitemap-priority.xml'){const r=await prioritySitemap(env,origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
