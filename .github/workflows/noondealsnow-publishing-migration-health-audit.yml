@@ -1,0 +1,47 @@
+name: Read Only Publishing and Migration Restore Health
+on:
+  push:
+    branches: [audit/noondealsnow-country-livecheck-20261019]
+    paths: ['.github/workflows/noondealsnow-publishing-migration-health-audit.yml']
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Fetch publicly visible health, no changes
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json
+          for p in ['/api/health','/api/generation-freshness','/api/coupon-migration-health','/api/platform-health','/api/sitemap-health']:
+            req=urllib.request.Request('https://noondealsnow.com'+p,headers={'User-Agent':'NoonDealsNow-Health-Readonly/20261019','Accept':'application/json'})
+            try:
+              with urllib.request.urlopen(req,timeout=15) as r:code=r.status;b=r.read(60000)
+            except urllib.error.HTTPError as e:code=e.code;b=e.read(6000)
+            except Exception as e:code='ERR';b=str(e).encode()
+            try:
+              data=json.loads(b)
+              extracted={k:data.get(k) for k in ['ok','status','error','reason','release','lastPublishAt','lastPublishedAt','publishedLastHour','publishedLast24Hours','lastPublished','published','rescueAttemptsBeforeHour','r2'] if k in data}
+              print('PROD_PUBLIC_HEALTH='+json.dumps({'path':p,'http':code,'fields':extracted,'fieldNames':list(data.keys())[:24]},ensure_ascii=False)[:1100],flush=True)
+            except Exception:print('PROD_PUBLIC_HEALTH='+json.dumps({'path':p,'http':code,'prefix':b[:140].decode('utf8','replace')},ensure_ascii=False),flush=True)
+          PY
+      - name: Read original DO restore checkpoints from existing destination R2
+        shell: bash
+        run: |
+          python3 -m pip install --quiet boto3
+          python3 - <<'PY'
+          import boto3,os,json
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['NOON_NEW_R2_ACCESS_KEY_ID'].strip(),aws_secret_access_key=os.environ['NOON_NEW_R2_SECRET_ACCESS_KEY'].strip())
+          for group in ['ControlPlane','GeneratorControl']:
+            key='migration/restore-progress/20261017-baseline/'+group+'.json'
+            try:
+              response=s.get_object(Bucket='nooncoupons-content-v2',Key=key)
+              data=json.loads(response['Body'].read())
+              summary={k:v for k,v in data.items() if isinstance(v,(bool,int,float,str)) and k.lower() in ('complete','completed','totalparts','part','parts','nextpart','restoredkeys','totalkeys','updatedat','prefix','restored','total','keys','index','lastrestoredpart','partscompleted','restoredparts','nextpartindex')}
+              print('DESTINATION_DO_RESTORE='+json.dumps({'group':group,'data':summary,'keys':list(data.keys())[:35]},ensure_ascii=False),flush=True)
+            except Exception as e:print('DESTINATION_DO_RESTORE_ERROR='+group+' '+type(e).__name__,flush=True)
+          PY
