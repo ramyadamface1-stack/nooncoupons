@@ -45,6 +45,7 @@
     "AUTO_REPAIR_ROUNDS": "1",
     "INDEXNOW_ENABLED": "true",
     "R2_SAVER_MODE": "true",
+    "R2_RESCUE_READONLY_ENABLED": "true",
     "CPU_SAVER_MODE": "true",
     "BULK_DAILY_PACE_MODE": "true",
     "BULK_PACE_CANDIDATE_BUDGET_MS": "18000",
