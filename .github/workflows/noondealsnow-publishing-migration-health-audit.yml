@@ -25,7 +25,7 @@ jobs:
             except Exception as e:code='ERR';b=str(e).encode()
             try:
               data=json.loads(b)
-              extracted={k:data.get(k) for k in ['ok','status','error','reason','release','lastPublishAt','lastPublishedAt','publishedLastHour','publishedLast24Hours','lastPublished','published','rescueAttemptsBeforeHour','r2'] if k in data}
+              extracted={k:data.get(k) for k in ['ok','status','error','reason','release','lastSuccessfulPublishAt','minutesSinceLastSuccessfulPublish','withinOneHour','rescueDue','lastRescueResult','bulkLastError','bulkLastTickPublished','lastPublishAt','lastPublishedAt','publishedLastHour','publishedLast24Hours','lastPublished','published','rescueAttemptsBeforeHour','r2'] if k in data}
               print('PROD_PUBLIC_HEALTH='+json.dumps({'path':p,'http':code,'fields':extracted,'fieldNames':list(data.keys())[:24]},ensure_ascii=False)[:1100],flush=True)
             except Exception:print('PROD_PUBLIC_HEALTH='+json.dumps({'path':p,'http':code,'prefix':b[:140].decode('utf8','replace')},ensure_ascii=False),flush=True)
           PY
@@ -41,7 +41,7 @@ jobs:
             try:
               response=s.get_object(Bucket='nooncoupons-content-v2',Key=key)
               data=json.loads(response['Body'].read())
-              summary={k:v for k,v in data.items() if isinstance(v,(bool,int,float,str)) and k.lower() in ('complete','completed','totalparts','part','parts','nextpart','restoredkeys','totalkeys','updatedat','prefix','restored','total','keys','index','lastrestoredpart','partscompleted','restoredparts','nextpartindex')}
+              summary={k:v for k,v in data.items() if isinstance(v,(bool,int,float,str)) and k.lower() in ('complete','completed','totalparts','part','parts','nextpart','restoredkeys','totalkeys','updatedat','prefix','restored','total','keys','index','lastrestoredpart','partscompleted','restoredparts','nextpartindex','partsdone','partstotal','keysrestored','keystotal')}
               print('DESTINATION_DO_RESTORE='+json.dumps({'group':group,'data':summary,'keys':list(data.keys())[:35]},ensure_ascii=False),flush=True)
             except Exception as e:print('DESTINATION_DO_RESTORE_ERROR='+group+' '+type(e).__name__,flush=True)
           PY
