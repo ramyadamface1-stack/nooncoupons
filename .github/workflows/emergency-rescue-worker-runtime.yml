@@ -1,0 +1,49 @@
+name: Verify Emergency Rescue in Real Worker Runtime
+on:
+  push:
+    branches: [fix/emergency-article-availability-20261019]
+    paths: ['.github/workflows/emergency-rescue-worker-runtime.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install Wrangler and confirm syntax
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          node --check r2-emergency-readonly.js
+          node --check discovery-entry.js
+          npx wrangler deploy --dry-run --outdir /tmp/wrangler-emergency-verify
+      - name: Test actual local workerd GET to new R2 before touching production
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'NOON_RESCUE_R2_ACCESS_KEY_ID="%s"\nNOON_RESCUE_R2_SECRET_ACCESS_KEY="%s"\n' "$NOON_NEW_R2_ACCESS_KEY_ID" "$NOON_NEW_R2_SECRET_ACCESS_KEY" > .dev.vars
+          chmod 600 .dev.vars
+          npx wrangler dev --local --ip 127.0.0.1 --port 8788 --log-level error > /tmp/rescue-workerd.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true; rm -f .dev.vars' EXIT
+          for n in {1..35}; do
+             if curl -fsS --max-time 3 'http://127.0.0.1:8788/api/revision' -o /dev/null; then break; fi
+             sleep 2
+          done
+          for path in '/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي' '/blog' '/blog/archive' '/blog/archive/all' '/blog/archive/2026-10-18'; do
+             status=$(curl -sS --max-time 20 -o /tmp/live_rescue_probe.html -w '%{http_code}' "http://127.0.0.1:8788$path" || true)
+             bytes=$(wc -c </tmp/live_rescue_probe.html || echo 0)
+             echo "LOCAL_WORKER_RESCUE_STATUS=$status BYTES=$bytes PATH=$path"
+             if [ "$status" != 200 ]; then
+               grep -E 'r2_rescue_error|Error|error' /tmp/rescue-workerd.log | tail -n 14 || true
+               exit 1
+             fi
+             grep -q 'كل المقالات\|شراء الجوالات\|أرشيف\|مدونة' /tmp/live_rescue_probe.html || exit 1
+          done
+          echo 'LOCAL_WORKER_R2_EMERGENCY_RESCUE_PASS=true'
