@@ -78,3 +78,37 @@ jobs:
             text=pages[p]['raw'].decode('utf-8','replace');print('XML_CHECK='+json.dumps({'path':p,'url_count':text.count('<url>'),'sitemap_count':text.count('<sitemap>'),'has_article':('/articles/' in text),'has_img':('image:image' in text),'xml_start':text[:85]}),flush=True)
           print('AUDIT_READ_ONLY=true')
           PY
+
+      - name: Audit actual sitemap index children, brand-country pages and chatbot access
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,urllib.parse,xml.etree.ElementTree as ET,re,json
+          root='https://noondealsnow.com'
+          def pull(path,agent='Mozilla/5.0'):
+            req=urllib.request.Request(root+urllib.parse.quote(path,safe='/:?&=%'),headers={'User-Agent':agent})
+            try:
+              with urllib.request.urlopen(req,timeout=18) as r:
+                d=r.read(500000)
+                return r.status,d.decode('utf-8','replace'),dict(r.headers)
+            except urllib.error.HTTPError as e:return e.code,e.read(1000).decode('utf-8','replace'),dict(e.headers)
+            except Exception as e:return 'ERR',type(e).__name__+' '+str(e)[:80],{}
+          code,doc,_=pull('/sitemap.xml')
+          print('MAIN_SITEMAP_STATUS='+str(code))
+          entries=re.findall(r'<loc>([^<]+)</loc>',doc)
+          print('MAIN_SITEMAP_CHILD_COUNT='+str(len(entries)))
+          for link in entries[:18]:
+            if not link.startswith(root+'/'):continue
+            path=link[len(root):]
+            status,body,h=pull(path)
+            print('CHILD_SITEMAP='+json.dumps({'path':path,'status':status,'loc_count':body.count('<loc>'),'has_article':('/articles/' in body),'bytes':len(body),'prefix':body[:120] if status!=200 else ''},ensure_ascii=False),flush=True)
+          for path in ['/saudi/brand/apple','/uae/brand/samsung','/saudi/categories','/uae/categories','/saudi/category/mobiles','/uae/category/beauty','/privacy','/en/saudi','/en/uae']:
+            status,body,h=pull(path)
+            print('SECTION_PROBE='+json.dumps({'path':path,'status':status,'has_h1':'<h1' in body,'has_canonical':'rel="canonical"' in body,'has_noindex':bool(re.search(r'<meta\s+name="robots"\s+content="[^"]*noindex',body,re.I))},ensure_ascii=False),flush=True)
+          for agent in ['Googlebot','Bingbot','GPTBot','OAI-SearchBot','ChatGPT-User','Google-Extended']:
+            status,body,h=pull('/blog',agent)
+            print('BOT_PROBE='+json.dumps({'agent':agent,'status':status,'bytes':len(body),'rescue':h.get('x-r2-rescue','')}),flush=True)
+          code,body,_=pull('/')
+          print('GA4_TAG_PRESENT='+str('G-1551Z7DJ2C' in body).lower())
+          print('SITE_TECH_AUDIT_READ_ONLY=true')
+          PY
