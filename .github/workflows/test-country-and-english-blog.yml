@@ -1,0 +1,60 @@
+name: Verify Country Blog Hubs and 21k English Archive in Workerd
+on:
+  push:
+    branches: [fix/country-blog-english-archive-20261019]
+    paths: ['.github/workflows/test-country-and-english-blog.yml','r2-emergency-readonly.js','discovery-entry.js','r2-public-cache-policy.js']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate syntax, public cache guard, Worker bundling
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          node --check r2-emergency-readonly.js
+          node --check discovery-entry.js
+          node --test tests/r2-saver.test.mjs tests/r2-head-health.test.mjs
+          npx wrangler deploy --dry-run --outdir /tmp/blog-hubs-english
+      - name: Real Workerd check 15 thumbnails, country routing, English 2000-shard boundary, noindex archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler dev --local --ip 127.0.0.1 --port 8798 --log-level error \
+            --var "NOON_RESCUE_R2_ACCESS_KEY_ID:$NOON_NEW_R2_ACCESS_KEY_ID" \
+            --var "NOON_RESCUE_R2_SECRET_ACCESS_KEY:$NOON_NEW_R2_SECRET_ACCESS_KEY" >/tmp/workerd-country-blog.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in {1..30};do if curl -fsS --max-time 3 http://127.0.0.1:8798/api/revision -o /dev/null;then break;fi;sleep 2;done
+          node --input-type=module <<'NODE'
+          const origin='http://127.0.0.1:8798';
+          const cases=[
+            ['/blog',15,'all'],['/blog/saudi',15,'saudi'],['/blog/uae',15,'uae'],
+            ['/blog/saudi?page=2',15,'saudi'],['/blog/uae?page=2',15,'uae'],
+            ['/blog/archive/english',15,'en'],['/blog/archive/english?page=134',15,'en'],
+            ['/blog/archive/english?page=1418',14,'en']
+          ];
+          for(const [p,expect,kind] of cases){
+            const r=await fetch(origin+p),txt=await r.text();
+            const count=(txt.match(/<article class="card"/g)||[]).length;
+            const images=(txt.match(/<img /g)||[]).length;
+            const en=txt.includes('<html lang="en" dir="ltr"');
+            const noindex=txt.includes('content="noindex,follow"');
+            const correctCountry=kind==='saudi'?txt.includes('/articles/'):kind==='uae'?txt.includes('الإمارات'):true;
+            const nav=txt.includes('href="/blog/saudi"')&&txt.includes('href="/blog/uae"');
+            console.log('COUNTRY_ARCHIVE='+p+' HTTP='+r.status+' CARDS='+count+' IMAGES='+images+' EN='+en+' NOINDEX='+noindex+' NAV='+nav+' COUNTRY='+correctCountry);
+            if(r.status!==200||count!==expect||images!==expect||!correctCountry)process.exitCode=1;
+            if(kind==='en'&&(!en||!noindex||!txt.includes('/en/articles/')))process.exitCode=1;
+            if(kind!=='en'&&(!nav||en))process.exitCode=1;
+          }
+          const sitemap=await (await fetch(origin+'/sitemap-core.xml')).text();
+          console.log('BLOG_COUNTRY_SITEMAP='+sitemap.includes('/blog/saudi')+'/'+sitemap.includes('/blog/uae'));
+          if(!sitemap.includes('/blog/saudi')||!sitemap.includes('/blog/uae'))process.exitCode=1;
+          NODE
