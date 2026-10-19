@@ -1,0 +1,51 @@
+name: Verify Full Rescue Sitemaps in Real Workerd
+on:
+  push:
+    branches: [fix/curated-sitemap-rescue-20261019]
+    paths: ['.github/workflows/verify-rescue-sitemaps-workerd.yml','r2-emergency-readonly.js','discovery-entry.js']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Syntax and dry run
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          node --check r2-emergency-readonly.js
+          node --check discovery-entry.js
+          npx wrangler deploy --dry-run --outdir /tmp/sitemap-workerd-dry
+      - name: Run actual Cloudflare Workers runtime against verified new R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler dev --local --ip 127.0.0.1 --port 8791 --log-level error \
+            --var "NOON_RESCUE_R2_ACCESS_KEY_ID:$NOON_NEW_R2_ACCESS_KEY_ID" \
+            --var "NOON_RESCUE_R2_SECRET_ACCESS_KEY:$NOON_NEW_R2_SECRET_ACCESS_KEY" >/tmp/sitemap-workerd.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in {1..35};do if curl -fsS --max-time 3 http://127.0.0.1:8791/api/revision -o /dev/null;then break;fi;sleep 2;done
+          node --input-type=module <<'NODE'
+          const root='http://127.0.0.1:8791';
+          const paths=['/sitemap.xml','/sitemap-rescue-articles-0.xml','/sitemap-rescue-articles-84.xml','/sitemap-rescue-images-0.xml','/sitemap-rescue-images-84.xml','/sitemap-images.xml'];
+          for(const path of paths){
+            const r=await fetch(root+path);
+            const t=await r.text();
+            const locs=(t.match(/<loc>/g)||[]).length;
+            const imgs=(t.match(/<image:image>/g)||[]).length;
+            const valid=t.includes('<?xml')&&(t.includes('<urlset')||t.includes('<sitemapindex'));
+            console.log('RESCUE_SITEMAP='+path+' HTTP='+r.status+' BYTES='+t.length+' LOCS='+locs+' IMAGES='+imgs+' TYPE='+r.headers.get('content-type')+' HAS_ARTICLES='+t.includes('/articles/'));
+            if(r.status!==200||!valid||!r.headers.get('content-type')?.includes('xml'))process.exitCode=1;
+            if(path==='/sitemap.xml' && (!t.includes('sitemap-rescue-articles-0.xml')||!t.includes('sitemap-rescue-images-84.xml')||locs<170))process.exitCode=1;
+            if(path.includes('rescue-') && locs<100)process.exitCode=1;
+            if(path.includes('images') && !imgs)process.exitCode=1;
+          }
+          NODE
