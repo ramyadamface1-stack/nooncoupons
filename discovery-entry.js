@@ -358,7 +358,8 @@ async function augmentRootSitemap(res,origin){
       ['english',origin+'/sitemap-en-articles.xml'],
       ['hubs',origin+'/sitemap-hubs.xml'],
       ['images',origin+'/sitemap-images.xml'],
-      ['rescue-recent',origin+'/sitemap-rescue-recent.xml']
+      ['rescue-recent',origin+'/sitemap-rescue-recent.xml'],
+      ['rescue-curated',origin+'/sitemap-rescue-articles.xml']
     ];
     for(const [,loc] of additions){
       if(!body.includes(loc))body=body.replace(/<\/sitemapindex>/i,`<sitemap><loc>${esc(loc)}</loc></sitemap></sitemapindex>`);
@@ -384,6 +385,7 @@ async function augmentRobots(res,origin){
   const hubs=`Sitemap: ${origin}/sitemap-hubs.xml`;
   const images=`Sitemap: ${origin}/sitemap-images.xml`;
   const rescueRecent=`Sitemap: ${origin}/sitemap-rescue-recent.xml`;
+  const rescueCurated=`Sitemap: ${origin}/sitemap-rescue-articles.xml`;
   if(!body.includes(root))body=(body.trimEnd()+`\n${root}\n`).replace(/^\n+/, '');
   if(!body.includes(core))body=(body.trimEnd()+`\n${core}\n`).replace(/^\n+/, '');
   if(!body.includes(priority))body=(body.trimEnd()+`\n${priority}\n`).replace(/^\n+/, '');
@@ -391,6 +393,7 @@ async function augmentRobots(res,origin){
   if(!body.includes(hubs))body=(body.trimEnd()+`\n${hubs}\n`).replace(/^\n+/, '');
   if(!body.includes(images))body=(body.trimEnd()+`\n${images}\n`).replace(/^\n+/, '');
   if(!body.includes(rescueRecent))body=(body.trimEnd()+`\n${rescueRecent}\n`).replace(/^\n+/, '');
+  if(!body.includes(rescueCurated))body=(body.trimEnd()+`\n${rescueCurated}\n`).replace(/^\n+/, '');
   const h=new Headers(res.headers);h.delete('content-length');h.set('x-priority-sitemap-robots','v1');h.set('x-english-sitemap-robots','v1');h.set('x-hub-sitemap-robots','v1');
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
