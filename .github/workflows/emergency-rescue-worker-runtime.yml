@@ -2,7 +2,7 @@ name: Verify Emergency Rescue in Real Worker Runtime
 on:
   push:
     branches: [fix/emergency-article-availability-20261019]
-    paths: ['.github/workflows/emergency-rescue-worker-runtime.yml']
+    paths: ['.github/workflows/emergency-rescue-worker-runtime.yml', 'r2-emergency-readonly.js', 'discovery-entry.js', 'wrangler.jsonc']
   workflow_dispatch:
 permissions:
   contents: read
