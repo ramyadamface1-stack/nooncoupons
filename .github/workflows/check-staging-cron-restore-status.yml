@@ -1,0 +1,46 @@
+name: Read Only Cloudflare Staging Cron and Migration Status
+on:
+  push:
+    branches: [audit/noondealsnow-country-livecheck-20261019]
+    paths: ['.github/workflows/check-staging-cron-restore-status.yml']
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OLD: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NEW: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Confirm existing staging worker state and cron only; no writes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json,os
+          base='https://api.cloudflare.com/client/v4'
+          for label,account,script in [('OLD','c82274152a942dea53044eae7153cfd7','nooncoupons'),('NEW','e4c35f8a50a7b2e4cfb9d6c534962603','noondealsnow-migration-staging')]:
+            token=os.environ[label].strip()
+            if not token:print(label+'_TOKEN_MISSING=true');continue
+            for suffix in ['/workers/scripts/'+script+'/settings','/workers/scripts/'+script+'/schedules']:
+              endpoint='/accounts/'+account+suffix
+              try:
+                req=urllib.request.Request(base+endpoint,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+                with urllib.request.urlopen(req,timeout=16) as f:code=f.status;data=json.load(f)
+              except urllib.error.HTTPError as e:
+                code=e.code
+                try:data=json.loads(e.read(16000))
+                except:data={}
+              except Exception as e:
+                print('SCRIPT_READ_ERROR='+label+' '+type(e).__name__,flush=True);continue
+              result=data.get('result') or {}
+              item={'account':label,'path':suffix.split('/')[-1],'http':code,'success':data.get('success'),'error_codes':[e.get('code') for e in data.get('errors',[])[:3]]}
+              if isinstance(result,dict):
+                if suffix.endswith('/settings'):
+                  binds=result.get('bindings') or []
+                  item['binding_names']=[x.get('name') for x in binds if isinstance(x,dict)]
+                  item['binding_types']=[x.get('type') for x in binds if isinstance(x,dict)]
+                else:item['schedules']=(result.get('schedules') or result.get('crons') or [])[:8]
+              elif isinstance(result,list):item['schedules']=result[:8]
+              print('CLOUDFLARE_SCRIPT_STATUS='+json.dumps(item),flush=True)
+          print('STAGING_INSPECTION_READ_ONLY=true')
+          PY
