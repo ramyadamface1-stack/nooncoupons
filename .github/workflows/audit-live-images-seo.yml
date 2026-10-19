@@ -18,7 +18,7 @@ jobs:
           python3 - <<'PY'
           import urllib.request,urllib.error,urllib.parse,html.parser,json,re,time
           ORIGIN="https://noondealsnow.com"
-          paths=['/','/blog','/blog/archive/all','/robots.txt','/sitemap.xml','/sitemap-core.xml','/sitemap-images.xml','/llms.txt','/llms-full.txt','/ads.txt','/about','/about-us','/privacy-policy','/terms','/contact','/editorial-policy','/coupon-verification','/saudi-arabia/noon-coupon-code','/uae/noon-coupon-code','/faq','/en/uae/saving-guide','/en/articles/en-noon-uae-coupon-conditions-guide','/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي','/assets/coupon-svg/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي/1.svg?v=9&coupon=NOV170&country=SA','/assets/featured/sample.svg','/favicon.svg']
+          paths=['/','/blog','/blog/archive/all','/robots.txt','/sitemap.xml','/sitemap-core.xml','/sitemap-images.xml','/sitemap-articles-0.xml','/sitemap-articles-1.xml','/sitemap-fresh-articles-0.xml','/sitemap-hubs.xml','/llms.txt','/llms-full.txt','/ads.txt','/about','/about-us','/privacy','/privacy-policy','/terms','/contact','/editorial-policy','/coupon-verification','/saudi-arabia/noon-coupon-code','/uae/noon-coupon-code','/faq','/brands','/categories','/saudi','/uae','/en/uae/saving-guide','/en/articles/en-noon-uae-coupon-conditions-guide','/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي','/assets/coupon-svg/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي/1.svg?v=9&coupon=NOV170&country=SA','/assets/featured/sample.svg','/favicon.svg']
           class Extract(html.parser.HTMLParser):
             def __init__(self):
               super().__init__();self.images=[];self.scripts=[];self.links=[];self.metatags=[];self.headings=[];self._script=False;self._text=''
@@ -46,7 +46,7 @@ jobs:
                 return {'status':r.status,'type':r.headers.get('Content-Type'),'bytes':len(data),'time_ms':round(1000*(time.monotonic()-st)),'headers':{k.lower():v for k,v in r.headers.items()},'raw':data}
             except urllib.error.HTTPError as e:
               return {'status':e.code,'type':e.headers.get('Content-Type'),'bytes':0,'time_ms':round(1000*(time.monotonic()-st)),'headers':{k.lower():v for k,v in e.headers.items()},'raw':e.read(3000)}
-            except Exception as e:return {'status':'ERROR','reason':type(e).__name__+':'+str(e)[:70],'time_ms':round(1000*(time.monotonic()-st)),'headers':{},'raw':b''}
+            except Exception as e:return {'status':'ERROR','reason':type(e).__name__+':'+str(e)[:70],'bytes':0,'type':None,'time_ms':round(1000*(time.monotonic()-st)),'headers':{},'raw':b''}
           pages={}
           for p in paths:
             r=req(p);pages[p]=r
