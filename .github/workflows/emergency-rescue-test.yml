@@ -1,0 +1,45 @@
+name: Test No-New-Resource Public Article Rescue
+on:
+  push:
+    branches: [fix/emergency-article-availability-20261019]
+    paths: ['r2-emergency-readonly.js','.github/workflows/emergency-rescue-test.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      NOON_RESCUE_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_RESCUE_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      R2_RESCUE_READONLY_ENABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate module syntax and actual S3 SigV4 GET/list from existing NEW R2, without writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check r2-emergency-readonly.js
+          node --input-type=module <<'NODE'
+          import {emergencyPublicR2Response,signedR2Read} from './r2-emergency-readonly.js';
+          const env=process.env;
+          for(const [path,keyword] of [
+            ['/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي','شراء الجوالات'],
+            ['/blog','مدونة'],
+            ['/blog/archive','أرشيف'],
+            ['/blog/archive/all','المقالات'],
+            ['/blog/archive/2026-10-18','مقالات']
+          ]){
+            const req=new Request('https://noondealsnow.com'+path);
+            const res=await emergencyPublicR2Response(req,env);
+            const text=await res.text();
+            console.log('TEST_RESCUE_PATH='+path+' HTTP='+res.status+' BYTES='+text.length+' HAS_EXPECTED='+text.includes(keyword));
+            if(res.status!==200||!text.includes(keyword))process.exitCode=1;
+          }
+          const list=await signedR2Read(env,'',{'list-type':'2','max-keys':'2','prefix':'articles/','encoding-type':'url'});
+          console.log('TEST_DIRECT_S3_LIST_HTTP='+list.status);
+          if(!list.ok)process.exitCode=1;
+          NODE
