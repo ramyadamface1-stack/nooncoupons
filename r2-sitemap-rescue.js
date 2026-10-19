@@ -51,10 +51,30 @@ async function staticFiles(env,path){
   const isIndex=path==='/sitemap-rescue-articles.xml';
   const match=path.match(/^\/sitemap-rescue-articles-(\d{4})\.xml$/);
   if(!isIndex&&!match)return null;
-  const key='bulk/seo-sitemaps/v1/'+(isIndex?'index.xml':'articles-'+match[1]+'.xml');
-  const data=await readMirrored(env,key,300000);
-  if(!data)return reply('Not ready',404);
-  return reply(data);
+  const raw=await readMirrored(env,'seo-rescue/index.json',300000);
+  if(!raw)return reply('Sitemap pending',503);
+  const manifest=JSON.parse(raw);
+  if(manifest.version!==1||!Number.isInteger(manifest.count)||manifest.count<100||!Array.isArray(manifest.segments)||!manifest.segments.length)return reply('Invalid curated index',503);
+  if(isIndex){
+    const xml='<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+
+      manifest.segments.map(x=>'<sitemap><loc>'+HOME+'/sitemap-rescue-articles-'+String(x.n).padStart(4,'0')+'.xml</loc></sitemap>').join('')+'</sitemapindex>';
+    return reply(xml,200,{'x-rescue-curated-articles':String(manifest.count),'x-rescue-curated-shards':String(manifest.segments.length)});
+  }
+  const n=Number(match[1]);
+  if(!Number.isInteger(n)||n<0||n>=manifest.segments.length||manifest.segments[n]?.n!==n)return reply('Not found',404);
+  const segment=await readMirrored(env,'seo-rescue/articles-'+n+'.json',300000);
+  if(!segment)return reply('Segment unavailable',503);
+  const data=JSON.parse(segment);
+  if(!Array.isArray(data.articles)||data.articles.length>2500||data.articles.length<1)return reply('Invalid segment',503);
+  const entries=data.articles.map(a=>{
+    if(typeof a.slug!=='string'||a.slug.length>280||a.slug.includes('/')||a.slug.includes('..')||!['SA','AE'].includes(a.country))return '';
+    const url=HOME+'/articles/'+encodeURI(a.slug);
+    const date=/^\d{4}-\d{2}-\d{2}$/.test(a.lastmod||'')?'<lastmod>'+a.lastmod+'</lastmod>':'';
+    const coupon=String(a.code||'').toUpperCase(),qualified=/^NOV\d{2,4}$/.test(coupon);
+    const img=qualified?'<image:image><image:loc>'+image(a.slug,coupon,a.country,1)+'</image:loc></image:image>':'';
+    return '<url><loc>'+esc(url)+'</loc>'+date+img+'</url>';
+  }).join('');
+  return reply('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">'+entries+'</urlset>',200,{'x-rescue-curated-segment':String(n),'x-rescue-curated-urls':String(data.articles.length)});
 }
 export async function rescueSitemapResponse(req,env){
   const u=new URL(req.url),p=u.pathname;
