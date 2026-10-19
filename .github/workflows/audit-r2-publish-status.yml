@@ -1,0 +1,39 @@
+name: Audit Article Listing Status Before Sitemap Generation
+on:
+  push:
+    branches: [fix/rescue-images-discovery-20261019]
+    paths: ['.github/workflows/audit-r2-publish-status.yml']
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install -q boto3
+      - name: Summarize all R2 article listing and sample publication status, no writes
+        run: |
+          python3 - <<'PY'
+          import boto3,json,os
+          from botocore.config import Config
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['ID'].strip(),aws_secret_access_key=os.environ['SECRET'].strip(),config=Config(max_pool_connections=16))
+          bucket='nooncoupons-content-v2'
+          days=json.loads(s.get_object(Bucket=bucket,Key='bulk/days.json')['Body'].read())
+          print('DAY_ARCHIVE_TOTAL='+str(sum(int(x.get('count',0)) for x in days.get('days',[]))),flush=True)
+          keys=[]
+          for page in s.get_paginator('list_objects_v2').paginate(Bucket=bucket,Prefix='articles/',PaginationConfig={'PageSize':1000}):
+              keys.extend(x['Key'] for x in page.get('Contents',[]) if x['Key'].endswith('.html'))
+          print('TOTAL_ARTICLE_KEYS='+str(len(keys)),flush=True)
+          samples=[keys[int(i*(len(keys)-1)/43)] for i in range(44)]
+          outcomes={}
+          for key in samples:
+              m=s.head_object(Bucket=bucket,Key=key).get('Metadata') or {}
+              status=m.get('status','ABSENT')
+              outcomes[status]=outcomes.get(status,0)+1
+              print('STATUS_EXAMPLE='+json.dumps({'key':key[-115:],'status':status,'country':m.get('c'),'q':m.get('q'),'code':m.get('cp') or m.get('ck')},ensure_ascii=False),flush=True)
+          print('SAMPLED_PUBLICATION_STATES='+json.dumps(outcomes),flush=True)
+          print('READ_ONLY=true')
+          PY
