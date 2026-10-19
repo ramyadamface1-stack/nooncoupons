@@ -1,0 +1,38 @@
+name: Verify Homepage Schema for Cached Pages
+on:
+  push:
+    branches: [fix/home-schema-cache-hit-20261019]
+    paths: ['discovery-entry.js','.github/workflows/test-home-cache-schema.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate cached homepage output in production-compatible Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check discovery-entry.js
+          node --check brand-directory-schema.js
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --outdir /tmp/home-schema-dry
+          npx wrangler dev --local --ip 127.0.0.1 --port 8791 --log-level error >/tmp/home-schema-dev.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 40); do
+            if curl -fsS --connect-timeout 2 --max-time 5 'http://127.0.0.1:8791/' -o /tmp/home-schema-first.html; then break; fi
+            sleep 1
+          done
+          for i in 1 2; do
+            code=$(curl -sS --connect-timeout 5 --max-time 18 -o /tmp/home-$i.html -w '%{http_code}' 'http://127.0.0.1:8791/')
+            n=$(grep -o 'id="home-organization-jsonld-v1"' /tmp/home-$i.html | wc -l)
+            echo "HOME_WORKER_PASS$i_HTTP=$code SCHEMA_MARKERS=$n"
+            if [ "$code" != 200 ] || [ "$n" != 1 ]; then
+              tail -n 20 /tmp/home-schema-dev.log | cut -c1-300
+              exit 1
+            fi
+          done
