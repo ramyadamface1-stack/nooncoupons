@@ -1,0 +1,48 @@
+name: Test Restored Rescue Images and Article SEO
+on:
+  push:
+    branches: [fix/rescue-images-discovery-20261019]
+    paths: ['r2-emergency-readonly.js','.github/workflows/test-rescue-seo.yml']
+permissions: {contents: read}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NOON_RESCUE_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_RESCUE_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      R2_RESCUE_READONLY_ENABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify syntax, existing S3 article reads, live SVG source URLs and article Schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check r2-emergency-readonly.js
+          node --input-type=module <<'NODE'
+          import {emergencyPublicR2Response} from './r2-emergency-readonly.js';
+          const paths=[
+           '/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي',
+           '/en/articles/en-noon-uae-coupon-conditions-guide',
+           '/blog','/blog?country=AE','/blog/archive/all','/blog/archive/2026-10-18'
+          ];
+          for(const p of paths){
+            const r=await emergencyPublicR2Response(new Request('https://noondealsnow.com'+p),process.env);
+            const body=await r.text();
+            const imgs=[...body.matchAll(/<img\b[^>]*src="([^"]+)"/gi)].map(x=>x[1]);
+            const scripts=[...body.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)];
+            let valid=true;
+            for(const [,text] of scripts){try{JSON.parse(text)}catch{valid=false}}
+            const hasImage=imgs.length>0,hasOg=p.includes('/articles/')?body.includes('property="og:image"'):true;
+            console.log('RESCUE_SEO_TEST='+JSON.stringify({p,status:r.status,images:imgs.length,schema:scripts.length,valid,hasOg}));
+            if(r.status!==200||!hasImage||!hasOg||!valid)process.exitCode=1;
+            if(imgs.length){
+              const imageUrl=new URL(imgs[0],'https://noondealsnow.com');
+              const img=await fetch(imageUrl);
+              console.log('RESCUE_IMAGE_LIVE='+JSON.stringify({p,status:img.status,type:img.headers.get('content-type')}));
+              if(!img.ok||!img.headers.get('content-type')?.includes('image/svg+xml'))process.exitCode=1;
+            }
+          }
+          NODE
