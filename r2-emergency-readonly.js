@@ -36,7 +36,7 @@ export async function signedR2Read(env,key='',params={}){
     'x-amz-content-sha256':empty,
     'authorization':'AWS4-HMAC-SHA256 Credential='+credentials.id+'/'+scope+', SignedHeaders='+signed+', Signature='+signature
   };
-  return fetch('https://'+host+path+(query?'?'+query:''),{method:'GET',headers,redirect:'error'});
+  return fetch('https://'+host+path+(query?'?'+query:''),{method:'GET',headers,redirect:'manual'});
 }
 async function getObject(env,key,cacheMs=0){
   const prev=cacheMs?manifestCache.get(key):null;
