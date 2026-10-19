@@ -160,7 +160,7 @@ const sitemapHeaders={'content-type':'application/xml; charset=utf-8','cache-con
 const xmlResponse=xml=>new Response(xml,{headers:sitemapHeaders});
 const rescueOrigin='https://noondealsnow.com';
 const rescueArticleUrl=a=>rescueOrigin+(a.slug.startsWith('en-')?'/en/articles/':'/articles/')+encodeURIComponent(a.slug);
-const sitemapPathNum=p=>{const match=p.match(/^\/sitemap-rescue-(articles|images)-([0-9]{1,4})\.xml$/);return match?{kind:match[1],n:Number(match[2])}:null};
+const sitemapPathNum=p=>{const match=p.match(/^\/sitemap-rescue-(english-images|english|articles|images)-([0-9]{1,4})\.xml$/);return match?{kind:match[1],n:Number(match[2])}:null};
 export async function rescueSitemapIndexPaths(env){
   const index=await getJson(env,'seo-rescue/index.json');
   if(!index||index.version!==1||!Array.isArray(index.segments)||!index.count)return [];
@@ -169,18 +169,25 @@ export async function rescueSitemapIndexPaths(env){
     if(!Number.isSafeInteger(part.n)||part.n<0||part.n>9999||!Number.isSafeInteger(part.count)||part.count<1)continue;
     rows.push('/sitemap-rescue-articles-'+part.n+'.xml','/sitemap-rescue-images-'+part.n+'.xml');
   }
+  for(const part of (index.englishSegments||[])){
+    if(!Number.isSafeInteger(part.n)||part.n<0||part.n>9999||!Number.isSafeInteger(part.count)||part.count<1)continue;
+    rows.push('/sitemap-rescue-english-'+part.n+'.xml','/sitemap-rescue-english-images-'+part.n+'.xml');
+  }
   return rows;
 }
 export async function rescueSitemapResponse(path,env){
   const info=sitemapPathNum(path);
-  if(!info&&path!=='/sitemap-images.xml')return null;
+  if(!info&&path!=='/sitemap-images.xml'&&path!=='/sitemap-en-articles.xml')return null;
   const manifest=await getJson(env,'seo-rescue/index.json');
   if(!manifest||manifest.version!==1||!Array.isArray(manifest.segments))return null;
-  const segment=info?manifest.segments.find(p=>p.n===info.n):manifest.segments[0];
+  const english=info?.kind?.startsWith('english')||path==='/sitemap-en-articles.xml';
+  const groups=english?manifest.englishSegments:manifest.segments;
+  if(!Array.isArray(groups)||groups.length<1)return null;
+  const segment=info?groups.find(p=>p.n===info.n):groups[0];
   if(!segment)return new Response('Unknown sitemap segment',{status:404});
   const file=await getJson(env,segment.key);
   if(!file||file.version!==1||!Array.isArray(file.articles))return new Response('Missing sitemap data',{status:503});
-  const image=info?.kind==='images'||path==='/sitemap-images.xml';
+  const image=info?.kind==='images'||info?.kind==='english-images'||path==='/sitemap-images.xml';
   const body=file.articles.map(a=>{
     const loc=rescueArticleUrl(a),date=a.lastmod?'<lastmod>'+xmlSafe(a.lastmod)+'</lastmod>':'';
     if(!image)return '<url><loc>'+xmlSafe(loc)+'</loc>'+date+'</url>';
@@ -194,7 +201,7 @@ export async function emergencyPublicR2Response(req,env){
   const u=new URL(req.url);
   if(req.method!=='GET'||String(env.R2_RESCUE_READONLY_ENABLED||'')!=='true')return null;
   const p=u.pathname.replace(/\/+$/,'')||'/';
-  const isSitemap=p==='/sitemap-images.xml'||/^\/sitemap-rescue-(?:articles|images)-\d{1,4}\.xml$/.test(p);
+  const isSitemap=p==='/sitemap-images.xml'||p==='/sitemap-en-articles.xml'||/^\/sitemap-rescue-(?:english-images|english|articles|images)-\d{1,4}\.xml$/.test(p);
   if(!isSitemap&&!(/^\/articles\/[^/]+$/.test(p)||/^\/en\/articles\/[^/]+$/.test(p)||p==='/blog'||p.startsWith('/blog/archive')))return null;
   try{
     if(isSitemap)return await rescueSitemapResponse(p,env);
