@@ -16,7 +16,7 @@ function resource(env){return {id:String(env.NOON_RESCUE_R2_ACCESS_KEY_ID||'').t
 export async function signedR2Read(env,key='',params={}){
   const credentials=resource(env);
   if(!credentials.id||!credentials.secret)throw new Error('rescue_credentials_not_configured');
-  if(key&&!(/^(?:articles|bulk|_ops|english-canary)\//.test(key)))throw new Error('rescue_prefix_not_public');
+  if(key&&!(/^(?:articles|bulk|_ops|english-canary|seo-rescue)\//.test(key)))throw new Error('rescue_prefix_not_public');
   const host=ACCOUNT+'.r2.cloudflarestorage.com',path='/'+encode(BUCKET)+(key?'/'+key.split('/').map(encode).join('/'):'');
   const query=Object.keys(params).sort().map(k=>encode(k)+'='+encode(params[k])).join('&');
   const now=new Date(),stamp=now.toISOString().replace(/[:-]|\.\d{3}/g,''),day=stamp.slice(0,8);
@@ -153,12 +153,50 @@ async function serveDay(env,u,day){
   }
   return response('مقالات '+day,'<h1>مقالات '+esc(day)+'</h1>'+cards(articles)+nav(pageNum>1?'/blog/archive/'+day+'?page='+(pageNum-1):'',to<total?'/blog/archive/'+day+'?page='+(pageNum+1):'','صفحة '+pageNum),{canonical:'https://noondealsnow.com/blog/archive/'+day});
 }
+
+const xmlSafe=s=>esc(String(s??''));
+const sitemapHeaders={'content-type':'application/xml; charset=utf-8','cache-control':'public,max-age=300,s-maxage=1800,stale-while-revalidate=3600','x-robots-tag':'all','x-r2-rescue-sitemap':'quality-gated-v1'};
+const xmlResponse=xml=>new Response(xml,{headers:sitemapHeaders});
+const rescueOrigin='https://noondealsnow.com';
+const rescueArticleUrl=a=>rescueOrigin+(a.slug.startsWith('en-')?'/en/articles/':'/articles/')+encodeURIComponent(a.slug);
+const sitemapPathNum=p=>{const match=p.match(/^\/sitemap-rescue-(articles|images)-([0-9]{1,4})\.xml$/);return match?{kind:match[1],n:Number(match[2])}:null};
+export async function rescueSitemapIndexPaths(env){
+  const index=await getJson(env,'seo-rescue/index.json');
+  if(!index||index.version!==1||!Array.isArray(index.segments)||!index.count)return [];
+  const rows=[];
+  for(const part of index.segments){
+    if(!Number.isSafeInteger(part.n)||part.n<0||part.n>9999||!Number.isSafeInteger(part.count)||part.count<1)continue;
+    rows.push('/sitemap-rescue-articles-'+part.n+'.xml','/sitemap-rescue-images-'+part.n+'.xml');
+  }
+  return rows;
+}
+export async function rescueSitemapResponse(path,env){
+  const info=sitemapPathNum(path);
+  if(!info&&path!=='/sitemap-images.xml')return null;
+  const manifest=await getJson(env,'seo-rescue/index.json');
+  if(!manifest||manifest.version!==1||!Array.isArray(manifest.segments))return null;
+  const segment=info?manifest.segments.find(p=>p.n===info.n):manifest.segments[0];
+  if(!segment)return new Response('Unknown sitemap segment',{status:404});
+  const file=await getJson(env,segment.key);
+  if(!file||file.version!==1||!Array.isArray(file.articles))return new Response('Missing sitemap data',{status:503});
+  const image=info?.kind==='images'||path==='/sitemap-images.xml';
+  const body=file.articles.map(a=>{
+    const loc=rescueArticleUrl(a),date=a.lastmod?'<lastmod>'+xmlSafe(a.lastmod)+'</lastmod>':'';
+    if(!image)return '<url><loc>'+xmlSafe(loc)+'</loc>'+date+'</url>';
+    const img=rescueOrigin+rescueImageUrl(a.slug,a.country,a.code,1);
+    return '<url><loc>'+xmlSafe(loc)+'</loc><image:image><image:loc>'+xmlSafe(img)+'</image:loc></image:image></url>';
+  }).join('');
+  const ns=image?' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"':'';
+  return xmlResponse('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'+ns+'>'+body+'</urlset>');
+}
 export async function emergencyPublicR2Response(req,env){
   const u=new URL(req.url);
   if(req.method!=='GET'||String(env.R2_RESCUE_READONLY_ENABLED||'')!=='true')return null;
   const p=u.pathname.replace(/\/+$/,'')||'/';
-  if(!(/^\/articles\/[^/]+$/.test(p)||/^\/en\/articles\/[^/]+$/.test(p)||p==='/blog'||p.startsWith('/blog/archive')))return null;
+  const isSitemap=p==='/sitemap-images.xml'||/^\/sitemap-rescue-(?:articles|images)-\d{1,4}\.xml$/.test(p);
+  if(!isSitemap&&!(/^\/articles\/[^/]+$/.test(p)||/^\/en\/articles\/[^/]+$/.test(p)||p==='/blog'||p.startsWith('/blog/archive')))return null;
   try{
+    if(isSitemap)return await rescueSitemapResponse(p,env);
     if(p.startsWith('/articles/'))return await serveArticle(env,u,false);
     if(p.startsWith('/en/articles/'))return await serveArticle(env,u,true);
     if(p==='/blog')return await serveBlog(env,u);
