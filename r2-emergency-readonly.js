@@ -16,7 +16,7 @@ function resource(env){return {id:String(env.NOON_RESCUE_R2_ACCESS_KEY_ID||'').t
 export async function signedR2Read(env,key='',params={}){
   const credentials=resource(env);
   if(!credentials.id||!credentials.secret)throw new Error('rescue_credentials_not_configured');
-  if(key&&!(/^(?:articles|bulk|_ops|english-canary)\//.test(key)))throw new Error('rescue_prefix_not_public');
+  if(key&&!(/^(?:articles|bulk|_ops|english-canary|seo-rescue)\//.test(key)))throw new Error('rescue_prefix_not_public');
   const host=ACCOUNT+'.r2.cloudflarestorage.com',path='/'+encode(BUCKET)+(key?'/'+key.split('/').map(encode).join('/'):'');
   const query=Object.keys(params).sort().map(k=>encode(k)+'='+encode(params[k])).join('&');
   const now=new Date(),stamp=now.toISOString().replace(/[:-]|\.\d{3}/g,''),day=stamp.slice(0,8);
