@@ -20,7 +20,7 @@ jobs:
             req=urllib.request.Request('https://noondealsnow.com'+urllib.parse.quote(p,safe='/'),headers={'User-Agent':'Mozilla/5.0'})
             with urllib.request.urlopen(req,timeout=25) as r:body=r.read().decode('utf8','replace')
             rows=[]
-            for i,src in enumerate(re.findall(r'<script\\b[^>]*type=["\\\']application/ld\\+json["\\\'][^>]*>([\\s\\S]*?)</script>',body,re.I)):
+            for i,src in enumerate(re.findall(r'<script[^>]+application/ld[+]json[^>]*>(.*?)</script>',body,re.I|re.S)):
               try:
                 data=json.loads(src)
                 nodes=data if isinstance(data,list) else [data]
