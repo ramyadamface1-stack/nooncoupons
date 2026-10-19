@@ -66,12 +66,12 @@
     "enabled": true,
     "head_sampling_rate": 0.05
   },
-  "r2_buckets": [
-    {
-      "binding": "CONTENT_FINAL",
-      "bucket_name": "nooncoupons-content-v2"
-    }
-  ],
+  // TEMPORARY EMERGENCY: old-account R2 access disabled by Cloudflare (10042).
+  // Wrangler refuses deploying this Worker when old R2 binding exists (10136).
+  // Article/blog reads are rescued from existing new-account R2 using signed
+  // read-only secrets; no buckets or content are deleted. Restore original
+  // CONTENT_FINAL binding from Git history once old account R2 is enabled.
+  "r2_buckets": [],
   "durable_objects": {
     "bindings": [
       {
