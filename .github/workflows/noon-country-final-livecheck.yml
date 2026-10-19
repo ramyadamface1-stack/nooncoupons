@@ -1,0 +1,52 @@
+name: Final Live Check of Country Blog English Archive and Schemas
+on:
+  push:
+    branches: [audit/noondealsnow-country-livecheck-20261019]
+    paths: ['.github/workflows/noon-country-final-livecheck.yml']
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Verify 15-card pages and absence of duplicate structured entities in Production
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,urllib.parse,re,json,sys
+          host='https://noondealsnow.com'
+          paths=['/','/blog','/blog/saudi','/blog/uae','/blog/saudi?page=2','/blog/uae?page=2','/blog/archive/english','/blog/archive/english?page=134','/blog/archive/english?page=1418','/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي','/en/articles/en-noon-uae-coupon-conditions-guide','/sitemap-core.xml','/sitemap.xml']
+          failed=[]
+          for p in paths:
+            url=host+urllib.parse.quote(p,safe='/?=&%')
+            req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 NoonDealsNow-Final-Live-Check'})
+            try:
+              with urllib.request.urlopen(req,timeout=25) as r:code=r.status;body=r.read(2200000).decode('utf-8','replace');headers=dict(r.headers)
+            except urllib.error.HTTPError as e:code=e.code;body=e.read(2000).decode('utf8','replace');headers=dict(e.headers)
+            except Exception as e:code=0;body=str(e);headers={}
+            imgs=len(re.findall(r'<img\s',body,re.I));cards=len(re.findall(r'<article class="card"',body))
+            metas=re.findall(r'<script\b[^>]*type=["\x27]application/ld\+json["\x27][^>]*>(.*?)</script>',body,re.I|re.S)
+            types=[]
+            try:
+              for text in metas:
+                data=json.loads(text);nodes=data if isinstance(data,list) else [data]
+                for n in nodes:
+                  if not isinstance(n,dict):continue
+                  types.extend((x.get('@type') for x in [n]+(n.get('@graph') or []) if isinstance(x,dict) and x.get('@type')))
+            except Exception as e:failed.append((p,'schema_parse',str(e)[:80]))
+            fact={'path':p,'status':code,'images':imgs,'cards':cards,'types':types[:20],'rescue':headers.get('x-r2-rescue'),'social_image':('property="og:image"' in body),'english_html':'<html lang="en" dir="ltr"' in body,'noindex':'content="noindex,follow"' in body,'locs':body.count('<loc>')}
+            print('FINAL_SITE='+json.dumps(fact,ensure_ascii=False),flush=True)
+            if code!=200:failed.append((p,'status',code))
+            if p in ('/blog','/blog/saudi','/blog/uae','/blog/archive/english','/blog/archive/english?page=134') and (cards!=15 or imgs!=15):failed.append((p,'cards_and_images',cards,imgs))
+            if p=='/blog/archive/english?page=1418' and (cards!=14 or imgs!=14):failed.append((p,'last_english_page',cards,imgs))
+            if p.startswith('/blog/archive/english') and (not fact['english_html'] or not fact['noindex']):failed.append((p,'english_semantics'))
+            if p in ('/blog/saudi','/blog/uae') and ('CollectionPage' not in types or 'ItemList' not in types):failed.append((p,'country_schema'))
+            if p=='/' and any(types.count(x)!=1 for x in ['Organization','WebSite','WebPage']):failed.append((p,'duplicate_home_schema'))
+            if p.startswith('/articles/') and (types.count('Article')!=1 or 'FAQPage' not in types or 'BreadcrumbList' not in types):failed.append((p,'article_schema'))
+            if p.startswith('/en/articles/') and (types.count('Article')!=1 or 'FAQPage' not in types):failed.append((p,'english_article_schema'))
+            if p=='/sitemap-core.xml' and (not all(x in body for x in ['/blog/saudi','/blog/uae'])):failed.append((p,'missing_country_hubs'))
+            if p=='/sitemap.xml' and body.count('<sitemap>')<200:failed.append((p,'missing_article_sitemaps'))
+          print('FINAL_SITE_FAILED='+json.dumps(failed,ensure_ascii=False),flush=True)
+          print('LIVE_COUNTRY_SITEMAP_SCHEMA_PASS='+str(not failed).lower(),flush=True)
+          if failed:sys.exit(1)
+          PY
