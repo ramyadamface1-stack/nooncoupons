@@ -1,4 +1,5 @@
 import app from './brand-runtime.js';
+import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
 import {emergencyPublicR2Response,rescueSitemapIndexPaths} from './r2-emergency-readonly.js';
 import {runEnglishCanaryBatch,englishCanaryRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
@@ -109,6 +110,7 @@ function keyPages(origin){
     '/en/coupons',
     '/en/uae/saving-guide',
     '/blog',
+    '/brands',
     '/saudi',
     '/uae',
     '/saudi/categories',
@@ -454,6 +456,8 @@ export default{
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
     const rescued=await emergencyPublicR2Response(req,env);
     if(rescued)return edgePageCachePut(req,u,rescued,ctx);
+    const directory=brandDirectoryResponse(req);
+    if(directory)return edgePageCachePut(req,u,directory,ctx);
     if(req.method==='GET'&&u.pathname==='/api/revision')return new Response(JSON.stringify({ok:true,release:DISCOVERY_RELEASE,layer:'discovery-entry',sitemapHealth:true,imageSitemap:true,englishIntentOwners:true,shoppingIntentOwners:true,noIdleGenerationGuard:true,titleCannibalizationGate:true},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-runtime-revision':DISCOVERY_RELEASE}});
 
     if(req.method==='POST'&&u.pathname==='/api/internal/generation-burst-step'){
@@ -571,6 +575,7 @@ export default{
       return new Response(JSON.stringify(state),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     let res=await app.fetch(req,env,ctx);
+    res=await enrichHomepageSchema(req,res);
     if(req.method==='GET'&&u.pathname==='/sitemap.xml')res=await augmentRootSitemap(res,origin,env);
     if(req.method==='GET'&&u.pathname==='/robots.txt')res=await augmentRobots(res,origin);
     res=await injectDiscoveryLinks(req,env,res);
