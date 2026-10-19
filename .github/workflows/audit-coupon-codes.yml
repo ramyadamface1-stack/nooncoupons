@@ -91,7 +91,7 @@ jobs:
             }
           done
 
-          ARTICLE_PATH="$(grep -oE 'href="/articles/[^"]+"' /tmp/blog.html | head -n1 | sed -E 's/^href="([^"]+)"$/\1/' || true)"
+          ARTICLE_PATH="$(grep -m1 -oE 'href="/articles/[^"]+"' /tmp/blog.html | sed -n -E '1s/^href="([^"]+)"$/\1/p' || true)"
           if [ -n "$ARTICLE_PATH" ]; then
             curl -fsS --retry 4 --retry-delay 2 "$ORIGIN$ARTICLE_PATH?coupon-audit=3" -o /tmp/article.html
             ! grep -Eq 'OPS[0-9]+' /tmp/article.html
@@ -108,7 +108,15 @@ jobs:
           node - <<'NODE'
           const fs=require('fs');
           const x=JSON.parse(fs.readFileSync('/tmp/migration.json','utf8'));
-          if(x.ok!==true) process.exit(1);
+          if(x.ok!==true){
+            if(x.reason==='r2_binding_missing'){
+              console.log('::warning::COUPON_R2_MIGRATION_UNAVAILABLE=old-account-R2-entitlement-10042; public coupon-code scan continues; no migration success implied');
+              console.log('COUPON_R2_MIGRATION=DEFERRED_OLD_R2_DISABLED');
+              process.exit(0);
+            }
+            console.error('COUPON_R2_MIGRATION_UNEXPECTED_HEALTH='+String(x.reason||x.error||'unknown').slice(0,140));
+            process.exit(1);
+          }
           console.log('COUPON_R2_MIGRATION='+JSON.stringify({
             scanned:x.scanned||0,
             updated:x.updated||0,
