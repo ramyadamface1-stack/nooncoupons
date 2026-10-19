@@ -110,6 +110,8 @@ function keyPages(origin){
     '/en/coupons',
     '/en/uae/saving-guide',
     '/blog',
+    '/blog/saudi',
+    '/blog/uae',
     '/brands',
     '/saudi',
     '/uae',
