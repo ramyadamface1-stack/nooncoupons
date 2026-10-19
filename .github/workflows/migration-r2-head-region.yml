@@ -20,7 +20,7 @@ jobs:
           end=datetime.datetime.now(datetime.timezone.utc)
           start=end-datetime.timedelta(hours=1)
           vars={'accountTag':'c82274152a942dea53044eae7153cfd7','startDate':start.isoformat().replace('+00:00','Z'),'endDate':end.isoformat().replace('+00:00','Z'),'bucketName':'nooncoupons-content-v2'}
-          query='query R2RequestRegions($accountTag: string!, $startDate: Time, $endDate: Time, $bucketName: string) { viewer { accounts(filter:{accountTag:$accountTag}) { r2OperationsAdaptiveGroups(limit:1000,orderBy:[sum_requests_DESC],filter:{datetime_geq:$startDate,datetime_leq:$endDate,bucketName:$bucketName,actionType:"HeadObject"}) { sum { requests } dimensions { eyeballRegion responseStatusCode tag } } } } }'
+          query='query R2RequestRegions($accountTag: string!, $startDate: Time, $endDate: Time, $bucketName: string) { viewer { accounts(filter:{accountTag:$accountTag}) { r2OperationsAdaptiveGroups(limit:1000,orderBy:[sum_requests_DESC],filter:{datetime_geq:$startDate,datetime_leq:$endDate,bucketName:$bucketName,actionType:"HeadObject"}) { sum { requests } dimensions { eyeballRegion responseStatusCode } } } } }'
           req=urllib.request.Request('https://api.cloudflare.com/client/v4/graphql',method='POST',data=json.dumps({'query':query,'variables':vars}).encode(),headers={'Authorization':'Bearer '+os.environ['TOKEN'].strip(),'Content-Type':'application/json'})
           try:
               with urllib.request.urlopen(req,timeout=20) as r:result=json.load(r);status=r.status
@@ -35,7 +35,7 @@ jobs:
           summary={}
           for row in rows:
               d=row.get('dimensions') or {}
-              key=(str(d.get('eyeballRegion') or 'unknown'),str(d.get('responseStatusCode') or 'unknown'),str(d.get('tag') or 'none'))
+              key=(str(d.get('eyeballRegion') or 'unknown'),str(d.get('responseStatusCode') or 'unknown'),'unavailable')
               summary[key]=summary.get(key,0)+int((row.get('sum') or {}).get('requests') or 0)
           print('R2_HEAD_REGION_GROUPS='+str(len(summary)))
           for (region,code,tag),num in sorted(summary.items(),key=lambda x:-x[1])[:24]:
