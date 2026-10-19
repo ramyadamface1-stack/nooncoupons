@@ -37,7 +37,7 @@ jobs:
                 except Exception as e:self.scripts.append({"ERROR":str(e)[:100]})
                 self._script=False
           def req(path,binary=False):
-            u=ORIGIN+path
+            u=ORIGIN+urllib.parse.quote(path,safe="/?:&=%")
             q=urllib.request.Request(u,headers={'User-Agent':'Mozilla/5.0 NoonDealsNowSEO-Audit/20261019','Accept':'*/*'})
             st=time.monotonic()
             try:
