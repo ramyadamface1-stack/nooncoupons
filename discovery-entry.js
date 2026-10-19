@@ -453,7 +453,8 @@ export default{
     // Keep ALL admin, cron, DO state, route, and publishing paths unchanged.
     // Check canonical public Cloudflare Cache API BEFORE cross-account R2 GET.
     // Without this, every article visit and bot crawl incurs new-account R2 Class B reads.
-    const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
+    const edgeHit=await edgePageCacheGet(req,u);
+    if(edgeHit)return req.method==='GET'&&u.pathname==='/'?await enrichHomepageSchema(req,edgeHit):edgeHit;
     const rescued=await emergencyPublicR2Response(req,env);
     if(rescued)return edgePageCachePut(req,u,rescued,ctx);
     const directory=brandDirectoryResponse(req);
