@@ -226,7 +226,9 @@ async function coreTrustStructuredPage(req,res,origin){
   if(!shape)return res;
   let html=await res.text();
   if(!/<\/head>/i.test(html))return new Response(html,{status:res.status,headers:res.headers});
-  if(!html.includes('application/ld+json')){
+  // Generic article renderer may mention JSON-LD in a JS/CSS string without
+  // emitting a real <script type="application/ld+json">. Detect actual tags.
+  if(!/<script\b[^>]*\btype\s*=\s*["']application\/ld\+json["'][^>]*>/i.test(html)){
     const loc=origin+p,company={'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',url:origin+'/',logo:{'@type':'ImageObject',url:origin+'/favicon.svg'},description:'Independent Noon coupons and shopping guides for Saudi Arabia and the UAE.'};
     const site={'@type':'WebSite','@id':origin+'/#website',url:origin+'/',name:'Noon Deals Now',publisher:{'@id':origin+'/#organization'},inLanguage:['ar','en']};
     const page={'@type':shape,'@id':loc+'#webpage',url:loc,isPartOf:{'@id':origin+'/#website'},about:{'@id':origin+'/#organization'},inLanguage:'ar'};
