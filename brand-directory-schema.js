@@ -21,16 +21,46 @@ export function brandDirectoryResponse(req){
   const html='<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title)+' | Noon Deals Now</title><meta name="robots" content="index,follow,max-image-preview:large"><meta name="description" content="'+esc(description)+'"><link rel="canonical" href="'+canonical+'">'+social+style+'<script type="application/ld+json">'+serializeSchema(structured)+'</script></head><body><header><nav><a href="/">الرئيسية</a><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a><a href="/categories">الأقسام</a><a href="/blog">المدونة</a></nav></header><main><h1>'+esc(title)+'</h1><p>'+esc(description)+'</p><p>هذه صفحات إرشادية مستقلة وليست صفحات رسمية للمتاجر أو ضمانًا لقبول أي كود. تحقق من الشروط والسعر النهائي داخل نون.</p><section class="grid" aria-label="قائمة البراندات">'+entries+'</section></main><footer>موقع مستقل غير تابع لشركة نون.</footer></body></html>';
   return new Response(html,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=300,s-maxage=900,stale-while-revalidate=3600','x-brand-directory':'v1'}});
 }
+function existingStructuredTypes(html){
+  const found=new Set();
+  for(const match of String(html).matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)){
+    try{
+      const parsed=JSON.parse(match[1]);
+      const nodes=Array.isArray(parsed)?parsed:[parsed];
+      for(const node of nodes){
+        if(!node||typeof node!=='object')continue;
+        const values=[node,...(Array.isArray(node['@graph'])?node['@graph']:[])];
+        for(const value of values){
+          const types=Array.isArray(value?.['@type'])?value['@type']:[value?.['@type']];
+          for(const type of types)if(type)found.add(type);
+        }
+      }
+    }catch{}
+  }
+  return found;
+}
 export async function enrichHomepageSchema(req,res){
   if(req.method!=='GET'||new URL(req.url).pathname!=='/'||!res?.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
-  const text=await res.text();
-  if(text.includes('id="home-organization-jsonld-v1"'))return new Response(text,{status:res.status,headers:res.headers});
-  const data={'@context':'https://schema.org','@graph':[
+  let html=await res.text();
+  const known=existingStructuredTypes(html);
+  const graph=[
     {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',url:origin+'/',description:'Independent coupon and shopping-guide site serving Saudi Arabia and the UAE.'},
     {'@type':'WebSite','@id':origin+'/#website',url:origin+'/',name:'Noon Deals Now',inLanguage:['ar','en'],publisher:{'@id':origin+'/#organization'}},
-    {'@type':'WebPage','@id':origin+'/#webpage',url:origin+'/',name:'كوبونات نون السعودية والإمارات',isPartOf:{'@id':origin+'/#website'},inLanguage:'ar'}]};
-  const tag='<script id="home-organization-jsonld-v1" type="application/ld+json">'+serializeSchema(data)+'</script>';
-  const html=text.replace(/<\/head>/i,tag+'</head>');
-  const h=new Headers(res.headers);h.delete('content-length');h.set('x-home-schema','organization-website-v1');
+    {'@type':'WebPage','@id':origin+'/#webpage',url:origin+'/',name:'كوبونات نون السعودية والإمارات',isPartOf:{'@id':origin+'/#website'},inLanguage:'ar'}
+  ].filter(node=>!known.has(node['@type']));
+  if(graph.length){
+    const tag='<script id="home-organization-jsonld-v2" type="application/ld+json">'+serializeSchema({'@context':'https://schema.org','@graph':graph})+'</script>';
+    html=html.replace(/<\/head>/i,tag+'</head>');
+  }
+  // A favicon is too small to be an informative social sharing image.
+  // Reuse an existing, verified SVG resource; don't add or generate R2 objects.
+  const image=origin+'/assets/featured/brands.svg';
+  if(/<meta\b[^>]*property=["']og:image["'][^>]*>/i.test(html)){
+    html=html.replace(/<meta\b[^>]*property=["']og:image["'][^>]*>/i,meta=>
+      /content=["'][^"']*["']/i.test(meta)?meta.replace(/content=["'][^"']*["']/i,'content="'+image+'"'):meta.slice(0,-1)+' content="'+image+'">');
+  }else html=html.replace(/<\/head>/i,'<meta property="og:image" content="'+image+'"></head>');
+  if(!/<meta\b[^>]*name=["']twitter:image["']/i.test(html))html=html.replace(/<\/head>/i,'<meta name="twitter:image" content="'+image+'"></head>');
+  if(!/<meta\b[^>]*name=["']twitter:card["']/i.test(html))html=html.replace(/<\/head>/i,'<meta name="twitter:card" content="summary_large_image"></head>');
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-home-schema','deduplicated-graph-v2');
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }

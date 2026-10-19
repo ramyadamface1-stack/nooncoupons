@@ -419,7 +419,7 @@ async function sitemapHealth(req,env,ctx,origin){
   return new Response(JSON.stringify({ok:rows.every(x=>x.ok),origin,checkedAt:new Date().toISOString(),rows},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-sitemap-self-audit':'v1'}});
 }
 
-const EDGE_CACHE_POLICY_REVISION='r2-public-rescue-cache-r14';
+const EDGE_CACHE_POLICY_REVISION='r2-jsonld-dedupe-r16';
 function edgePageCacheKey(u){
   return new Request(u.origin+u.pathname+'?__ndn_edge_policy='+EDGE_CACHE_POLICY_REVISION,{method:'GET'});
 }
