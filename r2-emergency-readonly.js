@@ -140,13 +140,42 @@ async function serveArticle(env,u,english){
   return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles','content-language':english?'en':'ar'}});
 }
 async function serveBlog(env,u){
-  const data=await getJson(env,'bulk/latest.json'),rows=(data?.articles||[]).filter(a=>a?.slug&&a.indexable!==false);
+  const market=u.pathname.endsWith('/saudi')?'SA':u.pathname.endsWith('/uae')?'AE':null;
+  const data=await getJson(env,'bulk/latest.json');
+  const rows=(data?.articles||[]).filter(a=>a?.slug&&a.status!=='draft'&&a.status!=='scheduled'&&a.indexable!==false&&(!market||a.country===market));
   const size=15,pages=Math.max(1,Math.ceil(rows.length/size)),pageNum=Math.max(1,Math.min(pages,Number.parseInt(u.searchParams.get('page')||'1',10)||1));
   const visible=rows.slice((pageNum-1)*size,pageNum*size);
-  const hint='<h1>مدونة كوبونات نون</h1><p>تصفح أحدث الأدلة، أو افتح <a href="/blog/archive/all">كل المقالات المحفوظة</a> للوصول إلى الأرشيف الكامل الموجود في التخزين.</p>';
-  const pageUrl='https://noondealsnow.com/blog'+(pageNum>1?'?page='+pageNum:'');
-  const schema='<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@graph':[{'@type':'CollectionPage',name:'مدونة كوبونات نون',url:pageUrl,inLanguage:'ar'},{'@type':'ItemList',itemListElement:visible.map((a,i)=>({'@type':'ListItem',position:i+1+(pageNum-1)*size,url:'https://noondealsnow.com'+link(a)}))}]}).replace(/</g,'\\u003c')+'</script>';
-  return response('مدونة كوبونات نون',schema+hint+cards(visible)+nav(pageNum>1?'/blog?page='+(pageNum-1):'',pageNum<pages?'/blog?page='+(pageNum+1):'','صفحة '+pageNum+' من '+pages),{canonical:pageUrl,robots:'index,follow',image:visible[0]?'https://noondealsnow.com'+rescueImageUrl(visible[0].slug,marketOf(visible[0]),visible[0].coupon||visible[0].code||'',1):''});
+  const path=market==='SA'?'/blog/saudi':market==='AE'?'/blog/uae':'/blog';
+  const heading=market==='SA'?'مدونة نون السعودية':market==='AE'?'مدونة نون الإمارات':'مدونة كوبونات نون';
+  const tabs='<nav class="related-links" aria-label="أقسام المدونة"><a href="/blog">كل المقالات</a><a href="/blog/saudi">السعودية</a><a href="/blog/uae">الإمارات</a><a href="/blog/archive/english">English UAE</a><a href="/blog/archive/all">الأرشيف الكامل</a></nav>';
+  const hint='<h1>'+esc(heading)+'</h1><p>مقالات وأدلة شرائية مرتبطة بكوبونات نون، مع ضرورة مراجعة أهلية الكود والسعر النهائي داخل السلة.</p>'+tabs;
+  const pageUrl='https://noondealsnow.com'+path+(pageNum>1?'?page='+pageNum:'');
+  const schema='<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@graph':[{'@type':'CollectionPage',name:heading,url:pageUrl,inLanguage:'ar'},{'@type':'ItemList',itemListElement:visible.map((a,i)=>({'@type':'ListItem',position:i+1+(pageNum-1)*size,url:'https://noondealsnow.com'+link(a)}))}]}).replace(/</g,'\\u003c')+'</script>';
+  return response(heading,schema+hint+cards(visible)+nav(pageNum>1?path+'?page='+(pageNum-1):'',pageNum<pages?path+'?page='+(pageNum+1):'','صفحة '+pageNum+' من '+pages),{canonical:pageUrl,robots:'index,follow',image:visible[0]?'https://noondealsnow.com'+rescueImageUrl(visible[0].slug,marketOf(visible[0]),visible[0].coupon||visible[0].code||'',1):''});
+}
+async function serveEnglishArchive(env,u){
+  // Use the already quality-checked 21k English UAE manifest; never HEAD each article.
+  const index=await getJson(env,'seo-rescue/index.json'),parts=index?.englishSegments||[],count=Number(index?.englishCount||0),size=15;
+  if(!parts.length||count<1)return response('English Noon UAE Guides','<h1>English guides are temporarily unavailable.</h1><p><a href="/blog">Open the main blog</a></p>',{lang:'en',dir:'ltr',robots:'noindex,follow'},503);
+  const pages=Math.ceil(count/size),pageNum=Math.max(1,Math.min(pages,Number.parseInt(u.searchParams.get('page')||'1',10)||1));
+  const start=(pageNum-1)*size,end=Math.min(count,start+size),first=Math.floor(start/2000),last=Math.floor((end-1)/2000),rows=[];
+  for(let n=first;n<=last;n++){
+    const part=parts.find(x=>x.n===n);
+    if(!part)return new Response('Archive segment unavailable',{status:503});
+    const segment=await getJson(env,part.key);
+    if(!segment||!Array.isArray(segment.articles))return new Response('Archive data unavailable',{status:503});
+    const offset=n*2000;
+    for(let i=Math.max(0,start-offset);i<Math.min(segment.articles.length,end-offset);i++)rows.push(segment.articles[i]);
+  }
+  const cardsHtml=rows.map(a=>{
+    const slug=String(a.slug||'');if(!slug.startsWith('en-'))return '';
+    const title=slug.slice(3).replace(/-/g,' ').replace(/\bnoon\b/gi,'Noon');
+    const href='/en/articles/'+encodeURI(slug);
+    return '<article class="card" dir="ltr"><a href="'+esc(href)+'">'+imgTag(slug,'AE',a.code||'',1,title)+'</a><h2><a href="'+esc(href)+'">'+esc(title)+'</a></h2><small>Noon UAE guide · '+esc(a.lastmod||'')+'</small></article>';
+  }).join('');
+  const path='/blog/archive/english',url='https://noondealsnow.com'+path+(pageNum>1?'?page='+pageNum:'');
+  const heading='<h1>Noon UAE English Shopping Guides</h1><p>Browse '+count.toLocaleString('en-US')+' published UAE shopping guides, alphabetically, 15 per page. Check each coupon against your final Noon cart total.</p><nav class="related-links"><a href="/blog">Arabic blog</a><a href="/blog/uae">UAE Arabic articles</a><a href="/uae">UAE store hub</a></nav>';
+  return response('Noon UAE English Guides',heading+'<section class="cards">'+cardsHtml+'</section>'+nav(pageNum>1?path+'?page='+(pageNum-1):'',pageNum<pages?path+'?page='+(pageNum+1):'','Page '+pageNum+' of '+pages),{canonical:url,robots:'noindex,follow',lang:'en',dir:'ltr'});
 }
 async function serveAll(env,u){
   const cursor=u.searchParams.get('cursor')||'';
@@ -221,16 +250,16 @@ export async function emergencyPublicR2Response(req,env){
   if(req.method!=='GET'||String(env.R2_RESCUE_READONLY_ENABLED||'')!=='true')return null;
   const p=u.pathname.replace(/\/+$/,'')||'/';
   const isSitemap=p==='/sitemap-images.xml'||p==='/sitemap-en-articles.xml'||/^\/sitemap-rescue-(?:english-images|english|articles|images)-\d{1,4}\.xml$/.test(p);
-  if(!isSitemap&&!(/^\/articles\/[^/]+$/.test(p)||/^\/en\/articles\/[^/]+$/.test(p)||p==='/blog'||p.startsWith('/blog/archive')))return null;
+  if(!isSitemap&&!(/^\/articles\/[^/]+$/.test(p)||/^\/en\/articles\/[^/]+$/.test(p)||p==='/blog'||p==='/blog/saudi'||p==='/blog/uae'||p.startsWith('/blog/archive')))return null;
   try{
     if(isSitemap)return await rescueSitemapResponse(p,env);
     if(p.startsWith('/articles/'))return await serveArticle(env,u,false);
     if(p.startsWith('/en/articles/'))return await serveArticle(env,u,true);
-    if(p==='/blog')return await serveBlog(env,u);
+    if(p==='/blog'||p==='/blog/saudi'||p==='/blog/uae')return await serveBlog(env,u);
     if(p==='/blog/archive'||p==='/blog/archive/full')return await serveDays(env);
     if(p==='/blog/archive/all')return await serveAll(env,u);
     if(/^\/blog\/archive\/\d{4}-\d{2}-\d{2}$/.test(p))return await serveDay(env,u,p.slice('/blog/archive/'.length));
-    if(p==='/blog/archive/english')return response('English UAE archive','<h1>English UAE archive</h1><p><a href="/blog/archive/all">Browse all stored English and Arabic articles.</a></p>');
+    if(p==='/blog/archive/english')return await serveEnglishArchive(env,u);
     return null;
   }catch(error){
     const message=String(error?.message||error).slice(0,120).replace(/[\r\n]/g,' ');
