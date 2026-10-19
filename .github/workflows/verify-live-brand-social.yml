@@ -1,0 +1,42 @@
+name: Verify Live NoonDealsNow Brand Hub and Homepage Schema
+on:
+  push:
+    branches: [audit/live-brand-social-20261019]
+    paths: ['.github/workflows/verify-live-brand-social.yml']
+permissions: {contents: read}
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Verify live branding, canonical, JSON-LD, image and legacy policy routes
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,html.parser,json,re
+          base='https://noondealsnow.com'
+          def get(path):
+            r=urllib.request.Request(base+path,headers={'User-Agent':'Mozilla/5.0 Live-Schema-Audit'})
+            try:
+              with urllib.request.urlopen(r,timeout=25) as x:return x.status,x.read(300000).decode('utf-8','replace'),dict(x.headers)
+            except urllib.error.HTTPError as x:return x.code,x.read(1000).decode('utf-8','replace'),dict(x.headers)
+          failures=[]
+          for path in ['/','/brands','/blog','/privacy','/about','/saudi/brand/apple','/uae/brand/samsung','/assets/featured/brands.svg','/sitemap-core.xml']:
+            code,s,h=get(path)
+            groups=re.findall(r'<script[^>]*type="application/ld\+json"[^>]*>([\s\S]*?)<\/script>',s)
+            schemas=[];bad=[]
+            for x in groups:
+              try:schemas.append(json.loads(x))
+              except Exception as e:bad.append(str(e)[:90])
+            types=[v.get('@type') for x in schemas if isinstance(x,dict) for v in (x.get('@graph') or [x]) if isinstance(v,dict)]
+            count=s.count('/saudi/brand/') if path=='/brands' else 0
+            result={'path':path,'http':code,'bytes':len(s),'schema_types':types[:12],'brand_count':count,'og_image':'property="og:image"' in s,'canonical':'rel="canonical"' in s,'content_type':h.get('Content-Type')}
+            print('BRAND_LIVE='+json.dumps(result,ensure_ascii=False),flush=True)
+            if code!=200 or bad:failures.append(path+' unavailable/invalid')
+            if path=='/brands' and (count<20 or 'ItemList' not in types):failures.append('brands not indexed')
+            if path=='/' and ('Organization' not in types or 'WebSite' not in types):failures.append('home lacks semantic schema')
+            if path=='/blog' and not result['og_image']:failures.append('blog social image missing')
+            if path=='/sitemap-core.xml' and '/brands' not in s:failures.append('brands missing from sitemap core')
+          print('LIVE_SCHEMA_FAILURES='+json.dumps(failures),flush=True)
+          if failures:raise SystemExit(1)
+          print('LIVE_SEO_FINAL_VALIDATION=true',flush=True)
+          PY
