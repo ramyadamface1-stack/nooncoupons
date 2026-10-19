@@ -32,7 +32,7 @@ jobs:
             const match=body.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/i);
             let types=[];
             if(match){const graph=JSON.parse(match[1]);types=(graph['@graph']||[]).map(x=>x['@type'])}
-            console.log('TRUST_SCHEMA_CHECK='+p+' HTTP='+r.status+' TYPES='+types.join(',')+' OGIMG='+body.includes('/assets/featured/sample.svg'));
+            console.log('TRUST_SCHEMA_CHECK='+p+' HTTP='+r.status+' TYPES='+types.join(',')+' OGIMG='+body.includes('/assets/featured/sample.svg')+' INJECT_HEADER='+r.headers.get('x-core-trust-schema')+' LD_JSON_INDEX='+body.indexOf('application/ld+json')+' JSON_CONTEXT='+body.slice(Math.max(0,body.indexOf('application/ld+json')-90),body.indexOf('application/ld+json')+130).replaceAll('\\n',' '));
             if(r.status!==200||!types.includes('Organization')||!types.includes('WebSite')||!types.some(x=>['WebPage','AboutPage','ContactPage'].includes(x)))process.exitCode=1;
           }
           NODE
