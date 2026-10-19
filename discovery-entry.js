@@ -1,4 +1,5 @@
 import app from './brand-runtime.js';
+import {emergencyPublicR2Response} from './r2-emergency-readonly.js';
 import {runEnglishCanaryBatch,englishCanaryRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
@@ -437,6 +438,11 @@ export default{
       const canonical=new URL(req.url);canonical.protocol='https:';canonical.hostname='noondealsnow.com';canonical.port='';
       return new Response(null,{status:308,headers:{location:canonical.toString(),'cache-control':'public, max-age=86400','x-canonical-host-redirect':'www-to-apex-v1'}});
     }
+    // Emergency public read-only rescue: old account R2 is NotEntitled (10042).
+    // Only articles and blog/archive are served from the verified new R2 mirror.
+    // Keep ALL admin, cron, DO state, route, and publishing paths unchanged.
+    const rescued=await emergencyPublicR2Response(req,env);
+    if(rescued)return rescued;
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
     if(req.method==='GET'&&u.pathname==='/api/revision')return new Response(JSON.stringify({ok:true,release:DISCOVERY_RELEASE,layer:'discovery-entry',sitemapHealth:true,imageSitemap:true,englishIntentOwners:true,shoppingIntentOwners:true,noIdleGenerationGuard:true,titleCannibalizationGate:true},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-runtime-revision':DISCOVERY_RELEASE}});
 
