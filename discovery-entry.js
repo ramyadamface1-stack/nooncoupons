@@ -219,6 +219,28 @@ async function injectDiscoveryLinks(req,env,res){
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
+async function coreTrustStructuredPage(req,res,origin){
+  if(req.method!=='GET'||!res?.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
+  const p=new URL(req.url).pathname.replace(/\/+$/,'')||'/';
+  const shape={'/':'WebPage','/about':'AboutPage','/privacy':'WebPage','/contact':'ContactPage','/faq':'WebPage'}[p];
+  if(!shape)return res;
+  let html=await res.text();
+  if(!/<\/head>/i.test(html))return new Response(html,{status:res.status,headers:res.headers});
+  if(!html.includes('application/ld+json')){
+    const loc=origin+p,company={'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',url:origin+'/',logo:{'@type':'ImageObject',url:origin+'/favicon.svg'},description:'Independent Noon coupons and shopping guides for Saudi Arabia and the UAE.'};
+    const site={'@type':'WebSite','@id':origin+'/#website',url:origin+'/',name:'Noon Deals Now',publisher:{'@id':origin+'/#organization'},inLanguage:['ar','en']};
+    const page={'@type':shape,'@id':loc+'#webpage',url:loc,isPartOf:{'@id':origin+'/#website'},about:{'@id':origin+'/#organization'},inLanguage:'ar'};
+    const graph={'@context':'https://schema.org','@graph':[company,site,page]};
+    const script='<script type="application/ld+json">'+JSON.stringify(graph).replace(/</g,'\\u003c')+'</script>';
+    html=html.replace(/<\/head>/i,script+'</head>');
+  }
+  if(p==='/'){
+    // Use an actual responsive image endpoint, not the tiny favicon, as social preview.
+    html=html.replace(/(<meta\s+property="og:image"\s+content=")[^"]+(")/i,'$1'+origin+'/assets/featured/sample.svg'+'$2');
+  }
+  const headers=new Headers(res.headers);headers.delete('content-length');headers.set('x-core-trust-schema','v1');
+  return new Response(html,{status:res.status,statusText:res.statusText,headers});
+}
 function coreSitemap(origin){
   const extra=[
     '/en/saudi',
@@ -417,7 +439,7 @@ async function sitemapHealth(req,env,ctx,origin){
   return new Response(JSON.stringify({ok:rows.every(x=>x.ok),origin,checkedAt:new Date().toISOString(),rows},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-sitemap-self-audit':'v1'}});
 }
 
-const EDGE_CACHE_POLICY_REVISION='r2-public-rescue-cache-r14';
+const EDGE_CACHE_POLICY_REVISION='r2-public-rescue-schema-r15';
 function edgePageCacheKey(u){
   return new Request(u.origin+u.pathname+'?__ndn_edge_policy='+EDGE_CACHE_POLICY_REVISION,{method:'GET'});
 }
@@ -571,6 +593,7 @@ export default{
       return new Response(JSON.stringify(state),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     let res=await app.fetch(req,env,ctx);
+    res=await coreTrustStructuredPage(req,res,origin);
     if(req.method==='GET'&&u.pathname==='/sitemap.xml')res=await augmentRootSitemap(res,origin,env);
     if(req.method==='GET'&&u.pathname==='/robots.txt')res=await augmentRobots(res,origin);
     res=await injectDiscoveryLinks(req,env,res);
