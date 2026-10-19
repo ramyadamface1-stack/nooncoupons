@@ -53,13 +53,30 @@ function page(title,content,{lang='ar',dir='rtl',canonical='',description='',rob
   const header='<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="'+esc(robots)+'">'+
     '<title>'+esc(title)+' | كوبونات نون</title><meta name="description" content="'+esc(description||title)+'">'+
     (canonical?'<link rel="canonical" href="'+esc(canonical)+'">':'');
-  const css='<style>body{margin:0;color:#152033;background:#f8fafc;font-family:Tahoma,Arial,sans-serif;line-height:1.8}header{background:#111827;color:white;padding:20px 4%}header a{color:#fff;margin-inline-end:20px}main{max-width:950px;margin:26px auto;padding:22px;background:white;border-radius:14px}a{color:#4032a2}article img,article svg{max-width:100%;height:auto}.cards{display:grid;gap:12px}.card{padding:18px;border:1px solid #eee;border-radius:12px}.pager{display:flex;gap:14px;justify-content:center;margin:30px 0}.pager a{padding:8px 12px;background:#eee;border-radius:8px}footer{margin:35px auto;padding:15px;max-width:950px;color:#475569}@media(max-width:640px){main{margin:0;border-radius:0;padding:16px}}</style>';
+  const css='<style>body{margin:0;color:#152033;background:#f8fafc;font-family:Tahoma,Arial,sans-serif;line-height:1.8}header{background:#111827;color:white;padding:20px 4%}header a{color:#fff;margin-inline-end:20px}main{max-width:950px;margin:26px auto;padding:22px;background:white;border-radius:14px}a{color:#4032a2}img,svg{max-width:100%;height:auto}.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:15px}.card{padding:12px;border:1px solid #eee;border-radius:12px;overflow:hidden}.card img{width:100%;aspect-ratio:1200/760;object-fit:cover;border-radius:9px}.card h2{font-size:18px;line-height:1.65;margin:12px 0}.featured{margin:14px 0 25px}.featured img{display:block;width:100%;height:auto;aspect-ratio:1200/760;object-fit:cover;border-radius:15px}.featured figcaption{font-size:13px;color:#596374}.related{border:1px solid #e7e7e7;background:#f6fbff;padding:12px 20px;border-radius:14px}.related a{margin-inline-end:12px}.breadcrumbs{font-size:14px;color:#64748b}.pager{display:flex;gap:14px;justify-content:center;margin:30px 0;flex-wrap:wrap}.pager a{padding:8px 12px;background:#eee;border-radius:8px}footer{margin:35px auto;padding:15px;max-width:950px;color:#475569}@media(max-width:640px){main{margin:0;border-radius:0;padding:16px}.cards{grid-template-columns:1fr}}</style>';
   return '<!doctype html><html lang="'+lang+'" dir="'+dir+'"><head>'+header+css+'</head><body><header><nav><a href="/">الرئيسية</a><a href="/blog">المدونة</a><a href="/blog/archive/all">كل المقالات</a><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a></nav></header><main>'+content+'</main><footer>محتوى مستقل. تحقق من صلاحية الكود داخل سلة نون قبل الدفع.</footer></body></html>';
 }
 function response(title,content,opts={},status=200){return new Response(page(title,content,opts),{status,headers:htmlHeaders})}
-function link(a){const slug=String(a.slug||'');return '/articles/'+encodeURI(slug)}
+function link(a){const slug=String(a.slug||'');return (slug.startsWith('en-')||a.languageSource==='native-intent-v6-canary'||a.lang==='en'?'/en/articles/':'/articles/')+encodeURI(slug)}
+function couponFor(a){
+  const c=String(a.coupon||a.code||a.cp||'').toUpperCase();
+  return /^NOV[0-9]{2,4}$/.test(c)?c:(a.country==='AE'?'NOV188':'NOV170');
+}
+function featurePath(slug,coupon,country,variant=1){
+  const safeCode=String(coupon||'').match(/^NOV[0-9]{2,4}$/)?.[0]||(country==='AE'?'NOV188':'NOV170');
+  return '/assets/coupon-svg/'+encodeURI(slug)+'/'+Math.max(1,Math.min(5,variant))+'.svg?v=9&coupon='+encodeURIComponent(safeCode)+'&country='+(country==='AE'?'AE':'SA');
+}
 function cards(rows){
-  return '<section class="cards">'+rows.map(a=>'<article class="card"><small>'+esc(a.country==='AE'?'الإمارات':'السعودية')+'</small><h2><a href="'+esc(link(a))+'">'+esc(a.title||String(a.slug||'').replace(/[-_]/g,' '))+'</a></h2><p>'+esc(String(a.metaDescription||'').slice(0,170))+'</p></article>').join('')+'</section>';
+  return '<section class="cards">'+rows.map((a,i)=>{
+    const title=String(a.title||a.primaryKeyword||a.slug||'Noon shopping guide'),country=a.country==='AE'?'AE':'SA',alt='Noon '+(country==='AE'?'UAE':'Saudi Arabia')+' shopping guide — '+title;
+    const picture=featurePath(a.slug,couponFor(a),country,1+(i%5)),href=link(a);
+    const date=a.publishedAt||a.createdAt||a.updatedAt;
+    return '<article class="card"><a href="'+esc(href)+'"><img src="'+esc(picture)+'" alt="'+esc(alt.slice(0,180))+'" width="1200" height="760" loading="lazy" decoding="async"></a><small>'+(country==='AE'?'الإمارات':'السعودية')+'</small><h2><a href="'+esc(href)+'">'+esc(title)+'</a></h2>'+(date?'<small>'+esc(cairoTime(date))+'</small>':'')+'<p>'+esc(String(a.metaDescription||'').slice(0,170))+'</p></article>';
+  }).join('')+'</section>';
+}
+function cairoTime(raw){
+  try{const d=new Date(raw);return Number.isNaN(d.getTime())?'':new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'}).format(d)}
+  catch{return ''}
 }
 function nav(previous,next,label){
   return '<nav class="pager">'+(previous?'<a href="'+esc(previous)+'">السابق</a>':'')+'<span>'+esc(label)+'</span>'+(next?'<a href="'+esc(next)+'">التالي</a>':'')+'</nav>';
@@ -76,34 +93,73 @@ async function listArticlePage(env,token){
   return {keys,more:xmlVal(xml,'IsTruncated')==='true',token:decodeXml(xmlVal(xml,'NextContinuationToken'))};
 }
 function cleanText(html){return String(html).replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim()}
-function codeFromBody(body){return (body.match(/\b(?:NOV|RAMY)\d{2,3}\b/i)||[])[0]||''}
+function codeFromBody(body){return (body.match(/\bNOV\d{2,4}\b/i)||[])[0]||''}
+function originalPublishDate(meta){
+  const value=String(meta.at||meta.publishedat||meta.publishedAt||'');
+  if(!value)return '';
+  let decoded=value;try{decoded=decodeURIComponent(value)}catch{}
+  const date=new Date(decoded);
+  return !Number.isNaN(date.getTime())&&date.getUTCFullYear()>=2020&&date.getUTCFullYear()<=new Date().getUTCFullYear()?date.toISOString():'';
+}
+function enrichStoredSchema(html,{image,canonical,published,title,description,language}){
+  let found=false;
+  const body=String(html).replace(/<script\b([^>]*type=["']application\/ld\+json["'][^>]*)>([\s\S]*?)<\/script>/gi,(whole,attrs,text)=>{
+    try{
+      const doc=JSON.parse(text);
+      const nodes=Array.isArray(doc)?doc:(Array.isArray(doc['@graph'])?doc['@graph']:[doc]);
+      for(const node of nodes){
+        if(!node||typeof node!=='object'||!['Article','BlogPosting','NewsArticle'].includes(node['@type']))continue;
+        found=true;
+        node.image=image;node.mainEntityOfPage=node.mainEntityOfPage||canonical;
+        node.headline=node.headline||title;node.description=node.description||description;
+        node.inLanguage=node.inLanguage||language;
+        if(published&&!node.datePublished)node.datePublished=published;
+        if(!node.publisher)node.publisher={'@type':'Organization',name:'Noon Deals Now',url:'https://noondealsnow.com/'};
+      }
+      return '<script '+attrs+'>'+JSON.stringify(doc).replace(/</g,'\\u003c')+'</script>';
+    }catch{return whole}
+  });
+  if(found)return body;
+  const node={'@context':'https://schema.org','@type':'Article',headline:title,description,image,mainEntityOfPage:canonical,inLanguage:language,publisher:{'@type':'Organization',name:'Noon Deals Now',url:'https://noondealsnow.com/'}};
+  if(published)node.datePublished=published;
+  return '<script type="application/ld+json">'+JSON.stringify(node).replace(/</g,'\\u003c')+'</script>'+body;
+}
 async function serveArticle(env,u,english){
   const slug=decodeURIComponent(u.pathname.split('/').filter(Boolean).pop()||'');
   if(!slug||slug.length>280||slug.includes('/')||slug.includes('..'))return new Response('Not Found',{status:404});
   const obj=await getObject(env,'articles/'+slug+'.html');
   if(!obj)return new Response('Not Found',{status:404,headers:{'cache-control':'public,max-age=60'}});
   if(obj.meta.status&&obj.meta.status!=='published')return new Response('Not Found',{status:404});
-  const body=obj.body,match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
-  const description=cleanText(body).slice(0,170),country=obj.meta.c||obj.meta.country||'SA',code=codeFromBody(body),canonical='https://noondealsnow.com'+u.pathname;
-  const meta={'@context':'https://schema.org','@type':'Article',headline:title,description,inLanguage:english?'en':'ar',mainEntityOfPage:canonical,publisher:{'@type':'Organization',name:'Noon Deals Now'}};
-  const cta='<aside style="margin:26px 0;padding:16px;background:#faf4e8;border-radius:14px"><strong>'+(english?'Check your Noon coupon':'تحقق من كوبون نون')+'</strong><p>'+(english?'Verify eligibility and final cost in your Noon cart.':'جرّب الكود وتحقق من الأهلية والسعر النهائي داخل سلة نون.')+'</p><a href="'+(country==='AE'?'https://www.noon.com/uae-en/':'https://www.noon.com/saudi-ar/')+'" rel="noopener external sponsored">'+(english?'Open Noon':'افتح نون')+'</a>'+(code?'<p>'+esc(code)+'</p>':'')+'</aside>';
-  const schema='<script type="application/ld+json">'+JSON.stringify(meta).replace(/</g,'\\u003c')+'</script>';
-  let html=page(title,schema+body+cta,{lang:english?'en':'ar',dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
-  html=html.replace('</head>','<meta property="og:type" content="article"><meta property="og:title" content="'+esc(title)+'"></head>');
-  return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles','content-language':english?'en':'ar'}});
+  const original=obj.body,match=original.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
+  const description=cleanText(original).slice(0,170),country=obj.meta.c||obj.meta.country||'SA',coupon=String(obj.meta.cp||obj.meta.ck||'').toUpperCase(),code=/^NOV\d{2,4}$/.test(coupon)?coupon:codeFromBody(original);
+  const canonical='https://noondealsnow.com'+u.pathname,published=originalPublishDate(obj.meta);
+  const picture='https://noondealsnow.com'+featurePath(slug,code,country,1),language=english?'en':'ar';
+  const body=enrichStoredSchema(original,{image:picture,canonical,published,title,description,language});
+  const market=country==='AE'?'uae':'saudi',marketText=country==='AE'?'الإمارات':'السعودية';
+  const topicLink=String(obj.meta.lp||'').match(/^\/(?:saudi|uae)\/[a-z0-9/_-]+$/i)?.[0]||'';
+  const brandKey=String(obj.meta.bk||'').match(/^[a-z0-9-]{2,50}$/)?.[0]||'';
+  const related='<nav class="related" aria-label="روابط مقالات وكوبونات مرتبطة"><strong>'+(english?'Explore related Noon guides':'روابط مفيدة للشراء')+'</strong><p><a href="/'+market+'">'+esc(marketText)+'</a><a href="/'+market+'/categories">'+(english?'Categories':'الأقسام')+'</a><a href="/'+(country==='AE'?'uae/noon-coupon-code':'saudi-arabia/noon-coupon-code')+'">'+(english?'Noon coupon code':'كود خصم نون')+'</a>'+(brandKey?'<a href="/'+market+'/brand/'+brandKey+'">'+esc(brandKey)+'</a>':'')+(topicLink?'<a href="'+esc(topicLink)+'">'+(english?'Product guide':'دليل المنتج')+'</a>':'')+'<a href="/blog">المدونة</a></p></nav>';
+  const featured='<figure class="featured"><img src="'+esc(featurePath(slug,code,country,1))+'" alt="'+esc('Noon '+(country==='AE'?'UAE':'Saudi Arabia')+' coupon and shopping guide: '+title)+'" width="1200" height="760" decoding="async" fetchpriority="high"><figcaption>'+esc(english?'Illustrative Noon shopping guide; verify any code at checkout.':'صورة توضيحية لدليل نون '+marketText+'؛ تحقق من شروط الكود داخل السلة.')+'</figcaption></figure>';
+  const cta='<aside style="margin:26px 0;padding:16px;background:#faf4e8;border-radius:14px"><strong>'+(english?'Check your Noon coupon':'تحقق من كوبون نون')+'</strong><p>'+(english?'Verify eligibility and final cost in your Noon cart.':'جرّب الكود وتحقق من الأهلية والسعر النهائي داخل سلة نون.')+'</p><a href="'+(country==='AE'?'https://www.noon.com/uae-en/':'https://www.noon.com/saudi-ar/')+'" rel="noopener external sponsored">'+(english?'Open Noon':'افتح نون')+'</a>'+(code?'<p><strong>'+esc(code)+'</strong></p>':'')+'</aside>';
+  const breadcrumbs='<nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/">الرئيسية</a> / <a href="/'+market+'">'+esc(marketText)+'</a> / <a href="/blog">المدونة</a></nav>';
+  const dateLine=published?'<p><time datetime="'+esc(published)+'">'+esc(cairoTime(published))+' (بتوقيت القاهرة)</time></p>':'';
+  let html=page(title,breadcrumbs+featured+dateLine+'<div class="article-content">'+body+'</div>'+cta+related,{lang:language,dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
+  const social='<meta property="og:type" content="article"><meta property="og:title" content="'+esc(title)+'"><meta property="og:description" content="'+esc(description)+'"><meta property="og:url" content="'+esc(canonical)+'"><meta property="og:image" content="'+esc(picture)+'"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(picture)+'">'+(published?'<meta property="article:published_time" content="'+esc(published)+'">':'');
+  html=html.replace('</head>',social+'</head>');
+  return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles','content-language':language}});
 }
 async function serveBlog(env,u){
-  const data=await getJson(env,'bulk/latest.json'),rows=(data?.articles||[]).filter(a=>a?.slug&&a.indexable!==false);
+  const data=await getJson(env,'bulk/latest.json'),market=u.searchParams.get('country')||'',rows=(data?.articles||[]).filter(a=>a?.slug&&a.indexable!==false&&(market!=='SA'&&market!=='AE'||a.country===market));
   const size=15,pages=Math.max(1,Math.ceil(rows.length/size)),pageNum=Math.max(1,Math.min(pages,Number.parseInt(u.searchParams.get('page')||'1',10)||1));
   const visible=rows.slice((pageNum-1)*size,pageNum*size);
-  const hint='<h1>مدونة كوبونات نون</h1><p>تصفح أحدث الأدلة، أو افتح <a href="/blog/archive/all">كل المقالات المحفوظة</a> للوصول إلى الأرشيف الكامل الموجود في التخزين.</p>';
-  return response('مدونة كوبونات نون',hint+cards(visible)+nav(pageNum>1?'/blog?page='+(pageNum-1):'',pageNum<pages?'/blog?page='+(pageNum+1):'','صفحة '+pageNum+' من '+pages),{canonical:pageNum===1?'https://noondealsnow.com/blog':'https://noondealsnow.com/blog?page='+pageNum,robots:'index,follow'});
+  const hint='<h1>مدونة كوبونات نون</h1><p>تصفح أحدث الأدلة: <a href="/blog?country=SA">السعودية</a> · <a href="/blog?country=AE">الإمارات</a>، أو افتح <a href="/blog/archive/all">كل المقالات المحفوظة</a> للوصول إلى الأرشيف الكامل الموجود في التخزين.</p>';
+  return response('مدونة كوبونات نون',hint+cards(visible)+nav(pageNum>1?'/blog?page='+(pageNum-1)+(market?'&country='+market:''):'',pageNum<pages?'/blog?page='+(pageNum+1)+(market?'&country='+market:''):'','صفحة '+pageNum+' من '+pages),{canonical:pageNum===1&&!market?'https://noondealsnow.com/blog':'https://noondealsnow.com/blog'+(pageNum>1||market?'?'+(pageNum>1?'page='+pageNum:'')+(market?(pageNum>1?'&':'')+'country='+market:''):''),robots:'index,follow'});
 }
 async function serveAll(env,u){
   const cursor=u.searchParams.get('cursor')||'';
   if(cursor.length>1000)return new Response('Invalid cursor',{status:400});
   const rows=await listArticlePage(env,cursor);
-  const cardsHtml=rows.keys.map(k=>{const slug=k.slice('articles/'.length,-5),en=slug.startsWith('en-');return '<article class="card" dir="'+(en?'ltr':'rtl')+'"><h2><a href="'+esc((en?'/en/articles/':'/articles/')+encodeURI(slug))+'">'+esc(slug.replace(/[-_]/g,' '))+'</a></h2></article>'}).join('');
+  const cardsHtml=rows.keys.map(k=>{const slug=k.slice('articles/'.length,-5),en=slug.startsWith('en-');return '<article class="card" dir="'+(en?'ltr':'rtl')+'"><a href="'+esc((en?'/en/articles/':'/articles/')+encodeURI(slug))+'"><img src="'+esc(featurePath(slug,'NOV170','SA',1))+'" loading="lazy" width="1200" height="760" alt="'+esc('Noon shopping guide '+slug.replace(/[-_]/g,' ')).slice(0,160)+'"></a><h2><a href="'+esc((en?'/en/articles/':'/articles/')+encodeURI(slug))+'">'+esc(slug.replace(/[-_]/g,' '))+'</a></h2></article>'}).join('');
   let count='';
   try{const m=await getJson(env,'_ops/article-count.json');count=m?.count?'<p>آخر عد مؤكد لملفات المقالات: '+Number(m.count).toLocaleString('ar-EG')+'</p>':''}catch{}
   const next=rows.more&&rows.token?'/blog/archive/all?cursor='+encodeURIComponent(rows.token):'';
