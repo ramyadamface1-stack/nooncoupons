@@ -100,16 +100,35 @@ async function listArticlePage(env,token){
 }
 function cleanText(html){return String(html).replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim()}
 function codeFromBody(body){return (body.match(/\b(?:NOV|RAMY)\d{2,3}\b/i)||[])[0]||''}
+// Source article content can carry its own Article node inside an @graph
+// (alongside FAQPage/BreadcrumbList). Keep these supporting nodes while
+// allowing exactly one Article entity with the visible rescue cover/canonical.
+export function removeRedundantSourceArticleJsonLd(content){
+  return String(content||'').replace(/<script\b([^>]*\btype=["']application\/ld\+json["'][^>]*)>([\s\S]*?)<\/script>/gi,(full,attrs,body)=>{
+    let parsed;
+    try{parsed=JSON.parse(body)}catch{return full}
+    const isArticle=node=>node&&typeof node==='object'&&(Array.isArray(node['@type'])?node['@type'].some(x=>x==='Article'||x==='BlogPosting'):node['@type']==='Article'||node['@type']==='BlogPosting');
+    const filtered=Array.isArray(parsed)
+      ?parsed.filter(node=>!isArticle(node)).map(node=>(node&&Array.isArray(node['@graph']))?{...node,'@graph':node['@graph'].filter(x=>!isArticle(x))}:node)
+      :isArticle(parsed)?null
+      :parsed&&Array.isArray(parsed['@graph'])?{...parsed,'@graph':parsed['@graph'].filter(x=>!isArticle(x))}
+      :parsed;
+    if(!filtered||(Array.isArray(filtered)&&!filtered.length))return '';
+    if(!Array.isArray(filtered)&&Array.isArray(filtered['@graph'])&&!filtered['@graph'].length)return '';
+    if(JSON.stringify(filtered)===JSON.stringify(parsed))return full;
+    return '<script '+attrs+'>'+JSON.stringify(filtered).replace(/</g,'\\u003c')+'</script>';
+  });
+}
 async function serveArticle(env,u,english){
   const slug=decodeURIComponent(u.pathname.split('/').filter(Boolean).pop()||'');
   if(!slug||slug.length>280||slug.includes('/')||slug.includes('..'))return new Response('Not Found',{status:404});
   const obj=await getObject(env,'articles/'+slug+'.html');
   if(!obj)return new Response('Not Found',{status:404,headers:{'cache-control':'public,max-age=60'}});
   if(obj.meta.status&&obj.meta.status!=='published')return new Response('Not Found',{status:404});
-  const body=obj.body,match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
+  const body=removeRedundantSourceArticleJsonLd(obj.body),match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
   const description=cleanText(body).slice(0,170),country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug}),code=codeFromBody(body),canonical='https://noondealsnow.com'+u.pathname;
   const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1);
-  const date=dateIso(obj.meta.publishedAt||obj.meta.createdAt||obj.meta.datePublished);
+  const date=dateIso(obj.meta.publishedAt||obj.meta.createdAt||obj.meta.datePublished||obj.meta.at);
   const meta={'@context':'https://schema.org','@type':'Article',headline:title,description,inLanguage:english?'en':'ar',mainEntityOfPage:canonical,image:[featured],author:{'@type':'Organization',name:'Noon Deals Now editorial team',url:'https://noondealsnow.com/authors/editorial-team'},publisher:{'@type':'Organization',name:'Noon Deals Now',url:'https://noondealsnow.com'},...(date?{datePublished:date}:{})};
   const cta='<aside style="margin:26px 0;padding:16px;background:#faf4e8;border-radius:14px"><strong>'+(english?'Check your Noon coupon':'تحقق من كوبون نون')+'</strong><p>'+(english?'Verify eligibility and final cost in your Noon cart.':'جرّب الكود وتحقق من الأهلية والسعر النهائي داخل سلة نون.')+'</p><a href="'+(country==='AE'?'https://www.noon.com/uae-en/':'https://www.noon.com/saudi-ar/')+'" rel="noopener external sponsored">'+(english?'Open Noon':'افتح نون')+'</a>'+(code?'<p>'+esc(code)+'</p>':'')+'</aside>';
   const schema='<script type="application/ld+json">'+JSON.stringify(meta).replace(/</g,'\\u003c')+'</script>';
