@@ -1,0 +1,27 @@
+name: Test Public Article Metadata HEAD Cache Before Merge
+on:
+  push:
+    branches: [fix/r2-public-article-metadata-head-cache-20261019]
+    paths: ['.github/workflows/test-public-article-head-cache.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate module syntax and exact cache semantics
+        run: |
+          node --check r2-public-article-metadata-cache.js
+          node --check commerce-entry.js
+          node --check network-entry.js
+          node --test tests/r2-public-article-metadata-cache.test.mjs
+      - name: Bundle production entry without deploying or changing live Worker
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npx wrangler deploy --dry-run --outdir /tmp/noon-article-head-cache-bundle
