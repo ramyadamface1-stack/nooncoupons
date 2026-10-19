@@ -1,0 +1,48 @@
+name: Test Brand Directory Homepage Schema and Blog Social Media
+on:
+  push:
+    branches: [fix/brand-directory-social-schema-20261019]
+    paths: ['brand-directory-schema.js','discovery-entry.js','r2-emergency-readonly.js','.github/workflows/test-brand-directory-seo.yml']
+permissions: {contents: read}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NOON_RESCUE_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_RESCUE_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      R2_RESCUE_READONLY_ENABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Test 2-country brand directory, homepage schema, blog OG and Worker syntax
+        run: |
+          set -euo pipefail
+          node --check brand-directory-schema.js
+          node --check discovery-entry.js
+          node --check r2-emergency-readonly.js
+          node --input-type=module <<'NODE'
+          import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
+          import {emergencyPublicR2Response} from './r2-emergency-readonly.js';
+          const brands=brandDirectoryResponse(new Request('https://noondealsnow.com/brands'));
+          const html=await brands.text();
+          const count=(html.match(/\/saudi\/brand\//g)||[]).length;
+          const schema=JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+          console.log('BRAND_DIRECTORY_TEST='+JSON.stringify({status:brands.status,brandCount:count,schemas:schema['@graph'].map(a=>a['@type']),apple:html.includes('/saudi/brand/apple'),samsung:html.includes('/uae/brand/samsung')}));
+          if(brands.status!==200||count<15||!html.includes('/saudi/brand/apple')||!html.includes('/uae/brand/samsung'))process.exitCode=1;
+          const home=new Response('<!doctype html><html><head><title>test</title></head><body>test</body></html>',{headers:{'content-type':'text/html'}});
+          const after=await enrichHomepageSchema(new Request('https://noondealsnow.com/'),home);
+          const updated=await after.text();
+          const original=JSON.parse(updated.match(/<script id="home-organization-jsonld-v1" type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
+          console.log('HOMEPAGE_SCHEMA_TEST='+JSON.stringify({status:after.status,schemas:original['@graph'].map(x=>x['@type'])}));
+          if(!original['@graph'].some(x=>x['@type']==='Organization'))process.exitCode=1;
+          const blog=await emergencyPublicR2Response(new Request('https://noondealsnow.com/blog'),process.env);
+          const blogText=await blog.text();
+          console.log('BLOG_SOCIAL_TEST='+JSON.stringify({status:blog.status,images:(blogText.match(/<img\b/g)||[]).length,ogImage:blogText.includes('property="og:image"'),twitter:blogText.includes('name="twitter:card"')}));
+          if(blog.status!==200||!blogText.includes('property="og:image"')||!blogText.includes('name="twitter:card"'))process.exitCode=1;
+          NODE
+      - name: Bundle verify only, no remote deploy
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --outdir /tmp/brand-seo-bundle
