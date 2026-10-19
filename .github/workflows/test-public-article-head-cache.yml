@@ -23,5 +23,5 @@ jobs:
           node --test tests/r2-public-article-metadata-cache.test.mjs
       - name: Bundle production entry without deploying or changing live Worker
         run: |
-          npm ci --ignore-scripts --no-audit --no-fund
+          npm install --ignore-scripts --no-audit --no-fund
           npx wrangler deploy --dry-run --outdir /tmp/noon-article-head-cache-bundle
