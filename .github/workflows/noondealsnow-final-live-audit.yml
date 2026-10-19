@@ -1,0 +1,73 @@
+name: Final Live SEO and Structured Data Audit
+on:
+  push:
+    branches: [audit/noondealsnow-final-live-20261019]
+    paths: ['.github/workflows/noondealsnow-final-live-audit.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Read-only content/schema/canonical/media inspection
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,re,urllib.request,urllib.error,urllib.parse,html.parser,time
+          base='https://noondealsnow.com'
+          pages=['/','/brands','/about','/privacy','/terms','/contact','/editorial-policy','/coupon-verification','/saudi','/uae','/saudi/brand/apple','/uae/brand/samsung','/blog','/blog/archive/all','/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي','/en/articles/en-noon-uae-coupon-conditions-guide','/sitemap.xml','/sitemap-en-articles.xml','/sitemap-rescue-english-10.xml','/sitemap-rescue-english-images-10.xml','/sitemap-rescue-articles-84.xml','/sitemap-images.xml','/robots.txt','/llms.txt','/assets/featured/brands.svg','/assets/featured/sample.svg']
+          class Parser(html.parser.HTMLParser):
+            def __init__(self):
+              super().__init__();self.scripts=[];self.images=[];self.links=[];self.meta=[];self.titles=[];self.cur=None;self.text=''
+            def handle_starttag(self,t,a):
+              d=dict(a)
+              if t=='script' and d.get('type')=='application/ld+json':self.cur='schema';self.text=''
+              if t=='img':self.images.append(d)
+              if t=='link':self.links.append(d)
+              if t=='meta':self.meta.append(d)
+            def handle_data(self,x):
+              if self.cur:self.text+=x
+            def handle_endtag(self,t):
+              if t=='script' and self.cur:
+                try:self.scripts.append(json.loads(self.text))
+                except Exception as e:self.scripts.append({'PARSE_ERROR':str(e)[:90]})
+                self.cur=None
+          def request(path,agent='Mozilla/5.0'):
+            req=urllib.request.Request(base+urllib.parse.quote(path,safe='/?=&:%'),headers={'User-Agent':agent})
+            st=time.monotonic()
+            try:
+              with urllib.request.urlopen(req,timeout=18) as r:
+                body=r.read(2200000);return r.status,body,dict(r.headers),int(1000*(time.monotonic()-st))
+            except urllib.error.HTTPError as e:return e.code,e.read(3000),dict(e.headers),int(1000*(time.monotonic()-st))
+            except Exception as e:return 'ERROR:'+type(e).__name__,str(e).encode(),{},int(1000*(time.monotonic()-st))
+          for path in pages:
+            code,b,h,ms=request(path)
+            head={'path':path,'status':code,'bytes':len(b),'ms':ms,'type':h.get('Content-Type'),'rescue':h.get('x-r2-rescue'),'cache':h.get('x-edge-page-cache')}
+            if 'html' in str(h.get('Content-Type','')):
+              doc=b.decode('utf8','replace')
+              parser=Parser();parser.feed(doc)
+              meta={(x.get('property') or x.get('name')):x.get('content') for x in parser.meta if x.get('property') or x.get('name')}
+              schemes=[]
+              for x in parser.scripts:
+                if isinstance(x,dict):
+                  if '@type' in x: schemes.append(x['@type'])
+                  schemes.extend([v.get('@type') for v in x.get('@graph',[]) if isinstance(v,dict)])
+                elif isinstance(x,list):
+                  for v in x:
+                    if isinstance(v,dict):
+                      if '@type' in v:schemes.append(v['@type'])
+                      schemes.extend([i.get('@type') for i in v.get('@graph',[]) if isinstance(i,dict)])
+              head.update({'h1':len(re.findall(r'<h1\b',doc,re.I)),'meta_robots':meta.get('robots'),'canonical':[x.get('href') for x in parser.links if x.get('rel')=='canonical'],'schema_types':schemes[:35],'schema_scripts':len(parser.scripts),'schema_errors':sum('PARSE_ERROR' in x for x in parser.scripts if isinstance(x,dict)),'og_image':meta.get('og:image'),'images':len(parser.images),'internal_links':len(re.findall(r'<a\s[^>]*href="/',doc)),'chat_cta':bool(re.search(r'نسخ الكود|copy code|كوبون خصم',doc,re.I))})
+              if meta.get('og:image'):
+                v=meta['og:image']
+                if v.startswith(base):
+                  status,_,_,_=request(v[len(base):]);head['og_image_status']=status
+              if len(parser.images):head['first_image']=parser.images[0].get('src')
+            elif path.endswith('.xml'):
+              txt=b.decode('utf8','replace')
+              head.update({'sitemap_elements':txt.count('<sitemap>'),'url_elements':txt.count('<url>'),'image_elements':txt.count('<image:image>'),'has_sitemap_en_articles':'sitemap-en-articles.xml' in txt,'lastmod_count':txt.count('<lastmod>')})
+            elif path.endswith('.svg'):head['is_svg']=b'<svg' in b[:1000]
+            print('SEO_LIVE='+json.dumps(head,ensure_ascii=False),flush=True)
+          print('SEO_AUDIT_READ_ONLY=true')
+          PY
