@@ -1,0 +1,27 @@
+name: Build Quality Gated English UAE Article Sitemaps
+on:
+  push:
+    branches: [fix/english-sitemap-rescue-20261019]
+    paths: ['.github/workflows/build-english-rescue-sitemaps.yml','.github/scripts/build-rescue-english-sitemaps.py']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: noondealsnow-english-metadata-sitemap
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Scan existing English article status, quality and original dates; publish only vetted manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u .github/scripts/build-rescue-english-sitemaps.py
