@@ -1,5 +1,5 @@
 import app from './brand-runtime.js';
-import {emergencyPublicR2Response} from './r2-emergency-readonly.js';
+import {emergencyPublicR2Response,rescueSitemapIndexPaths} from './r2-emergency-readonly.js';
 import {runEnglishCanaryBatch,englishCanaryRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
@@ -345,7 +345,7 @@ async function imageSitemap(env,origin){
   return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300, s-maxage=900, stale-while-revalidate=86400','x-robots-tag':'all','x-image-sitemap':'v1','x-image-sitemap-pages':String(source.length)}});
 }
 
-async function augmentRootSitemap(res,origin){
+async function augmentRootSitemap(res,origin,env){
   if(!res.ok)return res;
   const type=(res.headers.get('content-type')||'').toLowerCase();
   if(!type.includes('xml'))return res;
@@ -358,6 +358,14 @@ async function augmentRootSitemap(res,origin){
       ['hubs',origin+'/sitemap-hubs.xml'],
       ['images',origin+'/sitemap-images.xml']
     ];
+    // Static, quality-gated R2 segments stay fetchable while the old account R2 is suspended.
+    // Avoid modifying original article URLs or listing draft/scheduled items.
+    try{
+      for(const path of await rescueSitemapIndexPaths(env)){
+        const loc=origin+path;
+        if(!body.includes(loc))additions.push(['rescue',loc]);
+      }
+    }catch(error){console.warn('rescue_sitemap_index_unavailable',String(error?.message||error).slice(0,80))}
     for(const [,loc] of additions){
       if(!body.includes(loc))body=body.replace(/<\/sitemapindex>/i,`<sitemap><loc>${esc(loc)}</loc></sitemap></sitemapindex>`);
     }
@@ -561,7 +569,7 @@ export default{
       return new Response(JSON.stringify(state),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     let res=await app.fetch(req,env,ctx);
-    if(req.method==='GET'&&u.pathname==='/sitemap.xml')res=await augmentRootSitemap(res,origin);
+    if(req.method==='GET'&&u.pathname==='/sitemap.xml')res=await augmentRootSitemap(res,origin,env);
     if(req.method==='GET'&&u.pathname==='/robots.txt')res=await augmentRobots(res,origin);
     res=await injectDiscoveryLinks(req,env,res);
     res=await sanitizeCouponSurface(req,res);
