@@ -86,22 +86,30 @@ def transfer_one(key,expected,source,dest):
         raise RuntimeError("article_headers_or_metadata_mismatch")
     return "copied"
 
+def classify_delta(src,dst):
+    # A conflicting existing object must not prevent copying unrelated missing
+    # articles. NEVER overwrite or delete an existing destination object.
+    missing=[(key,attrs) for key,attrs in src.items() if key not in dst]
+    conflicts=sorted(key for key,attrs in src.items()
+                     if key in dst and attrs["size"]!=dst[key]["size"])
+    return missing,conflicts
+
 def main():
     start=time.monotonic()
     source=connect(SOURCE,"NOON_OLD_R2_ACCESS_KEY_ID","NOON_OLD_R2_SECRET_ACCESS_KEY")
     dest=connect(DEST,"NOON_NEW_R2_ACCESS_KEY_ID","NOON_NEW_R2_SECRET_ACCESS_KEY")
     src,source_pages=list_articles(source)
     dst,dest_pages=list_articles(dest)
-    missing=[(key,attrs) for key,attrs in src.items() if key not in dst]
-    mismatches=[key for key,attrs in src.items()
-                if key in dst and attrs["size"]!=dst[key]["size"]]
+    missing,mismatches=classify_delta(src,dst)
     print("ARTICLE_SOURCE_COUNT="+str(len(src)),flush=True)
     print("ARTICLE_TARGET_COUNT_BEFORE="+str(len(dst)),flush=True)
     print("ARTICLE_MISSING_BEFORE="+str(len(missing)),flush=True)
     print("ARTICLE_EXISTING_SIZE_CONFLICTS="+str(len(mismatches)),flush=True)
     if mismatches:
-        print("ARTICLE_DELTA_STATUS=blocked_existing_size_conflict")
-        raise RuntimeError("immutable_article_conflict_no_overwrite")
+        print("::warning::Existing article content differs across accounts; no existing key is overwritten; missing-only copy continues.",flush=True)
+        for key in mismatches[:20]:
+            print("ARTICLE_CONFLICT_KEY="+key+";OLD_SIZE="+str(src[key]["size"])+";NEW_SIZE="+str(dst[key]["size"]),flush=True)
+        print("ARTICLE_DELTA_STATUS=partial_conflicts_preserved",flush=True)
     # Budget any one delta run to 5000 articles; hourly schedule resumes on next listing.
     if len(missing)>5000:
         print("ARTICLE_DELTA_BACKLOG="+str(len(missing))+";processing_first=5000")
