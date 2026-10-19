@@ -67,12 +67,13 @@ const topicLinks=(country='SA',english=false)=>{
     ['/blog/archive/all',english?'All archived guides':'أرشيف المقالات']
   ].map(([href,title])=>'<a href="'+esc(href)+'">'+esc(title)+'</a>').join('')+'</div></nav>';
 };
-function page(title,content,{lang='ar',dir='rtl',canonical='',description='',robots='noindex,follow'}={}){
+function page(title,content,{lang='ar',dir='rtl',canonical='',description='',robots='noindex,follow',image=''}={}){
   const header='<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="'+esc(robots)+'">'+
     '<title>'+esc(title)+' | كوبونات نون</title><meta name="description" content="'+esc(description||title)+'">'+
-    (canonical?'<link rel="canonical" href="'+esc(canonical)+'">':'');
+    (canonical?'<link rel="canonical" href="'+esc(canonical)+'">':'')+
+    (image?'<meta property="og:type" content="website"><meta property="og:title" content="'+esc(title)+'"><meta property="og:description" content="'+esc(description||title)+'"><meta property="og:url" content="'+esc(canonical||'https://noondealsnow.com/blog')+'"><meta property="og:image" content="'+esc(image)+'"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(image)+'">':'');
   const css='<style>body{margin:0;color:#152033;background:#f8fafc;font-family:Tahoma,Arial,sans-serif;line-height:1.8}header{background:#111827;color:white;padding:20px 4%}header a{color:#fff;margin-inline-end:20px}main{max-width:950px;margin:26px auto;padding:22px;background:white;border-radius:14px}a{color:#4032a2}article img,article svg{max-width:100%;height:auto}.card>a img{width:100%;aspect-ratio:1200/760;object-fit:cover;border-radius:10px}.featured{margin:12px 0 28px}.featured figcaption{color:#475569;font-size:14px}.related{border-top:1px solid #e2e8f0;margin-top:32px;padding-top:18px}.related-links{display:flex;gap:12px;flex-wrap:wrap}.related-links a{display:inline-block;background:#fffbea;padding:8px 12px;border-radius:10px}.cards{display:grid;gap:12px}.card{padding:18px;border:1px solid #eee;border-radius:12px}.pager{display:flex;gap:14px;justify-content:center;margin:30px 0}.pager a{padding:8px 12px;background:#eee;border-radius:8px}footer{margin:35px auto;padding:15px;max-width:950px;color:#475569}@media(max-width:640px){main{margin:0;border-radius:0;padding:16px}}</style>';
-  return '<!doctype html><html lang="'+lang+'" dir="'+dir+'"><head>'+header+css+'</head><body><header><nav><a href="/">الرئيسية</a><a href="/blog">المدونة</a><a href="/blog/archive/all">كل المقالات</a><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a></nav></header><main>'+content+'</main><footer>محتوى مستقل. تحقق من صلاحية الكود داخل سلة نون قبل الدفع.</footer></body></html>';
+  return '<!doctype html><html lang="'+lang+'" dir="'+dir+'"><head>'+header+css+'</head><body><header><nav><a href="/">الرئيسية</a><a href="/blog">المدونة</a><a href="/blog/archive/all">كل المقالات</a><a href="/brands">البراندات</a><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a></nav></header><main>'+content+'</main><footer>محتوى مستقل. تحقق من صلاحية الكود داخل سلة نون قبل الدفع.</footer></body></html>';
 }
 function response(title,content,opts={},status=200){return new Response(page(title,content,opts),{status,headers:htmlHeaders})}
 function link(a){const slug=String(a.slug||'');return (slug.startsWith('en-')?'/en/articles/':'/articles/')+encodeURI(slug)}
@@ -126,7 +127,7 @@ async function serveBlog(env,u){
   const hint='<h1>مدونة كوبونات نون</h1><p>تصفح أحدث الأدلة، أو افتح <a href="/blog/archive/all">كل المقالات المحفوظة</a> للوصول إلى الأرشيف الكامل الموجود في التخزين.</p>';
   const pageUrl='https://noondealsnow.com/blog'+(pageNum>1?'?page='+pageNum:'');
   const schema='<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@graph':[{'@type':'CollectionPage',name:'مدونة كوبونات نون',url:pageUrl,inLanguage:'ar'},{'@type':'ItemList',itemListElement:visible.map((a,i)=>({'@type':'ListItem',position:i+1+(pageNum-1)*size,url:'https://noondealsnow.com'+link(a)}))}]}).replace(/</g,'\\u003c')+'</script>';
-  return response('مدونة كوبونات نون',schema+hint+cards(visible)+nav(pageNum>1?'/blog?page='+(pageNum-1):'',pageNum<pages?'/blog?page='+(pageNum+1):'','صفحة '+pageNum+' من '+pages),{canonical:pageUrl,robots:'index,follow'});
+  return response('مدونة كوبونات نون',schema+hint+cards(visible)+nav(pageNum>1?'/blog?page='+(pageNum-1):'',pageNum<pages?'/blog?page='+(pageNum+1):'','صفحة '+pageNum+' من '+pages),{canonical:pageUrl,robots:'index,follow',image:visible[0]?'https://noondealsnow.com'+rescueImageUrl(visible[0].slug,marketOf(visible[0]),visible[0].coupon||visible[0].code||'',1):''});
 }
 async function serveAll(env,u){
   const cursor=u.searchParams.get('cursor')||'';
