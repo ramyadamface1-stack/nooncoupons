@@ -1,0 +1,60 @@
+name: Deploy Verified Public Image Rescue to Production
+on:
+  push:
+    branches: [ops/deploy-tested-rescue-images-20261019]
+    paths: ['.github/workflows/emergency-deploy-verified-rescue-images.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nooncoupons-production-v3
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      CLOUDFLARE_ACCOUNT_ID: c82274152a942dea53044eae7153cfd7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Confirm branch based on approved production image rescue
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          git show HEAD:wrangler.jsonc | grep -Fq '"r2_buckets": []'
+          grep -Fq "R2_RESCUE_READONLY_ENABLED" wrangler.jsonc
+          grep -Fq 'const rescueImageUrl=' r2-emergency-readonly.js
+          grep -Fq 'property="og:image"' r2-emergency-readonly.js
+          node --check r2-emergency-readonly.js
+          node --check discovery-entry.js
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --outdir /tmp/validated-public-image-rescue
+      - name: Deploy on existing OLD Cloudflare Worker, no DNS/resources touched
+        run: npx wrangler deploy
+      - name: Verify production both domains, 5 pages with thumbnails and image metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          for host in 'https://noondealsnow.com' 'https://nooncoupons.ramychatgptgcoupons.workers.dev'; do
+            for path in '/blog' '/blog/archive/all' '/blog/archive/2026-10-18' '/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي' '/en/articles/en-noon-uae-coupon-conditions-guide'; do
+              ok=0
+              for i in 1 2 3 4 5; do
+                code=$(curl --retry 1 -sS --connect-timeout 8 --max-time 25 -D /tmp/live_rescue_headers -o /tmp/live_rescue_html -w '%{http_code}' "$host$path?image_verify=$GITHUB_RUN_ID-$i" || true)
+                count=$(grep -o '<img ' /tmp/live_rescue_html | wc -l || true)
+                if [ "$code" = 200 ] && [ "$count" -ge 1 ] && grep -Fqi 'x-r2-rescue: new-account-readonly-v1' /tmp/live_rescue_headers; then ok=1; break; fi
+                sleep 4
+              done
+              echo "LIVE_IMAGES=$path HOST=$host HTTP=$code IMAGES=$count"
+              [ "$ok" = 1 ] || { echo "::error::PUBLIC_IMAGE_RESCUE_VERIFICATION_FAILED=$path"; exit 1; }
+              if [[ "$path" == *"/articles/"* ]]; then
+                grep -Fq 'property="og:image"' /tmp/live_rescue_html
+                grep -Fq 'twitter:card' /tmp/live_rescue_html
+              fi
+              if [[ "$path" == '/blog' || "$path" == '/blog/archive/all' ]]; then [ "$count" -ge 15 ]; fi
+            done
+          done
+          echo 'PRODUCTION_RESCUE_IMAGES_LIVE_VERIFIED=true'
