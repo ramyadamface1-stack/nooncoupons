@@ -1,0 +1,45 @@
+name: Verify Rescue Edge Cache And No Cross-Account Read Storm
+on:
+  push:
+    branches: [fix/cache-public-r2-rescue-20261019]
+    paths: ['.github/workflows/verify-rescue-public-cache.yml','discovery-entry.js','r2-public-cache-policy.js']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate cache policy security and Worker compilation
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          node --test tests/r2-saver.test.mjs tests/r2-head-health.test.mjs
+          npx wrangler deploy --dry-run --outdir /tmp/cache-dry-run
+      - name: Real Workerd repeated public article and sitemap requests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler dev --local --ip 127.0.0.1 --port 8792 --log-level error \
+            --var "NOON_RESCUE_R2_ACCESS_KEY_ID:$NOON_NEW_R2_ACCESS_KEY_ID" \
+            --var "NOON_RESCUE_R2_SECRET_ACCESS_KEY:$NOON_NEW_R2_SECRET_ACCESS_KEY" >/tmp/edge-rescue-cache.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in {1..30}; do if curl -fsS --max-time 3 http://127.0.0.1:8792/api/revision -o /dev/null; then break;fi;sleep 2;done
+          for path in '/blog' '/blog/archive/all' '/sitemap.xml' '/sitemap-rescue-articles-0.xml' '/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي'; do
+            for n in 1 2; do
+              code=$(curl -sS -D /tmp/cache-h -o /tmp/cache-body -w '%{http_code}' "http://127.0.0.1:8792$path")
+              cache=$(grep -i '^x-edge-page-cache:' /tmp/cache-h | tr -d '\r' | tail -n1 || true)
+              echo "CACHE_CASE=$path PASS=$n HTTP=$code HEADER=$cache"
+              test "$code" = 200
+              [ "$n" != 2 ] || { echo "$cache" | grep -Fqi 'HIT' || { echo "::error::CACHE_NOT_HIT=$path"; exit 1; }; }
+              sleep 1
+            done
+          done
+          echo 'RESCUE_EDGE_CACHE_TESTS_PASS=true'
