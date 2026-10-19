@@ -139,7 +139,11 @@ export async function emergencyPublicR2Response(req,env){
     if(p==='/blog/archive/english')return response('English UAE archive','<h1>English UAE archive</h1><p><a href="/blog/archive/all">Browse all stored English and Arabic articles.</a></p>');
     return null;
   }catch(error){
-    console.warn('r2_rescue_error',String(error?.message||error).slice(0,150));
-    return new Response('Article archive temporarily unavailable',{status:503,headers:{'content-type':'text/plain; charset=utf-8','cache-control':'no-store','retry-after':'120','x-r2-rescue':'unavailable'}});
+    const message=String(error?.message||error).slice(0,120).replace(/[\r\n]/g,' ');
+    console.warn('r2_rescue_error',message);
+    const headers={'content-type':'text/plain; charset=utf-8','cache-control':'no-store','retry-after':'120','x-r2-rescue':'unavailable'};
+    // Local unit-test diagnostics only. Must remain off on deployed production.
+    if(String(env.R2_RESCUE_DEBUG||'')==='true')headers['x-r2-rescue-debug']=message;
+    return new Response('Article archive temporarily unavailable',{status:503,headers});
   }
 }
