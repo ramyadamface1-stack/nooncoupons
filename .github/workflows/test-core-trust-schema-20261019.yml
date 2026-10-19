@@ -1,0 +1,38 @@
+name: Test Core Site Trust Schema in Local Worker
+on:
+  push:
+    branches: [fix/schema-trust-core-pages-20261019]
+    paths: ['.github/workflows/test-core-trust-schema-20261019.yml','discovery-entry.js']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          node --check discovery-entry.js
+          npx wrangler deploy --dry-run --outdir /tmp/site-trust-schema
+      - name: Confirm actual HTML and parsed JSON-LD
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler dev --local --ip 127.0.0.1 --port 8793 --log-level error >/tmp/site-trust.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in {1..30};do if curl -fsS --max-time 3 http://127.0.0.1:8793/api/revision -o /dev/null;then break;fi;sleep 2;done
+          node --input-type=module <<'NODE'
+          for(const p of ['/', '/about','/privacy','/contact','/faq']){
+            const r=await fetch('http://127.0.0.1:8793'+p),body=await r.text();
+            const match=body.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/i);
+            let types=[];
+            if(match){const graph=JSON.parse(match[1]);types=(graph['@graph']||[]).map(x=>x['@type'])}
+            console.log('TRUST_SCHEMA_CHECK='+p+' HTTP='+r.status+' TYPES='+types.join(',')+' OGIMG='+body.includes('/assets/featured/sample.svg'));
+            if(r.status!==200||!types.includes('Organization')||!types.includes('WebSite')||!types.some(x=>['WebPage','AboutPage','ContactPage'].includes(x)))process.exitCode=1;
+          }
+          NODE
