@@ -24,13 +24,15 @@ jobs:
           node --input-type=module <<'NODE'
           import {rescueSitemapResponse} from './r2-sitemap-rescue.js';
           const env=process.env;
-          for(const path of ['/sitemap-rescue-recent.xml','/sitemap-images.xml']){
+          for(const path of ['/sitemap-rescue-recent.xml','/sitemap-images.xml','/sitemap-rescue-articles.xml','/sitemap-rescue-articles-0000.xml','/sitemap-rescue-articles-0084.xml']){
             const response=await rescueSitemapResponse(new Request('https://noondealsnow.com'+path),env);
             const xml=await response.text();
             const count=(xml.match(/<url>/g)||[]).length;
-            const imageCount=(xml.match(/<image:image>/g)||[]).length;
-            console.log('SITEMAP_TEST='+JSON.stringify({path,status:response.status,count,imageCount,type:response.headers.get('content-type'),size:xml.length}));
-            if(response.status!==200||count<10||imageCount!==count||!xml.startsWith('<?xml'))process.exitCode=1;
+            const imageCount=(xml.match(/<image:image>/g)||[]).length,indexCount=(xml.match(/<sitemap>/g)||[]).length;
+            console.log('SITEMAP_TEST='+JSON.stringify({path,status:response.status,count,imageCount,indexCount,type:response.headers.get('content-type'),size:xml.length,articles:response.headers.get('x-rescue-curated-articles')}));
+            const isIndex=path==='/sitemap-rescue-articles.xml';
+            const isRecent=path==='/sitemap-rescue-recent.xml'||path==='/sitemap-images.xml';
+            if(response.status!==200||!xml.startsWith('<?xml')||(isIndex?indexCount<80:(isRecent?count<10:count<1000))||(isRecent&&imageCount!==count))process.exitCode=1;
             if(xml.includes('/en/articles/')&&path==='/sitemap-images.xml')console.log('SITEMAP_CONTAINS_EN=true');
           }
           NODE
