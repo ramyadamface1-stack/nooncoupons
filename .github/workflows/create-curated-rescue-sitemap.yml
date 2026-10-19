@@ -1,0 +1,28 @@
+name: Build Curated Published Article Sitemap in Existing Mirrored R2
+on:
+  push:
+    branches: [fix/curated-sitemap-rescue-20261019]
+    paths: ['.github/scripts/build-rescue-seo-sitemaps.py','.github/workflows/create-curated-rescue-sitemap.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: noondealsnow-new-r2-curated-sitemap-build
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install only S3 client for EXISTING new-account R2
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Run strict quality gate then update only seo-rescue/ manifest objects in new R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u .github/scripts/build-rescue-seo-sitemaps.py
