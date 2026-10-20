@@ -1,43 +1,47 @@
-name: Hourly Missing Article Delta to New R2
-
+name: Verify Article Publishing Against Existing New R2 (Read Only)
+# Old-account R2 is permanently disabled (10042). Do not retry its API hourly.
+# The old Worker now writes new content directly to existing new-account R2.
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/migration-r2-article-delta.yml'
-      - '.github/scripts/migrate-r2-article-delta.py'
   workflow_dispatch:
   schedule:
     - cron: '43 * * * *'
-
-permissions:
-  contents: read
-
-concurrency:
-  group: noondealsnow-r2-source-to-destination-copy
-  cancel-in-progress: false
-
+permissions: {contents: read}
 jobs:
-  mirror:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 5
     env:
-      NOON_OLD_R2_ACCESS_KEY_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
-      NOON_OLD_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
-      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
-      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      NEW_KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
       AWS_EC2_METADATA_DISABLED: 'true'
     steps:
-      - uses: actions/checkout@v4
-      - name: Install dependency and run offline integrity tests
+      - run: python3 -m pip install --quiet boto3
+      - name: Independently verify new R2 article index and public publish health; NEVER use disabled source R2
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet --disable-pip-version-check boto3
-          python3 -m py_compile .github/scripts/migrate-r2-article-delta.py
-          python3 -m unittest discover -s tests -p 'test_r2_article_delta.py' -v
-      - name: Copy missing only and verify SHA256 plus metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -u .github/scripts/migrate-r2-article-delta.py
+          python3 - <<'PY'
+          import os,boto3,urllib.request,json,datetime
+          from botocore.config import Config
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            aws_access_key_id=os.environ['NEW_KEY'].strip(),aws_secret_access_key=os.environ['NEW_SECRET'].strip(),
+            config=Config(connect_timeout=10,read_timeout=25,retries={'max_attempts':2,'mode':'standard'}))
+          b='nooncoupons-content-v2'
+          o=s.get_object(Bucket=b,Key='bulk/latest.json')
+          data=json.loads(o['Body'].read())
+          items=data.get('articles') or []
+          print('REPLACEMENT_R2_LATEST_INDEX='+json.dumps({'exists':True,'entries':len(items),'lastModified':o['LastModified'].isoformat(),'generatedAt':data.get('generatedAt')}),flush=True)
+          with urllib.request.urlopen(urllib.request.Request('https://noondealsnow.com/api/generation-freshness',headers={'User-Agent':'NoonDealsNow-New-R2-Monitor'}),timeout=20) as response:status=json.load(response)
+          stamp=status.get('lastSuccessfulPublishAt')
+          age=status.get('minutesSinceLastSuccessfulPublish')
+          print('REPLACEMENT_R2_PUBLISH_HEALTH='+json.dumps({'ok':status.get('ok'),'lastSuccessfulPublishAt':stamp,'minutesSinceLastSuccessfulPublish':age,'lastRescueResult':status.get('lastRescueResult'),'bulkLastError':status.get('bulkLastError')}),flush=True)
+          if not status.get('ok'):raise RuntimeError('production_publication_health_unavailable')
+          if age is not None and float(age)>90:print('::warning::ARTICLE_PUBLISH_STALLED='+str(round(float(age)))+'min;reason='+str(status.get('lastRescueResult') or status.get('bulkLastError') or 'unknown')[:90])
+          print('LEGACY_OLD_R2_API_REQUESTS=0',flush=True)
+          print('ARTICLE_DELTA_FROM_LOST_OLD_R2_UNVERIFIABLE=true',flush=True)
+          print('PRODUCTION_DATA_WRITES=0',flush=True)
+          PY
