@@ -1,0 +1,70 @@
+name: Precutover Existing R2 Integrity Audit (NO Writes)
+on:
+  push:
+    branches: [ops/revive-existing-do-restore-20261020]
+    paths: ['.github/workflows/precutover-new-r2-integrity-audit.yml']
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Read-only inspect new R2 content snapshot, all DO archive parts, SEO manifest and mutable indices
+        shell: bash
+        run: |
+          python3 -u - <<'PY'
+          import os,boto3,json,collections,re,datetime,hashlib,time
+          from botocore.config import Config
+          account='e4c35f8a50a7b2e4cfb9d6c534962603'
+          b='nooncoupons-content-v2'
+          s=boto3.client('s3',region_name='auto',endpoint_url=f'https://{account}.r2.cloudflarestorage.com',aws_access_key_id=os.environ['KEY'].strip(),aws_secret_access_key=os.environ['SECRET'].strip(),config=Config(connect_timeout=10,read_timeout=25,retries={'mode':'standard','max_attempts':2}))
+          def list_prefix(prefix,limit=300):
+            total=0;size=0;pages=0;newest=None;oldest=None;first=[];tail=[]
+            for page in s.get_paginator('list_objects_v2').paginate(Bucket=b,Prefix=prefix,PaginationConfig={'PageSize':1000}):
+              pages+=1
+              if pages>limit:raise RuntimeError('limit_exceeded_'+prefix)
+              for item in page.get('Contents',[]):
+                total+=1;size+=item['Size'];modified=item['LastModified']
+                if newest is None or modified>newest:newest=modified
+                if oldest is None or modified<oldest:oldest=modified
+                if len(first)<3:first.append(item['Key'])
+                tail=[*(tail[-2:]),item['Key']]
+            return {'prefix':prefix,'objects':total,'bytes':size,'pages':pages,'newest':newest.isoformat() if newest else None,'oldest':oldest.isoformat() if oldest else None,'first':first,'tail':tail}
+          for prefix in ['articles/','migration/do-state/20261017-baseline/ControlPlane/','migration/do-state/20261017-baseline/GeneratorControl/','migration/restore-progress/20261017-baseline/','bulk/','quality/','maintenance/','english-canary/','_ops/','seo-rescue/']:
+            info=list_prefix(prefix)
+            print('DESTINATION_R2_PREFIX='+json.dumps(info,ensure_ascii=False),flush=True)
+            if prefix=='articles/' and info['objects']<238000:raise RuntimeError('destination_article_corpus_incomplete')
+            if prefix.endswith('/ControlPlane/') and info['objects']!=2760:raise RuntimeError('ControlPlane_parts_or_manifest_missing')
+            if prefix.endswith('/GeneratorControl/') and info['objects']!=2:raise RuntimeError('GeneratorControl_parts_or_manifest_missing')
+          def readjson(k):
+            ob=s.get_object(Bucket=b,Key=k)
+            return json.load(ob['Body'])
+          for k in ['seo-rescue/index.json','bulk/days.json','bulk/latest.json','migration/do-state/20261017-baseline/ControlPlane/manifest.json','migration/do-state/20261017-baseline/GeneratorControl/manifest.json','migration/restore-progress/20261017-baseline/ControlPlane.json','migration/restore-progress/20261017-baseline/GeneratorControl.json']:
+            try:
+              x=readjson(k)
+              if 'seo-rescue/' in k:
+                out={key:x.get(key) for key in ('version','count','englishCount','generatedAt','englishUpdatedAt')}
+                out.update({'arabicParts':len(x.get('segments') or []),'englishParts':len(x.get('englishSegments') or []),'arabicPartSum':sum(p.get('count',0) for p in x.get('segments') or []),'englishPartSum':sum(p.get('count',0) for p in x.get('englishSegments') or [])})
+              elif 'do-state/' in k:
+                out={key:x.get(key) for key in ('version','type','tag','complete','parts','scanned','exported','completedAt')}
+              elif 'restore-progress/' in k:
+                out={key:x.get(key) for key in ('type','partsDone','partsTotal','keysRestored','keysTotal','complete','updatedAt')}
+              elif 'days.json' in k:out={'days':len(x.get('days') or []),'lastDay':str((x.get('days') or [])[-1:])[:160]}
+              elif 'latest.json' in k:out={'articleEntries':len(x.get('articles') or []),'generatedAt':x.get('generatedAt')}
+              else:out={'kind':'other'}
+              print('DESTINATION_R2_MANIFEST='+json.dumps({'key':k,'data':out},ensure_ascii=False),flush=True)
+              if 'seo-rescue/index' in k and (out['count']!=out['arabicPartSum'] or out['englishCount']!=out['englishPartSum']):raise RuntimeError('seo_index_counts_mismatch')
+            except Exception as e:
+              print('DESTINATION_R2_MANIFEST_ERROR='+json.dumps({'key':k,'type':type(e).__name__,'reason':str(e)[:100]},ensure_ascii=False),flush=True)
+              raise
+          for key in ['articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي.html','articles/en-noon-uae-coupon-conditions-guide.html']:
+            obj=s.get_object(Bucket=b,Key=key)
+            sample=obj['Body'].read(300)
+            print('SAMPLE_ARTICLE_HTML='+json.dumps({'pathPrefix':key[:100],'size':obj['ContentLength'],'status':obj.get('Metadata',{}).get('status'),'starts_html':sample.lstrip().startswith(b'<'),'lastModified':obj['LastModified'].isoformat()},ensure_ascii=False),flush=True)
+          print('R2_DESTINATION_READONLY_AUDIT_COMPLETE=true')
+          PY
