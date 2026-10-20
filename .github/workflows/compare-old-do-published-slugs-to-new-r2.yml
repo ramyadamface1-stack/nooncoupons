@@ -1,0 +1,53 @@
+name: Check Most Recent Old DO Articles Exist in NEW R2 (Read Only)
+on:
+  push:
+    branches: [audit/live-new-r2-write-backup-20261020]
+    paths: ['.github/workflows/compare-old-do-published-slugs-to-new-r2.yml']
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install -q boto3
+      - name: Read current old DO state metadata and compare recent immutable article HTML keys, never write/delete
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import boto3,os,json,datetime,collections,botocore
+          from concurrent.futures import ThreadPoolExecutor,as_completed
+          from botocore.config import Config
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['KEY'].strip(),aws_secret_access_key=os.environ['SECRET'].strip(),config=Config(max_pool_connections=14,retries={'max_attempts':2,'mode':'standard'}))
+          bucket='nooncoupons-content-v2'
+          def data(t,n):
+            return json.loads(s.get_object(Bucket=bucket,Key=f'migration/do-state/20261020-old-do-recovery/{t}/part-{n:07d}.json')['Body'].read())
+          state=None
+          for n in range(1,5):
+            for key,v in data('ControlPlane',n).get('entries') or []:
+              if key=='state':state=v
+          if not state:raise RuntimeError('old DO state metadata missing')
+          known=state.get('articles') or []
+          recent=[a for a in known if a.get('status')=='published' and str(a.get('createdAt') or a.get('updatedAt') or '')>='2026-10-18' and a.get('slug')]
+          print('OLD_DO_RECENT_PUBLISHED_CANDIDATES='+str(len(recent)),flush=True)
+          def present(article):
+            key='articles/'+article['slug']+'.html'
+            try:
+              info=s.head_object(Bucket=bucket,Key=key)
+              return article,True,info['ContentLength']
+            except botocore.exceptions.ClientError as e:
+              if str(e.response.get('Error',{}).get('Code')) in ('404','NoSuchKey','NotFound'):return article,False,None
+              raise
+          records=[]
+          with ThreadPoolExecutor(max_workers=10) as ex:
+            for f in as_completed([ex.submit(present,a) for a in recent]):
+              records.append(f.result())
+          missing=[{'slug':a['slug'],'createdAt':a.get('createdAt'),'updatedAt':a.get('updatedAt'),'status':a.get('status'),'country':a.get('country')} for a,ok,n in records if not ok]
+          stats=collections.Counter((a.get('country'),bool(ok)) for a,ok,n in records)
+          print('OLD_DO_RECENT_ARTICLE_NEW_R2_COMPARISON='+json.dumps({'recent':len(recent),'present':len(recent)-len(missing),'missing':len(missing),'byCountryAndPresence':{str(k):v for k,v in stats.items()},'missingExamples':missing[:18]},ensure_ascii=False),flush=True)
+          if missing:print('::warning::OLD_DO_REFERENCES_WITHOUT_DESTINATION_HTML='+str(len(missing))+'; HTML cannot be recreated verbatim from DO metadata alone')
+          print('READ_ONLY_NO_ARTICLE_OVERWRITES=true')
+          PY
