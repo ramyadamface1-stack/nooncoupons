@@ -1,0 +1,65 @@
+name: Diagnose Existing ControlPlane Restore Part 2701 Read Only
+on:
+  push:
+    branches: [ops/revive-existing-do-restore-20261020]
+    paths: ['.github/workflows/diagnose-stalled-controlplane-part2701.yml']
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      NEW_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      KEY_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Inspect immutable R2 backup around stalled segment, no writes
+        shell: bash
+        run: |
+          python3 -m pip install -q boto3
+          python3 - <<'PY'
+          import os,boto3,json,hashlib
+          account='e4c35f8a50a7b2e4cfb9d6c534962603'
+          s=boto3.client('s3',region_name='auto',endpoint_url=f'https://{account}.r2.cloudflarestorage.com',aws_access_key_id=os.environ['KEY_ID'].strip(),aws_secret_access_key=os.environ['KEY_SECRET'].strip())
+          bucket='nooncoupons-content-v2'
+          for index in (2698,2699,2700,2701,2702,2703,2710,2759):
+            key=f'migration/do-state/20261017-baseline/ControlPlane/part-{index:07d}.json'
+            try:
+              r=s.get_object(Bucket=bucket,Key=key)
+              raw=r['Body'].read()
+              obj=json.loads(raw)
+              entries=obj.get('entries') or []
+              key_size=max((len(k) for k,v in entries),default=0)
+              value_size=max((len(json.dumps(v)) for k,v in entries),default=0)
+              print('SOURCE_DO_ARCHIVE_PART='+json.dumps({'part':index,'bytes':len(raw),'sha_prefix':hashlib.sha256(raw).hexdigest()[:10],'entries':len(entries),'maxKeyBytes':key_size,'maxJsonValueBytes':value_size,'jsonVersion':obj.get('version'),'validPartNum':obj.get('part')==index,'firstKeyPrefix':str(entries[0][0])[:30] if entries else None}),flush=True)
+            except Exception as e:print('SOURCE_DO_PART_READ_ERROR='+str(index)+' '+type(e).__name__+':'+str(e)[:80],flush=True)
+          for p in ['ControlPlane','GeneratorControl']:
+            k='migration/restore-progress/20261017-baseline/'+p+'.json'
+            d=json.loads(s.get_object(Bucket=bucket,Key=k)['Body'].read())
+            print('CURRENT_CHECKPOINT='+p+' '+json.dumps(d,sort_keys=True),flush=True)
+          PY
+      - name: Probe observability query permission and last staging scheduled logs (read-only)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,time,urllib.request,urllib.error
+          endpoint='https://api.cloudflare.com/client/v4/accounts/e4c35f8a50a7b2e4cfb9d6c534962603/workers/observability/telemetry/query'
+          now=int(time.time()*1000)
+          body={'queryId':'noondealsnow-staging-readonly-restore-check','timeframe':{'from':now-7200*1000,'to':now},'view':'events','limit':30,'parameters':{'datasets':['cloudflare-workers'],'needle':{'value':'do_migration_restore'}}}
+          req=urllib.request.Request(endpoint,data=json.dumps(body).encode(),headers={'Authorization':'Bearer '+os.environ['NEW_TOKEN'].strip(),'Content-Type':'application/json'},method='POST')
+          try:
+            with urllib.request.urlopen(req,timeout=22) as r:status=r.status;data=json.load(r)
+          except urllib.error.HTTPError as e:
+            status=e.code
+            try:data=json.loads(e.read(12000))
+            except:data={}
+          except Exception as e:status=0;data={'errors':[{'message':type(e).__name__}]}
+          result=data.get('result') or {}
+          run=result.get('run') or {}
+          events=result.get('events') or {}
+          print('STAGING_LOG_QUERY='+json.dumps({'http':status,'success':data.get('success'),'errors':[{'code':e.get('code'),'message':str(e.get('message'))[:170]} for e in data.get('errors',[])[:3]],'run_status':run.get('status'),'count':events.get('count'),'rows':len(events.get('events') or [])}),flush=True)
+          for x in (events.get('events') or [])[:8]:
+            workers=x.get('$workers') or {}
+            print('STAGING_RESTORE_LOG_EVENT='+json.dumps({'time':x.get('timestamp'),'script':workers.get('scriptName'),'eventType':workers.get('eventType'),'outcome':workers.get('outcome'),'message':str(x.get('source'))[:400]}),flush=True)
+          PY
