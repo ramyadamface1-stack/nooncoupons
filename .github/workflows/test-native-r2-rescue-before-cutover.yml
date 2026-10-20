@@ -1,0 +1,33 @@
+name: Test Destination Native R2 and Old Signed Rescue (No Deploy)
+on:
+  push:
+    branches: [fix/staged-native-r2-rescue-20261020]
+    paths:
+      - 'r2-emergency-readonly.js'
+      - 'tests/r2-native-rescue-cutover.test.mjs'
+      - '.github/workflows/test-native-r2-rescue-before-cutover.yml'
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify no real R2 calls or credentials and no production deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check r2-emergency-readonly.js
+          node --test tests/r2-native-rescue-cutover.test.mjs
+      - name: Confirm full Worker would bundle without new Cloudflare resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --outdir /tmp/native-r2-rescue-smoketest
+          npx wrangler deploy --dry-run --config wrangler.migration-staging.jsonc --outdir /tmp/native-r2-staging-smoketest
+          echo 'DUAL_R2_SOURCE_WORKER_DRY_RUN=PASS'
+          echo 'NO_DEPLOY_NO_R2_WRITES_NO_NS_CHANGE=true'
