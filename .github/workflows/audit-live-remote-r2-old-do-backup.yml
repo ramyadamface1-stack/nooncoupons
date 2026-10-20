@@ -1,0 +1,51 @@
+name: Verify Production Old Worker Remote R2 & Fresh DO Backups
+on:
+  push:
+    branches: [audit/live-new-r2-write-backup-20261020]
+    paths: ['.github/workflows/audit-live-remote-r2-old-do-backup.yml']
+permissions: {contents: read}
+jobs:
+  read-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Verify live production has R2 replacement and 60-second publication guard
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,json,datetime
+          root='https://noondealsnow.com'
+          for path in ['/api/platform-health','/api/generation-freshness','/api/coupon-migration-health','/blog','/sitemap.xml']:
+            req=urllib.request.Request(root+path,headers={'User-Agent':'NoonDealsNow-Recovery-ReadOnly'})
+            try:
+              with urllib.request.urlopen(req,timeout=20) as r:code=r.status;raw=r.read(500000);headers=dict(r.headers)
+              try:
+                d=json.loads(raw);fields={k:d.get(k) for k in ['ok','r2','bulkLastError','lastSuccessfulPublishAt','minutesSinceLastSuccessfulPublish','withinOneHour','lastRescueResult','reason','bulkLastTickPublished','bulkPublishedTotal'] if k in d}
+              except Exception:fields={'bytes':len(raw)}
+              print('LIVE_R2_RECOVERY='+json.dumps({'path':path,'status':code,'fields':fields,'edge_cache':headers.get('x-edge-page-cache')},ensure_ascii=False),flush=True)
+            except Exception as e:
+              print('LIVE_R2_RECOVERY_ERROR='+json.dumps({'path':path,'error':type(e).__name__,'message':str(e)[:120]}),flush=True)
+              raise
+          PY
+      - name: Confirm new-account bucket receives 20261020 old Durable Object export parts (NO writes)
+        shell: bash
+        run: |
+          python3 -m pip install --quiet boto3
+          python3 - <<'PY'
+          import os,json,boto3
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['KEY'].strip(),aws_secret_access_key=os.environ['SECRET'].strip())
+          for t in ['ControlPlane','GeneratorControl']:
+            prefix='migration/do-state/20261020-old-do-recovery/'+t+'/'
+            r=s.list_objects_v2(Bucket='nooncoupons-content-v2',Prefix=prefix,MaxKeys=1000)
+            objects=r.get('Contents') or []
+            print('NEW_R2_RECOVERED_OLD_DO='+json.dumps({'type':t,'parts_visible':len(objects),'truncated':r.get('IsTruncated'),'first':[v['Key'] for v in objects[:2]],'newest':max((x['LastModified'].isoformat() for x in objects),default=None)}),flush=True)
+            if objects:
+              sample=next((v['Key'] for v in objects if v['Key'].endswith('.json') and '/part-' in v['Key']),None)
+              if sample:
+                data=json.loads(s.get_object(Bucket='nooncoupons-content-v2',Key=sample)['Body'].read())
+                print('NEW_R2_RECOVERED_OLD_DO_SAMPLE='+json.dumps({'type':t,'part':data.get('part'),'entries':len(data.get('entries') or []),'exportTag':data.get('tag'),'validType':data.get('type')==t}),flush=True)
+          PY
