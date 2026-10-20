@@ -23,7 +23,7 @@ jobs:
           ]
           for label,aid,token_name in zones:
             token=os.environ[token_name].strip()
-            for path in [f'/zones?name=noondealsnow.com',f'/zones/c09077a581adc7aa11d6de0c121e179d/dns_records?per_page=100' if label=='new' else '/zones?name=noondealsnow.com']:
+            for path in [f'/zones?name=noondealsnow.com',f'/zones/c09077a581adc7aa11d6de0c121e179d/dns_records?per_page=100' if label=='new' else '/zones/3032a311856f82908a53f0b19b0ffcf8/dns_records?per_page=100']:
               u='https://api.cloudflare.com/client/v4'+path
               req=urllib.request.Request(u,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
               try:
