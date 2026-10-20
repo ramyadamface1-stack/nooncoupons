@@ -1,3 +1,4 @@
+import {enableExistingDestinationR2} from './r2-remote-existing-bucket.js';
 import app from './brand-runtime.js';
 import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
 import {emergencyPublicR2Response,rescueSitemapIndexPaths} from './r2-emergency-readonly.js';
@@ -445,6 +446,7 @@ function edgePageCachePut(req,u,res,ctx){
 }
 export default{
   async fetch(req,env,ctx){
+    env=enableExistingDestinationR2(env);
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
     if(u.hostname.toLowerCase()==='www.noondealsnow.com'){
       const canonical=new URL(req.url);canonical.protocol='https:';canonical.hostname='noondealsnow.com';canonical.port='';
@@ -587,6 +589,7 @@ export default{
     return new Response(res.body,{status:res.status,statusText:res.statusText,headers:revisionHeaders});
   },
   async scheduled(event,env,ctx){
+    env=enableExistingDestinationR2(env);
     if(app.scheduled)return app.scheduled(event,env,ctx);
   }
 };
