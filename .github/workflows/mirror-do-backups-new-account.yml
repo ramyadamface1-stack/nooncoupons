@@ -4,7 +4,7 @@ name: Verify Direct Old-DO Backup into Existing New R2
 # This workflow is READ ONLY. It never contacts the disabled old R2.
 on:
   push:
-    branches: [main]
+    branches: [main, fix/stop-obsolete-old-r2-jobs-health-20261020]
     paths:
       - '.github/workflows/mirror-do-backups-new-account.yml'
   workflow_dispatch:
