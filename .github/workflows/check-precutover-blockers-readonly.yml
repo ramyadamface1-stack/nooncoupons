@@ -30,6 +30,7 @@ jobs:
       - name: Run fail-closed gate (expected blockers must remain BLOCKED)
         shell: bash
         run: |
+          set +e
           set -uo pipefail
           python3 -u .github/scripts/precutover-readonly-gate.py > /tmp/precutover-out.txt 2>&1
           state=$?
