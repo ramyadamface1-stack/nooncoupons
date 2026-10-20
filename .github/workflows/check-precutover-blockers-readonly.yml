@@ -1,0 +1,49 @@
+name: Check Cutover BLOCKERS Safely (Read Only, No Cutover)
+on:
+  push:
+    branches: [ops/revive-existing-do-restore-20261020]
+    paths:
+      - '.github/scripts/precutover-readonly-gate.py'
+      - '.github/workflows/check-precutover-blockers-readonly.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect-blockers:
+    name: Inspect blockers and refuse cutover
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      NOON_OLD_CF_API_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NOON_NEW_CF_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install minimal read-only dependencies and compile gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check boto3
+          python3 -m py_compile .github/scripts/precutover-readonly-gate.py
+      - name: Run fail-closed gate (expected blockers must remain BLOCKED)
+        shell: bash
+        run: |
+          set -uo pipefail
+          python3 -u .github/scripts/precutover-readonly-gate.py > /tmp/precutover-out.txt 2>&1
+          state=$?
+          grep -E '^PRECUTOVER_' /tmp/precutover-out.txt || cat /tmp/precutover-out.txt
+          echo "PRECUTOVER_GATE_EXIT_CODE=$state"
+          if [ "$state" = '2' ]; then
+            echo "CUTOVER_STATUS=BLOCKED_AS_REQUIRED"
+            echo "CUTOVER_NOT_AUTHORIZED=true"
+            echo "No NS, R2, Worker, DO or other resources modified"
+            exit 0
+          fi
+          if [ "$state" = '0' ]; then
+            echo "::error::Unexpected cutover-authorized status; human review required"
+            exit 1
+          fi
+          echo "::error::Precutover diagnostic failed unexpectedly (code $state)"
+          exit "$state"
