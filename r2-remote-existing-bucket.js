@@ -120,7 +120,7 @@ export function existingDestinationR2Binding(env){
       if(!res)return null;
       const obj=objectResult(res,false);obj.key=key;
       const range=res.headers.get('content-range')||'';
-      const total=/\\/(\\d+)$/.exec(range);
+      const total=/\/(\d+)$/.exec(range);
       if(total)obj.size=Number(total[1]);
       else if(res.status===200)obj.size=(await res.arrayBuffer()).byteLength;
       else throw Error('remote_r2_ranged_head_size_unavailable');
