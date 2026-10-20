@@ -1,0 +1,95 @@
+name: Resume Existing Migration Restore-Only Worker Safely
+on:
+  push:
+    branches: [ops/revive-existing-do-restore-20261020]
+    paths: ['.github/workflows/revive-existing-do-restore-staging.yml']
+permissions: {contents: read}
+concurrency:
+  group: noondealsnow-new-account-staging
+  cancel-in-progress: false
+jobs:
+  resume:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+      NEW_R2_KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate destination restore-only isolation against exact existing script
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const c=JSON.parse(fs.readFileSync('wrangler.migration-staging.jsonc','utf8'));
+          const v=c.vars||{};
+          if(c.name!=='noondealsnow-migration-staging'||c.workers_dev!==false||
+             c.routes?.length||c.triggers?.crons?.join(',')!=='* * * * *'||
+             v.DO_MIGRATION_RESTORE_ENABLED!=='true'||v.DO_MIGRATION_EXPORT_ENABLED!=='false'||
+             v.BULK_DAILY_TARGET!=='0'||v.ENGLISH_DAILY_TARGET!=='0'||
+             v.INDEXNOW_ENABLED!=='false'||c.ai||
+             !c.r2_buckets?.some(x=>x.binding==='CONTENT_FINAL'&&x.bucket_name==='nooncoupons-content-v2')||
+             !c.durable_objects?.bindings?.some(x=>x.name==='CONTROL'&&x.class_name==='ControlPlane'))throw Error('unsafe_new_worker_configuration');
+          const s=fs.readFileSync('brand-runtime.js','utf8');
+          const p=s.indexOf("if(String(env.DO_MIGRATION_RESTORE_ENABLED||'')==='true')");
+          const f=s.indexOf('if(app.scheduled)return app.scheduled(event,env,ctx);',p);
+          if(p<0||f<p||!s.slice(p,f).includes('      return;'))throw Error('publisher_not_isolated');
+          console.log('STAGING_ISOLATED_FROM_PUBLISHER=true');
+          NODE
+          test -n "$CLOUDFLARE_API_TOKEN"
+      - name: Check existing destination staging deployment, bindings, schedule, and immutable checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install -q boto3
+          python3 - <<'PY'
+          import urllib.request,json,os,boto3
+          aid=os.environ['CLOUDFLARE_ACCOUNT_ID']; token=os.environ['CLOUDFLARE_API_TOKEN'].strip()
+          uri=f'https://api.cloudflare.com/client/v4/accounts/{aid}/workers/scripts/noondealsnow-migration-staging/settings'
+          with urllib.request.urlopen(urllib.request.Request(uri,headers={'Authorization':'Bearer '+token}),timeout=20) as response:d=json.load(response)
+          bindings=d.get('result',{}).get('bindings',[])
+          necessary=['CONTENT_FINAL','CONTROL','GENERATOR_CONTROL']
+          if not d.get('success') or not all(x in [v.get('name') for v in bindings] for x in necessary):raise RuntimeError('target_staging_bindings_missing')
+          print('DESTINATION_EXISTING_STAGING_WORKER=VERIFIED',flush=True)
+          c=boto3.client('s3',region_name='auto',endpoint_url=f'https://{aid}.r2.cloudflarestorage.com',aws_access_key_id=os.environ['NEW_R2_KEY'].strip(),aws_secret_access_key=os.environ['NEW_R2_SECRET'].strip())
+          for typ in ('ControlPlane','GeneratorControl'):
+            key='migration/restore-progress/20261017-baseline/'+typ+'.json'
+            x=json.loads(c.get_object(Bucket='nooncoupons-content-v2',Key=key)['Body'].read())
+            print('RESTORE_BEFORE_'+typ+'='+json.dumps({k:x.get(k) for k in ('partsDone','partsTotal','keysRestored','keysTotal','complete','updatedAt')}),flush=True)
+            if typ=='ControlPlane':
+              assert x['partsDone']>=1800 and x['partsDone']<=x['partsTotal'] and not x['complete'],'expected_incomplete_ControlPlane_checkpoint'
+          PY
+      - name: Deploy SAME existing restore-only Worker name without routes or publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          node --test tests/do-migration-state.test.mjs
+          npx wrangler deploy --dry-run --config wrangler.migration-staging.jsonc --outdir /tmp/same-staging-restore
+          npx wrangler deploy --config wrangler.migration-staging.jsonc
+          echo 'EXISTING_STAGING_WORKER_REDEPLOYED=true'
+      - name: Confirm R2 checkpoint progresses after Cron and no new publisher is enabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          sleep 78
+          python3 - <<'PY'
+          import boto3,os,json,urllib.request
+          aid=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          c=boto3.client('s3',region_name='auto',endpoint_url=f'https://{aid}.r2.cloudflarestorage.com',aws_access_key_id=os.environ['NEW_R2_KEY'].strip(),aws_secret_access_key=os.environ['NEW_R2_SECRET'].strip())
+          key='migration/restore-progress/20261017-baseline/ControlPlane.json'
+          x=json.loads(c.get_object(Bucket='nooncoupons-content-v2',Key=key)['Body'].read())
+          print('RESTORE_AFTER_ControlPlane='+json.dumps({k:x.get(k) for k in ('partsDone','partsTotal','keysRestored','keysTotal','complete','updatedAt')}),flush=True)
+          if x['partsDone']<=1840:
+            print('::warning::STAGING_CRON_NO_RESTORE_PROGRESS_STILL_STALLED')
+          else:print('DESTINATION_DO_RESTORE_RESUMED=true')
+          r=urllib.request.Request(f'https://api.cloudflare.com/client/v4/accounts/{aid}/workers/scripts/noondealsnow-migration-staging/schedules',headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'].strip()})
+          with urllib.request.urlopen(r,timeout=15) as f:d=json.load(f)
+          print('RESTORE_ONLY_CRON_STILL_CONFIGURED='+str(d.get('success') and bool(d.get('result'))).lower())
+          PY
