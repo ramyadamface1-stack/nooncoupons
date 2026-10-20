@@ -113,9 +113,18 @@ export function existingDestinationR2Binding(env){
     },
     async head(key){
       if(!allowedKey(key))throw Error('remote_r2_head_key_not_allowlisted');
-      const res=await signed(env,'HEAD',key);
+      // Cloudflare R2's S3 HEAD response omits Content-Length in Workers fetch.
+      // Use a one-byte ranged GET: it returns actual object size in Content-Range
+      // while avoiding full body transfers and legacy HeadObject retry storms.
+      const res=await signed(env,'GET',key,{},null,{range:'bytes=0-0'});
       if(!res)return null;
-      const obj=objectResult(res,false);obj.key=key;return obj;
+      const obj=objectResult(res,false);obj.key=key;
+      const range=res.headers.get('content-range')||'';
+      const total=/\\/(\\d+)$/.exec(range);
+      if(total)obj.size=Number(total[1]);
+      else if(res.status===200)obj.size=(await res.arrayBuffer()).byteLength;
+      else throw Error('remote_r2_ranged_head_size_unavailable');
+      return obj;
     },
     async put(key,value,options={}){
       if(!allowedKey(key))throw Error('remote_r2_put_key_not_allowlisted');
