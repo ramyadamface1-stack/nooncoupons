@@ -1,3 +1,4 @@
+import {enableExistingDestinationR2} from './r2-remote-existing-bucket.js';
 import {claimPublicationSlot} from './publication-rate-limit.js';
 import publicApp from './seo-layer.js';
 import {snapshotDurableObjectKeys,restoreDurableObjectKeys} from './do-migration-state.js';
@@ -153,7 +154,7 @@ async function privacyHash(value){
 function randomHex(bytes=32){const a=new Uint8Array(bytes);crypto.getRandomValues(a);return [...a].map(x=>x.toString(16).padStart(2,'0')).join('')}
 
 export class ControlPlane{
-  constructor(ctx,env){this.ctx=ctx;this.env=env}
+  constructor(ctx,env){this.ctx=ctx;this.env=enableExistingDestinationR2(env)}
   async get(){
     let s=await this.ctx.storage.get('state'),dirty=false;
     if(!s){s=makeState();dirty=true}
