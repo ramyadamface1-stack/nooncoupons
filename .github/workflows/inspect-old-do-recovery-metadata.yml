@@ -1,0 +1,50 @@
+name: Audit Fresh Old Durable Object Data in Existing New R2 (Read Only)
+on:
+  push:
+    branches: [audit/live-new-r2-write-backup-20261020]
+    paths: ['.github/workflows/inspect-old-do-recovery-metadata.yml']
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install -q boto3
+      - name: Identify recoverable article bodies/queue states safely, never print key secrets or actual content
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,boto3,json,collections,re
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['KEY'].strip(),aws_secret_access_key=os.environ['SECRET'].strip())
+          bucket='nooncoupons-content-v2'
+          def page(key):
+            o=s.get_object(Bucket=bucket,Key=key)
+            return json.load(o['Body'])
+          prefix='migration/do-state/20261020-old-do-recovery/ControlPlane/'
+          parts=s.list_objects_v2(Bucket=bucket,Prefix=prefix,MaxKeys=1000).get('Contents') or []
+          files=sorted([o['Key'] for o in parts if '/part-' in o['Key']])
+          groups=collections.Counter();sizes=collections.Counter();contains=collections.Counter();potential=[]
+          for key in files[:min(30,len(files))]:
+            p=page(key)
+            for entry in p.get('entries',[]):
+              k,v=entry
+              root=re.split(r'[:/|#]',str(k),1)[0]
+              root=re.sub(r'[^a-zA-Z_-]','',root)[:35]
+              groups[root]+=1
+              val=json.dumps(v,ensure_ascii=False)
+              sizes[root]+=len(val)
+              for marker in ('html','body','articles','publishedAt','scheduledAt','scheduled','pending','draft'):
+                if isinstance(v,dict) and marker in v:contains[root+':'+marker]+=1
+              if isinstance(v,dict) and ('html' in v or 'body' in v):
+                potential.append({'group':root,'length':len(val),'fields':[k for k in v if k in ('html','body','title','slug','status','publishedAt','scheduledAt')]})
+          print('OLD_DO_CURRENT_BACKUP='+json.dumps({'parts_seen':len(files),'parts_inspected':min(30,len(files)),'groups':groups.most_common(20),'approxBytesByGroup':sizes.most_common(12),'bodyFields':contains.most_common(20),'sampleBodyShapes':potential[:5]},ensure_ascii=False),flush=True)
+          for t in ('ControlPlane','GeneratorControl'):
+            p='migration/do-state/20261020-old-do-recovery/'+t+'/'
+            r=s.list_objects_v2(Bucket=bucket,Prefix=p,MaxKeys=1000)
+            obj=r.get('Contents') or []
+            print('OLD_DO_RECOVERY_EXPORT_STATUS='+json.dumps({'type':t,'objects':len(obj),'hasFinalManifest':any(o['Key'].endswith('/manifest.json') for o in obj),'lastModified':max((o['LastModified'].isoformat() for o in obj),default=None)},ensure_ascii=False),flush=True)
+          PY
