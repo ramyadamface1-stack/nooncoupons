@@ -1,0 +1,40 @@
+name: Check Existing Old and New Cloudflare Zone DNS Cutover Preconditions
+on:
+  push:
+    branches: [ops/revive-existing-do-restore-20261020]
+    paths: ['.github/workflows/audit-migration-dns-ready-20261020.yml']
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      TOKEN_OLD: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      TOKEN_NEW: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Read only zone status, nameservers, DNS records and SSL for existing zones; never write
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,os,json,hashlib
+          zones=[
+            ('old','c82274152a942dea53044eae7153cfd7','TOKEN_OLD'),
+            ('new','e4c35f8a50a7b2e4cfb9d6c534962603','TOKEN_NEW'),
+          ]
+          for label,aid,token_name in zones:
+            token=os.environ[token_name].strip()
+            for path in [f'/zones?name=noondealsnow.com',f'/zones/c09077a581adc7aa11d6de0c121e179d/dns_records?per_page=100' if label=='new' else '/zones?name=noondealsnow.com']:
+              u='https://api.cloudflare.com/client/v4'+path
+              req=urllib.request.Request(u,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+              try:
+                with urllib.request.urlopen(req,timeout=18) as f:status=f.status;payload=json.load(f)
+              except urllib.error.HTTPError as e:
+                status=e.code
+                try:payload=json.loads(e.read(4000))
+                except:payload={}
+              except Exception as e:status=0;payload={'errors':[{'message':type(e).__name__}]}
+              rec=payload.get('result') or []
+              if isinstance(rec,list):
+                print('MIGRATION_ZONE_API='+json.dumps({'which':label,'path':path,'http':status,'success':payload.get('success'),'count':len(rec),'zones':[{'id':x.get('id'),'status':x.get('status'),'name_servers':x.get('name_servers'),'type':x.get('type'),'paused':x.get('paused')} for x in rec[:4]] if '/zones?' in path else [{'type':x.get('type'),'name':x.get('name'),'proxied':x.get('proxied'),'content_sha8':hashlib.sha256(str(x.get('content','')).encode()).hexdigest()[:8]} for x in rec[:35]],'errors':[x.get('code') for x in payload.get('errors',[])[:3]]}),flush=True)
+              else:print('MIGRATION_ZONE_API='+json.dumps({'which':label,'path':path,'http':status,'success':payload.get('success'),'errors':[x.get('code') for x in payload.get('errors',[])[:3]]}),flush=True)
+          PY
