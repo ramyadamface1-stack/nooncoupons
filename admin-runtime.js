@@ -1,3 +1,4 @@
+import {enableExistingDestinationR2} from './r2-remote-existing-bucket.js';
 import {GENERATOR_DEFAULTS,readState} from './generator-core-v2.js';
 import {snapshotDurableObjectKeys,restoreDurableObjectKeys} from './do-migration-state.js';
 import {runProgrammaticBatch,BULK_RUNTIME_LIMITS} from './bulk-generator.js';
@@ -256,7 +257,7 @@ export async function bulkTick(env){
 }
 
 export class GeneratorControl{
-  constructor(ctx,env){this.ctx=ctx;this.env=env}
+  constructor(ctx,env){this.ctx=ctx;this.env=enableExistingDestinationR2(env)}
   async config(){
     let c=await this.ctx.storage.get('config'),dirty=false;
     if(!c){c={...GENERATOR_DEFAULTS,createdAt:now()};dirty=true}
