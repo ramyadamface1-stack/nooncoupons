@@ -41,10 +41,24 @@ export async function signedR2Read(env,key='',params={}){
 async function getObject(env,key,cacheMs=0){
   const prev=cacheMs?manifestCache.get(key):null;
   if(prev&&prev.until>Date.now())return prev.value;
-  const r=await signedR2Read(env,key);
-  if(r.status===404)return null;
-  if(!r.ok)throw new Error('rescue_r2_get_status_'+r.status);
-  const value={body:await r.text(),meta:Object.fromEntries([...r.headers].filter(([name])=>name.startsWith('x-amz-meta-')).map(([name,val])=>[name.slice('x-amz-meta-'.length),val])),modified:r.headers.get('last-modified')||'',contentType:r.headers.get('content-type')||''};
+  if(!/^(?:articles|bulk|_ops|english-canary|seo-rescue)\//.test(key))throw new Error('rescue_prefix_not_public');
+  let value;
+  if(env.CONTENT_FINAL&&typeof env.CONTENT_FINAL.get==='function'){
+    // After account cutover, use the NEW account's native R2 binding directly.
+    // Never require the old worker's cross-account access credentials.
+    const object=await env.CONTENT_FINAL.get(key);
+    if(!object)return null;
+    value={body:await object.text(),meta:{...(object.customMetadata||{})},
+      modified:object.uploaded instanceof Date?object.uploaded.toUTCString():'',
+      contentType:object.httpMetadata?.contentType||''};
+  }else{
+    // OLD account R2 is NotEntitled: preserve the tested, secret-backed
+    // cross-account read-only fallback until real DO + domain cutover.
+    const r=await signedR2Read(env,key);
+    if(r.status===404)return null;
+    if(!r.ok)throw new Error('rescue_r2_get_status_'+r.status);
+    value={body:await r.text(),meta:Object.fromEntries([...r.headers].filter(([name])=>name.startsWith('x-amz-meta-')).map(([name,val])=>[name.slice('x-amz-meta-'.length),val])),modified:r.headers.get('last-modified')||'',contentType:r.headers.get('content-type')||''};
+  }
   if(cacheMs){manifestCache.set(key,{value,until:Date.now()+cacheMs});if(manifestCache.size>5)manifestCache.delete(manifestCache.keys().next().value)}
   return value;
 }
@@ -92,6 +106,14 @@ function nav(previous,next,label){
 function xmlVal(xml,name){const match=xml.match(new RegExp('<(?:[a-z0-9]+:)?'+name+'>([\\s\\S]*?)<\\/(?:[a-z0-9]+:)?'+name+'>','i'));return match?match[1]:''}
 function decodeXml(s){return String(s).replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'")}
 async function listArticlePage(env,token){
+  if(env.CONTENT_FINAL&&typeof env.CONTENT_FINAL.list==='function'){
+    // Native binding pagination cursor is opaque and independent of S3.
+    const options={prefix:'articles/',limit:15};
+    if(token)options.cursor=token;
+    const page=await env.CONTENT_FINAL.list(options);
+    const keys=(page.objects||[]).map(x=>x.key).filter(k=>k.endsWith('.html'));
+    return {keys,more:Boolean(page.truncated),token:page.cursor||''};
+  }
   const params={'list-type':'2','max-keys':'15','prefix':'articles/','encoding-type':'url'};
   if(token)params['continuation-token']=token;
   const r=await signedR2Read(env,'',params);
