@@ -1,6 +1,7 @@
-name: Hourly Protected DO Backup Mirror to New Cloudflare R2
-# Immediate mirror after confirmed ControlPlane manifest completion 2026-10-18 08:59 UTC
-
+name: Verify Direct Old-DO Backup into Existing New R2
+# The old account's R2 is permanently NotEntitled (10042).
+# The ACTIVE source Worker now exports source DO directly into destination R2.
+# This workflow is READ ONLY. It never contacts the disabled old R2.
 on:
   push:
     branches: [main]
@@ -9,94 +10,49 @@ on:
   workflow_dispatch:
   schedule:
     - cron: '17 * * * *'
-
-permissions:
-  contents: read
-
-concurrency:
-  group: noondealsnow-emergency-do-backup-mirror
-  cancel-in-progress: false
-
+permissions: {contents: read}
 jobs:
-  do-backup:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 50
+    timeout-minutes: 6
     env:
-      SRC_ACCESS: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
-      SRC_SECRET: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
       DEST_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
       DEST_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
       AWS_EC2_METADATA_DISABLED: 'true'
     steps:
-      - name: Install boto3
-        run: python3 -m pip install --quiet --disable-pip-version-check boto3
-      - name: Mirror current private DO exports, SHA256 verify, no delete
+      - run: python3 -m pip install --quiet boto3
+      - name: Verify fresh source ControlPlane/GeneratorControl backup lands in new R2 (no writes)
         shell: bash
         run: |
           set -euo pipefail
-          python3 -u - <<'PY'
-          import boto3,botocore,os,re,hashlib,time,io,json
+          python3 - <<'PY'
+          import boto3,os,json,datetime
           from botocore.config import Config
-          from concurrent.futures import ThreadPoolExecutor,as_completed
-          C=Config(signature_version='s3v4',connect_timeout=10,read_timeout=60,max_pool_connections=20,retries={'max_attempts':4,'mode':'standard'})
-          def cred(name,n):
-              v=os.environ.get(name,'').strip()
-              if not re.fullmatch(r'[a-fA-F0-9]{'+str(n)+'}',v):raise RuntimeError('invalid_key_shape_'+name)
-              return v
-          def client(ac,k,s):
-              return boto3.client('s3',region_name='auto',endpoint_url='https://'+ac+'.r2.cloudflarestorage.com',aws_access_key_id=cred(k,32),aws_secret_access_key=cred(s,64),config=C)
-          old=client('c82274152a942dea53044eae7153cfd7','SRC_ACCESS','SRC_SECRET')
-          new=client('e4c35f8a50a7b2e4cfb9d6c534962603','DEST_ACCESS','DEST_SECRET')
-          bucket='nooncoupons-content-v2'
-          prefix='migration/do-state/20261017-baseline/'
-          paginator=old.get_paginator('list_objects_v2')
-          objs=[item for page in paginator.paginate(Bucket=bucket,Prefix=prefix,PaginationConfig={'PageSize':1000}) for item in page.get('Contents',[])]
-          objs.sort(key=lambda x:(x['Key'].endswith('/manifest.json'),x['Key']))
-          print('SOURCE_DO_BACKUP_OBJECTS='+str(len(objs)),flush=True)
-          if not objs: raise RuntimeError('source_do_backup_not_available')
-          stats={'copied':0,'already_verified':0,'total_verified':0,'bytes_verified':0}
-          def obj_hash(client,key):
-              try:o=client.get_object(Bucket=bucket,Key=key)
-              except botocore.exceptions.ClientError as e:
-                  if str(e.response.get('Error',{}).get('Code')) in ('404','NoSuchKey','NotFound'):return None
-                  raise
-              try:
-                  data=o['Body'].read(16*1024*1024+1)
-                  if len(data)>16*1024*1024:raise RuntimeError('DO_archive_part_gt_16MB')
-                  info={'digest':hashlib.sha256(data).hexdigest(),'metadata':o.get('Metadata') or {},'contentType':o.get('ContentType'),'data':data}
-                  return info
-              finally:o['Body'].close()
-          def one(obj):
-              key=obj['Key']
-              source=obj_hash(old,key)
-              if source is None:raise RuntimeError('source_part_missing_during_copy')
-              target=obj_hash(new,key)
-              if target is None:
-                  new.put_object(Bucket=bucket,Key=key,Body=source['data'],ContentType=source['contentType'] or 'application/json',Metadata=source['metadata'])
-                  copied=True
-                  target=obj_hash(new,key)
-              else:copied=False
-              if target is None or target['digest']!=source['digest'] or target['metadata']!=source['metadata']:
-                  raise RuntimeError('DO_part_SHA256_or_metadata_mismatch_no_overwrite')
-              return copied,len(source['data']),key.endswith('/manifest.json')
-          # Bound concurrency and keep manifests for the very end so incomplete DO source does not falsely look complete.
-          parts=[x for x in objs if not x['Key'].endswith('/manifest.json')]
-          manifests=[x for x in objs if x['Key'].endswith('/manifest.json')]
-          for group in (parts,manifests):
-              with ThreadPoolExecutor(max_workers=8) as pool:
-                  futures=[pool.submit(one,obj) for obj in group]
-                  for i,future in enumerate(as_completed(futures),start=1):
-                      copied,n,is_manifest=future.result()
-                      stats['copied']+=int(copied);stats['already_verified']+=int(not copied)
-                      stats['total_verified']+=1;stats['bytes_verified']+=n
-                      if i%150==0:print('DO_MIRROR_PROGRESS='+str(i)+'/'+str(len(group)),flush=True)
-          print('DO_MIRROR_COPIED='+str(stats['copied']))
-          print('DO_MIRROR_ALREADY_VERIFIED='+str(stats['already_verified']))
-          print('DO_MIRROR_VERIFIED='+str(stats['total_verified']))
-          print('DO_MIRROR_BYTES='+str(stats['bytes_verified']))
-          print('DO_MANIFESTS_COPIED='+str(len(manifests)))
-          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:
-              f.write('### Emergency DO state mirror to new R2\\n\\n')
-              for k,v in stats.items():f.write(f'- {k}: **{v}**\\n')
-              f.write(f'\\nManifest files at snapshot: **{len(manifests)}**. Production state can continue changing; final locked refresh still required before cutover. No deletes or DNS changes.\\n')
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            aws_access_key_id=os.environ['DEST_ACCESS'].strip(),aws_secret_access_key=os.environ['DEST_SECRET'].strip(),
+            config=Config(connect_timeout=10,read_timeout=25,retries={'max_attempts':2,'mode':'standard'}))
+          b='nooncoupons-content-v2'
+          state={}
+          for kind in ('ControlPlane','GeneratorControl'):
+            prefix='migration/do-state/20261020-old-do-recovery/'+kind+'/'
+            items=[]
+            for page in s.get_paginator('list_objects_v2').paginate(Bucket=b,Prefix=prefix,PaginationConfig={'PageSize':1000}):
+              items.extend(page.get('Contents',[]))
+            parts=[x for x in items if '/part-' in x['Key']]
+            done=next((x for x in items if x['Key'].endswith('/manifest.json')),None)
+            info={'partCount':len(parts),'manifestComplete':bool(done),'lastModified':max((x['LastModified'].isoformat() for x in items),default=None)}
+            if done:
+              data=json.loads(s.get_object(Bucket=b,Key=done['Key'])['Body'].read())
+              info.update({'exportedKeys':data.get('exported'),'expectedParts':data.get('parts'),'complete':data.get('complete') is True})
+              if data.get('complete') is not True or data.get('parts')!=len(parts):raise RuntimeError('incomplete_source_do_backup_manifest_'+kind)
+            else:
+              if not parts:print('::warning::SOURCE_DO_EXPORT_NOT_STARTED='+kind)
+              else:
+                delta=(datetime.datetime.now(datetime.timezone.utc)-max(x['LastModified'] for x in items)).total_seconds()/60
+                if delta>95:print('::warning::SOURCE_DO_EXPORT_STALLED='+kind+';minutes='+str(round(delta)))
+            state[kind]=info
+            print('DIRECT_NEW_R2_OLD_DO_BACKUP='+json.dumps({'kind':kind,**info}),flush=True)
+          if not state['ControlPlane']['partCount']:raise RuntimeError('source_DO_direct_backup_missing_from_destination')
+          print('DISABLED_OLD_R2_READS=ZERO',flush=True)
+          print('NO_NEW_RESOURCES_OR_DELETES=true')
           PY
