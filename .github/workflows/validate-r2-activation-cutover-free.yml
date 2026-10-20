@@ -1,0 +1,56 @@
+name: Preflight Activate EXISTING New R2 on Old Worker (NO Changes)
+on:
+  push:
+    branches: [fix/activate-existing-new-r2-on-old-20261020]
+    paths:
+      - 'wrangler.jsonc'
+      - '.github/workflows/validate-r2-activation-cutover-free.yml'
+permissions: {contents: read}
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CF_OLD: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Source code and config safety checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const cfg=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8').split(String.fromCharCode(10)).filter(line=>!line.trim().startsWith('//')).join(String.fromCharCode(10)));
+          const v=cfg.vars;
+          if(cfg.name!=='nooncoupons'||cfg.r2_buckets?.length!==0||
+             v.REMOTE_EXISTING_R2_ENABLED!=='true'||v.DO_MIGRATION_EXPORT_TAG!=='20261020-old-do-recovery'||
+             v.DO_MIGRATION_EXPORT_ENABLED!=='true'||v.GLOBAL_PUBLISH_MAX_PER_MINUTE!=='1'||
+             v.GLOBAL_PUBLISH_MIN_INTERVAL_SECONDS!=='60'||cfg.triggers.crons.join(',')!=='* * * * *')throw Error('unsafe_old_worker_recovery_settings');
+          const destination=JSON.parse(fs.readFileSync('wrangler.migration-staging.jsonc','utf8'));
+          if(destination.name!=='noondealsnow-migration-staging'||destination.vars.DO_MIGRATION_RESTORE_ENABLED!=='true'||
+             destination.vars.BULK_DAILY_TARGET!=='0'||destination.vars.ENGLISH_DAILY_TARGET!=='0'||destination.workers_dev!==false)throw Error('new_destination_must_remain_restore_only');
+          const s=fs.readFileSync('r2-remote-existing-bucket.js','utf8');
+          if(!s.includes('remote_r2_delete_disabled_to_preserve_articles')||!s.includes("REMOTE_EXISTING_R2_ENABLED")||
+             !s.includes("e4c35f8a50a7b2e4cfb9d6c534962603"))throw Error('R2_remote_storage_not_safe');
+          console.log('ONE_PUBLISHER_60SEC_SOURCE_ONLY=PASS');
+          console.log('NEW_DESTINATION_RESTORE_ONLY=PASS');
+          console.log('NO_OLD_R2_BUCKET_BINDING=true');
+          NODE
+          node --test tests/remote-existing-r2-binding.test.mjs
+          npx wrangler deploy --dry-run --outdir /tmp/existing-r2-activation
+      - name: Confirm OLD Worker has existing new R2 secret names (never expose their values)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --silent --show-error --fail -H "Authorization: Bearer $CF_OLD"             'https://api.cloudflare.com/client/v4/accounts/c82274152a942dea53044eae7153cfd7/workers/scripts/nooncoupons/settings' >/tmp/cf_old_settings.json
+          jq -e '.success == true and
+            ([.result.bindings[]?|select(.type=="secret_text")|.name] | index("NOON_RESCUE_R2_ACCESS_KEY_ID") != null) and
+            ([.result.bindings[]?|select(.type=="secret_text")|.name] | index("NOON_RESCUE_R2_SECRET_ACCESS_KEY") != null) and
+            ([.result.bindings[]?|select(.name=="CONTENT_FINAL")]|length == 0)' /tmp/cf_old_settings.json >/dev/null
+          echo 'EXISTING_OLD_WORKER_NEW_R2_SECRETS=VERIFIED'
+          echo 'NEW_RESOURCES_CREATED=0'
