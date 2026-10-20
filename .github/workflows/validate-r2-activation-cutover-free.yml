@@ -25,7 +25,7 @@ jobs:
           npm install --no-audit --no-fund --ignore-scripts
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
-          const cfg=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8'));
+          const cfg=JSON.parse(fs.readFileSync('wrangler.jsonc','utf8').replace(/^\\s*\\/\\/.*$/gm,''));
           const v=cfg.vars;
           if(cfg.name!=='nooncoupons'||cfg.r2_buckets?.length!==0||
              v.REMOTE_EXISTING_R2_ENABLED!=='true'||v.DO_MIGRATION_EXPORT_TAG!=='20261020-old-do-recovery'||
