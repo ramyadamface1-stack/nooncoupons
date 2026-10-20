@@ -1,0 +1,50 @@
+name: Read Only DNS Parity and Routing Preconditions for NoonDealsNow Cutover
+on:
+  push:
+    branches: [ops/revive-existing-do-restore-20261020]
+    paths: ['.github/workflows/check-dns-route-ssl-parity-readonly.yml']
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OLD_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NEW_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Compare actual old/new record contents including MX priority and DNSSEC, no writes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error,collections
+          zone={'old':'3032a311856f82908a53f0b19b0ffcf8','new':'c09077a581adc7aa11d6de0c121e179d'}
+          def fetch(side,path):
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers={'Authorization':'Bearer '+os.environ[side.upper()+'_TOKEN'].strip(),'Accept':'application/json'})
+            try:
+              with urllib.request.urlopen(req,timeout=14) as response:data=json.load(response);code=response.status
+            except urllib.error.HTTPError as e:
+              code=e.code
+              try:data=json.loads(e.read(9000))
+              except:data={}
+            return code,data.get('result'),[x.get('code') for x in data.get('errors',[])[:3]]
+          sets={}
+          for side,z in zone.items():
+            code,records,errors=fetch(side,f'/zones/{z}/dns_records?per_page=100')
+            if code!=200 or not isinstance(records,list):raise RuntimeError('DNS inaccessible '+side+' '+str(errors))
+            canon=lambda x:(x.get('name'),x.get('type'),x.get('content'),x.get('proxied'),x.get('priority',None))
+            sets[side]=collections.Counter(canon(r) for r in records)
+            print('DNS_PARITY_RECORD_COUNT_'+side+'='+str(len(records)),flush=True)
+            for category,path in [('route',f'/zones/{z}/workers/routes'),('ssl',f'/zones/{z}/settings/ssl'),('universal',f'/zones/{z}/ssl/universal/settings'),('dnssec',f'/zones/{z}/dnssec')]:
+              c,r,errs=fetch(side,path)
+              summary={'side':side,'type':category,'http':c,'errors':errs}
+              if category=='route' and isinstance(r,list):summary['routes']=[{'pattern':x.get('pattern'),'script':x.get('script'),'enabled':x.get('enabled')} for x in r]
+              elif category in ('ssl','universal') and isinstance(r,dict):summary['config']={k:r.get(k) for k in ('value','enabled') if k in r}
+              elif category=='dnssec' and isinstance(r,dict):summary['status']=r.get('status')
+              print('ROUTE_SSL_DNSSEC='+json.dumps(summary),flush=True)
+          missing=list((sets['old']-sets['new']).elements())
+          extra=list((sets['new']-sets['old']).elements())
+          print('CUTOVER_DNS_STRICT_MATCH='+str(not missing and not extra).lower(),flush=True)
+          print('OLD_RECORDS_MISSING_IN_NEW='+json.dumps([{'name':r[0],'type':r[1]} for r in missing[:15]]),flush=True)
+          print('NEW_EXTRA_RECORDS='+json.dumps([{'name':r[0],'type':r[1]} for r in extra[:15]]),flush=True)
+          if missing or extra:raise RuntimeError('DNS mismatch; no cutover allowed')
+          PY
