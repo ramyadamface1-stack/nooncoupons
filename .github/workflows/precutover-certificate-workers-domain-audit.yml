@@ -31,7 +31,7 @@ jobs:
                 try:data=json.loads(e.read(10000))
                 except:data={}
               except Exception as e:code=0;data={'errors':[{'code':type(e).__name__}]}
-              out={'account':label,'category':name,'status':code,'success':data.get('success'),'error_codes':[x.get('code') for x in data.get('errors',[])[:3]]}
+              out={'account':label,'category':name,'status':code,'success':data.get('success'),'error_codes':[x.get('code') for x in (data.get('errors') or [])[:3]]}
               r=data.get('result') or []
               if name=='packs' and isinstance(r,list):
                 out['packs']=[{'type':x.get('type'),'status':x.get('status'),'hosts':x.get('hosts'),'validation_method':x.get('validation_method')} for x in r[:10]]
