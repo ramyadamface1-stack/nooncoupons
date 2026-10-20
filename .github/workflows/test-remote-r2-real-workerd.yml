@@ -27,15 +27,15 @@ jobs:
           for i in {1..30}; do if curl -fsS --max-time 2 http://127.0.0.1:8799/api/revision >/dev/null;then break;fi;sleep 2;done
           node --input-type=module <<'NODE'
           const root='http://127.0.0.1:8799';
-          for(const p of ['/api/health','/blog','/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي','/sitemap-rescue-articles-0.xml']){
+          for(const p of ['/api/platform-health','/blog','/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي','/sitemap-rescue-articles-0.xml']){
             const r=await fetch(root+p);
             const body=await r.text();
             console.log('REMOTE_R2_WORKER='+p+' HTTP='+r.status+' BYTES='+body.length+' IMAGES='+(body.match(/<img /g)||[]).length);
             if(r.status!==200)process.exitCode=1;
-            if(p==='/api/health'){
+            if(p==='/api/platform-health'){
               let j;try{j=JSON.parse(body)}catch{j={}}
               console.log('REMOTE_R2_WORKER_HEALTH='+JSON.stringify({r2:j.r2,r2Ready:j.r2Ready,healthy:j.ok}));
-              if(j.r2===false)process.exitCode=1;
+              if(j.r2!==true)process.exitCode=1;
             }
             if(p==='/blog'&&!(body.match(/<img /g)||[]).length)process.exitCode=1;
             if(p.includes('/articles/')&&!body.includes('og:image'))process.exitCode=1;
