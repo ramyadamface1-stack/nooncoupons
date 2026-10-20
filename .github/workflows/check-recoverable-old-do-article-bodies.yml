@@ -1,0 +1,49 @@
+name: Assess Recoverable Missing Articles from Old DO (Read Only)
+on:
+  push:
+    branches: [audit/live-new-r2-write-backup-20261020]
+    paths: ['.github/workflows/check-recoverable-old-do-article-bodies.yml']
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install -q boto3
+      - name: Identify recoverable HTML vs metadata only; do not print content, publish or mutate R2
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import boto3,os,json,collections,datetime
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['KEY'].strip(),aws_secret_access_key=os.environ['SECRET'].strip())
+          b='nooncoupons-content-v2'
+          def part(t,n):
+            o=s.get_object(Bucket=b,Key=f'migration/do-state/20261020-old-do-recovery/{t}/part-{n:07d}.json')
+            return json.loads(o['Body'].read())
+          state=None
+          for i in range(1,5):
+            for pair in part('ControlPlane',i).get('entries') or []:
+              if pair[0]=='state':state=pair[1]
+          if not isinstance(state,dict):raise RuntimeError('state record not in first 4 parts')
+          articles=state.get('articles') or []
+          fields=collections.Counter()
+          has_text=0;published=0;future=0
+          dates=[]
+          for a in articles:
+            if not isinstance(a,dict):continue
+            fields.update(a.keys())
+            if any(isinstance(a.get(k),str) and len(a[k])>300 for k in ('html','body','content','htmlBody','articleHtml')):has_text+=1
+            if a.get('status')=='published':published+=1
+            if a.get('status') in ('scheduled','draft'):future+=1
+            for k in ('publishedAt','createdAt','updatedAt'):
+              if isinstance(a.get(k),str):dates.append(a[k])
+          print('OLD_DO_RECOVERY_ARTICLE_STATE='+json.dumps({'articlesInMainState':len(articles),'publishedRecords':published,'draftOrScheduledRecords':future,'withRecoverableHtmlBody':has_text,'commonFields':fields.most_common(24),'newestTimestamp':max(dates) if dates else None},ensure_ascii=False),flush=True)
+          gc=part('GeneratorControl',1)
+          for k,v in gc.get('entries',[]):
+            if k=='status' and isinstance(v,dict):
+              print('OLD_DO_GENERATOR_STATUS_SHAPE='+json.dumps({'fields':list(v.keys())[:35],'publishedTotal':v.get('bulkPublishedTotal'),'lastSuccessfulPublishAt':v.get('lastSuccessfulPublishAt'),'bulkLastError':v.get('bulkLastError'),'lastRun':v.get('bulkLastRun')}),flush=True)
+          PY
