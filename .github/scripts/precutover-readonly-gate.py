@@ -82,8 +82,8 @@ def inspect():
         names[side]=zoneinfo.get("status")
         status,rr=cloudflare(token,f"/zones/{zone}/dns_records?per_page=100")
         if rr.get("success") is True and isinstance(rr.get("result"),list):
-            allrecords[side]=sorted((x.get("name"),x.get("type"),x.get("content"),x.get("proxied"),x.get("priority"))
-                                    for x in rr["result"])
+            allrecords[side]=sorted(((x.get("name"),x.get("type"),x.get("content"),x.get("proxied"),x.get("priority"))
+                                    for x in rr["result"]),key=lambda r:tuple(str(v) for v in r))
             gate(side+"_dns_readable",status==200,{"count":len(rr["result"])})
         else:gate(side+"_dns_readable",False,{"http":status})
         status,packs=cloudflare(token,f"/zones/{zone}/ssl/certificate_packs?per_page=30")
