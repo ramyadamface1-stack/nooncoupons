@@ -3,7 +3,7 @@ name: Verify Article Publishing Against Existing New R2 (Read Only)
 # The old Worker now writes new content directly to existing new-account R2.
 on:
   push:
-    branches: [main, fix/stop-obsolete-old-r2-jobs-health-20261020]
+    branches: [main]
     paths:
       - '.github/workflows/migration-r2-article-delta.yml'
   workflow_dispatch:
