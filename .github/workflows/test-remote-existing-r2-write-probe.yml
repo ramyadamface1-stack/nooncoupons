@@ -52,6 +52,7 @@ jobs:
           const read=await received.json();
           if(JSON.stringify(read)!==str||received.customMetadata.probe!=='noondealsnow')throw Error('REMOTE_R2_WRITE_READ_FAILED');
           const info=await r2.head(key);
+          console.log('REMOTE_R2_HEAD_DIAGNOSTIC='+JSON.stringify({returnedSize:info?.size,expected:new TextEncoder().encode(str).length,metadata:info?.customMetadata,contentType:info?.httpMetadata?.contentType}));
           if(!info||info.size!==new TextEncoder().encode(str).length)throw Error('REMOTE_R2_HEAD_MISMATCH');
           const list=await r2.list({prefix:'migration/probes/',limit:30});
           if(!list.objects.some(x=>x.key===key))throw Error('REMOTE_R2_LIST_MISMATCH');
