@@ -37,7 +37,8 @@ test('signed PUT/GET/HEAD/LIST use identical existing bucket and preserve MIME, 
     const obj=objects.get(key);
     const hs=new Headers({'Content-Type':obj.hdr.get('content-type')||'text/plain','Content-Length':String(obj.body.length),'Last-Modified':'Tue, 20 Oct 2026 06:00:00 GMT'});
     hs.set('x-amz-meta-status',obj.hdr.get('x-amz-meta-status')||'');
-    return new Response(options.method==='HEAD'?null:obj.body,{status:200,headers:hs});
+    if(options.headers.get('range'))hs.set('Content-Range','bytes 0-0/'+obj.body.length);
+    return new Response(options.headers.get('range')?obj.body.slice(0,1):obj.body,{status:options.headers.get('range')?206:200,headers:hs});
   };
   try{
     const r=existingDestinationR2Binding(f());
@@ -51,7 +52,7 @@ test('signed PUT/GET/HEAD/LIST use identical existing bucket and preserve MIME, 
     const list=await r.list({prefix:'articles/',limit:15});
     assert.equal(list.objects[0].key,'articles/safe-test.html');
     assert.equal(list.truncated,false);
-    assert.deepEqual(calls.map(x=>x.method),['PUT','GET','HEAD','GET']);
+    assert.deepEqual(calls.map(x=>x.method),['PUT','GET','GET','GET']);
   }finally{globalThis.fetch=original}
 });
 test('prevents oversized single-part writes and unimplemented conditional overwrites',async()=>{
