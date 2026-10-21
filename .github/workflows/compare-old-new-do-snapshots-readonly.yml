@@ -1,0 +1,21 @@
+name: Compare 353k Baseline vs 380k Source DO Snapshot (No Writes)
+on:
+  push:
+    branches: [audit/do-restore-and-r2-parity-20261021]
+    paths:
+      - '.github/scripts/compare-do-backups-readonly.py'
+      - '.github/workflows/compare-old-new-do-snapshots-readonly.yml'
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 23
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install -q boto3
+      - name: Hash all ControlPlane values, compare snapshots; do not print or mutate any stored content
+        run: python3 -u .github/scripts/compare-do-backups-readonly.py
