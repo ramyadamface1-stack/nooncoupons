@@ -1,0 +1,25 @@
+name: Test Fresh Country Blog DO State Merge
+on:
+  push:
+    branches: [fix/fresh-recent-blog-r2-20261021]
+    paths:
+      - 'r2-emergency-readonly.js'
+      - 'tests/live-blog-merge.test.mjs'
+      - '.github/workflows/test-blog-live-do-merge.yml'
+permissions: {contents: read}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate legacy DO reads and fallback without changing production
+        run: |
+          set -euo pipefail
+          node --check r2-emergency-readonly.js
+          node --test tests/live-blog-merge.test.mjs
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --outdir /tmp/noon-live-blog-dryrun
+          echo 'BLOG_LATEST_PRODUCTION_DEPLOY_NOT_EXECUTED=true'
