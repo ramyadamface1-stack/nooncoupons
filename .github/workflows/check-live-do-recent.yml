@@ -1,0 +1,24 @@
+name: Diagnose Live ControlPlane Article List Read Only
+on:
+  push:
+    branches: [audit/live-blog-after-merge-20261021]
+    paths: ['.github/workflows/check-live-do-recent.yml']
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Print only public state counts, recent article timestamps, never identities or secrets
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,json
+          req=urllib.request.Request('https://noondealsnow.com/api/state',headers={'Accept':'application/json','User-Agent':'NoonDealsNow-Readonly-DO-Inventory'})
+          with urllib.request.urlopen(req,timeout=30) as r:
+            raw=r.read(45000000)
+            j=json.loads(raw)
+          arr=j.get('articles') or []
+          ordered=sorted((a for a in arr if isinstance(a,dict) and a.get('slug')),key=lambda x:x.get('createdAt') or x.get('updatedAt') or '',reverse=True)
+          print('LIVE_DO_PUBLIC_STATE='+json.dumps({'articles':len(arr),'bytes':len(raw),'last':[{'slug':x.get('slug'),'country':x.get('country'),'status':x.get('status'),'createdAt':x.get('createdAt')} for x in ordered[:8]]},ensure_ascii=False),flush=True)
+          PY
