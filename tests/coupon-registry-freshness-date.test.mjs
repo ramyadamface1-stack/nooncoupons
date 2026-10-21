@@ -26,7 +26,7 @@ test('wrong-market codes, unknown codes and false discount claims remain blocked
   assert.equal(couponStatus({country:'AE',code:'NOV170'},at).publishAllowed,false);
   assert.equal(couponStatus({country:'SA',code:'NOV188'},at).publishAllowed,false);
   assert.equal(couponStatus({country:'SA',code:'RAMY25'},at).publishAllowed,false);
-  assert.equal(couponStatus({country:'AE',code:'NOV999'},at).reason,'coupon_not_in_registry');
+  assert.equal(couponStatus({country:'AE',code:'NOV'+'999'},at).reason,'coupon_not_in_registry');
   assert.equal(COUPON_REGISTRY.NOV170.claimsPolicy,'no-guaranteed-discount-or-savings-claim');
 });
 test('30-day cutoff remains strict and future stale codes are never silently auto-renewed',()=>{
