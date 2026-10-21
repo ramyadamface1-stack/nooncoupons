@@ -55,10 +55,22 @@ def main(apply):
         if not apply or not changed:continue
         kwargs=dict(Bucket=BUCKET,Key=key,Body=revised.encode('utf-8'),
                     ContentType=resp.get('ContentType') or 'text/html; charset=utf-8',
-                    Metadata=metadata,IfMatch=resp['ETag'])
+                    Metadata=metadata)
         for header in ('CacheControl','ContentLanguage','ContentDisposition','ContentEncoding'):
             if resp.get(header):kwargs[header]=resp[header]
-        c.put_object(**kwargs)
+        # Boto3's PutObject parameter model does not expose IfMatch, but
+        # Cloudflare R2 supports atomic S3 If-Match on PutObject.  Inject the
+        # header before SigV4 signs the request.  Never emulate a conditional
+        # write with HEAD then PUT, which has a destructive race.
+        expected_etag=resp['ETag']
+        event_id='editorial-r2-put-if-match-'+hashlib.sha256(key.encode()).hexdigest()[:15]
+        def signed_if_match(request,**ignored):
+            request.headers['If-Match']=expected_etag
+        c.meta.events.register('before-sign.s3.PutObject',signed_if_match,unique_id=event_id)
+        try:
+            c.put_object(**kwargs)
+        finally:
+            c.meta.events.unregister('before-sign.s3.PutObject',unique_id=event_id)
         out=c.get_object(Bucket=BUCKET,Key=key)
         restored=out['Body'].read().decode('utf-8')
         if not restored.startswith(source[:500]) or restored.count(MARKER)!=1 or len(restored)<=len(source):
