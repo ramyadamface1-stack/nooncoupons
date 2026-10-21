@@ -2,7 +2,7 @@ name: Verify 10 Owner-Approved NOV Codes and Freshness Gate
 on:
   push:
     branches: [fix/oct21-coupon-registry-provenance-restore]
-    paths: ['coupon-registry.js','tests/coupon-registry-freshness-date.test.mjs','.github/workflows/oct21-test-coupon-catalog-cutoff.yml']
+    paths: ['coupon-registry.js','bulk-selftest.js','tests/coupon-registry-freshness-date.test.mjs','.github/workflows/oct21-test-coupon-catalog-cutoff.yml']
 permissions: {contents: read}
 jobs:
   verify:
