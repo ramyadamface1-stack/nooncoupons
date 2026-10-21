@@ -1,0 +1,53 @@
+name: Audit Latest Delta Restore Checkpoint and One Publisher
+on:
+  push:
+    branches: [fix/oct21-delta-pulse-and-editorial-qa]
+    paths: ['.github/workflows/audit-latest-delta-checkpoint.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      NEW_KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      OLD_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NEW_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet boto3
+      - name: Confirm baseline and sparse delta restore, new stage isolation and live publisher freshness without writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import boto3,os,json,urllib.request,urllib.error,datetime
+          c=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['NEW_KEY'].strip(),aws_secret_access_key=os.environ['NEW_SECRET'].strip())
+          b='nooncoupons-content-v2'
+          for tag in ['20261017-baseline','20261021-delta-v1']:
+            for group in ['ControlPlane','GeneratorControl']:
+              key=f'migration/restore-progress/{tag}/{group}.json'
+              try:
+                item=c.get_object(Bucket=b,Key=key)
+                data=json.loads(item['Body'].read())
+                print('RESTORE_AUDIT='+json.dumps({'tag':tag,'group':group,**{k:data.get(k) for k in ('complete','partsDone','partsTotal','keysRestored','keysTotal','updatedAt')}},ensure_ascii=False),flush=True)
+              except Exception as e:print('RESTORE_AUDIT_ERROR='+tag+'/'+group+'/'+type(e).__name__,flush=True)
+          for label,aid,token,name in [('old','c82274152a942dea53044eae7153cfd7',os.environ['OLD_TOKEN'],'nooncoupons'),('new','e4c35f8a50a7b2e4cfb9d6c534962603',os.environ['NEW_TOKEN'],'noondealsnow-migration-staging')]:
+            url=f'https://api.cloudflare.com/client/v4/accounts/{aid}/workers/scripts/{name}/settings'
+            try:
+              req=urllib.request.Request(url,headers={'Authorization':'Bearer '+token.strip()})
+              with urllib.request.urlopen(req,timeout=16) as r:d=json.load(r)
+              bindings=d.get('result',{}).get('bindings') or []
+              vals={x.get('name'):x.get('text') for x in bindings if x.get('type')=='plain_text'}
+              print('SCRIPT_ISOLATION='+json.dumps({'account':label,'success':d.get('success'),'has_r2':'CONTENT_FINAL' in [x.get('name') for x in bindings],'restore_enabled':vals.get('DO_MIGRATION_RESTORE_ENABLED'),'daily_arabic':vals.get('BULK_DAILY_TARGET'),'daily_english':vals.get('ENGLISH_DAILY_TARGET'),'publisher_min_interval':vals.get('GLOBAL_PUBLISH_MIN_INTERVAL_SECONDS')},ensure_ascii=False),flush=True)
+            except Exception as e:print('SCRIPT_ISOLATION_ERROR='+label+'/'+type(e).__name__,flush=True)
+          for path in ['/api/generation-freshness','/api/health','/api/content-stats']:
+            try:
+              req=urllib.request.Request('https://noondealsnow.com'+path+'?audit=20261021-delta',headers={'User-Agent':'NoonDealsNow-ReadOnly-Migration-Audit'})
+              with urllib.request.urlopen(req,timeout=20) as r:data=json.load(r)
+              vals={k:data.get(k) for k in ('ok','r2','lastSuccessfulPublishAt','minutesSinceLastSuccessfulPublish','bulkLastError','bulkLastTickPublished','total','liveTrackedPublished','english') if k in data}
+              print('PUBLISH_LIVE='+json.dumps({'path':path,'fields':vals},ensure_ascii=False),flush=True)
+            except Exception as e:print('PUBLISH_LIVE_ERROR='+path+'/'+type(e).__name__,flush=True)
+          print('READ_ONLY_NO_DNS_CHANGES_NO_NEW_PUBLISHER=true')
+          PY
