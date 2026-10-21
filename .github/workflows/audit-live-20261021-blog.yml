@@ -28,7 +28,7 @@ jobs:
               http=res.status
             image=re.search(r'<img [^>]*src="([^"]+)"',body)
             facts={'path':path,'http':http,'cards':body.count('<article class="card"'),'images':body.count('<img '),
-              'latestSlugs':{slug:slug in body for slug in slugs},'hasItemList':'ItemList' in body}
+              'latestSlugs':{slug:(slug in body or urllib.parse.quote(slug,safe='') in body) for slug in slugs},'hasItemList':'ItemList' in body}
             if image:
               img=image.group(1).replace('&amp;','&')
               try:
