@@ -1,0 +1,40 @@
+name: Test Delta Restore Staging Isolation and Dry Run (No Deploy)
+on:
+  push:
+    branches: [ops/apply-sparse-do-delta-20261021]
+    paths: ['wrangler.migration-staging.jsonc','.github/workflows/test-sparse-delta-staging-config.yml']
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Ensure SAME staging Worker and SAME DO bindings, no public route or publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const cfg=JSON.parse(fs.readFileSync('wrangler.migration-staging.jsonc','utf8'));
+          const b=cfg.durable_objects?.bindings||[];
+          const okay=cfg.name==='noondealsnow-migration-staging'&&cfg.workers_dev===false&&
+            (cfg.routes||[]).length===0&&cfg.vars.DO_MIGRATION_EXPORT_TAG==='20261021-delta-v1'&&
+            cfg.vars.DO_MIGRATION_RESTORE_ENABLED==='true'&&cfg.vars.DO_MIGRATION_EXPORT_ENABLED==='false'&&
+            cfg.vars.BULK_DAILY_TARGET==='0'&&cfg.vars.ENGLISH_DAILY_TARGET==='0'&&
+            cfg.vars.INDEXNOW_ENABLED==='false'&&cfg.triggers?.crons?.join('')==='* * * * *'&&
+            b.some(x=>x.name==='CONTROL'&&x.class_name==='ControlPlane')&&
+            b.some(x=>x.name==='GENERATOR_CONTROL'&&x.class_name==='GeneratorControl')&&
+            cfg.r2_buckets?.some(x=>x.binding==='CONTENT_FINAL'&&x.bucket_name==='nooncoupons-content-v2')&&
+            !cfg.ai;
+          if(!okay)throw Error('unsafe_change_to_existing_stage');
+          console.log('SPARSE_STAGE_DO_NAMESPACE_PRESERVED=true');
+          console.log('SPARSE_STAGE_PUBLISHERS_ENABLED=0');
+          console.log('SPARSE_STAGE_PUBLIC_ROUTES=0');
+          NODE
+          npm install --no-audit --no-fund --ignore-scripts
+          node --test tests/do-migration-state.test.mjs
+          npx wrangler deploy --dry-run --config wrangler.migration-staging.jsonc --outdir /tmp/stage-sparse-delta-dry-run
+          echo 'SPARSE_STAGE_DRY_RUN_ONLY=true'
