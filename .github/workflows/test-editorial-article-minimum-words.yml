@@ -1,0 +1,25 @@
+name: Test Existing Published Article Editorial Repairs Read Only
+on:
+  push:
+    branches: [fix/qa-three-recent-articles-20261021]
+    paths: ['.github/workflows/test-editorial-article-minimum-words.yml','.github/scripts/repair-recent-published-article-depth.py']
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install -q boto3
+      - name: Confirm meaningful unique copy, existing published objects, status/market and no writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .github/scripts/repair-recent-published-article-depth.py
+          python3 .github/scripts/repair-recent-published-article-depth.py --fixture-test
+          python3 -u .github/scripts/repair-recent-published-article-depth.py
+          echo 'PUBLIC_ARTICLE_QA_READONLY_PASS=true'
