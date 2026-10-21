@@ -1,0 +1,24 @@
+name: Diagnose Reasons for 48 Rejected Candidate Topics
+on:
+  push:
+    branches: [fix/oct21-delta-pulse-and-editorial-qa]
+    paths: ['.github/workflows/diagnose-post-diversity-candidate-rejections.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read most recent generator rejection categories, no generation or writes
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request,time
+          req=urllib.request.Request('https://noondealsnow.com/api/generator-health?qa=reject-'+str(time.time_ns()),headers={'User-Agent':'Mozilla/5.0 ReadOnly-Generator-QA'})
+          with urllib.request.urlopen(req,timeout=25) as r:o=json.load(r)
+          b=o.get('bulk') or {};s=o.get('status') or {}
+          keys=['bulkNoPassStreak','bulkAutoPauseUntil','bulkCursorV2','bulkLastQualityRejectReasons','bulkLastGlobalRejectReasons','bulkLastPreflightGlobalRejectReasons','bulkLastDemandRouteReasons','bulkRejectedQuality','bulkRejectedPreAuditSemantic','bulkRejectedPreflightGlobal','bulkRejectedGlobal','bulkRejectedPreflightRecent','bulkRejectedPreflightCluster','bulkRejectedDuplicate','bulkRejectedIndexation','bulkRejectedCoupon','bulkRejectedLinks','bulkRejectedDemandRouting','bulkLastSkipReason','publicationNextEligibleAt','bulkLastTickAt','bulkLastTickPublished','bulkLastBatchTries','bulkLastBatchPublished','bulkLastCandidateTryLimit']
+          values={k:s.get(k) for k in keys if k in s}
+          print('LATEST_REJECTION_DIAG='+json.dumps({'bulk_last':{k:b.get(k) for k in ('lastRun','lastError','lastBatchTries','lastBatchPublished','lastBatchYieldPct','lastBatchDurationMs')},'status':values},ensure_ascii=False)[:18000],flush=True)
+          print('CANDIDATE_DIAG_READ_ONLY=true')
+          PY
