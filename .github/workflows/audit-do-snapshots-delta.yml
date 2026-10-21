@@ -1,0 +1,24 @@
+name: Audit Two Existing DO Backups Without Writes
+on:
+  push:
+    branches: [ops/noondealsnow-recovery-check-20261021]
+    paths:
+      - '.github/scripts/audit-do-snapshots-delta.py'
+      - '.github/workflows/audit-do-snapshots-delta.yml'
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 33
+    env:
+      NEW_KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Compare existing 17 Oct and 20 Oct complete DO snapshots safely
+        run: |
+          python3 -m py_compile .github/scripts/audit-do-snapshots-delta.py
+          python3 -u .github/scripts/audit-do-snapshots-delta.py
+          echo 'NO_DO_WRITES_AND_NO_CUTOVER=true'
