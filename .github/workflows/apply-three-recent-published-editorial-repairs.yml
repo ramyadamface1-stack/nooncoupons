@@ -1,0 +1,46 @@
+name: Repair Three Published Noon Article Depth Issues in EXISTING R2
+on:
+  push:
+    branches: [fix/qa-three-recent-articles-20261021]
+    paths: ['.github/workflows/apply-three-recent-published-editorial-repairs.yml']
+permissions: {contents: read}
+concurrency:
+  group: noondealsnow-editorial-existing-three-articles-20261021
+  cancel-in-progress: false
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      QA_WRITE_EXISTING: yes
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install -q boto3
+      - name: Verify editorial uniqueness, length and existing object metadata before writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/repair-recent-published-article-depth.py --fixture-test
+          python3 .github/scripts/repair-recent-published-article-depth.py
+      - name: Apply only three conditional If-Match HTML updates preserving URLs and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u .github/scripts/repair-recent-published-article-depth.py --apply
+          echo 'ONLY_EXISTING_PUBLISHED_ARTICLES_UPDATED=true'
+          echo 'NO_ARTICLES_DELETED_NO_NEW_RESOURCES=true'
+      - name: Confirm affected pages still publicly serve HTTP 200 without changing slugs
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.parse
+          for slug in ['كود-خصم-نون-السعودية-اللابتوبات-مع-مقارنة-البائعين','شراء-الجوالات-من-نون-الإمارات-باستخدام-كوبون-مع-حل-مشاكل-الكود','كود-خصم-نون-الإمارات-اللابتوبات-مع-الشحن']:
+            url='https://noondealsnow.com/articles/'+urllib.parse.quote(slug)+'?qa=editorial-20261021'
+            req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 NoonDealsNow-Public-Editorial-QA'})
+            with urllib.request.urlopen(req,timeout=25) as r:code=r.status;body=r.read(300000).decode('utf8','replace')
+            print('POST_REPAIR_LIVE='+str({'slug':slug,'status':code,'featured':('<img ' in body),'newSection':('noondealsnow-20261021' in body)}),flush=True)
+            if code!=200 or '<img ' not in body:raise RuntimeError('published_article_no_longer_available')
+          PY
