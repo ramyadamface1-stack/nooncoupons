@@ -1,0 +1,61 @@
+name: Check Existing Restores and New R2 Publishing (Read Only)
+on:
+  push:
+    branches: [ops/noondealsnow-recovery-check-20261021]
+    paths: ['.github/workflows/noondealsnow-restore-current-health.yml']
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NEW_KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      NEW_CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Read-only R2 checkpoint, fresh source manifest, newest article files and public publishing status
+        shell: bash
+        run: |
+          python3 -u - <<'PY'
+          import os,boto3,json,urllib.request,urllib.error,collections,datetime
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            aws_access_key_id=os.environ['NEW_KEY'].strip(),aws_secret_access_key=os.environ['NEW_SECRET'].strip())
+          b='nooncoupons-content-v2'
+          def read(k):
+            r=s.get_object(Bucket=b,Key=k)
+            return json.load(r['Body'])
+          for typ in ('ControlPlane','GeneratorControl'):
+            for tag in ('20261017-baseline','20261020-old-do-recovery'):
+              k='migration/do-state/'+tag+'/'+typ+'/manifest.json'
+              try:
+                d=read(k);head=s.head_object(Bucket=b,Key=k)
+                print('DO_SOURCE_MANIFEST='+json.dumps({'type':typ,'tag':tag,'parts':d.get('parts'),'exported':d.get('exported'),'scanned':d.get('scanned'),'complete':d.get('complete'),'completedAt':d.get('completedAt'),'lastModified':head['LastModified'].isoformat()}),flush=True)
+              except Exception as e:print('DO_SOURCE_MANIFEST_UNAVAILABLE='+json.dumps({'type':typ,'tag':tag,'error':type(e).__name__}),flush=True)
+              k='migration/restore-progress/'+tag+'/'+typ+'.json'
+              try:
+                d=read(k)
+                print('DO_RESTORE_CHECKPOINT='+json.dumps({'type':typ,'tag':tag,**{x:d.get(x) for x in ('complete','partsDone','partsTotal','keysRestored','keysTotal','updatedAt')}}),flush=True)
+              except Exception as e:print('DO_RESTORE_CHECKPOINT_UNAVAILABLE='+json.dumps({'type':typ,'tag':tag,'error':type(e).__name__}),flush=True)
+          for prefix in ('articles/','migration/do-state/20261020-old-do-recovery/ControlPlane/'):
+            total=0;newest=[];bytecount=0
+            for pg in s.get_paginator('list_objects_v2').paginate(Bucket=b,Prefix=prefix,PaginationConfig={'PageSize':1000}):
+              for x in pg.get('Contents',[]):
+                total+=1;bytecount+=x.get('Size',0)
+                if len(newest)<5:newest.append(x)
+                elif x['LastModified']>newest[-1]['LastModified']:newest.append(x);newest.sort(key=lambda z:z['LastModified'],reverse=True);newest=newest[:5]
+              if total%50000<1000 and total>0 and prefix=='articles/':
+                print('PREFIX_PROGRESS='+str(total),flush=True)
+            newest.sort(key=lambda x:x['LastModified'],reverse=True)
+            print('DESTINATION_PREFIX_SUMMARY='+json.dumps({'prefix':prefix,'objects':total,'bytes':bytecount,'latest':[{'name':x['Key'][:180],'mtime':x['LastModified'].isoformat(),'bytes':x.get('Size')} for x in newest]},ensure_ascii=False),flush=True)
+          for p in ('/api/health','/api/generation-freshness','/api/revision'):
+            try:
+              req=urllib.request.Request('https://noondealsnow.com'+p,headers={'Accept':'application/json','User-Agent':'NoonDealsNow read-only restore audit'})
+              with urllib.request.urlopen(req,timeout=20) as response:
+                status=response.status;raw=response.read(55000);data=json.loads(raw)
+              keys=['ok','r2','lastSuccessfulPublishAt','minutesSinceLastSuccessfulPublish','lastRescueResult','bulkLastError','bulkLastTickPublished','publishedLastHour','publishedLast24Hours','release','reason','withinOneHour']
+              print('LIVE_PUBLIC_HEALTH='+json.dumps({'path':p,'http':status,'fields':{x:data.get(x) for x in keys if x in data},'keys':list(data.keys())[:18]},ensure_ascii=False),flush=True)
+            except Exception as e:print('LIVE_PUBLIC_HEALTH_ERROR='+json.dumps({'path':p,'error':str(e)[:180]}),flush=True)
+          print('READ_ONLY_NO_DEPLOY=true')
+          PY
