@@ -1,7 +1,7 @@
 name: Verify English Canary End to End
 on:
   push:
-    branches: [main]
+    branches: [main, fix/oct21-candidate-rejection-attribution]
     paths: ['english-canary.js','english-canary-repair.js','commerce-entry.js','commerce-pages-v2.js','bulk-generator.js','bulk-content-engine.js','public-entry.js','wrangler.jsonc','.github/workflows/verify-english-canary.yml']
   workflow_dispatch:
 jobs:
