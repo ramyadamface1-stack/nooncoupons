@@ -1,0 +1,29 @@
+name: Audit Actual Live Publishing After Low Yield Diversity Fix
+on:
+  push:
+    branches: [fix/oct21-low-yield-diversity-noon]
+    paths: ['.github/workflows/verify-post-diversity-publication-live.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Read live publication counters twice; do not publish
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json,time,datetime
+          host='https://noondealsnow.com'
+          def pull(path):
+            req=urllib.request.Request(host+path+'?post_release_qa='+str(time.time_ns()),headers={'User-Agent':'Mozilla/5.0 NoonDealsNow-PostRelease-ReadOnly'})
+            with urllib.request.urlopen(req,timeout=22) as r:return json.load(r)
+          for n in (1,2):
+            f=pull('/api/generation-freshness')
+            s=pull('/api/content-stats')
+            g=pull('/api/generator-health')
+            b=g.get('bulk') or {};x=g.get('status') or {}
+            print('PUBLICATION_SAMPLE='+json.dumps({'sample':n,'lastSuccessfulPublishAt':f.get('lastSuccessfulPublishAt'),'minutesSinceLastSuccessfulPublish':f.get('minutesSinceLastSuccessfulPublish'),'bulkLastError':f.get('bulkLastError'),'bulkLastTickPublished':f.get('bulkLastTickPublished'),'count':s.get('total'),'english':s.get('english'),'last':s.get('last'),'bulkLatest':{k:b.get(k) for k in ('lastRun','lastSkipReason','lastBatchTries','lastBatchPublished','lastBatchYieldPct','lastBatchDurationMs')},'noPassStreak':x.get('bulkNoPassStreak')},ensure_ascii=False)[:1800],flush=True)
+            if n==1:time.sleep(67)
+          print('READ_ONLY_ONE_PUBLISHER_PULSE_COMPLETE=true',flush=True)
+          PY
