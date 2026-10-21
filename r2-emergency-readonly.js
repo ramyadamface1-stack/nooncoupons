@@ -38,10 +38,26 @@ export async function signedR2Read(env,key='',params={}){
   };
   return fetch('https://'+host+path+(query?'?'+query:''),{method:'GET',headers,redirect:'manual'});
 }
+// Retry ONE transient read failure only. Do not retry NotEntitled/403 or
+// missing/404, and never issue HEAD checks. Public edge cache remains first.
+export async function rescueSignedReadBounded(env,key,params={}){
+  let response;
+  for(let attempt=0;attempt<2;attempt++){
+    try{
+      response=await signedR2Read(env,key,params);
+      if(![429,500,502,503,504].includes(response.status)||attempt===1)return response;
+      try{await response.body?.cancel()}catch{}
+    }catch(error){
+      if(attempt===1)throw error;
+    }
+    await new Promise(resolve=>setTimeout(resolve,150));
+  }
+  return response;
+}
 async function getObject(env,key,cacheMs=0){
   const prev=cacheMs?manifestCache.get(key):null;
   if(prev&&prev.until>Date.now())return prev.value;
-  const r=await signedR2Read(env,key);
+  const r=await rescueSignedReadBounded(env,key);
   if(r.status===404)return null;
   if(!r.ok)throw new Error('rescue_r2_get_status_'+r.status);
   const value={body:await r.text(),meta:Object.fromEntries([...r.headers].filter(([name])=>name.startsWith('x-amz-meta-')).map(([name,val])=>[name.slice('x-amz-meta-'.length),val])),modified:r.headers.get('last-modified')||'',contentType:r.headers.get('content-type')||''};
@@ -94,7 +110,7 @@ function decodeXml(s){return String(s).replace(/&amp;/g,'&').replace(/&lt;/g,'<'
 async function listArticlePage(env,token){
   const params={'list-type':'2','max-keys':'15','prefix':'articles/','encoding-type':'url'};
   if(token)params['continuation-token']=token;
-  const r=await signedR2Read(env,'',params);
+  const r=await rescueSignedReadBounded(env,'',params);
   if(!r.ok)throw new Error('rescue_r2_list_status_'+r.status);
   const xml=await r.text(),matches=[...xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)];
   const keys=matches.map(x=>decodeXml(xmlVal(x[1],'Key'))).map(k=>{try{return decodeURIComponent(k)}catch{return k}}).filter(k=>k.endsWith('.html'));
