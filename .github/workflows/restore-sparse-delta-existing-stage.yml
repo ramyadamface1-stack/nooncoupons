@@ -1,0 +1,92 @@
+name: Restore 31k Delta into EXISTING Isolated New DO (No Publisher)
+on:
+  push:
+    branches: [ops/apply-sparse-do-delta-20261021]
+    paths: ['.github/workflows/restore-sparse-delta-existing-stage.yml']
+permissions: {contents: read}
+concurrency:
+  group: noondealsnow-new-account-staging
+  cancel-in-progress: false
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 13
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+      NEW_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: python3 -m pip install -q boto3
+      - name: Gate on manifest integrity, old baseline COMPLETE, same Worker with no routes or publisher
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const c=JSON.parse(fs.readFileSync('wrangler.migration-staging.jsonc','utf8'));
+          if(c.name!=='noondealsnow-migration-staging'||c.workers_dev!==false||
+              (c.routes||[]).length!==0||c.vars.DO_MIGRATION_EXPORT_TAG!=='20261021-delta-v1'||
+              c.vars.DO_MIGRATION_EXPORT_ENABLED!=='false'||c.vars.DO_MIGRATION_RESTORE_ENABLED!=='true'||
+              c.vars.BULK_DAILY_TARGET!=='0'||c.vars.ENGLISH_DAILY_TARGET!=='0'||c.ai||
+              c.vars.INDEXNOW_ENABLED!=='false'||c.triggers.crons.join('')!=='* * * * *')
+            throw Error('publisher_isolation_failed');
+          console.log('STAGE_ONLY_RESTORE_NO_PUBLISHER=true');
+          NODE
+          python3 - <<'PY'
+          import os,boto3,json,urllib.request
+          aid=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          c=boto3.client('s3',endpoint_url='https://'+aid+'.r2.cloudflarestorage.com',region_name='auto',
+             aws_access_key_id=os.environ['NEW_ACCESS'].strip(),aws_secret_access_key=os.environ['NEW_SECRET'].strip())
+          b='nooncoupons-content-v2'
+          def get(k):return json.load(c.get_object(Bucket=b,Key=k)['Body'])
+          for typ,baseCount,baseParts,deltaCount,deltaParts in [('ControlPlane',353109,2759,31287,245),('GeneratorControl',4,1,4,1)]:
+            old=get('migration/restore-progress/20261017-baseline/'+typ+'.json')
+            if old.get('complete') is not True or old.get('keysRestored')!=baseCount or old.get('partsDone')!=baseParts:
+              raise RuntimeError('baseline_not_restored_'+typ)
+            manifest=get('migration/do-state/20261021-delta-v1/'+typ+'/manifest.json')
+            if not(manifest['complete'] is True and manifest['type']==typ and manifest['tag']=='20261021-delta-v1' and manifest['exported']==deltaCount and manifest['parts']==deltaParts):
+              raise RuntimeError('bad_delta_manifest_'+typ)
+            head=c.head_object(Bucket=b,Key='migration/do-state/20261021-delta-v1/'+typ+'/part-'+str(deltaParts).zfill(7)+'.json')
+            print('DELTA_RESTORE_ALLOWED='+json.dumps({'type':typ,'keys':deltaCount,'parts':deltaParts,'lastPartBytes':head['ContentLength']}),flush=True)
+          req=urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/'+aid+'/workers/scripts/noondealsnow-migration-staging/settings',headers={'Authorization':'Bearer '+os.environ['CLOUDFLARE_API_TOKEN'].strip()})
+          with urllib.request.urlopen(req,timeout=20) as f:resp=json.load(f)
+          bds=resp.get('result',{}).get('bindings',[])
+          named={x.get('name'):x for x in bds}
+          for n in ('CONTENT_FINAL','CONTROL','GENERATOR_CONTROL'):
+            if n not in named:raise RuntimeError('existing_stage_binding_missing_'+n)
+          settings=named.get('DO_MIGRATION_EXPORT_TAG',{})
+          if settings.get('text') not in ('20261017-baseline','20261021-delta-v1'):
+            raise RuntimeError('existing_stage_was_repurposed_unexpectedly')
+          print('EXISTING_STAGE_BINDINGS_PRESENT=true',flush=True)
+          PY
+      - name: Redeploy SAME existing stage Worker identity with new delta import tag (publishing stays zero)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          node --test tests/do-migration-state.test.mjs
+          npx wrangler deploy --dry-run --config wrangler.migration-staging.jsonc --outdir /tmp/sparse-restore-stage-dry-run
+          npx wrangler deploy --config wrangler.migration-staging.jsonc
+          echo 'SAME_STAGE_DELTA_RESTORE_DEPLOYED=true'
+          echo 'NEW_PUBLISHER_ENABLED=false'
+          echo 'NEW_CUSTOM_DOMAIN_ROUTE_ADDED=false'
+      - name: Read actual sparse delta checkpoint after cron (never invent progress)
+        shell: bash
+        run: |
+          sleep 80
+          python3 - <<'PY'
+          import os,boto3,json
+          s=boto3.client('s3',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',region_name='auto',aws_access_key_id=os.environ['NEW_ACCESS'].strip(),aws_secret_access_key=os.environ['NEW_SECRET'].strip())
+          for typ in ['ControlPlane','GeneratorControl']:
+            k='migration/restore-progress/20261021-delta-v1/'+typ+'.json'
+            try:
+              v=json.load(s.get_object(Bucket='nooncoupons-content-v2',Key=k)['Body'])
+              print('DELTA_RESTORE_CHECKPOINT='+json.dumps({x:v.get(x) for x in ['type','partsDone','partsTotal','keysRestored','keysTotal','complete','updatedAt']}),flush=True)
+            except Exception as e:print('DELTA_RESTORE_PENDING='+typ+' '+type(e).__name__,flush=True)
+          print('POST_DEPLOY_NO_PUBLISHER_OR_DNS_CHANGE=true')
+          PY
