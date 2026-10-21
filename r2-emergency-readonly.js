@@ -143,8 +143,27 @@ async function serveArticle(env,u,english){
 }
 async function serveBlog(env,u){
   const market=u.pathname.endsWith('/saudi')?'SA':u.pathname.endsWith('/uae')?'AE':null;
+  // The bulk/latest.json snapshot can be older than the latest legacy publisher.
+  // The live ControlPlane publishes Arabic articles independently of bulk catalogs.
+  // Merge its already-published, canonical articles without rewriting the R2 index.
+  let legacy=[];
+  if(env.CONTROL?.idFromName&&env.CONTROL?.get){
+    try{
+      const id=env.CONTROL.idFromName('primary');
+      const result=await env.CONTROL.get(id).fetch('https://control.internal/state');
+      if(result.ok){
+        const state=await result.json();
+        legacy=Array.isArray(state?.articles)?state.articles.filter(a=>a?.status==='published'):[];
+      }
+    }catch(error){console.warn('live_blog_control_state_unavailable',String(error?.message||error).slice(0,100))}
+  }
   const data=await getJson(env,'bulk/latest.json');
-  const rows=(data?.articles||[]).filter(a=>a?.slug&&a.status!=='draft'&&a.status!=='scheduled'&&a.indexable!==false&&(!market||a.country===market));
+  const seen=new Set(),rows=[];
+  for(const item of [...legacy,...(data?.articles||[])]){
+    if(!item?.slug||seen.has(item.slug)||item.status==='draft'||item.status==='scheduled'||item.indexable===false||item.slug.startsWith('en-')||market&&item.country!==market)continue;
+    seen.add(item.slug);rows.push(item);
+  }
+  rows.sort((a,b)=>String(b.publishedAt||b.createdAt||b.updatedAt||'').localeCompare(String(a.publishedAt||a.createdAt||a.updatedAt||'')));
   const size=15,pages=Math.max(1,Math.ceil(rows.length/size)),pageNum=Math.max(1,Math.min(pages,Number.parseInt(u.searchParams.get('page')||'1',10)||1));
   const visible=rows.slice((pageNum-1)*size,pageNum*size);
   const path=market==='SA'?'/blog/saudi':market==='AE'?'/blog/uae':'/blog';
