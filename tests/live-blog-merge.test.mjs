@@ -14,7 +14,17 @@ const recentRows=[
   {slug:'old-sample-00',country:'SA',title:'Same URL must deduplicate',status:'published',createdAt:'2026-10-20T12:00:00.000Z'}
 ];
 let controlCalls=0;
+const originalFetch=globalThis.fetch;
+globalThis.fetch=async(url,options)=>{
+  const path=new URL(url).pathname;
+  assert.match(String(url),/e4c35f8a50a7b2e4cfb9d6c534962603\.r2\.cloudflarestorage\.com/);
+  assert.match(options.headers.authorization,/AWS4-HMAC-SHA256/);
+  if(path.endsWith('/bulk/latest.json'))return new Response(JSON.stringify({articles:bulkRows}),{status:200,headers:{'content-type':'application/json'}});
+  return new Response('Not found',{status:404});
+};
 const env={
+  NOON_RESCUE_R2_ACCESS_KEY_ID:'test-key-only',
+  NOON_RESCUE_R2_SECRET_ACCESS_KEY:'test-secret-only',
   R2_RESCUE_READONLY_ENABLED:'true',
   CONTENT_FINAL:{async get(key){
     if(key==='bulk/latest.json')return {async text(){return JSON.stringify({articles:bulkRows})}};
