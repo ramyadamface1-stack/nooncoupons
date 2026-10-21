@@ -1,0 +1,32 @@
+name: Test Strict Quality Gates and Candidate Rejection Telemetry
+on:
+  push:
+    branches: [fix/oct21-candidate-rejection-attribution]
+    paths: ['bulk-generator.js','.github/workflows/oct21-test-generator-attribution.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Check diagnostic patch leaves hard publication gates intact
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check bulk-generator.js
+          node --check bulk-candidate-diversity.js
+          grep -Fq 'bulkLastBatchRejectedByStage:' bulk-generator.js
+          grep -Fq 'bulkLastBatchUnclassified:' bulk-generator.js
+          grep -Fq 'batch=1;' bulk-generator.js
+          grep -Fq "minWords:Math.max(1500" bulk-generator.js
+          grep -Fq "threshold:Math.max(95" bulk-generator.js
+          grep -Fq 'claimPublicationSlot(env,topic.country' bulk-generator.js
+          grep -Fq 'preflightGlobalGate(topic,cluster)' bulk-generator.js
+          grep -Fq 'evaluateIndexation(article,topic' bulk-generator.js
+          node --test tests/bulk-candidate-diversity.test.mjs
+          node bulk-selftest.js >/tmp/bulk.log
+          grep -E 'PASS|READY|SAMPLES|QUALITY' /tmp/bulk.log | tail -n 14 || true
+          echo 'GENERATOR_ATTRIBUTION_QA_PASS=true'
