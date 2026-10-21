@@ -1,5 +1,6 @@
 import {buildBulkTopic as buildRawBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO} from './bulk-content-engine.js';
 import {claimPublicationSlot,getPublicationSlotStatus} from './publication-rate-limit.js';
+import {chooseBulkCandidateTopicSeed} from './bulk-candidate-diversity.js';
 import {applyKeywordStrategy,reconcileKeywordHierarchy,KEYWORD_STRATEGY_INFO} from './keyword-strategy.js';
 import {auditSeoArticle,auditSummary,preAuditSemanticGate} from './quality-audit.js';
 import {loadCluster,bootstrapGlobalIndex,preflightGlobalGate,globalGate,pickRelated,injectContextualLinks,addToCluster,flushClusters,clusterKey,campaignIntentDimension,GLOBAL_INDEX_INFO} from './quality-index.js';
@@ -90,9 +91,11 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     // Explore a different region of the existing 33m-topic space on one in three
     // Saudi bursts and low-yield paced candidates. All duplicate, semantic and SEO gates
     // below still run unchanged; the persistent cursor remains monotonic.
-    const candidateTopicSeed=burstMode&&(burstForceCountry==='SA'||Number(status.bulkLastBatchYieldPct||0)<2)&&tries%3===0
-      ?(Math.imul((currentCursor+1)>>>0,2654435761)>>>0)%BULK_ENGINE_INFO.topicSpace
-      :currentCursor;
+    const candidateTopicSeed=chooseBulkCandidateTopicSeed(currentCursor,tries,{
+      lowYield,burstMode,forceCountry:burstForceCountry,
+      previousYieldPct:Number(status.bulkLastBatchYieldPct||0),
+      topicSpace:BULK_ENGINE_INFO.topicSpace
+    });
     const campaignPlan=campaignGenerationPlan(currentCursor,campaignWindow),campaignKey=campaignPlan.active?campaignPlan.id:'evergreen';campaignAttemptCounts[campaignKey]=(campaignAttemptCounts[campaignKey]||0)+1;const rawTopicBase=buildRawBulkTopic(candidateTopicSeed,{forceCountry:(burstForceCountry==='SA'||burstForceCountry==='AE')?burstForceCountry:(campaignPlan.forceCountry||''),forceProfiles:burstPriorityProfiles.length?burstPriorityProfiles:(campaignPlan.forceProfiles||[]),independentPriority:burstPriorityProfiles.length>0}),rawTopic=applyCampaignPlan(rawTopicBase,campaignPlan),languageIntent='ar',revenueEligible=['coupon','finalprice','value','cart','timing','smartbuy','eligibility','checklist','multi'].includes(rawTopic.intent),revenueNudge=revenueSignal.underTarget&&revenueEligible&&currentCursor%7===0?{...rawTopic,scenario:HIGH_VALUE_SCENARIO_BY_CURSOR(currentCursor,rawTopic.scenario)}:rawTopic,topic=reconcileKeywordHierarchy(applyCommerceTarget(applyKeywordStrategy(revenueNudge),currentCursor,coverageSignal)),demandPolicy=evaluateSearchDemandPolicy(topic);if(!demandPolicy.createStandalone){rejectedDemandRouting++;demandRouteReasons[demandPolicy.reason]=(demandRouteReasons[demandPolicy.reason]||0)+1;continue}const coupon=couponStatus(topic);if(!coupon.publishAllowed){rejectedCoupon++;continue}
     const recentPreflight=preflightGlobalGate(topic,{entries:latestRecent});if(!recentPreflight.pass){rejectedGlobal++;rejectedPreflightGlobal++;rejectedPreflightRecent++;for(const reason of recentPreflight.reasons||[]){globalRejectReasons[reason]=(globalRejectReasons[reason]||0)+1;preflightGlobalRejectReasons[reason]=(preflightGlobalRejectReasons[reason]||0)+1}continue}
     const cluster=await loadCluster(env,topic,clusterCache),clusterPreflight=preflightGlobalGate(topic,cluster);if(!clusterPreflight.pass){rejectedGlobal++;rejectedPreflightGlobal++;rejectedPreflightCluster++;for(const reason of clusterPreflight.reasons||[]){globalRejectReasons[reason]=(globalRejectReasons[reason]||0)+1;preflightGlobalRejectReasons[reason]=(preflightGlobalRejectReasons[reason]||0)+1}continue}
