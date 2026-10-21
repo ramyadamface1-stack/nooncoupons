@@ -25,13 +25,54 @@ const allowedKey=key=>typeof key==='string'&&
 const allowedPrefix=prefix=>prefix===''||allowedKey(prefix.endsWith('/')?prefix+'probe':prefix);
 const storageMime=type=>String(type||'application/octet-stream').slice(0,130);
 const metaValue=v=>String(v??'').replace(/[\r\n]/g,' ').slice(0,1024);
+
+const asQuotedEtag=value=>{
+  const v=String(value??'').trim();
+  if(v==='*')return '*';
+  if(!v||/[\r\n]/.test(v))throw Error('remote_r2_invalid_etag_condition');
+  return v.startsWith('"')&&v.endsWith('"')?v:'"'+v.replace(/^"|"$/g,'')+'"';
+};
+const httpDate=value=>{
+  const date=value instanceof Date?value:new Date(value);
+  if(!Number.isFinite(date.getTime()))throw Error('remote_r2_invalid_date_condition');
+  return date.toUTCString();
+};
+// R2 S3 PutObject conditionals are ATOMIC (no check-before-write race):
+// https://developers.cloudflare.com/r2/api/s3/extensions/#conditional-operations-in-putobject
+function putConditionalHeaders(onlyIf){
+  if(!onlyIf)return {};
+  const result={};
+  if(onlyIf instanceof Headers){
+    for(const [name,value] of onlyIf){
+      const key=name.toLowerCase();
+      if(!['if-match','if-none-match','if-modified-since','if-unmodified-since'].includes(key))
+        throw Error('remote_r2_unsupported_conditional_header');
+      result[key]=key.endsWith('-match')?value:httpDate(value);
+    }
+  }else if(typeof onlyIf==='object'){
+    for(const name of Object.keys(onlyIf)){
+      if(!['etagMatches','etagDoesNotMatch','uploadedBefore','uploadedAfter','secondsGranularity'].includes(name))
+        throw Error('remote_r2_unsupported_conditional_option');
+    }
+    if(onlyIf.etagMatches!==undefined)result['if-match']=asQuotedEtag(onlyIf.etagMatches);
+    if(onlyIf.etagDoesNotMatch!==undefined)result['if-none-match']=asQuotedEtag(onlyIf.etagDoesNotMatch);
+    if(onlyIf.uploadedBefore!==undefined)result['if-unmodified-since']=httpDate(onlyIf.uploadedBefore);
+    if(onlyIf.uploadedAfter!==undefined)result['if-modified-since']=httpDate(onlyIf.uploadedAfter);
+    // Native R2's Date conditionals have second-level HTTP granularity.
+    if(onlyIf.secondsGranularity===false&&
+       (onlyIf.uploadedBefore!==undefined||onlyIf.uploadedAfter!==undefined))
+      throw Error('remote_r2_millisecond_conditional_not_supported_by_s3');
+  }else throw Error('remote_r2_invalid_put_condition');
+  return result;
+}
+
 const credential=env=>{
   const id=String(env?.NOON_RESCUE_R2_ACCESS_KEY_ID||'').trim();
   const secret=String(env?.NOON_RESCUE_R2_SECRET_ACCESS_KEY||'').trim();
   if(!id||!secret)throw Error('remote_new_r2_existing_keys_missing');
   return {id,secret};
 };
-async function signed(env,method,key='',query={},body=null,extra={}){
+async function signed(env,method,key='',query={},body=null,extra={},allowPreconditionFailed=false){
   if(key&&!allowedKey(key))throw Error('remote_r2_key_not_allowlisted');
   const {id,secret}=credential(env);
   const path='/'+enc(BUCKET)+(key?'/'+key.split('/').map(enc).join('/'): '');
@@ -65,6 +106,7 @@ async function signed(env,method,key='',query={},body=null,extra={}){
     method,headers:outgoing,body:method==='PUT'?raw:undefined,redirect:'manual'
   });
   if(response.ok)return response;
+  if(allowPreconditionFailed&&response.status===412)return response;
   if(method==='GET'||method==='HEAD')if(response.status===404)return null;
   const sample=(await response.text()).slice(0,240).replace(/[\r\n]/g,' ');
   throw Error('remote_existing_r2_'+method+'_'+response.status+'_'+sample);
@@ -128,7 +170,7 @@ export function existingDestinationR2Binding(env){
     },
     async put(key,value,options={}){
       if(!allowedKey(key))throw Error('remote_r2_put_key_not_allowlisted');
-      if(options.onlyIf)throw Error('remote_r2_put_conditional_not_implemented');
+      const conditions=putConditionalHeaders(options.onlyIf);
       const data=await asArray(value);
       if(data.byteLength>8*1024*1024)throw Error('remote_r2_put_size_limit_8MiB');
       const extra={};
@@ -142,8 +184,11 @@ export function existingDestinationR2Binding(env){
         if(!/^[a-zA-Z0-9-]{1,60}$/.test(k))throw Error('remote_r2_invalid_metadata_key');
         extra['x-amz-meta-'+k.toLowerCase()]=metaValue(v);
       }
-      await signed(env,'PUT',key,{},data,extra);
-      return {key,size:data.byteLength,uploaded:new Date()};
+      // A 412 means the native R2 put() contract returns null. Never emulate
+      // etag conditional writes with a HEAD+PUT pair: it would not be atomic.
+      const result=await signed(env,'PUT',key,{},data,{...extra,...conditions},Object.keys(conditions).length>0);
+      if(result.status===412)return null;
+      return {key,size:data.byteLength,etag:(result.headers.get('etag')||'').replaceAll('"',''),uploaded:new Date()};
     },
     async list(options={}){
       const prefix=String(options.prefix||'');
