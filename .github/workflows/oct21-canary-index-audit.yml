@@ -1,0 +1,35 @@
+name: Diagnose English Canary Sitemap Shards and Country Evidence
+on:
+  push:
+    branches: [fix/oct21-candidate-rejection-attribution]
+    paths: ['.github/workflows/oct21-canary-index-audit.yml']
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - name: Verify canonical English URLs in all 11 sitemap segments and country hub
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,xml.etree.ElementTree as E,json
+          base='https://noondealsnow.com'
+          def get(path):
+            try:
+              with urllib.request.urlopen(urllib.request.Request(base+path,headers={'User-Agent':'Mozilla/5.0'}),timeout=20) as r:return r.status,r.read(600000).decode('utf8','replace'),dict(r.headers)
+            except urllib.error.HTTPError as e:return e.code,e.read(2000).decode('utf8','replace'),dict(e.headers)
+          c,t,_=get('/api/english-canary-health');d=json.loads(t)
+          urls=[base+r['urlPath'] for r in d.get('records',[])[:2]]
+          main=get('/sitemap.xml')[1]
+          print('ENGLISH_INDEX_MAIN='+json.dumps({'childCount':main.count('<sitemap>'),'containsLegacy': '/sitemap-en-articles.xml' in main,'segmentLinks':main.count('/sitemap-rescue-english-')},ensure_ascii=False),flush=True)
+          texts=[]
+          for path in ['/sitemap-en-articles.xml']+[f'/sitemap-rescue-english-{n}.xml' for n in range(11)]:
+            code,doc,_=get(path)
+            print('ENGLISH_INDEX_SEGMENT='+json.dumps({'path':path,'http':code,'urls':doc.count('<url>'),'bytes':len(doc),'matches':[u for u in urls if u in doc]},ensure_ascii=False),flush=True)
+            texts.append(doc)
+          for p in ['/en/uae','/en/saudi','/en/uae/category/mobiles','/en/saudi/category/mobiles']:
+            code,doc,h=get(p)
+            print('ENGLISH_MARKET_EVIDENCE='+json.dumps({'path':p,'http':code,'canaryPathsVisible':[u.replace(base,'') for u in urls if u.replace(base,'') in doc],'evidence':h.get('x-english-evidence'),'robots':h.get('x-robots-tag')},ensure_ascii=False),flush=True)
+          print('BASELINE_CANARY_INDEXED_IN_SITEMAPS='+json.dumps({u:any(u in txt for txt in texts) for u in urls}),flush=True)
+          PY
