@@ -20,7 +20,8 @@ jobs:
           python3 -u - <<'PY'
           import urllib.request,urllib.parse,html.parser,json,datetime,os,boto3
           s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['ACCESS'].strip(),aws_secret_access_key=os.environ['SECRET'].strip())
-          with urllib.request.urlopen('https://noondealsnow.com/api/state',timeout=20) as r:j=json.loads(r.read(45000000))
+          stateReq=urllib.request.Request('https://noondealsnow.com/api/state',headers={'User-Agent':'Mozilla/5.0 NoonDealsNow-ReadOnly-QA','Accept':'application/json'})
+          with urllib.request.urlopen(stateReq,timeout=20) as r:j=json.loads(r.read(45000000))
           rows=[a for a in (j.get('articles') or []) if a.get('status')=='published' and str(a.get('createdAt','')).startswith('2026-10-21')]
           class Clean(html.parser.HTMLParser):
             def __init__(self):super().__init__();self.in_main=False;self.main_depth=0;self.skip=0;self.values=[]
@@ -38,7 +39,8 @@ jobs:
               if self.in_main and not self.skip:self.values.append(d)
           for a in rows[:14]:
             slug=a['slug'];url='https://noondealsnow.com/articles/'+urllib.parse.quote(slug)
-            with urllib.request.urlopen(url,timeout=20) as r:html=r.read(1000000).decode('utf8','replace');status=r.status
+            q=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 NoonDealsNow-ReadOnly-QA','Accept':'text/html'})
+            with urllib.request.urlopen(q,timeout=20) as r:html=r.read(1000000).decode('utf8','replace');status=r.status
             c=Clean();c.feed(html);words=len(' '.join(c.values).split())
             key='articles/'+slug+'.html'
             try:
