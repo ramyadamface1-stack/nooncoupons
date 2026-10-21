@@ -136,10 +136,16 @@ async function serveArticle(env,u,english){
   const schema='<script type="application/ld+json">'+JSON.stringify(meta).replace(/</g,'\\u003c')+'</script>';
   const figure='<figure class="featured">'+imgTag(slug,country,code,1,title)+'<figcaption>'+esc(english?'Noon shopping guide. Verify coupon eligibility at checkout.':'دليل كوبونات نون — تحقّق من أهلية الكود عند الدفع.')+'</figcaption></figure>';
   const extras=topicLinks(country,english);
+  // The legacy two-entry English baseline remains visible through R2 rescue.
+  // Preserve its language, market alternatives and canary contract when serving
+  // those ORIGINAL URLs. This does not alter publication status or source HTML.
+  const originalEnglishBaseline=english&&(slug==='en-skincare-noon-uae-shopping-guide-coupon-today'||slug==='en-noon-coupon-dubai');
+  const languageAlternates=english?'<link rel="alternate" hreflang="en-AE" href="'+esc(canonical)+'"><link rel="alternate" hreflang="ar-AE" href="https://noondealsnow.com/uae"><link rel="alternate" hreflang="x-default" href="'+esc(canonical)+'">':'';
   // Keep source article body and original slugs, but restore its cover and cross-links.
-  let html=page(title,schema+figure+body+cta+extras,{lang:english?'en':'ar',dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
+  let html=page(title,schema+figure+body+cta+extras,{lang:english?'en-AE':'ar',dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
+  if(languageAlternates)html=html.replace('</head>',languageAlternates+'</head>');
   html=html.replace('</head>','<meta property="og:type" content="article"><meta property="og:title" content="'+esc(title)+'"><meta property="og:description" content="'+esc(description)+'"><meta property="og:image" content="'+esc(featured)+'"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="760"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(featured)+'"></head>');
-  return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles','content-language':english?'en':'ar'}});
+  return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles','content-language':english?'en':'ar',...(originalEnglishBaseline?{'x-english-canary':'v1'}:{})}});
 }
 async function serveBlog(env,u){
   const market=u.pathname.endsWith('/saudi')?'SA':u.pathname.endsWith('/uae')?'AE':null;
