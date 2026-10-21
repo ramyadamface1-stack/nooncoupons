@@ -1,0 +1,33 @@
+name: Inspect Rejection Reasons and Quotas Without Generation
+on:
+  push:
+    branches: [fix/oct21-delta-pulse-and-editorial-qa]
+    paths: ['.github/workflows/inspect-quality-stall-readonly.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read-only summarization of the live generator failure reasons and limits
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request,json,datetime
+          for path in ['/api/generator-health','/api/generation-freshness','/api/english-canary-health?light=1']:
+            url='https://noondealsnow.com'+path+('&' if '?' in path else '?')+'diagnosis=20261021-stall'
+            with urllib.request.urlopen(urllib.request.Request(url,headers={'User-Agent':'NoonDealsNow-ReadOnly-Quality-QA'}),timeout=28) as r:d=json.load(r)
+            if 'generator-health' in path:
+              b=d.get('bulk') or {};s=d.get('status') or {}
+              fields={k:b.get(k) for k in ['lastError','lastSkipReason','lastQuality','lastQualityFloor','lastWordCount','lastBatchTries','lastBatchPublished','lastBatchYieldPct','lastBatchCandidateBudgetMs','lastBatchCandidateBudgetHit','lastBatchDurationMs','lastBatchStageMs','lastRun','lastTickAt','lastTickPublished','catchupPlan','providers'] if k in b}
+              diag={k:s.get(k) for k in ['bulkNoPassStreak','bulkAutoPauseUntil','bulkLastSkipReason','bulkLastQualityRejectReasons','bulkLastGlobalRejectReasons','bulkLastPreflightGlobalRejectReasons','bulkLastDemandRouteReasons','bulkRejectedQuality','bulkRejectedPreAuditSemantic','bulkRejectedDuplicate','bulkRejectedGlobal','bulkRejectedCoupon','bulkRejectedSchema','bulkRejectedIndexation','bulkRejectedDemandRouting','bulkAuditLockUntil','bulkLastGlobalRejectReasons'] if k in s}
+              print('QUALITY_CURRENT='+json.dumps({'ok':d.get('ok'),'providers':d.get('providers'),'bulk':fields,'diagnostics':diag},ensure_ascii=False)[:16500],flush=True)
+            elif 'freshness' in path:
+              print('QUALITY_FRESHNESS='+json.dumps({k:d.get(k) for k in ('lastSuccessfulPublishAt','minutesSinceLastSuccessfulPublish','withinOneHour','lastRescueResult','bulkLastError','bulkLastTickPublished')},ensure_ascii=False),flush=True)
+            else:
+              x=d.get('controlled') or {}
+              print('QUALITY_ENGLISH='+json.dumps({'lastError':d.get('lastError'),'lastCandidateDiagnostics':d.get('lastCandidateDiagnostics'),'scheduler':d.get('scheduler'),'publishedToday':x.get('publishedToday'),'remaining':x.get('remaining')},ensure_ascii=False)[:7000],flush=True)
+          print('QUALITY_DIAGNOSTIC_READ_ONLY=true')
+          PY
