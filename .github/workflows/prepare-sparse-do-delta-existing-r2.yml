@@ -1,0 +1,46 @@
+name: Prepare Sparse DO Delta Only in Existing New R2
+on:
+  push:
+    branches: [ops/apply-sparse-do-delta-20261021]
+    paths: ['.github/workflows/prepare-sparse-do-delta-existing-r2.yml']
+permissions: {contents: read}
+concurrency:
+  group: noondealsnow-existing-r2-sparse-do-archive-20261021
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      CONFIRM_SAFE_DELTA: "YES"
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install -q boto3
+      - name: Gate on FULLY COMPLETED old-baseline DO import before touching any new R2 delta keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,boto3
+          c=boto3.client('s3',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',region_name='auto',
+            aws_access_key_id=os.environ['NOON_NEW_R2_ACCESS_KEY_ID'].strip(),aws_secret_access_key=os.environ['NOON_NEW_R2_SECRET_ACCESS_KEY'].strip())
+          for typ,expected,parts in [('ControlPlane',353109,2759),('GeneratorControl',4,1)]:
+            key='migration/restore-progress/20261017-baseline/'+typ+'.json'
+            o=json.load(c.get_object(Bucket='nooncoupons-content-v2',Key=key)['Body'])
+            if not (o['complete'] is True and o['partsDone']==o['partsTotal']==parts and o['keysRestored']==o['keysTotal']==expected):
+              raise RuntimeError('old baseline restore incomplete - NEVER overlay sparse delta')
+            print('BASELINE_IMPORT_GATE='+typ+' COMPLETE='+str(o['complete'])+' KEYS='+str(expected),flush=True)
+          PY
+      - name: Apply only proven 31,287 ControlPlane + 4 GeneratorControl CHANGED/NEW values to existing R2 backup prefix
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .github/scripts/build-do-sparse-delta.py
+          python3 .github/scripts/build-do-sparse-delta.py --fixture-test
+          python3 -u .github/scripts/build-do-sparse-delta.py --apply
+          echo 'SPARSE_DELTA_STAGED_R2_ONLY=true'
+          echo 'DURABLE_OBJECTS_UNMODIFIED=true'
+          echo 'PRODUCTION_UNCHANGED=true'
