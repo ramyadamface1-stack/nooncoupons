@@ -1,0 +1,29 @@
+name: Verify 10 Owner-Approved NOV Codes and Freshness Gate
+on:
+  push:
+    branches: [fix/oct21-coupon-registry-provenance-restore]
+    paths: ['coupon-registry.js','tests/coupon-registry-freshness-date.test.mjs','.github/workflows/oct21-test-coupon-catalog-cutoff.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify unchanged strict coupon rules and programmatic quality/pacing
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check coupon-registry.js
+          node --check bulk-generator.js
+          node --test tests/coupon-registry-freshness-date.test.mjs
+          node --test tests/bulk-candidate-diversity.test.mjs
+          node bulk-selftest.js >/tmp/bulk-selftest-result
+          grep -Fq 'coupon_registry_stale' coupon-registry.js
+          grep -Fq 'ageDays<=BLOCK_AFTER_DAYS' coupon-registry.js
+          grep -Fq 'const batch=1;' bulk-generator.js || grep -Fq 'batch=1;' bulk-generator.js
+          grep -Fq "minWords:Math.max(1500" bulk-generator.js
+          grep -Fq "threshold:Math.max(95" bulk-generator.js
+          echo 'OCT21_STRICT_COUPON_AND_SEO_GATE_TESTS_PASS=true'
