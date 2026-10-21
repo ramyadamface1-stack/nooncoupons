@@ -19,8 +19,8 @@ jobs:
             try:
               with urllib.request.urlopen(urllib.request.Request(base+path,headers={'User-Agent':'Mozilla/5.0'}),timeout=20) as r:return r.status,r.read(600000).decode('utf8','replace'),dict(r.headers)
             except urllib.error.HTTPError as e:return e.code,e.read(2000).decode('utf8','replace'),dict(e.headers)
-          c,t,_=get('/api/english-canary-health');d=json.loads(t)
-          urls=[base+r['urlPath'] for r in d.get('records',[])[:2]]
+          urls=[base+'/en/articles/en-skincare-noon-uae-shopping-guide-coupon-today',base+'/en/articles/en-noon-coupon-dubai']
+          print('BASELINE_CANARY_URLS='+json.dumps(urls),flush=True)
           main=get('/sitemap.xml')[1]
           print('ENGLISH_INDEX_MAIN='+json.dumps({'childCount':main.count('<sitemap>'),'containsLegacy': '/sitemap-en-articles.xml' in main,'segmentLinks':main.count('/sitemap-rescue-english-')},ensure_ascii=False),flush=True)
           texts=[]
