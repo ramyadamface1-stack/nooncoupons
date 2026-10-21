@@ -1,0 +1,31 @@
+name: Check Current Published English Journal in Existing R2
+on:
+  push:
+    branches: [fix/fresh-recent-blog-r2-20261021]
+    paths: ['.github/workflows/audit-english-publish-journal.yml']
+permissions: {contents: read}
+jobs:
+  read:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - run: python3 -m pip install --quiet boto3
+      - name: Compare English journal and fresh R2 stored state, no writes
+        run: |
+          python3 - <<'PY'
+          import boto3,os,json
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['KEY'].strip(),aws_secret_access_key=os.environ['SECRET'].strip())
+          b='nooncoupons-content-v2'
+          for key in ['english-canary/publish-journal-v1.json','english-canary/state.json','seo-rescue/index.json']:
+            o=s.get_object(Bucket=b,Key=key)
+            j=json.loads(o['Body'].read())
+            if key.endswith('index.json'):
+              print('JOURNAL_SEO_INDEX='+json.dumps({'enCount':j.get('englishCount'),'enLastUpdated':j.get('englishUpdatedAt'),'enParts':len(j.get('englishSegments') or [])}),flush=True)
+            else:
+              rows=j.get('records') or []
+              last=sorted(rows,key=lambda r:r.get('createdAt') or '',reverse=True)[:5]
+              print('ENGLISH_JOURNAL_STATE='+json.dumps({'file':key,'modified':o['LastModified'].isoformat(),'size':o['ContentLength'],'entries':len(rows),'lastPublishedAt':j.get('lastPublishedAt'),'sample':[{k:x.get(k) for k in ['slug','title','country','status','createdAt','updatedAt','quality','qualityFloor','wordCount','coupon']} for x in last]},ensure_ascii=False)[:4200],flush=True)
+          PY
