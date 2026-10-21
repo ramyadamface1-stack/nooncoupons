@@ -115,9 +115,31 @@ jobs:
           count="$(grep -o '<url>' /tmp/en-sitemap.xml | wc -l | tr -d ' ')"
           test "$count" -ge 2
           test "$count" -le 50000
-          while IFS='|' read -r path country; do grep -Fq "$ORIGIN$path" /tmp/en-sitemap.xml; done < /tmp/paths.tsv
           curl -fsS --max-time 20 "$ORIGIN/sitemap.xml" -o /tmp/main-sitemap.xml
           grep -Fq "$ORIGIN/sitemap-en-articles.xml" /tmp/main-sitemap.xml
+          # English URLs are sorted across quality-vetted sitemap shards. The
+          # legacy /sitemap-en-articles.xml serves only the FIRST 2,000 URLs,
+          # so checking old canaries against that first page falsely fails.
+          # Check ALL child English sitemap shards referenced in the ROOT index.
+          python3 - <<'PY'
+          import re,urllib.request
+          root='https://noondealsnow.com'
+          idx=open('/tmp/main-sitemap.xml',encoding='utf8').read()
+          chunks=sorted(set(re.findall(r'https://noondealsnow\.com/sitemap-rescue-english-[0-9]+\.xml',idx)))
+          assert chunks,'Missing English rescue sitemap entries from root index'
+          paths=[row.split('|',1)[0] for row in open('/tmp/paths.tsv',encoding='utf8') if row.strip()]
+          remaining=set(root+p for p in paths)
+          for url in chunks:
+            request=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
+            with urllib.request.urlopen(request,timeout=30) as response:
+              assert response.status==200
+              xml=response.read().decode('utf8','replace')
+            for u in list(remaining):
+              if '<loc>'+u+'</loc>' in xml:remaining.remove(u)
+          print('ENGLISH_CANARY_SITEMAP_SHARDS_CHECKED='+str(len(chunks)),flush=True)
+          print('ENGLISH_CANARY_SITEMAP_ALL_PRESENT='+str(not remaining).lower(),flush=True)
+          assert not remaining,'Published English canaries missing from all sitemap shards: '+str(remaining)
+          PY
           while IFS='|' read -r path country; do
             if [ "$country" = "AE" ]; then market="uae"; else market="saudi"; fi
             curl -fsS --max-time 20 "$ORIGIN/en/$market" -o /tmp/market.html
