@@ -1,0 +1,70 @@
+name: Audit Old New Durable Object Backup and Restore October 21
+on:
+  push:
+    branches: [audit/do-restore-and-r2-parity-20261021]
+    paths: ['.github/workflows/audit-do-oldnew-parity-20261021.yml']
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      NOON_OLD_CF_API_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NOON_NEW_CF_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: install boto3
+        run: python3 -m pip install -q boto3
+      - name: Read R2 backup manifests, all restore checkpoints, sample recent publish, account routing
+        shell: bash
+        run: |
+          python3 -u - <<'PY'
+          import boto3,os,json,urllib.request,urllib.error,datetime
+          account='e4c35f8a50a7b2e4cfb9d6c534962603'
+          b='nooncoupons-content-v2'
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://'+account+'.r2.cloudflarestorage.com',aws_access_key_id=os.environ['NOON_NEW_R2_ACCESS_KEY_ID'].strip(),aws_secret_access_key=os.environ['NOON_NEW_R2_SECRET_ACCESS_KEY'].strip())
+          def jget(key):
+            try:
+              o=s.get_object(Bucket=b,Key=key)
+              return json.load(o['Body']),o['LastModified'].isoformat()
+            except Exception as e:return None,type(e).__name__
+          tags=['20261017-baseline','20261020-old-do-recovery']
+          for tag in tags:
+            for typ in ['ControlPlane','GeneratorControl']:
+              key=f'migration/do-state/{tag}/{typ}/manifest.json'
+              x,updated=jget(key)
+              out={a:x.get(a) for a in ('version','complete','parts','scanned','exported','completedAt','tag')} if x else {'error':updated}
+              print('DO_SOURCE_MANIFEST='+json.dumps({'tag':tag,'type':typ,'lastModified':updated,'details':out}),flush=True)
+              k=f'migration/restore-progress/{tag}/{typ}.json'
+              y,modified=jget(k)
+              d={a:y.get(a) for a in ('complete','partsDone','partsTotal','keysRestored','keysTotal','updatedAt')} if y else {'error':modified}
+              print('DO_DESTINATION_RESTORE='+json.dumps({'tag':tag,'type':typ,'lastModified':modified,'details':d}),flush=True)
+          for prefix in ['articles/','migration/do-state/20261020-old-do-recovery/ControlPlane/','english-canary/','bulk/','quality/']:
+            objs=0;size=0;newest=None;count=0
+            for page in s.get_paginator('list_objects_v2').paginate(Bucket=b,Prefix=prefix,PaginationConfig={'PageSize':1000}):
+              for o in page.get('Contents',[]):
+                objs+=1;size+=o['Size']
+                if not newest or o['LastModified']>newest:newest=o['LastModified']
+                count+=1
+              if count>=500000:raise RuntimeError('too_many_keys')
+            print('NEW_R2_SNAPSHOT='+json.dumps({'prefix':prefix,'objects':objs,'bytes':size,'newest':newest.isoformat() if newest else None}),flush=True)
+          for key in ['english-canary/publish-journal-v1.json','bulk/days.json','seo-rescue/index.json']:
+            x,changed=jget(key)
+            fields=list(x)[:12] if isinstance(x,dict) else []
+            sample={'entries':len(x.get('articles',[])) if isinstance(x,dict) else None,'qualityIndexArabic':x.get('count') if isinstance(x,dict) else None,'qualityIndexEnglish':x.get('englishCount') if isinstance(x,dict) else None}
+            print('R2_CURRENT_INDEX='+json.dumps({'key':key,'modified':changed,'fields':fields,'sample':sample}),flush=True)
+          for label,aid,zid in [('old','c82274152a942dea53044eae7153cfd7','3032a311856f82908a53f0b19b0ffcf8'),('new',account,'c09077a581adc7aa11d6de0c121e179d')]:
+            token=os.environ[('NOON_OLD_CF_API_TOKEN' if label=='old' else 'NOON_NEW_CF_API_TOKEN')].strip()
+            for name,path in [('zone',f'/zones/{zid}'),('scripts',f'/accounts/{aid}/workers/scripts/'+('nooncoupons' if label=='old' else 'noondealsnow-migration-staging')+'/settings')]:
+              req=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+              try:
+                with urllib.request.urlopen(req,timeout=15) as r:data=json.load(r);status=r.status
+              except urllib.error.HTTPError as e:status=e.code;data={}
+              d=data.get('result') or {}
+              vals={'zone_status':d.get('status'),'workers_bindings':[x.get('name') for x in d.get('bindings',[]) if x.get('type')!='secret_text']}
+              print('MIGRATION_ACCOUNT='+json.dumps({'side':label,'what':name,'http':status,'details':vals}),flush=True)
+          print('R2_DO_AUDIT_READ_ONLY=true')
+          PY
