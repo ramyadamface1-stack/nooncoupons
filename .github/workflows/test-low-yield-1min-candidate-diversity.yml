@@ -1,0 +1,37 @@
+name: Verify Low-Yield Candidate Diversity Without Publishing
+on:
+  push:
+    branches: [fix/oct21-low-yield-diversity-noon]
+    paths: ['.github/workflows/test-low-yield-1min-candidate-diversity.yml','bulk-generator.js','bulk-candidate-diversity.js','tests/bulk-candidate-diversity.test.mjs']
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify standard and burst low-yield seeds with exact production policy and QA intact
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check bulk-generator.js
+          node --test tests/bulk-candidate-diversity.test.mjs
+          grep -Fq "Math.max(1500,Number(cfg.minWords||1500))" bulk-generator.js
+          grep -Fq "Math.max(95,Number(cfg.qualityThreshold||95))" bulk-generator.js
+          grep -Fq "claimPublicationSlot(env,topic.country,'bulk-programmatic')" bulk-generator.js
+          grep -Fq "getPublicationSlotStatus(env)" bulk-generator.js
+          grep -Fq "if(!audit.productionReady)" bulk-generator.js
+          grep -Fq "if(!gg.pass)" bulk-generator.js
+          grep -Fq "if(!semanticPreflight.pass)" bulk-generator.js
+          echo 'PUBLISH_RATE_ONE_PER_60_SECONDS_UNCHANGED=true'
+          echo 'QUALITY_SEMANTIC_DUPLICATE_GATES_UNCHANGED=true'
+      - name: Verify entire existing Worker bundles, but do not deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --outdir /tmp/noon-low-yield-test
+          echo 'NO_WORKER_DEPLOY_NO_NEW_RESOURCES=true'
