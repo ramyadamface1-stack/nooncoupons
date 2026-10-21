@@ -1,0 +1,36 @@
+name: Fast Post-Reset Durable Object Restore Check
+on:
+  push:
+    branches: [ops/noondealsnow-recovery-check-20261021]
+    paths: ['.github/workflows/noondealsnow-restore-fast-check.yml']
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install -q boto3
+      - name: Read existing R2 DO state progress keys without scanning article list
+        run: |
+          python3 -u - <<'PY'
+          import boto3,os,json,urllib.request
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['KEY'].strip(),aws_secret_access_key=os.environ['SECRET'].strip())
+          for tag in ['20261017-baseline','20261020-old-do-recovery']:
+            for k in ['ControlPlane','GeneratorControl']:
+              obj='migration/restore-progress/'+tag+'/'+k+'.json'
+              try:
+                d=json.loads(s.get_object(Bucket='nooncoupons-content-v2',Key=obj)['Body'].read())
+                fields=['partsDone','partsTotal','keysRestored','keysTotal','complete','updatedAt']
+                print('FAST_DO_RESTORE='+json.dumps({'tag':tag,'kind':k,**{f:d.get(f) for f in fields}}),flush=True)
+              except Exception as e:print('FAST_DO_RESTORE_MISSING='+tag+' '+k+' '+type(e).__name__,flush=True)
+          for path in ['/api/generation-freshness','/api/health']:
+            try:
+              with urllib.request.urlopen(urllib.request.Request('https://noondealsnow.com'+path,headers={'User-Agent':'NoonDealsNow Restore Fast Check'}),timeout=16) as f:data=json.load(f)
+              wanted=['ok','r2','lastSuccessfulPublishAt','minutesSinceLastSuccessfulPublish','lastRescueResult','bulkLastError','bulkLastTickPublished','lastOperationalState']
+              print('FAST_LIVE_HEALTH='+json.dumps({'path':path,**{k:data.get(k) for k in wanted if k in data}}),flush=True)
+            except Exception as e:print('FAST_LIVE_HEALTH_ERROR='+path+' '+type(e).__name__,flush=True)
+          PY
