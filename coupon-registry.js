@@ -1,7 +1,10 @@
 import {APPROVED_COUPON_CODES,isApprovedCoupon,replaceUnapprovedCouponTokens,HOMEPAGE_COUPONS_BY_MARKET,replaceWrongMarketCouponTokens} from './approved-coupons.js';
 
 const DAY=86400000;
-const OWNER_CATALOG_UPDATED_AT='2026-09-18T00:00:00.000Z';
+// Last actual SOURCE-OF-TRUTH change to the owner-approved NOV code market whitelist:
+// GitHub commit 9c5aaa413a555d2dd24ac6e908a67aa413194b1f (2026-10-14 05:31:46 UTC).
+// This is an internal list revision, NOT a claim that Noon itself verified codes.
+const OWNER_CATALOG_UPDATED_AT='2026-10-14T05:31:46.000Z';
 const REVIEW_AFTER_DAYS=14;
 const BLOCK_AFTER_DAYS=30;
 const CODES=APPROVED_COUPON_CODES;

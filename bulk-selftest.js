@@ -66,7 +66,10 @@ if(duplicateGate.pass||!duplicateGate.reasons.some(x=>/duplicate/.test(x)))throw
 
 const badCoupon=couponStatus({...firstAccepted.topic,code:'BAD000'},new Date('2026-09-15T12:00:00Z'));
 if(badCoupon.publishAllowed||badCoupon.reason!=='coupon_not_in_registry')throw new Error('unknown_coupon_gate_failed');
-const staleCoupon=couponStatus(firstAccepted.topic,new Date('2026-10-20T12:00:00Z'));
+const confirmedSourceRevision=Date.parse(COUPON_REGISTRY_INFO.catalogUpdatedAt);
+if(!Number.isFinite(confirmedSourceRevision))throw new Error('coupon_catalog_date_missing');
+const staleDate=new Date(confirmedSourceRevision+(COUPON_REGISTRY_INFO.blockAfterDays+2)*86400000);
+const staleCoupon=couponStatus(firstAccepted.topic,staleDate);
 if(staleCoupon.publishAllowed||staleCoupon.reason!=='coupon_registry_stale')throw new Error('coupon_freshness_expiry_failed:'+JSON.stringify(staleCoupon));
 
 const linked=injectContextualLinks({...firstAccepted.article,html:firstAccepted.article.html},[{slug:'related-one',title:'دليل مرتبط أول',primaryKeyword:'دليل مرتبط أول',country:firstAccepted.topic.country,category:firstAccepted.topic.category,intent:'compare'},{slug:'related-two',title:'دليل مرتبط ثان',primaryKeyword:'دليل مرتبط ثان',country:firstAccepted.topic.country,category:firstAccepted.topic.category,intent:'howto'}]);
