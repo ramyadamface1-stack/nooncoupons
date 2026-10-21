@@ -1,0 +1,44 @@
+name: Quick Current Restore Checkpoint and Publisher Pulse October 21
+on:
+  push:
+    branches: [audit/do-restore-and-r2-parity-20261021]
+    paths: ['.github/workflows/quick-restore-and-publishing-pulse-20261021.yml']
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      NEW_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install -q boto3
+      - name: Verify completed checkpoint and last real publish with read-only REST/S3
+        shell: bash
+        run: |
+          python3 -u - <<'PY'
+          import os,urllib.request,urllib.parse,urllib.error,json,boto3,datetime
+          c=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            aws_access_key_id=os.environ['NEW_ACCESS'].strip(),aws_secret_access_key=os.environ['NEW_SECRET'].strip())
+          for tag in ('20261017-baseline','20261020-old-do-recovery'):
+            for typ in ('ControlPlane','GeneratorControl'):
+              key='migration/restore-progress/'+tag+'/'+typ+'.json'
+              try:
+                o=c.get_object(Bucket='nooncoupons-content-v2',Key=key)
+                d=json.loads(o['Body'].read())
+                print('RESTORE_QUICK_CHECK='+json.dumps({'tag':tag,'type':typ,'complete':d.get('complete'),'partsDone':d.get('partsDone'),'partsTotal':d.get('partsTotal'),'keysRestored':d.get('keysRestored'),'keysTotal':d.get('keysTotal'),'updatedAt':d.get('updatedAt')}),flush=True)
+              except Exception as e:print('RESTORE_QUICK_MISSING='+tag+' '+typ+' '+type(e).__name__,flush=True)
+          for path in ('/api/generation-freshness','/api/health','/blog','/sitemap.xml'):
+            try:
+              req=urllib.request.Request('https://noondealsnow.com'+path+'?pulse=20261021',headers={'User-Agent':'NoonDealsNow-ReadOnly-Publisher-Checker','Accept':'*/*'})
+              with urllib.request.urlopen(req,timeout=16) as r:code=r.status;raw=r.read(1500000)
+              if path.startswith('/api/'):
+                d=json.loads(raw)
+                fields={k:d.get(k) for k in ['ok','status','lastSuccessfulPublishAt','minutesSinceLastSuccessfulPublish','withinOneHour','lastRescueResult','bulkLastError','bulkLastTickPublished','r2'] if k in d}
+              elif path=='/blog':fields={'cards':raw.count(b'<article class="card"'),'hasRecentSlugs':b'2026' in raw}
+              else:fields={'sitemaps':raw.count(b'<sitemap>')}
+              print('PUBLISH_PULSE='+json.dumps({'path':path,'status':code,'fields':fields},ensure_ascii=False),flush=True)
+            except Exception as e:print('PUBLISH_PULSE_ERROR='+path+' '+type(e).__name__,flush=True)
+          print('READ_ONLY_PULSE_FINISHED=true',flush=True)
+          PY
