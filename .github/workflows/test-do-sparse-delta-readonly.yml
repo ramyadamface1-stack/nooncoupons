@@ -1,0 +1,27 @@
+name: Test Sparse DO Delta Creation Without R2 Writes
+on:
+  push:
+    branches: [ops/apply-sparse-do-delta-20261021]
+    paths: ['.github/scripts/build-do-sparse-delta.py','.github/workflows/test-do-sparse-delta-readonly.yml']
+permissions: {contents: read}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m pip install -q boto3
+      - name: Run fixture tests and compile sparse importer format
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .github/scripts/build-do-sparse-delta.py
+          python3 .github/scripts/build-do-sparse-delta.py --fixture-test
+      - name: Verify true backup source key/value delta without writing to R2 or DO
+        run: |
+          set -euo pipefail
+          python3 -u .github/scripts/build-do-sparse-delta.py
+          echo 'SPARSE_DELTA_DRY_RUN_ONLY=true'
