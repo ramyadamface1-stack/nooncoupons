@@ -1,0 +1,51 @@
+name: Verify Fresh Article Real Word Counts and R2 Metadata Before Indexing
+on:
+  push:
+    branches: [audit/do-restore-and-r2-parity-20261021]
+    paths: ['.github/workflows/audit-new-articles-actual-word-count.yml']
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install -q boto3
+      - name: Audit six published 21 Oct Arabic articles against R2 metadata and visible body length; no mutations
+        shell: bash
+        run: |
+          python3 -u - <<'PY'
+          import urllib.request,urllib.parse,html.parser,json,datetime,os,boto3
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['ACCESS'].strip(),aws_secret_access_key=os.environ['SECRET'].strip())
+          with urllib.request.urlopen('https://noondealsnow.com/api/state',timeout=20) as r:j=json.loads(r.read(45000000))
+          rows=[a for a in (j.get('articles') or []) if a.get('status')=='published' and str(a.get('createdAt','')).startswith('2026-10-21')]
+          class Clean(html.parser.HTMLParser):
+            def __init__(self):super().__init__();self.in_main=False;self.main_depth=0;self.skip=0;self.values=[]
+            def handle_starttag(self,t,a):
+              if t=='main':self.in_main=True
+              if self.in_main:
+                self.main_depth+=1
+                if t in ('script','style','nav','aside'):self.skip+=1
+            def handle_endtag(self,t):
+              if self.in_main:
+                if t in ('script','style','nav','aside') and self.skip:self.skip-=1
+                self.main_depth-=1
+                if t=='main' or self.main_depth<1:self.in_main=False
+            def handle_data(self,d):
+              if self.in_main and not self.skip:self.values.append(d)
+          for a in rows[:14]:
+            slug=a['slug'];url='https://noondealsnow.com/articles/'+urllib.parse.quote(slug)
+            with urllib.request.urlopen(url,timeout=20) as r:html=r.read(1000000).decode('utf8','replace');status=r.status
+            c=Clean();c.feed(html);words=len(' '.join(c.values).split())
+            key='articles/'+slug+'.html'
+            try:
+              head=s.head_object(Bucket='nooncoupons-content-v2',Key=key)
+              metadata=head.get('Metadata') or {}
+              report={'bytes':head['ContentLength'],'metadata':{k:metadata.get(k) for k in ('status','c','q','qf','wc','w','at') if k in metadata}}
+            except Exception as e:report={'error_type':type(e).__name__}
+            print('RECENT_ARTICLE_QUALITY='+json.dumps({'slug':slug,'http':status,'mainWords':words,'r2':report,'doQuality':a.get('quality'),'passed1500':words>=1500},ensure_ascii=False),flush=True)
+          print('RECENT_ARTICLE_QUALITY_READONLY=true')
+          PY
