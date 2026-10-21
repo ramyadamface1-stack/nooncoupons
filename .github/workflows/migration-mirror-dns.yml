@@ -1,0 +1,109 @@
+name: Mirror Existing Cloudflare DNS to Pending New Zone
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-mirror-dns.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  dns-mirror:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      OLD_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NEW_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Copy DNS records to pending new zone only; never touch registrar or live old zone
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.parse,urllib.request,urllib.error,collections
+          ROOT='https://api.cloudflare.com/client/v4'
+          DOMAIN='noondealsnow.com'
+          OLD='c82274152a942dea53044eae7153cfd7'
+          NEW='e4c35f8a50a7b2e4cfb9d6c534962603'
+          ot=os.environ['OLD_TOKEN'].strip()
+          nt=os.environ['NEW_TOKEN'].strip()
+          def call(token,method,path,body=None):
+              data=None if body is None else json.dumps(body,separators=(',',':')).encode()
+              request=urllib.request.Request(ROOT+path,method=method,data=data,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})
+              try:
+                  with urllib.request.urlopen(request,timeout=22) as resp:return resp.status,json.load(resp)
+              except urllib.error.HTTPError as err:
+                  try: obj=json.loads(err.read(12000))
+                  except: obj={'errors':[{'code':err.code,'message':'non_json_error'}]}
+                  return err.code,obj
+          def zone(token,aid):
+              path='/zones?'+urllib.parse.urlencode({'name':DOMAIN,'account.id':aid})
+              http,body=call(token,'GET',path)
+              if http!=200 or not body.get('success') or len(body.get('result') or [])!=1:raise RuntimeError('expected_exactly_one_zone_for_account')
+              return body['result'][0]
+          a=zone(ot,OLD)
+          b=zone(nt,NEW)
+          if a['status']!='active' or b['status'] not in ('pending','initializing'):
+              raise RuntimeError('unsafe_zone_status_for_dns_mirror')
+          if b.get('plan',{}).get('legacy_id') not in (None,'free'):
+              raise RuntimeError('new_zone_requires_paid_plan_abort')
+          def records(token,zid):
+              output=[]
+              for page in range(1,21):
+                  path='/zones/'+zid+'/dns_records?'+urllib.parse.urlencode({'page':page,'per_page':100})
+                  http,data=call(token,'GET',path)
+                  if http!=200 or not data.get('success'):raise RuntimeError('DNS_READ_FAILED_HTTP_'+str(http))
+                  output.extend(data.get('result') or [])
+                  if page>=int((data.get('result_info') or {}).get('total_pages',1)):break
+              else:raise RuntimeError('DNS_TOO_MANY_PAGES_ABORT')
+              return output
+          source=records(ot,a['id'])
+          target=records(nt,b['id'])
+          print('OLD_DNS_COUNT='+str(len(source)),flush=True)
+          print('OLD_DNS_TYPES='+json.dumps(collections.Counter(x['type'] for x in source)),flush=True)
+          print('NEW_DNS_BEFORE='+str(len(target)),flush=True)
+          def sig(row):
+              return row.get('type'),row.get('name','').rstrip('.').lower(),str(row.get('content') or json.dumps(row.get('data'),sort_keys=True)),row.get('priority',0)
+          existing={sig(x):x for x in target}
+          oldNS=[x for x in source if x['type']=='NS' and x.get('name','').rstrip('.').lower()==DOMAIN]
+          print('OLD_APEX_NAMESERVERS_EXCLUDED='+str(len(oldNS)),flush=True)
+          stats=collections.Counter()
+          for row in source:
+              typ=row.get('type','')
+              name=row.get('name','').rstrip('.').lower()
+              if typ=='SOA' or (typ=='NS' and name==DOMAIN):
+                  stats['skipped_authoritative']+=1;continue
+              identity=sig(row)
+              if identity in existing:
+                  other=existing[identity]
+                  if typ in ('A','AAAA','CNAME') and bool(other.get('proxied'))!=bool(row.get('proxied')):
+                      stats['existing_proxy_conflict']+=1
+                      print('DNS_PROXY_DIFFERENCE='+typ+':'+name,flush=True)
+                  else:stats['already_matching']+=1
+                  continue
+              if typ=='CNAME' and any(x.get('name','').rstrip('.').lower()==name and x.get('type') not in ('TXT',) for x in target):
+                  stats['conflict_skipped']+=1;print('DNS_CNAME_CONFLICT='+name,flush=True);continue
+              item={'type':typ,'name':row['name'],'ttl':row.get('ttl',1)}
+              if row.get('content') is not None:item['content']=row['content']
+              elif row.get('data') is not None:item['data']=row['data']
+              if typ in ('A','AAAA','CNAME'):item['proxied']=bool(row.get('proxied',False))
+              if typ in ('MX','SRV') and row.get('priority') is not None:item['priority']=row['priority']
+              http,result=call(nt,'POST','/zones/'+b['id']+'/dns_records',item)
+              if http not in (200,201) or not result.get('success'):
+                  stats['create_failed']+=1
+                  errors=[str(e.get('code')) for e in (result.get('errors') or [])]
+                  print('DNS_CREATE_FAILED='+typ+':'+name+':HTTP'+str(http)+':'+','.join(errors),flush=True)
+                  continue
+              target.append(result['result'])
+              existing[sig(row)]=result['result']
+              stats['copied']+=1
+          print('DNS_MIRROR_COUNTS='+json.dumps(stats),flush=True)
+          print('NEW_NAMESERVERS='+','.join(b.get('name_servers') or []),flush=True)
+          print('OLD_ZONE_UNMODIFIED=true',flush=True)
+          print('REGISTRAR_NAMESERVERS_UNMODIFIED=true',flush=True)
+          print('DNS_MIRROR_COMPLETE='+str(not any(stats[k] for k in ('conflict_skipped','create_failed','existing_proxy_conflict'))).lower(),flush=True)
+          if any(stats[k] for k in ('conflict_skipped','create_failed','existing_proxy_conflict')):raise RuntimeError('dns_mirror_incomplete_review_required')
+          PY
+
+# Token-permission recheck after Cloudflare DNS Read access update, 2026-10-18 14:41 Cairo.
+
+# Retry after newly configured Cloudflare credential (18 Oct 2026 17:16 Cairo).

@@ -1,0 +1,64 @@
+name: Diagnose NoonDealsNow DNS Token and Restore Cron
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-diagnose-access.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      OLD_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NEW_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Read token verification, DNS permission diagnostics, restore schedules
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          base='https://api.cloudflare.com/client/v4'
+          urls=[
+            ('OLD','verify','/user/tokens/verify'),
+            ('OLD','zone','/zones?name=noondealsnow.com&account.id=c82274152a942dea53044eae7153cfd7'),
+            ('OLD','dns','/zones/REPLACE_OLD_ZONE_ID/dns_records?per_page=1'),
+            ('NEW','verify','/user/tokens/verify'),
+            ('NEW','zone','/zones/c09077a581adc7aa11d6de0c121e179d'),
+            ('NEW','dns','/zones/c09077a581adc7aa11d6de0c121e179d/dns_records?per_page=1'),
+            ('NEW','cron','/accounts/e4c35f8a50a7b2e4cfb9d6c534962603/workers/scripts/noondealsnow-migration-staging/schedules'),
+            ('NEW','workers','/accounts/e4c35f8a50a7b2e4cfb9d6c534962603/workers/scripts')
+          ]
+          def request(label,path):
+              token=os.environ.get(label+'_TOKEN','').strip()
+              if not token:return 0,{'errors':[{'code':'missing','message':'GitHub secret empty'}]}
+              r=urllib.request.Request(base+path,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})
+              try:
+                  with urllib.request.urlopen(r,timeout=18) as f:return f.status,json.load(f)
+              except urllib.error.HTTPError as e:
+                  try:return e.code,json.loads(e.read(15000))
+                  except:return e.code,{'errors':[]}
+          old_zone=None
+          for label,k,p in urls:
+              if k=='dns' and label=='OLD':
+                  if not old_zone:print('OLD_DNS_SKIPPED_NO_ZONE_ID');continue
+                  p=p.replace('REPLACE_OLD_ZONE_ID',old_zone)
+              code,obj=request(label,p)
+              print(label+'_'+k.upper()+'_HTTP='+str(code),flush=True)
+              errors=[{'code':e.get('code'),'message':str(e.get('message',''))[:180]} for e in (obj.get('errors') or [])[:4]]
+              if errors:print(label+'_'+k.upper()+'_API_ERRORS='+json.dumps(errors),flush=True)
+              if code==200 and obj.get('success'):
+                  result=obj.get('result')
+                  if label=='OLD' and k=='zone':
+                      zones=result or []
+                      old_zone=zones[0].get('id') if len(zones)==1 else None
+                      print('OLD_ZONE_COUNT='+str(len(zones)),flush=True)
+                  if k=='cron':print('NEW_CRON_RESULT='+json.dumps(result)[:1200],flush=True)
+                  if k=='workers':
+                      filtered=[x for x in result or [] if x.get('id')=='noondealsnow-migration-staging' or x.get('name')=='noondealsnow-migration-staging']
+                      print('NEW_STAGING_WORKER='+json.dumps([{'id':w.get('id'),'modified_on':w.get('modified_on')} for w in filtered]),flush=True)
+                  if k=='verify':
+                      print(label+'_TOKEN_ACTIVE='+str((result or {}).get('status')=='active').lower(),flush=True)
+          PY
