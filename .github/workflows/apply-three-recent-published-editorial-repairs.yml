@@ -2,7 +2,7 @@ name: Repair Three Published Noon Article Depth Issues in EXISTING R2
 on:
   push:
     branches: [fix/qa-three-recent-articles-20261021]
-    paths: ['.github/workflows/apply-three-recent-published-editorial-repairs.yml']
+    paths: ['.github/workflows/apply-three-recent-published-editorial-repairs.yml','.github/scripts/repair-recent-published-article-depth.py']
 permissions: {contents: read}
 concurrency:
   group: noondealsnow-editorial-existing-three-articles-20261021
@@ -25,7 +25,7 @@ jobs:
           set -euo pipefail
           python3 .github/scripts/repair-recent-published-article-depth.py --fixture-test
           python3 .github/scripts/repair-recent-published-article-depth.py
-      - name: Apply only three conditional If-Match HTML updates preserving URLs and metadata
+      - name: Apply three atomic SigV4 If-Match HTML updates preserving all URLs and metadata
         shell: bash
         run: |
           set -euo pipefail
