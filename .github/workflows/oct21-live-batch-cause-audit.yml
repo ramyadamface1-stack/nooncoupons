@@ -1,0 +1,36 @@
+name: Check Live One-Minute Publishing and Per-Batch Reject Causes
+on:
+  push:
+    branches: [audit/oct21-live-generator-reject-attribution]
+    paths: ['.github/workflows/oct21-live-batch-cause-audit.yml']
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read current new candidate rejection breakdown at separate cron ticks, no writes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json,time,datetime,sys
+          host='https://noondealsnow.com'
+          def request(path):
+            req=urllib.request.Request(host+path+'?read_only='+str(time.time()),headers={'User-Agent':'NoonDealsNow-Publishing-ReadOnly/20261021','Accept':'application/json'})
+            for n in range(3):
+              try:
+                with urllib.request.urlopen(req,timeout=24) as r:return r.status,json.loads(r.read(85000))
+              except Exception as e:
+                if n==2:raise
+                time.sleep(3)
+          for sample in range(2):
+            code,data=request('/api/generator-health');s=data.get('status') or {};b=data.get('bulk') or {}
+            wanted=['bulkLastRun','bulkLastBatchTries','bulkLastBatchRejectedByStage','bulkLastBatchUnclassified','bulkLastBatchPublished','bulkLastBatchDurationMs','bulkLastBatchCandidateBudgetHit','bulkNoPassStreak','bulkLastError','bulkCursorV2','bulkLastQualityRejectReasons','bulkLastGlobalRejectReasons','bulkLastPreflightGlobalRejectReasons','bulkLastDemandRouteReasons','publicationNextEligibleAt']
+            print('LIVE_REJECT_BREAKDOWN='+json.dumps({'sample':sample+1,'http':code,'at':datetime.datetime.now(datetime.timezone.utc).isoformat(),'status':{k:s.get(k) for k in wanted},'bulk':{k:b.get(k) for k in ['lastRun','lastError','lastBatchTries','lastBatchPublished','publishedTotal']}},ensure_ascii=False),flush=True)
+            try:
+              _,fr=request('/api/generation-freshness')
+              print('LIVE_FRESHNESS='+json.dumps({'sample':sample+1,**{k:fr.get(k) for k in ['lastSuccessfulPublishAt','minutesSinceLastSuccessfulPublish','bulkLastError','bulkLastTickPublished','publishedLastHour']}},ensure_ascii=False),flush=True)
+            except Exception as e:print('FRESHNESS_GET_ERROR='+type(e).__name__,flush=True)
+            if sample==0:time.sleep(67)
+          print('READ_ONLY_BATCH_DIAG_COMPLETE=true',flush=True)
+          PY
