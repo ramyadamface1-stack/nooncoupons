@@ -1,0 +1,18 @@
+name: Check Genuine Editorial Depth at Current Publishing Cursor
+on:
+  push:
+    branches: [fix/oct21-article-editorial-depth-after-gate]
+    paths: ['tests/oct21-article-depth-audit.mjs','bulk-content-engine.js','.github/workflows/oct21-article-depth-audit.yml']
+permissions: {contents: read}
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Inspect current cursor without touching site or R2
+        run: |
+          node --check bulk-content-engine.js
+          node tests/oct21-article-depth-audit.mjs
