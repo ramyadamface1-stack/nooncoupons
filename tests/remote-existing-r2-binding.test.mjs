@@ -57,11 +57,63 @@ test('signed PUT/GET/HEAD/LIST use identical existing bucket and preserve MIME, 
 });
 test('prevents oversized single-part writes and unimplemented conditional overwrites',async()=>{
   const r=existingDestinationR2Binding(f());
-  await assert.rejects(r.put('articles/a.html','abc',{onlyIf:{etagMatches:'foo'}}),/conditional_not_implemented/);
+  await assert.rejects(r.put('articles/a.html','abc',{onlyIf:{unsupportedCondition:true}}),/unsupported_conditional_option/);
+  await assert.rejects(r.put('articles/a.html','abc',{onlyIf:{uploadedAfter:new Date('invalid')}}),/invalid_date_condition/);
   await assert.rejects(r.put('articles/b.html',new Uint8Array(8*1024*1024+1)),/size_limit/);
 });
 test('does not expose any web route for remote storage',async()=>{
   const x=enableExistingDestinationR2(f());
   assert.equal(x.CONTENT_FINAL.get instanceof Function,true);
   assert.equal('fetch' in x.CONTENT_FINAL,false);
+});
+
+test('atomic create-once with If-None-Match:* succeeds once, subsequent 412 returns null without overwriting',async()=>{
+  const original=globalThis.fetch, seen=new Map(),calls=[];
+  globalThis.fetch=async(url,options)=>{
+    const hdr=options.headers,conditional=hdr.get('if-none-match');
+    const key=String(url).split('/').at(-1),value=Buffer.from(options.body).toString();
+    calls.push({conditional,signed:hdr.get('authorization')||'',body:value});
+    assert.equal(conditional,'*');
+    assert.match(hdr.get('authorization'),/SignedHeaders=[^,]*if-none-match/);
+    if(seen.has(key))return new Response('<Error><Code>PreconditionFailed</Code></Error>',{status:412,headers:{'content-type':'application/xml'}});
+    seen.set(key,value);
+    return new Response(null,{status:200,headers:{etag:'"afterfirst"'}});
+  };
+  try{
+    const r=existingDestinationR2Binding(f());
+    const first=await r.put('maintenance/conditional-test.html','alpha',{onlyIf:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'text/html'}});
+    const second=await r.put('maintenance/conditional-test.html','beta',{onlyIf:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'text/html'}});
+    assert.equal(first.etag,'afterfirst');
+    assert.equal(second,null);
+    assert.equal(seen.get('conditional-test.html'),'alpha');
+    assert.equal(calls.length,2);
+  }finally{globalThis.fetch=original}
+});
+test('If-Match and date conditions are signed in the same atomic PUT as the content',async()=>{
+  const original=globalThis.fetch,calls=[];
+  globalThis.fetch=async(url,options)=>{
+    const hdr=options.headers;
+    calls.push(Object.fromEntries(hdr.entries()));
+    return new Response(null,{status:200,headers:{etag:'"fresh"'}});
+  };
+  try{
+    const r=existingDestinationR2Binding(f());
+    const result=await r.put('articles/signed-conditional.html','safe',{
+      onlyIf:{etagMatches:'abc123',uploadedBefore:new Date('2026-10-21T00:00:00Z')}
+    });
+    assert.equal(result.etag,'fresh');
+    assert.equal(calls[0]['if-match'],'"abc123"');
+    assert.equal(calls[0]['if-unmodified-since'],'Wed, 21 Oct 2026 00:00:00 GMT');
+    assert.match(calls[0].authorization,/SignedHeaders=[^,]*if-match/);
+    assert.match(calls[0].authorization,/SignedHeaders=[^,]*if-unmodified-since/);
+    await r.put('articles/signed-conditional.html','safe',{
+      onlyIf:new Headers({'If-None-Match':'*','If-Modified-Since':'Wed, 21 Oct 2026 00:00:00 GMT'})
+    });
+    assert.equal(calls[1]['if-none-match'],'*');
+    assert.equal(calls[1]['if-modified-since'],'Wed, 21 Oct 2026 00:00:00 GMT');
+    await assert.rejects(
+      r.put('articles/signed-conditional.html','safe',{onlyIf:new Headers({'x-private':'unsafe'})}),
+      /unsupported_conditional_header/
+    );
+  }finally{globalThis.fetch=original}
 });
