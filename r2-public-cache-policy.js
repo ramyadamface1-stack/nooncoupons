@@ -36,7 +36,9 @@ export function publicEdgeCacheEligible(req,u=new URL(req.url)){
 // changes its SEO/schema presentation. Keep expensive archive/catalog cache warm.
 export function publicEdgePolicyRevision(path,baseRevision='r2-jsonld-dedupe-r16'){
   const kind=publicRouteKind(String(path||''));
-  return kind==='article'?'r2-article-faq-market-v17':baseRevision;
+  if(kind==='article')return 'r2-article-faq-ga4-v18';
+  if(['/blog','/blog/saudi','/blog/uae'].includes(String(path||'').replace(/\/+$/,'')))return 'r2-blog-ga4-v17';
+  return baseRevision;
 }
 
 export function publicEdgeTtlSeconds(path){
