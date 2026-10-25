@@ -324,11 +324,21 @@ function utcDayProgress(){
   const d=new Date(),elapsedMs=d.getUTCHours()*3600000+d.getUTCMinutes()*60000+d.getUTCSeconds()*1000+d.getUTCMilliseconds();
   return Math.max(0,Math.min(1,elapsedMs/86400000));
 }
-function dailyPaceSnapshot(env,status){
+export function dailyPaceSnapshot(env,status){
   const target=Math.max(1,Number(env.BULK_DAILY_TARGET||12000)),today=Math.max(0,Number(status?.bulkPublishedToday||0)),progress=utcDayProgress(),expected=Math.floor(target*progress),deficit=Math.max(0,expected-today),mode=String(env.BULK_DAILY_PACE_MODE||'true').toLowerCase()==='true';
   let rounds=1;if(mode&&deficit>100)rounds=8;else if(mode&&deficit>50)rounds=5;else if(mode&&deficit>25)rounds=3;else if(mode&&deficit>5)rounds=2;
   rounds=Math.max(1,Math.min(Number(env.BULK_PACE_MAX_ROUNDS||8)||8,rounds));
-  return {mode,target,today,progress:Number(progress.toFixed(4)),expectedNow:expected,deficit,rounds,behind:deficit>0};
+  // Every successful publication must claim the SAME global 60s DO permit.
+  // Eight independent bulk passes cannot legally publish eight articles in
+  // that minute, but each repeats expensive cross-account S3 reads. On the
+  // active remote-R2 rescue Worker the old eight-pass loop exceeded the
+  // Cloudflare subrequest ceiling and aborted without publication.
+  const remoteR2=String(env.REMOTE_EXISTING_R2_ENABLED||'').toLowerCase()==='true';
+  const onePerMinute=Number(env.GLOBAL_PUBLISH_MAX_PER_MINUTE||1)===1 &&
+    Number(env.GLOBAL_PUBLISH_MIN_INTERVAL_SECONDS||60)>=60;
+  const subrequestProtected=remoteR2&&onePerMinute;
+  if(subrequestProtected)rounds=1;
+  return {mode,target,today,progress:Number(progress.toFixed(4)),expectedNow:expected,deficit,rounds,behind:deficit>0,subrequestProtected};
 }
 async function pacedBulkTick(env){
   const before=await getGeneratorStatus(env),pace=dailyPaceSnapshot(env,before);
