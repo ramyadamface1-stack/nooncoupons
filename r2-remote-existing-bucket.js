@@ -144,6 +144,52 @@ async function asArray(value){
   if(value instanceof ReadableStream)return new Uint8Array(await new Response(value).arrayBuffer());
   throw Error('remote_r2_put_unsupported_body_type');
 }
+// R2 "articles/" is lexicographically indexed, not time-indexed. A public
+// blog fed exclusively from bulk/latest.json misses published English and DO
+// articles. Maintain a *small* chronological feed in the SAME existing bucket
+// on successful published HTML writes. Atomic conditional PUT avoids stomping
+// concurrent writers; publication's global DO lock remains authoritative.
+// Feed failure never deletes or overwrites the published article.
+export async function recordPublishedR2ArticleInBlogFeed(env,key,meta={}){
+  if(String(env?.PUBLICATION_FEED_ENABLED||'')!=='true')return {ok:false,skipped:'feature_disabled'};
+  if(!/^articles\/[^/]+\.html$/.test(key)||meta.status!=='published')return {ok:false,skipped:'not_published_article'};
+  const slug=key.slice('articles/'.length,-5);
+  if(slug.length>280||slug.includes('..'))return {ok:false,skipped:'bad_slug'};
+  const country=meta.c==='AE'||meta.country==='AE'||slug.startsWith('en-')?'AE':'SA';
+  const ts=String(meta.at||meta.createdAt||'');
+  const publishedAt=Number.isFinite(Date.parse(ts))&&Date.parse(ts)<=Date.now()+60000?new Date(ts).toISOString():new Date().toISOString();
+  const decode=s=>{try{return decodeURIComponent(String(s||''))}catch{return String(s||'')}};
+  const entry={slug,country,status:'published',createdAt:publishedAt,publishedAt,
+    title:decode(meta.t||meta.title||slug.replace(/-/g,' ')).slice(0,180),
+    metaDescription:decode(meta.m||meta.metaDescription||'').slice(0,170),
+    coupon:String(meta.cp||meta.coupon||'').slice(0,30),
+    quality:meta.q!=null?Number(meta.q):null,
+    wordCount:meta.w!=null?Number(meta.w):null};
+  const feedKey='blog/latest-live-v1.json';
+  for(let attempt=0;attempt<3;attempt++){
+    let previous=[],etag=null;
+    const old=await signed(env,'GET',feedKey);
+    if(old){
+      etag=old.headers.get('etag');
+      const payload=await old.json();
+      if(!Array.isArray(payload?.articles)||payload.articles.length>450)throw Error('recent_feed_unexpected_schema');
+      previous=payload.articles;
+    }
+    const seen=new Set(),merged=[];
+    for(const article of [entry,...previous]){
+      if(!article?.slug||seen.has(article.slug)||article.status!=='published')continue;
+      seen.add(article.slug);merged.push(article);
+    }
+    merged.sort((a,b)=>String(b.publishedAt||b.createdAt||'').localeCompare(String(a.publishedAt||a.createdAt||'')));
+    const payload=JSON.stringify({version:1,updatedAt:new Date().toISOString(),articles:merged.slice(0,300)});
+    const etagCond=etag?{'if-match':etag}:{'if-none-match':'*'};
+    const result=await signed(env,'PUT',feedKey,{},new TextEncoder().encode(payload),
+      {'content-type':'application/json; charset=utf-8',...etagCond},true);
+    if(result.status===412)continue;
+    return {ok:true,count:Math.min(merged.length,300),key:feedKey};
+  }
+  throw Error('recent_feed_update_conflict_after_3_tries');
+}
 export function existingDestinationR2Binding(env){
   return {
     async get(key,options){
@@ -188,6 +234,10 @@ export function existingDestinationR2Binding(env){
       // etag conditional writes with a HEAD+PUT pair: it would not be atomic.
       const result=await signed(env,'PUT',key,{},data,{...extra,...conditions},Object.keys(conditions).length>0);
       if(result.status===412)return null;
+      if(key.startsWith('articles/')&&options.customMetadata?.status==='published'&&String(env?.PUBLICATION_FEED_ENABLED||'')==='true'){
+        try{await recordPublishedR2ArticleInBlogFeed(env,key,options.customMetadata)}
+        catch(error){console.warn('recent_published_article_feed_error',String(error?.message||error).slice(0,120))}
+      }
       return {key,size:data.byteLength,etag:(result.headers.get('etag')||'').replaceAll('"',''),uploaded:new Date()};
     },
     async list(options={}){
