@@ -1,4 +1,4 @@
-import {primaryCodeForMarket,presentMarketCouponText,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
+import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
 // Temporary, READ-ONLY fallback for public pages when the old account's R2 is NotEntitled (10042).
 // Source of article bytes: existing mirrored R2 in destination Cloudflare account.
 // No writes, no new Durable Objects, no extra publisher, no DNS changes, no private endpoints.
@@ -146,7 +146,7 @@ async function serveArticle(env,u,english){
   if(!obj)return new Response('Not Found',{status:404,headers:{'cache-control':'public,max-age=60'}});
   if(obj.meta.status&&obj.meta.status!=='published')return new Response('Not Found',{status:404});
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
-  const body=presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country);
+  const body=reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country),country);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
   const description=cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'')).slice(0,170),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1);
