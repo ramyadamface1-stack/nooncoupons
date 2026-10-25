@@ -58,9 +58,19 @@ export function repairLegacyGuideLinks(source,country='SA'){
   return String(source??'').replace(/(<a\b[^>]*\bhref\s*=\s*)(["'])\/guides\/?\2/gi,(_all,attrs,quote)=>attrs+quote+target+quote);
 }
 
+// Repair only generic Noon homepage links stored in legacy article bodies.
+// Preserve every product/deep link, article URL and source R2 object unchanged.
+export function marketNoonHome(country='SA',english=false){
+  return country==='AE'?(english?'https://www.noon.com/uae-en/':'https://www.noon.com/uae-ar/'):'https://www.noon.com/saudi-ar/';
+}
+export function repairGenericNoonLinks(source,country='SA',english=false){
+  const target=marketNoonHome(country,english);
+  return String(source??'').replace(/(<a\b[^>]*\bhref\s*=\s*)(["'])https?:\/\/(?:www\.)?noon\.com\/?\2/gi,(_full,start,q)=>start+q+target+q);
+}
+
 export function renderCouponAction(country='SA',english=false,placement='top'){
   const market=country==='AE'?'AE':'SA',code=primaryCodeForMarket(market);
-  const official=market==='AE'?'https://www.noon.com/uae-en/':'https://www.noon.com/saudi-ar/';
+  const official=marketNoonHome(market,english);
   const label=english?'Copy code':'نسخ الكوبون';
   const open=english?'Open Noon checkout':'الانتقال إلى نون وتجربة الكود';
   const note=english?'No guaranteed amount or eligibility. Check the code and final total in your Noon cart.':'الكود للتجربة حسب أهلية الحساب والمنتجات. تأكد من المبلغ النهائي في سلة نون.';
