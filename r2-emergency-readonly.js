@@ -255,6 +255,33 @@ async function serveDay(env,u,day){
 const xmlSafe=s=>esc(String(s??''));
 const sitemapHeaders={'content-type':'application/xml; charset=utf-8','cache-control':'public,max-age=300,s-maxage=1800,stale-while-revalidate=3600','x-robots-tag':'all','x-r2-rescue-sitemap':'quality-gated-v1'};
 const xmlResponse=xml=>new Response(xml,{headers:sitemapHeaders});
+// The static rescue manifests are intentionally immutable. Newly published
+// articles enter an already-existing, small R2 journal; surface them in their
+// own sitemap so crawlers can discover them without a full 240k-object R2 LIST.
+const liveSitemapEligible=a=>{
+  const slug=String(a?.slug||'');
+  const date=Date.parse(String(a?.publishedAt||a?.createdAt||''));
+  return a?.status==='published'&&a?.indexable!==false&&
+    slug.length>0&&slug.length<=280&&!slug.includes('/')&&!slug.includes('..')&&
+    Number(a.quality)>=95&&(a.wordCount==null||Number(a.wordCount)>=1500)&&
+    Number.isFinite(date)&&date<=Date.now()+60000;
+};
+async function liveRecentSitemap(env){
+  const feed=await getJson(env,'blog/latest-live-v1.json');
+  const seen=new Set(),rows=[];
+  for(const item of (Array.isArray(feed?.articles)?feed.articles:[])){
+    if(!liveSitemapEligible(item)||seen.has(item.slug))continue;
+    seen.add(item.slug);rows.push(item);
+    if(rows.length>=300)break;
+  }
+  const entries=rows.map(a=>{
+    const loc=rescueArticleUrl(a),date=new Date(a.publishedAt||a.createdAt).toISOString();
+    const img=rescueOrigin+rescueImageUrl(a.slug,marketOf(a),a.coupon||'',1);
+    return '<url><loc>'+xmlSafe(loc)+'</loc><lastmod>'+xmlSafe(date)+'</lastmod><image:image><image:loc>'+xmlSafe(img)+'</image:loc></image:image></url>';
+  }).join('');
+  const xml='<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">'+entries+'</urlset>';
+  return new Response(xml,{headers:{...sitemapHeaders,'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=60','x-r2-rescue-sitemap':'live-recent-v1','x-sitemap-entries':String(rows.length)}});
+}
 const rescueOrigin='https://noondealsnow.com';
 const rescueArticleUrl=a=>rescueOrigin+(a.slug.startsWith('en-')?'/en/articles/':'/articles/')+encodeURIComponent(a.slug);
 const sitemapPathNum=p=>{const match=p.match(/^\/sitemap-rescue-(english-images|english|articles|images)-([0-9]{1,4})\.xml$/);return match?{kind:match[1],n:Number(match[2])}:null};
@@ -270,9 +297,13 @@ export async function rescueSitemapIndexPaths(env){
     if(!Number.isSafeInteger(part.n)||part.n<0||part.n>9999||!Number.isSafeInteger(part.count)||part.count<1)continue;
     rows.push('/sitemap-rescue-english-'+part.n+'.xml','/sitemap-rescue-english-images-'+part.n+'.xml');
   }
+  // Only advertise a live sitemap when the existing R2 feed has published, QA-approved entries.
+  // Errors in the optional feed must never hide static rescue shards.
+  try{const live=await getJson(env,'blog/latest-live-v1.json');if((live?.articles||[]).some(liveSitemapEligible))rows.push('/sitemap-live-recent.xml')}catch{}
   return rows;
 }
 export async function rescueSitemapResponse(path,env){
+  if(path==='/sitemap-live-recent.xml')return liveRecentSitemap(env);
   const info=sitemapPathNum(path);
   if(!info&&path!=='/sitemap-images.xml'&&path!=='/sitemap-en-articles.xml')return null;
   const manifest=await getJson(env,'seo-rescue/index.json');
@@ -298,7 +329,7 @@ export async function emergencyPublicR2Response(req,env){
   const u=new URL(req.url);
   if(req.method!=='GET'||String(env.R2_RESCUE_READONLY_ENABLED||'')!=='true')return null;
   const p=u.pathname.replace(/\/+$/,'')||'/';
-  const isSitemap=p==='/sitemap-images.xml'||p==='/sitemap-en-articles.xml'||/^\/sitemap-rescue-(?:english-images|english|articles|images)-\d{1,4}\.xml$/.test(p);
+  const isSitemap=p==='/sitemap-live-recent.xml'||p==='/sitemap-images.xml'||p==='/sitemap-en-articles.xml'||/^\/sitemap-rescue-(?:english-images|english|articles|images)-\d{1,4}\.xml$/.test(p);
   if(!isSitemap&&!(/^\/articles\/[^/]+$/.test(p)||/^\/en\/articles\/[^/]+$/.test(p)||p==='/blog'||p==='/blog/saudi'||p==='/blog/uae'||p.startsWith('/blog/archive')))return null;
   try{
     if(isSitemap)return await rescueSitemapResponse(p,env);
