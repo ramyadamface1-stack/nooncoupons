@@ -1,0 +1,94 @@
+name: Audit Actual R2 Alternative and Publishing on Production
+on:
+  push:
+    branches: [audit/live-publish-and-r2-fallback-20261025]
+    paths: ['.github/workflows/audit-live-r2-alt-publish.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      NEW_R2_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      NEW_CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      OLD_CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Verify live publication counters, status and blog discovery (READ-ONLY)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,urllib.parse,json,re,datetime
+          host='https://noondealsnow.com'
+          for p in ['/api/health','/api/generation-freshness','/api/generator-health','/api/content-stats','/api/publication-rate','/blog','/blog/saudi','/blog/uae','/blog/archive/english','/sitemap.xml']:
+            req=urllib.request.Request(host+p,headers={'User-Agent':'NoonDealsNowMigrationReadonly-20261025','Accept':'application/json,text/html,*/*'})
+            try:
+              with urllib.request.urlopen(req,timeout=17) as response:
+                status=response.status;body=response.read(350000);headers=dict(response.headers)
+            except urllib.error.HTTPError as e:
+              status=e.code;body=e.read(5000);headers=dict(e.headers)
+            except Exception as e:
+              print('LIVE_STATUS='+json.dumps({'path':p,'error':type(e).__name__+':'+str(e)[:100]}),flush=True);continue
+            item={'path':p,'http':status,'bytes':len(body),'r2_rescue':headers.get('x-r2-rescue')}
+            try:
+              data=json.loads(body)
+              if isinstance(data,dict):
+                item['fields']={k:data.get(k) for k in ('ok','r2','status','error','reason','published','total','lastSuccessfulPublishAt','minutesSinceLastSuccessfulPublish','withinOneHour','bulkLastTickPublished','bulkLastError','lastRescueResult','lastPublishAt') if k in data}
+                for section in ('bulk','publication','status','latest'):
+                  if isinstance(data.get(section),dict):
+                    item[section]={k:v for k,v in data[section].items() if k in ('status','lastPublishAt','lastSuccess','lastSuccessfulPublishAt','publishedLastHour','publishedLast24Hours','published','bulkLastError','bulkNoPassStreak','bulkLastTickAt','bulkLastTickPublished','publishedToday','publishedArticles','total')}
+                if p=='/api/content-stats':
+                  item['topKeys']=list(data.keys())[:30]
+                  for k in ('recent','articles','latestPublished','recentArticles'):
+                    if isinstance(data.get(k),list):item[k+'Count']=len(data[k]);item[k+'First']=str(data[k][0])[:150] if data[k] else None
+            except Exception:
+              doc=body.decode('utf8','replace')
+              item.update({'articleLinks':len(re.findall(r'href="/(?:en/)?articles/',doc)),
+                'cards':doc.count('<article class="card"'),'images':len(re.findall(r'<img\b',doc)),
+                'sitemaps':doc.count('<sitemap>') if p.endswith('.xml') else 0})
+              if p=='/blog':
+                slugs=re.findall(r'href="(/articles/[^"]+)"',doc)
+                item['firstArticlePath']=slugs[0][:170] if slugs else ''
+            print('PRODUCTION_FRESH_AUDIT='+json.dumps(item,ensure_ascii=False)[:3200],flush=True)
+          print('LIVE_READONLY_COMPLETED=true',flush=True)
+          PY
+      - name: Audit existing new-account R2 recent feed and DO restore checkpoints (READ-ONLY)
+        shell: bash
+        run: |
+          python3 -m pip install -q boto3
+          python3 - <<'PY'
+          import boto3,os,json,datetime
+          from botocore.exceptions import ClientError
+          account='e4c35f8a50a7b2e4cfb9d6c534962603'
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://'+account+'.r2.cloudflarestorage.com',aws_access_key_id=os.environ['NEW_R2_ID'].strip(),aws_secret_access_key=os.environ['NEW_R2_SECRET'].strip())
+          for key in ['blog/latest-live-v1.json','seo-rescue/index.json','migration/restore-progress/20261017-baseline/ControlPlane.json','migration/restore-progress/20261017-baseline/GeneratorControl.json']:
+            try:
+              o=s.get_object(Bucket='nooncoupons-content-v2',Key=key)
+              data=json.load(o['Body'])
+              if key.startswith('blog/'):
+                articles=data.get('articles') or []
+                info={'articleCount':len(articles),'updatedAt':data.get('updatedAt'),'mostRecent':[{'slug':str(a.get('slug',''))[:110],'publishedAt':a.get('publishedAt'),'market':a.get('country')} for a in articles[:5]]}
+              elif key.startswith('seo-'):info={'arabic':data.get('count'),'english':data.get('englishCount')}
+              else:info={k:data.get(k) for k in ['partsDone','partsTotal','keysRestored','keysTotal','complete','updatedAt']}
+              print('NEW_R2_STATUS='+json.dumps({'key':key,'http':200,'lastModified':o['LastModified'].isoformat(),'detail':info},ensure_ascii=False),flush=True)
+            except ClientError as e:
+              print('NEW_R2_STATUS='+json.dumps({'key':key,'errorCode':e.response.get('Error',{}).get('Code')},ensure_ascii=False),flush=True)
+          PY
+      - name: Check zero-price pending zone and existing staging Worker without changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json,os
+          endpoints=[('new_zone','e4c35f8a50a7b2e4cfb9d6c534962603',os.environ['NEW_CF_TOKEN'],'/zones/c09077a581adc7aa11d6de0c121e179d'),
+                     ('staging_schedule','e4c35f8a50a7b2e4cfb9d6c534962603',os.environ['NEW_CF_TOKEN'],'/accounts/e4c35f8a50a7b2e4cfb9d6c534962603/workers/scripts/noondealsnow-migration-staging/schedules')]
+          for name,aid,token,path in endpoints:
+            try:
+              req=urllib.request.Request('https://api.cloudflare.com/client/v4'+path,headers={'Authorization':'Bearer '+token.strip()})
+              with urllib.request.urlopen(req,timeout=15) as r:data=json.load(r);status=r.status
+              val=data.get('result') or {}
+              print('MIGRATION_READONLY='+json.dumps({'type':name,'http':status,'success':data.get('success'),'status':val.get('status') if isinstance(val,dict) else None,'nameServers':val.get('name_servers') if isinstance(val,dict) else None,'cronCount':len(val) if isinstance(val,list) else None}),flush=True)
+            except Exception as e:print('MIGRATION_READONLY='+json.dumps({'type':name,'error':type(e).__name__}),flush=True)
+          PY
