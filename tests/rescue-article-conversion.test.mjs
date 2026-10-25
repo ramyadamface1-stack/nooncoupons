@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {primaryCodeForMarket,presentMarketCouponText,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
+import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
 import {emergencyPublicR2Response} from '../r2-emergency-readonly.js';
 
 test('primary code is locked to country; never show Saudi code to UAE shoppers',()=>{
@@ -96,4 +96,23 @@ test('Saudi and UAE blog listing thumbnails show the correct primary code, not h
     assert.match(aeHtml,/coupon=NOV188/);
     assert.doesNotMatch(aeHtml,/coupon=NOV157/);
   }finally{globalThis.fetch=original}
+});
+
+test('old FAQPage structured data agrees with visible country coupon while keeping references stable',()=>{
+  const original='<h2>كيف أستخدم NOV174؟</h2><script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"هل NOV174 يعمل؟","url":"https://noondealsnow.com/coupon/nov174","acceptedAnswer":{"@type":"Answer","text":"جرب NOV174 داخل سلة نون."}}],"@id":"https://noondealsnow.com/articles/saudi-nov174#faq"}</script>';
+  const cleaned=reconcileSourceCouponJsonLd(presentMarketCouponText(original,'SA'),'SA');
+  assert.match(cleaned,/<h2>كيف أستخدم NOV170/);
+  const json=JSON.parse(cleaned.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1]||'{}');
+  assert.equal(json.mainEntity[0].name,'هل NOV170 يعمل؟');
+  assert.equal(json.mainEntity[0].acceptedAnswer.text,'جرب NOV170 داخل سلة نون.');
+  assert.equal(json.mainEntity[0].url,'https://noondealsnow.com/coupon/nov174');
+  assert.equal(json['@id'],'https://noondealsnow.com/articles/saudi-nov174#faq');
+  assert.match(original,/هل NOV174/,'source unchanged');
+});
+test('invalid or non-FAQ JSON-LD remains safe and bad-market legacy text is reconciled',()=>{
+  assert.match(reconcileSourceCouponJsonLd('<script type="application/ld+json">INVALID</script>','AE'),/INVALID/);
+  const input='<script type="application/ld+json">{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","name":"كوبون NOV170","item":"https://noondealsnow.com/coupon/nov170"}]}</script>';
+  const data=JSON.parse(reconcileSourceCouponJsonLd(input,'AE').match(/<script[^>]*>([\s\S]*?)<\/script>/)[1]);
+  assert.equal(data.itemListElement[0].name,'كوبون NOV188');
+  assert.equal(data.itemListElement[0].item,'https://noondealsnow.com/coupon/nov170');
 });
