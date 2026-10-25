@@ -248,6 +248,14 @@ async function articleSitemap(path,env,origin){
   return xml(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`);
 }
 
+// Lock market and coupon *before* expensive generation, audit, R2 upload,
+// metadata/FAQ/image construction. Historic articles are not mutated.
+export function marketLockedArticleTopic(topic){
+  if(!topic)return topic;
+  const country=topic.country==='AE'?'AE':'SA';
+  return {...topic,country,code:normalizeMarketCoupon(topic.code,country)};
+}
+
 function aiUsage(status,callsUsed=0){
   const day=now().slice(0,10);
   const base=String(status?.workersAiDay||'')===day?Math.max(0,Number(status?.workersAiCallsToday||0)):0;
@@ -262,7 +270,7 @@ async function runOnce(env,{manual=false,rescue=false}={}){
   const started=Date.now(),status=await getGeneratorStatus(env),attempt=Number(status.attempts||0);
   let workersAiCallsUsed=0;
   try{
-    const st=await readState(env),topic=rescue?pickRescueTopic(st,attempt):pickTopic(st,attempt);
+    const st=await readState(env),topic=marketLockedArticleTopic(rescue?pickRescueTopic(st,attempt):pickTopic(st,attempt));
     if(!topic)throw new Error('topic_pool_exhausted');
     const effectiveCfg=rescue?{...cfg,minWords:Math.max(1500,Number(cfg.minWords||1500)),targetWords:1750,qualityThreshold:Math.max(95,Number(cfg.qualityThreshold||95)),rescueMode:true}:cfg;
     const budget=workersAiBudget(env,st,status);
