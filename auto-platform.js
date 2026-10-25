@@ -11,6 +11,7 @@ import {APPROVED_COUPON_CODES,normalizeApprovedCoupon,replaceUnapprovedCouponTok
 import {ensureRuntimeArticleQuality,normalizeRuntimeTitle,normalizeRuntimeMeta,RUNTIME_ARTICLE_QUALITY_INFO} from './article-quality-runtime.js';
 import {runEnglishScheduledTick} from './english-canary.js';
 import {getPublicationSlotStatus} from './publication-rate-limit.js';
+import {awaitPublicationWindow} from './cron-publication-window.js';
 import {getCampaignWindow} from './campaign-calendar.js';
 
 const VERSION='generator-5.0-quality-first';
@@ -417,17 +418,26 @@ export default{
     // scheduled/manual paths, enforces the 60-second rolling global maximum.
     if(app.scheduled)ctx.waitUntil(app.scheduled(event,env,ctx));
     const minute=Math.floor(Number(event?.scheduledTime||Date.now())/60000);
-    if(minute%5===0){
-      ctx.waitUntil((async()=>{
+    ctx.waitUntil((async()=>{
+      // Cron triggers at clock boundaries; the previous article may have
+      // acquired its rolling DO slot seconds after the prior boundary.
+      // Recheck the SAME atomic permit after a bounded wait so a few seconds
+      // of drift never consume the whole next minute.
+      const window=await awaitPublicationWindow(()=>getPublicationSlotStatus(env));
+      if(!window.ok){
+        console.log('publisher_cron_window_deferred',window.reason,window.nextEligibleAt||'');
+        return;
+      }
+      if(minute%5===0){
         const en=await runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)});
         if(Number(en?.batch?.published||0)===0)await guardedBulkTick(env);
-      })());
-    }else ctx.waitUntil((async()=>{
-      const sa=await guardedBulkTick(env);
-      const published=Number(sa?.first?.bulk?.records?.length||0)+(sa?.rescue?.record?1:0);
-      // Preserve the one-slot global cap. A failed Arabic quality batch
-      // may give this minute to a compliant UAE English candidate instead.
-      if(published===0)await runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)});
+      }else{
+        const sa=await guardedBulkTick(env);
+        const published=Number(sa?.first?.bulk?.records?.length||0)+(sa?.rescue?.record?1:0);
+        // Quality failure or temporary AI quota cannot bypass the global
+        // publication permit. English remains the tested market fallback.
+        if(published===0)await runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)});
+      }
     })());
   }
 };
