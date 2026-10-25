@@ -218,7 +218,7 @@ async function serveBlog(env,u){
   const visible=rows.slice((pageNum-1)*size,pageNum*size);
   const path=market==='SA'?'/blog/saudi':market==='AE'?'/blog/uae':'/blog';
   const heading=market==='SA'?'مدونة نون السعودية':market==='AE'?'مدونة نون الإمارات':'مدونة كوبونات نون';
-  const tabs='<nav class="related-links" aria-label="أقسام المدونة"><a href="/blog">كل المقالات</a><a href="/blog/saudi">السعودية</a><a href="/blog/uae">الإمارات</a><a href="/blog/archive/english">English UAE</a><a href="/blog/archive/all">الأرشيف الكامل</a><a href="/blog/archive/catalog">فهرس المقالات القديمة</a></nav>';
+  const tabs='<nav class="related-links" aria-label="أقسام المدونة"><a href="/blog">كل المقالات</a><a href="/blog/saudi">السعودية</a><a href="/blog/uae">الإمارات</a><a href="/blog/archive/english">English UAE</a><a href="/blog/archive/english/catalog">English directory</a><a href="/blog/archive/all">الأرشيف الكامل</a><a href="/blog/archive/catalog">فهرس المقالات القديمة</a></nav>';
   const hint='<h1>'+esc(heading)+'</h1><p>مقالات وأدلة شرائية مرتبطة بكوبونات نون، مع ضرورة مراجعة أهلية الكود والسعر النهائي داخل السلة.</p>'+tabs;
   const pageUrl='https://noondealsnow.com'+path+(pageNum>1?'?page='+pageNum:'');
   const schema='<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@graph':[{'@type':'CollectionPage',name:heading,url:pageUrl,inLanguage:'ar'},{'@type':'ItemList',itemListElement:visible.map((a,i)=>({'@type':'ListItem',position:i+1+(pageNum-1)*size,url:'https://noondealsnow.com'+link(a)}))}]}).replace(/</g,'\\u003c')+'</script>';
@@ -245,8 +245,64 @@ async function serveEnglishArchive(env,u){
     return '<article class="card" dir="ltr"><a href="'+esc(href)+'">'+imgTag(slug,'AE',primaryCodeForMarket('AE'),1,title)+'</a><h2><a href="'+esc(href)+'">'+esc(title)+'</a></h2><small>Noon UAE guide · '+esc(a.lastmod||'')+'</small></article>';
   }).join('');
   const path='/blog/archive/english',url='https://noondealsnow.com'+path+(pageNum>1?'?page='+pageNum:'');
-  const heading='<h1>Noon UAE English Shopping Guides</h1><p>Browse '+count.toLocaleString('en-US')+' published UAE shopping guides, alphabetically, 15 per page. Check each coupon against your final Noon cart total.</p><nav class="related-links"><a href="/blog">Arabic blog</a><a href="/blog/uae">UAE Arabic articles</a><a href="/uae">UAE store hub</a></nav>';
+  const heading='<h1>Noon UAE English Shopping Guides</h1><p>Browse '+count.toLocaleString('en-US')+' published UAE shopping guides, alphabetically, 15 per page. Check each coupon against your final Noon cart total.</p><nav class="related-links"><a href="/blog">Arabic blog</a><a href="/blog/uae">UAE Arabic articles</a><a href="/uae">UAE store hub</a><a href="/blog/archive/english/catalog">Browse all English guides</a></nav>';
   return response('Noon UAE English Guides',heading+'<section class="cards">'+cardsHtml+'</section>'+nav(pageNum>1?path+'?page='+(pageNum-1):'',pageNum<pages?path+'?page='+(pageNum+1):'','Page '+pageNum+' of '+pages),{canonical:url,robots:'noindex,follow',lang:'en',dir:'ltr'});
+}
+
+
+// A bounded 100-link English archive index uses the existing verified
+// English R2 manifests. It does not enumerate individual R2 objects.
+const ENGLISH_CATALOG_SIZE=100;
+const englishCatalogUrl=n=>'/blog/archive/english/catalog'+(n>1?'/'+n:'');
+function englishCatalogCount(index){
+  if(index?.version!==1||!Array.isArray(index.englishSegments)||!index.englishSegments.length)return 0;
+  const sum=index.englishSegments.reduce((x,p)=>x+Math.max(0,Number(p.count)||0),0);
+  return Math.min(1000000,Math.max(0,Math.min(Number(index.englishCount)||sum,sum)));
+}
+async function serveEnglishCatalog(env,u){
+  const index=await getJson(env,'seo-rescue/index.json'),count=englishCatalogCount(index);
+  if(!count)return new Response('English archive index temporarily unavailable',{status:503,headers:{'cache-control':'no-store'}});
+  const match=u.pathname.match(/^\/blog\/archive\/english\/catalog(?:\/([1-9]\d{0,4}))?$/);
+  const current=match?.[1]?Number(match[1]):1,pages=Math.ceil(count/ENGLISH_CATALOG_SIZE);
+  if(current>pages)return new Response('English archive page not found',{status:404,headers:{'cache-control':'public,max-age=60'}});
+  const from=(current-1)*ENGLISH_CATALOG_SIZE,end=Math.min(count,from+ENGLISH_CATALOG_SIZE),first=Math.floor(from/2000),last=Math.floor((end-1)/2000),rows=[];
+  for(let n=first;n<=last;n++){
+    const shard=index.englishSegments.find(x=>x.n===n);
+    if(!shard?.key)return new Response('English archive shard unavailable',{status:503,headers:{'cache-control':'no-store'}});
+    const data=await getJson(env,shard.key);
+    if(data?.version!==1||!Array.isArray(data.articles))return new Response('English archive data unavailable',{status:503,headers:{'cache-control':'no-store'}});
+    const offset=n*2000;
+    for(let i=Math.max(0,from-offset);i<Math.min(data.articles.length,end-offset);i++){
+      const a=data.articles[i];
+      if(a?.slug&&String(a.slug).startsWith('en-'))rows.push(a);
+    }
+  }
+  const path=englishCatalogUrl(current),canonical='https://noondealsnow.com'+path,
+    title='Noon UAE English Shopping Guide Directory — Page '+current;
+  const links=rows.map(a=>{
+    const slug=String(a.slug),href='/en/articles/'+encodeURIComponent(slug);
+    const name=String(a.title||slug.slice(3).replace(/-/g,' ')).slice(0,180);
+    return '<li><a href="'+esc(href)+'">'+esc(name)+'</a></li>';
+  }).join('');
+  const link=(n,label)=>'<a href="'+englishCatalogUrl(n)+'">'+label+'</a>';
+  const paging='<nav class="archive-pagination" aria-label="Directory pages">'+
+    (current>1?link(1,'First')+link(current-1,'Previous'):'')+
+    '<strong>Page '+current.toLocaleString('en-US')+' of '+pages.toLocaleString('en-US')+'</strong>'+
+    (current<pages?link(current+1,'Next')+link(pages,'Last'):'')+'</nav>';
+  const css='<style>.archive-index{padding-left:1.5rem}.archive-index li{line-height:1.8;border-bottom:1px solid #e2e8f0;padding:.55rem 0}.archive-index a{color:#1558c0;text-decoration:underline;font-weight:600}.archive-index a:visited{color:#6b36ab}.archive-pagination{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:24px 0}.archive-pagination a{padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;color:#1558c0;text-decoration:underline}</style>';
+  const json={'@context':'https://schema.org','@type':'CollectionPage',name:title,url:canonical,inLanguage:'en-AE',mainEntity:{'@type':'ItemList',itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:from+i+1,url:'https://noondealsnow.com/en/articles/'+encodeURIComponent(a.slug)}))}};
+  const schema='<script type="application/ld+json">'+JSON.stringify(json).replace(/</g,'\\u003c')+'</script>';
+  const body=css+schema+'<h1>'+esc(title)+'</h1><p>Browse the restored Noon UAE English guide archive, 100 original article links per page. Confirm offer eligibility and final checkout totals at Noon. All article addresses remain unchanged.</p>'+
+    '<p><a href="/blog/archive/english">English guide cards</a> · <a href="/blog/uae">UAE Arabic</a> · <a href="/uae">Noon UAE</a></p>'+
+    paging+'<ol class="archive-index" start="'+(from+1)+'">'+links+'</ol>'+paging;
+  return response(title,body,{lang:'en-AE',dir:'ltr',canonical,robots:'index,follow',description:'Noon UAE English shopping guide directory — page '+current+' of '+pages});
+}
+async function englishCatalogSitemap(env){
+  const index=await getJson(env,'seo-rescue/index.json'),count=englishCatalogCount(index);
+  if(!count)return new Response('English catalog unavailable',{status:503,headers:{'cache-control':'no-store'}});
+  const pages=Math.ceil(count/ENGLISH_CATALOG_SIZE);
+  return xmlResponse('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+
+    Array.from({length:pages},(_,i)=>'<url><loc>https://noondealsnow.com'+englishCatalogUrl(i+1)+'</loc></url>').join('')+'</urlset>');
 }
 
 const CATALOG_PAGE_SIZE=100;
@@ -371,6 +427,7 @@ export async function rescueSitemapIndexPaths(env){
     rows.push('/sitemap-rescue-english-'+part.n+'.xml','/sitemap-rescue-english-images-'+part.n+'.xml');
   }
   if(catalogSize(index)>0)rows.push('/sitemap-rescue-catalog.xml');
+  if(englishCatalogCount(index)>0)rows.push('/sitemap-rescue-english-catalog.xml');
   // Only advertise a live sitemap when the existing R2 feed has published, QA-approved entries.
   // Errors in the optional feed must never hide static rescue shards.
   try{const live=await getJson(env,'blog/latest-live-v1.json');if((live?.articles||[]).some(liveSitemapEligible))rows.push('/sitemap-live-recent.xml')}catch{}
@@ -379,6 +436,7 @@ export async function rescueSitemapIndexPaths(env){
 export async function rescueSitemapResponse(path,env){
   if(path==='/sitemap-live-recent.xml')return liveRecentSitemap(env);
   if(path==='/sitemap-rescue-catalog.xml')return catalogSitemap(env);
+  if(path==='/sitemap-rescue-english-catalog.xml')return englishCatalogSitemap(env);
   const info=sitemapPathNum(path);
   if(!info&&path!=='/sitemap-images.xml'&&path!=='/sitemap-en-articles.xml')return null;
   const manifest=await getJson(env,'seo-rescue/index.json');
@@ -404,7 +462,7 @@ export async function emergencyPublicR2Response(req,env){
   const u=new URL(req.url);
   if(req.method!=='GET'||String(env.R2_RESCUE_READONLY_ENABLED||'')!=='true')return null;
   const p=u.pathname.replace(/\/+$/,'')||'/';
-  const isSitemap=p==='/sitemap-rescue-catalog.xml'||p==='/sitemap-live-recent.xml'||p==='/sitemap-images.xml'||p==='/sitemap-en-articles.xml'||/^\/sitemap-rescue-(?:english-images|english|articles|images)-\d{1,4}\.xml$/.test(p);
+  const isSitemap=p==='/sitemap-rescue-english-catalog.xml'||p==='/sitemap-rescue-catalog.xml'||p==='/sitemap-live-recent.xml'||p==='/sitemap-images.xml'||p==='/sitemap-en-articles.xml'||/^\/sitemap-rescue-(?:english-images|english|articles|images)-\d{1,4}\.xml$/.test(p);
   if(!isSitemap&&!(/^\/articles\/[^/]+$/.test(p)||/^\/en\/articles\/[^/]+$/.test(p)||p==='/blog'||p==='/blog/saudi'||p==='/blog/uae'||p.startsWith('/blog/archive')))return null;
   try{
     if(isSitemap)return await rescueSitemapResponse(p,env);
@@ -415,6 +473,7 @@ export async function emergencyPublicR2Response(req,env){
     if(p==='/blog/archive/all')return await serveAll(env,u);
     if(/^\/blog\/archive\/catalog(?:\/[1-9]\d{0,4})?$/.test(p))return await serveCatalog(env,u);
     if(/^\/blog\/archive\/\d{4}-\d{2}-\d{2}$/.test(p))return await serveDay(env,u,p.slice('/blog/archive/'.length));
+    if(/^\/blog\/archive\/english\/catalog(?:\/[1-9]\d{0,4})?$/.test(p))return await serveEnglishCatalog(env,u);
     if(p==='/blog/archive/english')return await serveEnglishArchive(env,u);
     return null;
   }catch(error){
