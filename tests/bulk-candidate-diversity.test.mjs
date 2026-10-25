@@ -34,3 +34,14 @@ test('same cursor and attempt always choose the same candidate seed',()=>{
     assert.equal(pick(3876543+n,n,cfg),pick(3876543+n,n,cfg));
   }
 });
+test('proven zero-yield burst diversifies every candidate without relaxing publication gates',()=>{
+  const seed=12781996;
+  for(const market of ['SA','AE']){
+    const values=Array.from({length:48},(_,i)=>pick(seed+i,i+1,{...opts,burstMode:true,forceCountry:market,previousYieldPct:0}));
+    assert.equal(new Set(values).size,48,'stalled '+market+' burst candidates must all be unique');
+    assert.ok(values.every((v,i)=>v!==seed+i),'stalled burst must not revisit adjacent saturated slots');
+    assert.ok(new Set(values.map(v=>Math.floor(v/1000000))).size>=20,'candidate spread across unrelated topics');
+  }
+  assert.equal(pick(1000,2,{...opts,burstMode:true,forceCountry:'SA',previousYieldPct:40}),1000,'healthy Saudi burst keeps original one-in-three diversification');
+  assert.equal(pick(1000,2,{...opts,burstMode:true,forceCountry:'AE',previousYieldPct:40}),1000,'healthy UAE burst stays sequential');
+});
