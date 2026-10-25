@@ -111,6 +111,7 @@ async function computeContentStats(req,env,ctx){
   const r2Count=await countR2ArticleHtml(env,{fresh:freshCount});
   const r2Uploaded=r2Count.count;
   const bulk=generator?.bulk||{};
+  const workersAiToday=generator?.workersAiPublishedTodayByMarket||{};
   const controlled=english?.controlled||{};
   const arabic=Number(bulk.publishedTotal||0);
   const englishTotal=Number(controlled.published||0),trackedPublished=arabic+englishTotal,untrackedEstimate=r2Count.complete&&Number.isFinite(Number(r2Uploaded))?Math.max(0,Number(r2Uploaded)-trackedPublished):null;
@@ -126,6 +127,10 @@ async function computeContentStats(req,env,ctx){
     },
     englishByCountry:{SA:Number(controlled.sa||0),AE:Number(controlled.ae||0)},
     publishedTodayArabic:Number(bulk.publishedToday||0),dailyTargetArabic:Number(bulk.dailyTarget||0),
+    publishedTodaySaudiWorkersAI:Number(workersAiToday.SA||0),
+    publishedTodayUaeWorkersAI:Number(workersAiToday.AE||0),
+    publishedTodaySaudiKnown:Number(bulk.publishedToday||0)+Number(workersAiToday.SA||0),
+    publishedTodayCountScope:'publishedTodayArabic is programmatic bulk only; publishedTodaySaudiKnown adds separate Workers AI ControlPlane posts, excluding unaudited older/other pipelines',
     last:{slug:bulk.lastSlug||null,quality:bulk.lastQuality??null,wordCount:bulk.lastWordCount??null,run:bulk.lastRun||null,error:bulk.lastError||null},
     englishControlled:{target:Number(controlled.target||0),complete:Boolean(controlled.complete),remaining:Number(controlled.remaining||0),publishedToday:Number(controlled.publishedToday||0),dailyTarget:Number(controlled.dailyTarget||0),minIntervalMinutes:Number(controlled.minIntervalMinutes||0),nextEligibleAt:controlled.nextEligibleAt||null},
     source:'live-runtime',generatedAt:new Date().toISOString(),health:generator,
