@@ -1,0 +1,28 @@
+name: Inspect Public DO Content Stats Shape for Fresh Blog Feed
+on:
+  push:
+    branches: [audit/verify-new-articles-in-blog-20261025]
+    paths: ['.github/workflows/inspect-content-stats-shape.yml']
+permissions: {contents: read}
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - run: |
+          python3 - <<'PY'
+          import json,urllib.request
+          for path in ['/api/content-stats','/api/generator-health','/api/state']:
+            try:
+              req=urllib.request.Request('https://noondealsnow.com'+path,headers={'User-Agent':'Mozilla/5.0','Accept':'application/json'})
+              with urllib.request.urlopen(req,timeout=15) as r:data=json.load(r)
+              print('ENDPOINT_SHAPE='+json.dumps({'path':path,'keys':list(data.keys())[:70]},ensure_ascii=False),flush=True)
+              for k,v in data.items():
+                if isinstance(v,list) and len(v)>0:
+                  print('LIST_SHAPE='+json.dumps({'path':path,'field':k,'length':len(v),'first':str(v[0])[:400]},ensure_ascii=False)[:800],flush=True)
+                if isinstance(v,dict):
+                  for sub,w in v.items():
+                    if isinstance(w,list) and w:
+                      print('NESTED_LIST_SHAPE='+json.dumps({'path':path,'parent':k,'field':sub,'length':len(w),'first':str(w[0])[:380]},ensure_ascii=False)[:850],flush=True)
+            except Exception as e:print('SHAPE_READ_ERROR='+path+':'+type(e).__name__,flush=True)
+          PY
