@@ -134,7 +134,10 @@ async function computeContentStats(req,env,ctx){
 
 const memoContentStats=createSafeStatsMemo({ttlMs:90000,maxStaleMs:300000});
 async function contentStats(req,env,ctx){
-  const fresh=new URL(req.url).searchParams.get('fresh')==='1';
+  const u=new URL(req.url);
+  // Only authenticated admin overview can deliberately bypass this bounded cache.
+  // Public fresh=1 would otherwise re-trigger expensive aggregation on every hit.
+  const fresh=u.pathname==='/api/admin/live-overview'&&u.searchParams.get('fresh')==='1';
   return memoContentStats(()=>computeContentStats(req,env,ctx),{fresh});
 }
 
