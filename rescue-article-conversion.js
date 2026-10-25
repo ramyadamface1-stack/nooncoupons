@@ -50,6 +50,14 @@ export function reconcileSourceCouponJsonLd(html,country='SA'){
   });
 }
 
+// Legacy article bodies contain "/guides", a confirmed production 404.
+// Repair only that exact internal destination according to the article market;
+// original stored bytes, article URL and all other hrefs are unchanged.
+export function repairLegacyGuideLinks(source,country='SA'){
+  const target=country==='AE'?'/uae/shopping-guide':'/saudi/shopping-guide';
+  return String(source??'').replace(/(<a\b[^>]*\bhref\s*=\s*)(["'])\/guides\/?\2/gi,(_all,attrs,quote)=>attrs+quote+target+quote);
+}
+
 export function renderCouponAction(country='SA',english=false,placement='top'){
   const market=country==='AE'?'AE':'SA',code=primaryCodeForMarket(market);
   const official=market==='AE'?'https://www.noon.com/uae-en/':'https://www.noon.com/saudi-ar/';
