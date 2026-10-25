@@ -1,0 +1,20 @@
+name: Verify Strict Live Coupon Source Gate Excludes Only Test Fixtures
+on:
+  push:
+    branches: [fix/strict-coupon-audit-fixtures-20261025]
+    paths: ['scripts/coupon-code-gate.mjs','.github/workflows/test-coupon-fixture-gate-20261025.yml']
+permissions: {contents: read}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Require approved runtime codes and test invalid-code rejection
+        run: |
+          set -euo pipefail
+          node scripts/coupon-code-gate.mjs
+          node --test tests/coupon-registry-freshness-date.test.mjs
+          echo 'RUNTIME_COUPON_ALLOWLIST_AND_NEGATIVE_TESTS=PASS'
