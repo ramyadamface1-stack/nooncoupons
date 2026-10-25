@@ -1,0 +1,35 @@
+name: Test No-Cost New-R2 Recent Article Feed and 30s Blog Freshness
+on:
+  push:
+    branches: [fix/live-article-feed-on-publish-20261025]
+    paths:
+      - 'r2-remote-existing-bucket.js'
+      - 'r2-emergency-readonly.js'
+      - 'r2-public-cache-policy.js'
+      - 'wrangler.jsonc'
+      - 'tests/live-publication-feed.test.mjs'
+      - '.github/workflows/test-live-article-feed-on-publish.yml'
+permissions: {contents: read}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Test old adapter protocol compatibility, new chronological feed, no duplicate writes and cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/live-publication-feed.test.mjs tests/remote-existing-r2-binding.test.mjs tests/r2-saver.test.mjs
+          node --check r2-emergency-readonly.js
+          node --check r2-remote-existing-bucket.js
+          echo 'BLOG_LIVE_NEW_R2_FEED_TESTS_PASSED=true'
+      - name: Dry-run production Worker (no actual deploy, no new resources)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          npx wrangler deploy --dry-run --outdir /tmp/publication-feed-workerd
+          echo 'PRODUCTION_WORKER_DRY_RUN_PASS=true'
