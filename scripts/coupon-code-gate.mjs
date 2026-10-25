@@ -8,7 +8,7 @@ const ALLOWED=new Set([
 ]);
 const TOKEN_RE=/\b(?:OPS\d+|NOV\d+)\b/gi;
 // Production source allowlist is strict; unit-test fixtures intentionally include
-// invalid coupon examples such as NOV999 to verify they are rejected. They
+// invalid coupon examples to exercise rejection paths to verify they are rejected. They
 // must NOT be parsed as live coupon inventory.
 const SKIP_DIRS=new Set(['.git','node_modules','tests']);
 const findings=[];
