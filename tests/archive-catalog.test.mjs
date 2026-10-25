@@ -5,12 +5,14 @@ import {publicRouteKind,publicEdgeCacheEligible,publicEdgePolicyRevision} from '
 
 const env={R2_RESCUE_READONLY_ENABLED:'true',NOON_RESCUE_R2_ACCESS_KEY_ID:'TEST_ID',NOON_RESCUE_R2_SECRET_ACCESS_KEY:'TEST_SECRET'};
 const list=Array.from({length:250},(_,i)=>({slug:'guide-'+String(i).padStart(4,'0'),lastmod:'2026-10-01',country:i%2?'AE':'SA'}));
+const englishList=Array.from({length:230},(_,i)=>({slug:'en-uae-guide-'+String(i).padStart(4,'0'),country:'AE',lastmod:'2026-10-01'}));
 async function fixture(fn){
   const original=globalThis.fetch;
   globalThis.fetch=async url=>{
     const path=decodeURIComponent(new URL(url).pathname);
-    if(path.endsWith('/seo-rescue/index.json'))return new Response(JSON.stringify({version:1,count:250,englishCount:0,segments:[{n:0,key:'seo-rescue/part-0.json',count:250}]}),{status:200,headers:{'content-type':'application/json'}});
+    if(path.endsWith('/seo-rescue/index.json'))return new Response(JSON.stringify({version:1,count:250,englishCount:230,segments:[{n:0,key:'seo-rescue/part-0.json',count:250}],englishSegments:[{n:0,key:'seo-rescue/english-0.json',count:230}]}),{status:200,headers:{'content-type':'application/json'}});
     if(path.endsWith('/seo-rescue/part-0.json'))return new Response(JSON.stringify({version:1,articles:list}),{status:200,headers:{'content-type':'application/json'}});
+    if(path.endsWith('/seo-rescue/english-0.json'))return new Response(JSON.stringify({version:1,articles:englishList}),{status:200,headers:{'content-type':'application/json'}});
     if(path.endsWith('/blog/latest-live-v1.json'))return new Response(JSON.stringify({articles:[]}),{status:200});
     throw Error('Unexpected mock R2 key '+path);
   };
@@ -65,4 +67,36 @@ test('after FAQ market correction, refresh only article cache and keep costly R2
   for(const path of ['/blog/archive/catalog','/blog/archive/catalog/700','/sitemap.xml','/sitemap-rescue-catalog.xml']){
     assert.equal(publicEdgePolicyRevision(path,base),base);
   }
+});
+
+test('English UAE directory exposes 100 links per stable page with own canonical and safe 404',()=>fixture(async()=>{
+  for(const [num,expected] of [[1,100],[2,100],[3,30]]){
+    const path='/blog/archive/english/catalog'+(num>1?'/'+num:'');
+    const res=await emergencyPublicR2Response(new Request('https://noondealsnow.com'+path),env);
+    assert.equal(res.status,200);
+    const html=await res.text();
+    assert.match(html,/name="robots" content="index,follow"/);
+    assert.match(html,new RegExp('rel="canonical" href="https://noondealsnow.com'+path+'"'));
+    assert.equal((html.match(/<li>/g)||[]).length,expected);
+    assert.match(html,/\/en\/articles\/en-uae-guide-/);
+    assert.doesNotMatch(html,/\/articles\/guide-0000/);
+    assert.match(html,/G-1551Z7DJ2C/);
+  }
+  const bad=await emergencyPublicR2Response(new Request('https://noondealsnow.com/blog/archive/english/catalog/4'),env);
+  assert.equal(bad.status,404);
+}));
+test('English directory is indexed in root sitemap and points to 3 discoverable pages',()=>fixture(async()=>{
+  const entries=await rescueSitemapIndexPaths(env);
+  assert.ok(entries.includes('/sitemap-rescue-english-catalog.xml'));
+  const sitemap=await rescueSitemapResponse('/sitemap-rescue-english-catalog.xml',env);
+  assert.equal(sitemap.status,200);
+  const xml=await sitemap.text();
+  assert.equal((xml.match(/<url>/g)||[]).length,3);
+  assert.match(xml,/https:\/\/noondealsnow.com\/blog\/archive\/english\/catalog\/3/);
+}));
+test('English stable directory is cacheable but never caches URL params',()=>{
+  assert.equal(publicRouteKind('/blog/archive/english/catalog'),'page');
+  assert.equal(publicRouteKind('/blog/archive/english/catalog/2'),'page');
+  assert.equal(publicEdgeCacheEligible(new Request('https://noondealsnow.com/blog/archive/english/catalog/2')),true);
+  assert.equal(publicEdgeCacheEligible(new Request('https://noondealsnow.com/blog/archive/english/catalog/2?ref=abc')),false);
 });
