@@ -13,6 +13,7 @@ on:
       - 'tests/bulk-candidate-diversity.test.mjs'
       - 'tests/live-recent-sitemap.test.mjs'
       - 'tests/rescue-article-conversion.test.mjs'
+      - 'tests/archive-catalog.test.mjs'
       - 'tests/remote-r2-pace.test.mjs'
   workflow_dispatch:
 
@@ -39,4 +40,4 @@ jobs:
       - name: Validate quality-gated sitemap and one-minute R2 publishing behavior
         run: |
           set -euo pipefail
-          node --test tests/bulk-candidate-diversity.test.mjs tests/live-recent-sitemap.test.mjs tests/remote-r2-pace.test.mjs tests/live-publication-feed.test.mjs tests/rescue-article-conversion.test.mjs
+          node --test tests/bulk-candidate-diversity.test.mjs tests/live-recent-sitemap.test.mjs tests/remote-r2-pace.test.mjs tests/live-publication-feed.test.mjs tests/rescue-article-conversion.test.mjs tests/archive-catalog.test.mjs
