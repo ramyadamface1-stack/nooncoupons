@@ -32,6 +32,13 @@ export function publicEdgeCacheEligible(req,u=new URL(req.url)){
   if(!u.search)return true;
   return kind==='article'&&[...u.searchParams.keys()].every(key=>TRACKING_QUERY.test(key));
 }
+// Page-specific cache version: invalidate only old article HTML when a fix
+// changes its SEO/schema presentation. Keep expensive archive/catalog cache warm.
+export function publicEdgePolicyRevision(path,baseRevision='r2-jsonld-dedupe-r16'){
+  const kind=publicRouteKind(String(path||''));
+  return kind==='article'?'r2-article-faq-market-v17':baseRevision;
+}
+
 export function publicEdgeTtlSeconds(path){
   if((path.replace(/\/+$/,'')||'/')==='/sitemap-live-recent.xml')return 60;
   if(['/blog','/blog/saudi','/blog/uae'].includes(path.replace(/\/+$/,'')||'/'))return 30;
