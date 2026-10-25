@@ -1,0 +1,34 @@
+name: Identify Intermittent 503 on Public Country Blog and Stats
+on:
+  push:
+    branches: [audit/live-publish-and-r2-fallback-20261025]
+    paths: ['.github/workflows/audit-503-live-routes.yml']
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Public HTTP error categories (no modifications)
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json,time
+          host='https://noondealsnow.com'
+          for path in ['/blog/uae','/api/content-stats','/blog','/api/health','/api/generation-freshness']:
+            for i in range(5 if path in ['/blog/uae','/api/content-stats'] else 2):
+              q=urllib.request.Request(host+path,headers={'Accept':'text/html,application/json,*/*','User-Agent':'NoonDealsNow-Readonly-503-Audit/20261025'})
+              start=time.monotonic()
+              try:
+                with urllib.request.urlopen(q,timeout=14) as r:
+                  status=r.status;b=r.read(2000);h=dict(r.headers)
+              except urllib.error.HTTPError as e:
+                status=e.code;b=e.read(2000);h=dict(e.headers)
+              except Exception as e:
+                status=0;b=str(e).encode();h={}
+              try:
+                d=json.loads(b);info={k:d.get(k) for k in ('type','title','status','detail','error_code','error_name','error_category','retryable','what_you_should_do','footer') if k in d}
+              except:info={'prefix':b[:125].decode('utf8','replace').replace('\n',' ')}
+              print('HTTP_503_DIAG='+json.dumps({'path':path,'attempt':i+1,'status':status,'ms':round((time.monotonic()-start)*1000),'edge':h.get('x-edge-page-cache'),'cf_ray':bool(h.get('CF-RAY') or h.get('cf-ray')),'detail':info},ensure_ascii=False)[:1150],flush=True)
+              time.sleep(.3)
+          PY
