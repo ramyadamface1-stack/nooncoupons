@@ -1,7 +1,7 @@
 import {enableExistingDestinationR2} from './r2-remote-existing-bucket.js';
 import app from './brand-runtime.js';
 import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
-import {emergencyPublicR2Response,rescueSitemapIndexPaths} from './r2-emergency-readonly.js';
+import {emergencyPublicR2Response,rescueSitemapIndexPaths,rescueManifestInventory} from './r2-emergency-readonly.js';
 import {runEnglishCanaryBatch,englishCanaryRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
@@ -473,6 +473,26 @@ export default{
     if(rescued)return edgePageCachePut(req,u,rescued,ctx);
     const directory=brandDirectoryResponse(req);
     if(directory)return edgePageCachePut(req,u,directory,ctx);
+    if(req.method==='GET'&&u.pathname==='/api/archive-inventory'){
+      // One cached manifest read + historical snapshot. Never enumerate 190k
+      // R2 objects or run the expensive full generator health on this route.
+      const [manifest,snapshot]=await Promise.all([
+        rescueManifestInventory(env).catch(e=>({ok:false,reason:String(e?.message||e).slice(0,90)})),
+        (async()=>{try{const obj=await env.CONTENT_FINAL?.get('_ops/article-count.json');return obj?await obj.json():null}catch{return null}})()
+      ]);
+      const snapDate=String(snapshot?.countedAt||'');
+      const ageMs=Date.now()-Date.parse(snapDate);
+      const historical={
+        count:Number.isFinite(Number(snapshot?.count))?Number(snapshot.count):null,
+        countedAt:snapDate||null,
+        ageDays:Number.isFinite(ageMs)?Math.max(0,Math.floor(ageMs/86400000)):null,
+        stale:Number.isFinite(ageMs)?ageMs>86400000:true,
+        source:String(snapshot?.source||'none'),
+        completeAtTime:Boolean(snapshot?.complete),
+        note:'Historic snapshot is not a live R2 object count.'
+      };
+      return new Response(JSON.stringify({ok:Boolean(manifest?.ok),generatedAt:new Date().toISOString(),manifest,historicalAuditSnapshot:historical,noR2List:true,noWrites:true},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'public, max-age=30, s-maxage=120','x-article-inventory':'manifest-v1'}});
+    }
     if(req.method==='GET'&&u.pathname==='/api/revision')return new Response(JSON.stringify({ok:true,release:DISCOVERY_RELEASE,layer:'discovery-entry',sitemapHealth:true,imageSitemap:true,englishIntentOwners:true,shoppingIntentOwners:true,noIdleGenerationGuard:true,titleCannibalizationGate:true},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-runtime-revision':DISCOVERY_RELEASE}});
 
     if(req.method==='POST'&&u.pathname==='/api/internal/generation-burst-step'){
