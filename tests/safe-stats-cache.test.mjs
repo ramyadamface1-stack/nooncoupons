@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createSafeStatsMemo} from '../safe-stats-cache.js';
+import {createSafeStatsMemo,permitStatsFresh} from '../safe-stats-cache.js';
 test('expensive stats request memoizes and preserves the published counts',async()=>{
   const run=createSafeStatsMemo({ttlMs:60000});
   let reads=0;
@@ -26,4 +26,11 @@ test('stale fallback is labeled and a failed first read still fails',async()=>{
   const s=await run(()=>{throw Error('down')});
   assert.equal(s.total,5);
   assert.equal(s.statsCache.stale,true);
+});
+
+test('public freshness query can never force R2 audit writes or bypass stats memo',()=>{
+  for(const path of ['/api/content-stats?fresh=1','/api/content-stats?fresh=true','/api/article-count-health?fresh=1','/api/admin/live-overview']){
+    assert.equal(permitStatsFresh('https://noondealsnow.com'+path),false,path);
+  }
+  assert.equal(permitStatsFresh('https://noondealsnow.com/api/admin/live-overview?fresh=1'),true);
 });
