@@ -81,7 +81,8 @@ const topicLinks=(country='SA',english=false)=>{
     ['/'+market,english?'Country shopping hub':'تسوق نون حسب الدولة'],
     ['/'+market+'/categories',english?'Product categories':'أقسام المنتجات'],
     ['/blog',english?'Latest guides':'أحدث المقالات'],
-    ['/blog/archive/all',english?'All archived guides':'أرشيف المقالات']
+    ['/blog/archive/all',english?'All archived guides':'أرشيف المقالات'],
+    ['/blog/archive/catalog',english?'Browse old article directory':'فهرس المقالات القديمة']
   ].map(([href,title])=>'<a href="'+esc(href)+'">'+esc(title)+'</a>').join('')+'</div></nav>';
 };
 function page(title,content,{lang='ar',dir='rtl',canonical='',description='',robots='noindex,follow',image=''}={}){
@@ -160,7 +161,7 @@ async function serveArticle(env,u,english){
   // Preserve its language, market alternatives and canary contract when serving
   // those ORIGINAL URLs. This does not alter publication status or source HTML.
   const originalEnglishBaseline=english&&(slug==='en-skincare-noon-uae-shopping-guide-coupon-today'||slug==='en-noon-coupon-dubai');
-  const languageAlternates=english?'<link rel="alternate" hreflang="en-AE" href="'+esc(canonical)+'"><link rel="alternate" hreflang="ar-AE" href="https://noondealsnow.com/uae"><link rel="alternate" hreflang="x-default" href="'+esc(canonical)+'">':'';
+  const languageAlternates=english?'<link rel="alternate" hreflang="en-AE" href="'+esc(canonical)+'"><link rel="alternate" hreflang="x-default" href="'+esc(canonical)+'">':'';
   // Keep source article body and original slugs, but restore its cover and cross-links.
   let related='';
   // Read the already-existing 300-item journal only; never list 150k+ objects
@@ -169,7 +170,7 @@ async function serveArticle(env,u,english){
   const topOffer=renderCouponAction(country,english,'top'),bottomOffer=renderCouponAction(country,english,'bottom');
   const mobileOffer='<div class="rescue-mobile-offer" data-market="'+country+'">'+renderCouponAction(country,english,'mobile')+'</div>';
   const contents=schema+figure+'<article class="rescue-article" data-market="'+country+'">'+topOffer+body+bottomOffer+related+'</article>'+extras+mobileOffer+rescueCopyScript;
-  let html=page(title,contents,{lang:english?'en-AE':'ar',dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
+  let html=page(title,contents,{lang:english?'en-AE':country==='AE'?'ar-AE':'ar-SA',dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
   html=html.replace('</head>',rescueArticleStyles+'</head>');
   if(languageAlternates)html=html.replace('</head>',languageAlternates+'</head>');
   html=html.replace('</head>','<meta property="og:type" content="article"><meta property="og:title" content="'+esc(title)+'"><meta property="og:description" content="'+esc(description)+'"><meta property="og:image" content="'+esc(featured)+'"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="760"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(featured)+'"></head>');
@@ -302,7 +303,7 @@ async function serveAll(env,u){
 async function serveDays(env){
   const m=await getJson(env,'bulk/days.json'),days=(m?.days||[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x.day||''));
   const rows=days.map(x=>'<article class="card"><a href="/blog/archive/'+encode(x.day)+'">'+esc(x.day)+'</a> · '+Number(x.count||0).toLocaleString('ar-EG')+' مقالة في فهرس اليوم</article>').join('');
-  return response('أرشيف المقالات','<h1>أرشيف المقالات حسب التاريخ</h1><p><a href="/blog/archive/all">تصفح كل المقالات المحفوظة</a></p><section class="cards">'+rows+'</section>',{canonical:'https://noondealsnow.com/blog/archive'});
+  return response('أرشيف المقالات','<h1>أرشيف المقالات حسب التاريخ</h1><p><a href="/blog/archive/all">تصفح كل المقالات المحفوظة</a> · <a href="/blog/archive/catalog">الفهرس الثابت للمقالات القديمة</a></p><section class="cards">'+rows+'</section>',{canonical:'https://noondealsnow.com/blog/archive'});
 }
 async function serveDay(env,u,day){
   const m=await getJson(env,'bulk/days.json'),row=(m?.days||[]).find(x=>x.day===day);
