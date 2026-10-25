@@ -83,15 +83,18 @@ export function renderCouponAction(country='SA',english=false,placement='top'){
 export function renderRelatedArticles(items,slug,country,english=false){
   const source=Array.isArray(items)?items:[];
   const current=String(slug||''),market=country==='AE'?'AE':'SA';
-  const words=s=>String(s||'').toLowerCase().split(/[^a-z0-9\u0600-\u06ff]+/).filter(x=>x.length>=4&&!/^(?:noon|نون|السعودية|الإمارات|كوبون|خصم|دليل|شراء|مقارنة)$/.test(x));
+  const generic=new Set(['noon','saudi','arabia','uae','emirates','english','guide','guides','coupon','coupons','discount','promo','code','codes','price','prices','shopping','review','reviews','best','offers','offer','latest','today','نون','السعودية','الإمارات','الامارات','كوبون','خصم','دليل','شراء','مقارنة','عروض','السعر','أفضل','افضل','منتج','منتجات','الشراء','التسوق']);
+  const words=s=>String(s||'').toLowerCase().split(/[^a-z0-9\u0600-\u06ff]+/).filter(x=>x.length>=4&&!generic.has(x));
   const focus=new Set(words(current)),seen=new Set(),choices=[];
   for(const x of source){
     if(!x?.slug||x.slug===current||seen.has(x.slug)||x.status!=='published'||x.indexable===false||x.slug.startsWith('en-')!==Boolean(english))continue;
     const isAE=x.country==='AE'||x.slug.startsWith('en-')||/الإمارات/.test(x.slug);
     if(isAE!==(market==='AE'))continue;
     seen.add(x.slug);
-    const overlap=words(String(x.title||'')+' '+x.slug).filter(w=>focus.has(w)).length;
-    choices.push({x,score:overlap});
+    const shared=new Set(words(String(x.title||'')+' '+x.slug).filter(w=>focus.has(w)));
+    // Zero overlap means a random cross-product link: avoid noisy SEO.
+    if(!shared.size)continue;
+    choices.push({x,score:shared.size});
   }
   choices.sort((a,b)=>b.score-a.score||String(b.x.publishedAt||b.x.createdAt||'').localeCompare(String(a.x.publishedAt||a.x.createdAt||'')));
   const rows=choices.slice(0,4);
