@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
+import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,marketNoonHome,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
 import {emergencyPublicR2Response} from '../r2-emergency-readonly.js';
 
 test('primary code is locked to country; never show Saudi code to UAE shoppers',()=>{
@@ -134,4 +134,24 @@ test('repair only the confirmed broken /guides link, without touching article or
   assert.match(ae,/href="\/articles\/original-slug"/);
   assert.match(ae,/href="https:\/\/www.noon.com\/guides"/);
   assert.match(source,/href="\/guides"/);
+});
+
+test('Noon CTA market and language must match the article market',()=>{
+  assert.equal(marketNoonHome('SA',false),'https://www.noon.com/saudi-ar/');
+  assert.equal(marketNoonHome('AE',false),'https://www.noon.com/uae-ar/');
+  assert.equal(marketNoonHome('AE',true),'https://www.noon.com/uae-en/');
+  assert.match(renderCouponAction('AE',false),/href="https:\/\/www\.noon\.com\/uae-ar\/"/);
+  assert.match(renderCouponAction('AE',true),/href="https:\/\/www\.noon\.com\/uae-en\/"/);
+});
+test('old generic noon homepage links resolve to right market without rewriting product URLs',()=>{
+  const source='<a href="https://www.noon.com/">Shop</a><a href="http://noon.com">Arabic</a><a href="https://www.noon.com/uae-en/some-product">Product</a><a href="https://other.com/">Other</a>';
+  const ar=repairGenericNoonLinks(source,'AE',false);
+  const en=repairGenericNoonLinks(source,'AE',true);
+  const sa=repairGenericNoonLinks(source,'SA',false);
+  assert.equal((ar.match(/https:\/\/www.noon.com\/uae-ar\//g)||[]).length,2);
+  assert.equal((en.match(/https:\/\/www.noon.com\/uae-en\//g)||[]).length,3);
+  assert.match(sa,/href="https:\/\/www.noon.com\/saudi-ar\/"/);
+  assert.match(ar,/href="https:\/\/www.noon.com\/uae-en\/some-product"/);
+  assert.match(ar,/href="https:\/\/other.com\/"/);
+  assert.match(source,/href="https:\/\/www.noon.com\/"/,'immutable source');
 });
