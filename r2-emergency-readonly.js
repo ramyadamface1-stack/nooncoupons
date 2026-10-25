@@ -100,7 +100,7 @@ function cards(rows){
   return '<section class="cards">'+rows.map(a=>{
     const title=String(a.title||a.slug||'').replace(/[-_]/g,' '),country=marketOf(a),slug=String(a.slug||'');
     const date=dateIso(a.publishedAt||a.createdAt||a.updatedAt);
-    return '<article class="card"><a href="'+esc(link(a))+'">'+imgTag(slug,country,a.coupon||a.code||'',1,title)+'</a><small>'+esc(country==='AE'?'الإمارات':'السعودية')+'</small><h2><a href="'+esc(link(a))+'">'+esc(title)+'</a></h2><p>'+esc(String(a.metaDescription||'').slice(0,170))+'</p>'+(date?'<time datetime="'+esc(date)+'">'+esc(dateLabel(date))+'</time>':'')+'</article>';
+    return '<article class="card"><a href="'+esc(link(a))+'">'+imgTag(slug,country,primaryCodeForMarket(country),1,title)+'</a><small>'+esc(country==='AE'?'الإمارات':'السعودية')+'</small><h2><a href="'+esc(link(a))+'">'+esc(title)+'</a></h2><p>'+esc(String(a.metaDescription||'').slice(0,170))+'</p>'+(date?'<time datetime="'+esc(date)+'">'+esc(dateLabel(date))+'</time>':'')+'</article>';
   }).join('')+'</section>';
 }
 function nav(previous,next,label){
@@ -212,7 +212,7 @@ async function serveBlog(env,u){
   const hint='<h1>'+esc(heading)+'</h1><p>مقالات وأدلة شرائية مرتبطة بكوبونات نون، مع ضرورة مراجعة أهلية الكود والسعر النهائي داخل السلة.</p>'+tabs;
   const pageUrl='https://noondealsnow.com'+path+(pageNum>1?'?page='+pageNum:'');
   const schema='<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@graph':[{'@type':'CollectionPage',name:heading,url:pageUrl,inLanguage:'ar'},{'@type':'ItemList',itemListElement:visible.map((a,i)=>({'@type':'ListItem',position:i+1+(pageNum-1)*size,url:'https://noondealsnow.com'+link(a)}))}]}).replace(/</g,'\\u003c')+'</script>';
-  return response(heading,schema+hint+cards(visible)+nav(pageNum>1?path+'?page='+(pageNum-1):'',pageNum<pages?path+'?page='+(pageNum+1):'','صفحة '+pageNum+' من '+pages),{canonical:pageUrl,robots:'index,follow',image:visible[0]?'https://noondealsnow.com'+rescueImageUrl(visible[0].slug,marketOf(visible[0]),visible[0].coupon||visible[0].code||'',1):''});
+  return response(heading,schema+hint+cards(visible)+nav(pageNum>1?path+'?page='+(pageNum-1):'',pageNum<pages?path+'?page='+(pageNum+1):'','صفحة '+pageNum+' من '+pages),{canonical:pageUrl,robots:'index,follow',image:visible[0]?'https://noondealsnow.com'+rescueImageUrl(visible[0].slug,marketOf(visible[0]),primaryCodeForMarket(marketOf(visible[0])),1):''});
 }
 async function serveEnglishArchive(env,u){
   // Use the already quality-checked 21k English UAE manifest; never HEAD each article.
@@ -232,7 +232,7 @@ async function serveEnglishArchive(env,u){
     const slug=String(a.slug||'');if(!slug.startsWith('en-'))return '';
     const title=slug.slice(3).replace(/-/g,' ').replace(/\bnoon\b/gi,'Noon');
     const href='/en/articles/'+encodeURI(slug);
-    return '<article class="card" dir="ltr"><a href="'+esc(href)+'">'+imgTag(slug,'AE',a.code||'',1,title)+'</a><h2><a href="'+esc(href)+'">'+esc(title)+'</a></h2><small>Noon UAE guide · '+esc(a.lastmod||'')+'</small></article>';
+    return '<article class="card" dir="ltr"><a href="'+esc(href)+'">'+imgTag(slug,'AE',primaryCodeForMarket('AE'),1,title)+'</a><h2><a href="'+esc(href)+'">'+esc(title)+'</a></h2><small>Noon UAE guide · '+esc(a.lastmod||'')+'</small></article>';
   }).join('');
   const path='/blog/archive/english',url='https://noondealsnow.com'+path+(pageNum>1?'?page='+pageNum:'');
   const heading='<h1>Noon UAE English Shopping Guides</h1><p>Browse '+count.toLocaleString('en-US')+' published UAE shopping guides, alphabetically, 15 per page. Check each coupon against your final Noon cart total.</p><nav class="related-links"><a href="/blog">Arabic blog</a><a href="/blog/uae">UAE Arabic articles</a><a href="/uae">UAE store hub</a></nav>';
@@ -242,7 +242,7 @@ async function serveAll(env,u){
   const cursor=u.searchParams.get('cursor')||'';
   if(cursor.length>1000)return new Response('Invalid cursor',{status:400});
   const rows=await listArticlePage(env,cursor);
-  const cardsHtml=rows.keys.map(k=>{const slug=k.slice('articles/'.length,-5),en=slug.startsWith('en-'),country=marketOf({slug}),title=slug.replace(/[-_]/g,' ');return '<article class="card" dir="'+(en?'ltr':'rtl')+'"><a href="'+esc((en?'/en/articles/':'/articles/')+encodeURI(slug))+'">'+imgTag(slug,country,'',1,title)+'</a><h2><a href="'+esc((en?'/en/articles/':'/articles/')+encodeURI(slug))+'">'+esc(title)+'</a></h2></article>'}).join('');
+  const cardsHtml=rows.keys.map(k=>{const slug=k.slice('articles/'.length,-5),en=slug.startsWith('en-'),country=marketOf({slug}),title=slug.replace(/[-_]/g,' ');return '<article class="card" dir="'+(en?'ltr':'rtl')+'"><a href="'+esc((en?'/en/articles/':'/articles/')+encodeURI(slug))+'">'+imgTag(slug,country,primaryCodeForMarket(country),1,title)+'</a><h2><a href="'+esc((en?'/en/articles/':'/articles/')+encodeURI(slug))+'">'+esc(title)+'</a></h2></article>'}).join('');
   let count='';
   try{const m=await getJson(env,'_ops/article-count.json');count=m?.count?'<p>آخر عد مؤكد لملفات المقالات: '+Number(m.count).toLocaleString('ar-EG')+'</p>':''}catch{}
   const next=rows.more&&rows.token?'/blog/archive/all?cursor='+encodeURIComponent(rows.token):'';
@@ -288,7 +288,7 @@ async function liveRecentSitemap(env){
   }
   const entries=rows.map(a=>{
     const loc=rescueArticleUrl(a),date=new Date(a.publishedAt||a.createdAt).toISOString();
-    const img=rescueOrigin+rescueImageUrl(a.slug,marketOf(a),a.coupon||'',1);
+    const img=rescueOrigin+rescueImageUrl(a.slug,marketOf(a),primaryCodeForMarket(marketOf(a)),1);
     return '<url><loc>'+xmlSafe(loc)+'</loc><lastmod>'+xmlSafe(date)+'</lastmod><image:image><image:loc>'+xmlSafe(img)+'</image:loc></image:image></url>';
   }).join('');
   const xml='<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">'+entries+'</urlset>';
@@ -331,7 +331,7 @@ export async function rescueSitemapResponse(path,env){
   const body=file.articles.map(a=>{
     const loc=rescueArticleUrl(a),date=a.lastmod?'<lastmod>'+xmlSafe(a.lastmod)+'</lastmod>':'';
     if(!image)return '<url><loc>'+xmlSafe(loc)+'</loc>'+date+'</url>';
-    const img=rescueOrigin+rescueImageUrl(a.slug,a.country,a.code,1);
+    const img=rescueOrigin+rescueImageUrl(a.slug,a.country,primaryCodeForMarket(a.country),1);
     return '<url><loc>'+xmlSafe(loc)+'</loc><image:image><image:loc>'+xmlSafe(img)+'</image:loc></image:image></url>';
   }).join('');
   const ns=image?' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"':'';
