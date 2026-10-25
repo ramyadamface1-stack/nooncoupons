@@ -6,16 +6,15 @@ const opts={topicSpace:space};
 test('normal 1/min generation preserves existing monotonic candidate cursor',()=>{
   for(let i=1;i<=100;i++)assert.equal(pick(150000+i,i,opts),150000+i);
 });
-test('low yield STANDARD cron explores separate nonadjacent topic families every third attempt',()=>{
-  const seeds=Array.from({length:48},(_,i)=>pick(920000+i,i+1,{...opts,lowYield:true,burstMode:false}));
+test('standard Cron with thousands of failed quality candidates explores independent candidate families EVERY try',()=>{
+  const seeds=Array.from({length:48},(_,i)=>pick(12780354+i,i+1,{...opts,lowYield:true,burstMode:false}));
   for(let i=0;i<48;i++){
-    if((i+1)%3)assert.equal(seeds[i],920000+i);
-    else {
-      assert.ok(Number.isInteger(seeds[i])&&seeds[i]>=0&&seeds[i]<space);
-      assert.notEqual(seeds[i],920000+i);
-    }
+    assert.ok(Number.isInteger(seeds[i])&&seeds[i]>=0&&seeds[i]<space);
+    assert.notEqual(seeds[i],12780354+i,'stalled cursor must not revisit adjacent saturated slot');
   }
-  assert.ok(new Set(seeds).size>=47,'diversified candidates should not collapse into repeats');
+  assert.equal(new Set(seeds).size,48,'each current-minute candidate explores a distinct topic seed');
+  const buckets=new Set(seeds.map(x=>Math.floor(x/1000000)));
+  assert.ok(buckets.size>=20,'48 attempts should span many distant topic-space segments');
 });
 test('existing Saudi low-yield burst behavior remains enabled',()=>{
   assert.notEqual(pick(1000,3,{...opts,lowYield:false,burstMode:true,forceCountry:'SA',previousYieldPct:100}),1000);
