@@ -1,0 +1,106 @@
+name: Audit Actual NoonDealsNow One/Minute Publishing and Live Pages (Read Only)
+on:
+  push:
+    branches: [fix/publisher-cadence-and-live-verification-20261025]
+    paths: ['.github/workflows/verify-noon-publishing-60min-readonly.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 11
+    env:
+      NEW_R2_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Audit live public APIs and verify recent blog entries, images, internal links
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.parse,json,re,time,datetime,html.parser
+          root='https://noondealsnow.com'
+          class Parser(html.parser.HTMLParser):
+            def __init__(self):
+              super().__init__();self.img=[];self.meta=[];self.anchors=[];self.title=[];self.h1=0;self.ld=[];self.script=False;self.js=''
+            def handle_starttag(self,tag,attrs):
+              d=dict(attrs)
+              if tag=='img':self.img.append(d)
+              if tag=='meta':self.meta.append(d)
+              if tag=='a':self.anchors.append(d.get('href',''))
+              if tag=='h1':self.h1+=1
+              if tag=='script' and d.get('type')=='application/ld+json':self.script=True;self.js=''
+            def handle_data(self,data):
+              if self.script:self.js+=data
+            def handle_endtag(self,tag):
+              if tag=='script' and self.script:
+                try:self.ld.append(json.loads(self.js))
+                except:pass
+                self.script=False
+          paths=['/','/blog','/blog/saudi','/blog/uae','/blog/archive/english','/saudi','/uae','/coupons','/api/health','/api/generation-freshness','/api/generator-health','/api/content-stats','/api/publication-rate','/sitemap.xml','/robots.txt','/llms.txt']
+          def get(path):
+            req=urllib.request.Request(root+urllib.parse.quote(path,safe='/?&=%'),headers={'User-Agent':'Mozilla/5.0 NoonQualityMonitor/20261025','Accept':'*/*'})
+            start=time.monotonic()
+            try:
+              with urllib.request.urlopen(req,timeout=22) as response:return response.status,response.read(320000),dict(response.headers),round((time.monotonic()-start)*1000)
+            except Exception as e:return 0,str(type(e).__name__)+':'+str(e)[:120],{},round((time.monotonic()-start)*1000)
+          for p in paths:
+            status,data,headers,ms=get(p)
+            if isinstance(data,bytes):
+              text=data.decode('utf-8','replace')
+            else:text=data
+            info={'path':p,'http':status,'ms':ms,'bytes':len(text),'cache':headers.get('x-edge-page-cache')}
+            if p.startswith('/api/'):
+              try:
+                j=json.loads(text)
+                selected=['ok','r2','bulkLastError','bulkLastTickAt','bulkLastTickPublished','lastSuccessfulPublishAt','lastRescueResult','minutesSinceLastSuccessfulPublish','withinOneHour','cron','qualityThreshold','minArticleWords','publicationNextEligibleAt','published','publishedArticles','draft','total','arabic','english']
+                info['data']={x:j.get(x) for x in selected if x in j}
+                if p.endswith('generator-health'):
+                  info['fields']=list(j.keys())[:35]
+                  for name in ('status','bulk','workersAI','publication'):
+                    if name in j and isinstance(j[name],dict):info[name]={k:v for k,v in j[name].items() if k in ('bulkLastError','bulkLastTickAt','bulkLastTickPublished','bulkNoPassStreak','bulkPublishedToday','bulkLastBatchPublished','bulkLastBatchTries','bulkLastBatchYieldPct','published','remaining','quotaBlocked','lastError','lastOperationalState','rescueDue','lastSuccess')}
+              except:info['prefix']=text[:120]
+            elif 'html' in headers.get('Content-Type',''):
+              parser=Parser();parser.feed(text)
+              info.update({'images':len(parser.img),'img_alt_missing':sum(not x.get('alt') for x in parser.img),'h1':parser.h1,
+                'link_count':len(parser.anchors),'article_links':len([x for x in parser.anchors if x.startswith('/articles/') or x.startswith('/en/articles/')]),
+                'robots':next((x.get('content') for x in parser.meta if x.get('name')=='robots'),None),'canonical':next((x.get('href') for x in re.finditer('(?!)',text)),None) if False else 'present' if 'rel="canonical"' in text else 'missing',
+                'schema_scripts':len(parser.ld),'viewport':any(x.get('name')=='viewport' for x in parser.meta)})
+              if p=='/blog':
+                article=next((x for x in parser.anchors if x.startswith('/articles/') or x.startswith('/en/articles/')),None)
+                if article:
+                  st,d,h,t=get(article)
+                  info['first_article']={'path':article[:150],'http':st,'bytes':len(d),'ms':t,'has_coupon':'NOV' in (d.decode('utf8','replace') if isinstance(d,bytes) else d)}
+            print('LIVE_PUBLISHING_AUDIT='+json.dumps(info,ensure_ascii=False)[:4400],flush=True)
+          PY
+      - name: Inspect latest one-hour actual R2 object writes, not just health counters
+        shell: bash
+        run: |
+          python3 -m pip install -q boto3
+          python3 -u - <<'PY'
+          import boto3,os,json,datetime,collections,re,hashlib
+          from botocore.config import Config
+          client=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            aws_access_key_id=os.environ['NEW_R2_ID'].strip(),aws_secret_access_key=os.environ['NEW_R2_SECRET'].strip(),
+            config=Config(connect_timeout=10,read_timeout=25,retries={'max_attempts':2,'mode':'standard'}))
+          now=datetime.datetime.now(datetime.timezone.utc);recent=[];alltotal=0
+          for page in client.get_paginator('list_objects_v2').paginate(Bucket='nooncoupons-content-v2',Prefix='articles/',PaginationConfig={'PageSize':1000}):
+            for row in page.get('Contents',[]):
+              alltotal+=1
+              if row['LastModified']>=now-datetime.timedelta(hours=4):recent.append(row)
+          recent.sort(key=lambda x:x['LastModified'],reverse=True)
+          within1=[x for x in recent if x['LastModified']>=now-datetime.timedelta(minutes=60)]
+          byminute=collections.Counter(x['LastModified'].strftime('%Y-%m-%dT%H:%MZ') for x in within1)
+          print('R2_PUBLISHING_4H='+json.dumps({'time':now.isoformat(),'all_articles':alltotal,'new_last_4h':len(recent),'new_last_60m':len(within1),'minute_bins_filled':len(byminute),'minute_bins_multiple':sum(v>1 for v in byminute.values()),'sample_last_12':[{'key':x['Key'][:130],'at':x['LastModified'].isoformat(),'size':x['Size']} for x in recent[:12]]},ensure_ascii=False),flush=True)
+          for row in recent[:9]:
+            ob=client.get_object(Bucket='nooncoupons-content-v2',Key=row['Key'])
+            raw=ob['Body'].read(190000).decode('utf8','replace')
+            meta=ob.get('Metadata') or {}
+            title=re.search(r'<h1\b[^>]*>(.*?)</h1>',raw,re.I|re.S)
+            clean=re.sub('<[^>]+>',' ',raw)
+            words=len(clean.split())
+            info={'key':row['Key'][:160],'created':row['LastModified'].isoformat(),'status':meta.get('status'),'country':meta.get('c'),'quality_meta':meta.get('q'),'word_count':words,'title':re.sub('<[^>]+>','',title.group(1))[:140] if title else None,'svg_or_img':bool(re.search(r'<img\b',raw,re.I)),'links':len(re.findall(r'href="/',raw))}
+            print('SAMPLE_RECENT_QUALITY='+json.dumps(info,ensure_ascii=False),flush=True)
+          if len(within1)<45:print('::warning::ARTICLE_PER_MINUTE_NOT_MET=' +str(len(within1))+'/60 last 60m')
+          if any(v>1 for v in byminute.values()):print('::warning::MULTIPLE_ARTICLE_WRITES_PER_MINUTE')
+          print('ARTICLE_RATE_AUDIT_READ_ONLY=true')
+          PY
