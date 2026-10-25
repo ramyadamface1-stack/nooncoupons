@@ -21,6 +21,35 @@ export function presentMarketCouponText(source,country='SA'){
     return part;
   }).join('');
 }
+// R2 stores older FAQ JSON-LD under the original promotion code. The public
+// reader now displays the market primary code; keep FAQ schema in agreement
+// with the *visible* FAQ without touching canonical URLs, item IDs or source R2.
+export function reconcileSourceCouponJsonLd(html,country='SA'){
+  const code=primaryCodeForMarket(country);
+  const tokens=/\b(?:NOV|RAMY|OPS)\d{2,4}\b/gi;
+  const textualFields=new Set(['name','headline','description','text','alternateName','step','suggestedAnswer','itemText']);
+  const replaceText=value=>String(value).replace(tokens,code);
+  function clean(node){
+    if(Array.isArray(node))return node.map(clean);
+    if(!node||typeof node!=='object')return node;
+    const next={};
+    for(const [key,value] of Object.entries(node)){
+      next[key]=typeof value==='string'&&textualFields.has(key)
+        ?replaceText(value)
+        :Array.isArray(value)||value&&typeof value==='object'?clean(value):value;
+    }
+    return next;
+  }
+  return String(html??'').replace(/<script\b([^>]*\btype\s*=\s*["']application\/ld\+json["'][^>]*)>([\s\S]*?)<\/script>/gi,(full,attrs,json)=>{
+    try{
+      const data=JSON.parse(json);
+      const safe=clean(data);
+      const str=JSON.stringify(safe).replace(/</g,'\\u003c');
+      return '<script '+attrs+'>'+str+'</script>';
+    }catch{return full}
+  });
+}
+
 export function renderCouponAction(country='SA',english=false,placement='top'){
   const market=country==='AE'?'AE':'SA',code=primaryCodeForMarket(market);
   const official=market==='AE'?'https://www.noon.com/uae-en/':'https://www.noon.com/saudi-ar/';
