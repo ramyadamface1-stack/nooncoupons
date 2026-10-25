@@ -1,0 +1,31 @@
+name: Diagnose Live Bulk Quality, Duplicate and Publication Gate Failure
+on:
+  push:
+    branches: [fix/publisher-cadence-and-live-verification-20261025]
+    paths: ['.github/workflows/diagnose-current-quality-publish-gates.yml']
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Read precise quality candidate rejection data, no writes
+        run: |
+          python3 - <<'PY'
+          import urllib.request,json,datetime
+          origin='https://noondealsnow.com'
+          for path in ('/api/generator-health','/api/publication-rate','/api/generation-freshness'):
+            req=urllib.request.Request(origin+path,headers={'Accept':'application/json','User-Agent':'Mozilla/5.0'})
+            with urllib.request.urlopen(req,timeout=20) as r:status=r.status;data=json.load(r)
+            print('QUALITY_LIVE_API='+json.dumps({'path':path,'http':status,'utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'ok':data.get('ok')},ensure_ascii=False),flush=True)
+            if path.endswith('generator-health'):
+              st=data.get('status') or {}
+              keys=['bulkCursorV2','bulkDay','bulkPublishedToday','bulkLastRun','bulkLastSuccessAt','bulkLastTickAt','bulkLastTickPublished','bulkNoPassStreak','bulkLastError','bulkLastBatchTries','bulkLastBatchPublished','bulkLastBatchDurationMs','bulkLastBatchCandidateBudgetHit','bulkLastBatchUnclassified','bulkLastBatchRejectedByStage','bulkLastQualityRejectReasons','bulkLastGlobalRejectReasons','bulkLastPreflightGlobalRejectReasons','bulkLastDemandRouteReasons','bulkLastIndexationScore','bulkLastQualityFloor','bulkLastWordCount','bulkLastBatchYieldPct','bulkNoIdleGuardLastRescueResult','lastError','lastSuccess','workersAiQuotaDay']
+              for k in keys:
+                if k in st:print('GENERATOR_REJECTION='+json.dumps({'field':k,'value':st[k]},ensure_ascii=False)[:1100],flush=True)
+              b=data.get('bulk') or {}
+              print('BULK_SHAPE='+json.dumps({'fields':list(b.keys())[:65],'sample':{k:b.get(k) for k in ('publishedToday','publishedTotal','lastError','lastSuccessAt','lastPublishedSlug','status','quality') if k in b}},ensure_ascii=False)[:1600],flush=True)
+              print('WORKERS_AI_BUDGET='+json.dumps({k:v for k,v in (data.get('workersAI') or {}).items() if k in ('remaining','quotaBlocked','callRemaining','lastError','model')},ensure_ascii=False),flush=True)
+            else:
+              print('GATE_FRESHNESS_DATA='+json.dumps(data,ensure_ascii=False)[:2400],flush=True)
+          PY

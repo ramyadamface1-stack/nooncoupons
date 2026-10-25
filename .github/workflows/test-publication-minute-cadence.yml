@@ -1,0 +1,29 @@
+name: Test One-Minute Publisher Cadence Without Live Mutations
+on:
+  push:
+    branches: [fix/publisher-cadence-and-live-verification-20261025]
+    paths: ['cron-publication-window.js','auto-platform.js','tests/cron-publication-window.test.mjs','.github/workflows/test-publication-minute-cadence.yml']
+permissions: {contents: read}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Test no extra publisher, deadline retries and script syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check cron-publication-window.js
+          node --check auto-platform.js
+          node --test tests/cron-publication-window.test.mjs tests/remote-existing-r2-binding.test.mjs
+      - name: Compile exact old source Worker with existing DO and new remote R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-audit --no-fund
+          npx wrangler deploy --dry-run --outdir /tmp/noon-one-minute-build
+          echo 'ONE_MINUTE_PUBLISHER_BUILD_OK=true'
+          echo 'NO_LIVE_MUTATIONS=true'
