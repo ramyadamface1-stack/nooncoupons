@@ -24,7 +24,7 @@ export function chooseBulkCandidateTopicSeed(cursor,tryIndex,{lowYield=false,bur
  * fetches while the new account migration remains fenced. Cloudflare Free
  * Workers allow only 50 external subrequests per invocation; a 48/384-candidate
  * zero-yield search repeats too many remote GETs and fails the ENTIRE minute.
- * Bound the candidate loop to 12 attempts, reserving the remaining request
+ * Bound the candidate loop to 6 attempts under remote-R2 (previously 12),\n * reserving more of the shared cron invocation's 50 external-request\n * budget for the due publisher, migration backup and English fallback.\n * The old 12-attempt loop occasionally hit the global subrequest ceiling.\n * Reserve the remaining request
  * budget for the DO publication permit, catalogs, feed updates and legacy due
  * publisher. Every original quality, duplicate and coupon gate still runs.
  * Across cron minutes the persistent cursor advances; topics are not discarded.
@@ -33,5 +33,5 @@ export function boundedBulkCandidateTries(env,original){
   const n=Number(original);
   if(!Number.isSafeInteger(n)||n<1)throw Error('invalid_bulk_candidate_limit');
   const remote=String(env?.REMOTE_EXISTING_R2_ENABLED||'').toLowerCase()==='true';
-  return remote?Math.min(n,12):n;
+  return remote?Math.min(n,6):n;
 }
