@@ -24,3 +24,9 @@ export function createSafeStatsMemo({ttlMs=90000,maxStaleMs=300000}={}){
     try{return await task}finally{if(inFlight===task)inFlight=null}
   };
 }
+
+export function permitStatsFresh(url){
+  const u=new URL(url);
+  // Only the admin overview route verifies credentials *before* stats refresh.
+  return u.pathname==='/api/admin/live-overview'&&u.searchParams.get('fresh')==='1';
+}
