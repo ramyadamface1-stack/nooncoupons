@@ -28,6 +28,11 @@ test('copy UI is keyboard accessible, makes no guaranteed discount claim, and ha
   assert.match(x,/rel="noopener noreferrer sponsored"/);
   assert.match(rescueCopyScript,/navigator\.clipboard\.writeText/);
   assert.match(rescueCopyScript,/execCommand\('copy'\)/);
+  assert.match(rescueCopyScript,/\/api\/track-event/);
+  assert.match(rescueCopyScript,/sendBeacon/);
+  assert.match(rescueCopyScript,/doNotTrack/);
+  assert.match(rescueCopyScript,/track\('copy_code'/);
+  assert.match(rescueCopyScript,/track\('open_noon'/);
   assert.match(rescueArticleStyles,/a:not\(\.rescue-shop\)/);
   assert.match(rescueArticleStyles,/position:static!important/);
 });
