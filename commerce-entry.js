@@ -114,6 +114,13 @@ async function computeContentStats(req,env,ctx){
   const discovery=await r2json(env,ARTICLE_DISCOVERY_CURRENT_KEY,null),auditQualified=discovery?.complete?Number(discovery.articles||0):null,auditCoverage=r2Count.complete&&auditQualified!=null&&Number(r2Uploaded)>0?Math.round(auditQualified/Number(r2Uploaded)*10000)/100:null;
   return {
     ok:true,total:trackedPublished,r2Uploaded,authoritativeAuditHtmlCount:r2Uploaded,liveTrackedPublished:trackedPublished,arabic,english:englishTotal,
+    r2UploadedAsOf:r2Count.countedAt||null,r2UploadedStale:Boolean(r2Count.stale),
+    metricDefinitions:{
+      total:'DO-tracked generator publication total; not a live full R2 listing',
+      r2Uploaded:'Historical R2 HTML audit snapshot, not current inventory',
+      rescueManifest:'Independent reference entries at /api/archive-inventory; not confirmed published file counts',
+      comparable:false,automaticDeletion:false
+    },
     englishByCountry:{SA:Number(controlled.sa||0),AE:Number(controlled.ae||0)},
     publishedTodayArabic:Number(bulk.publishedToday||0),dailyTargetArabic:Number(bulk.dailyTarget||0),
     last:{slug:bulk.lastSlug||null,quality:bulk.lastQuality??null,wordCount:bulk.lastWordCount??null,run:bulk.lastRun||null,error:bulk.lastError||null},
