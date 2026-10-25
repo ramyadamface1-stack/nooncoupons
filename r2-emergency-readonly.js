@@ -1,3 +1,4 @@
+import {primaryCodeForMarket,presentMarketCouponText,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
 // Temporary, READ-ONLY fallback for public pages when the old account's R2 is NotEntitled (10042).
 // Source of article bytes: existing mirrored R2 in destination Cloudflare account.
 // No writes, no new Durable Objects, no extra publisher, no DNS changes, no private endpoints.
@@ -143,12 +144,15 @@ async function serveArticle(env,u,english){
   const obj=await getObject(env,'articles/'+slug+'.html');
   if(!obj)return new Response('Not Found',{status:404,headers:{'cache-control':'public,max-age=60'}});
   if(obj.meta.status&&obj.meta.status!=='published')return new Response('Not Found',{status:404});
-  const body=removeRedundantSourceArticleJsonLd(obj.body),match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
-  const description=cleanText(body).slice(0,170),country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug}),code=codeFromBody(body),canonical='https://noondealsnow.com'+u.pathname;
+  const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
+  const body=presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country);
+  const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
+  const description=cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'')).slice(0,170),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1);
   const date=dateIso(obj.meta.publishedAt||obj.meta.createdAt||obj.meta.datePublished||obj.meta.at);
   const meta={'@context':'https://schema.org','@type':'Article',headline:title,description,inLanguage:english?'en':'ar',mainEntityOfPage:canonical,image:[featured],author:{'@type':'Organization',name:'Noon Deals Now editorial team',url:'https://noondealsnow.com/authors/editorial-team'},publisher:{'@type':'Organization',name:'Noon Deals Now',url:'https://noondealsnow.com'},...(date?{datePublished:date}:{})};
-  const cta='<aside style="margin:26px 0;padding:16px;background:#faf4e8;border-radius:14px"><strong>'+(english?'Check your Noon coupon':'تحقق من كوبون نون')+'</strong><p>'+(english?'Verify eligibility and final cost in your Noon cart.':'جرّب الكود وتحقق من الأهلية والسعر النهائي داخل سلة نون.')+'</p><a href="'+(country==='AE'?'https://www.noon.com/uae-en/':'https://www.noon.com/saudi-ar/')+'" rel="noopener external sponsored">'+(english?'Open Noon':'افتح نون')+'</a>'+(code?'<p>'+esc(code)+'</p>':'')+'</aside>';
+  // The source's legacy text-only coupon box did not expose a copy action.
+  // Keep original R2 bytes unchanged; present a verified market-locked primary code in the reader.
   const schema='<script type="application/ld+json">'+JSON.stringify(meta).replace(/</g,'\\u003c')+'</script>';
   const figure='<figure class="featured">'+imgTag(slug,country,code,1,title)+'<figcaption>'+esc(english?'Noon shopping guide. Verify coupon eligibility at checkout.':'دليل كوبونات نون — تحقّق من أهلية الكود عند الدفع.')+'</figcaption></figure>';
   const extras=topicLinks(country,english);
@@ -158,7 +162,15 @@ async function serveArticle(env,u,english){
   const originalEnglishBaseline=english&&(slug==='en-skincare-noon-uae-shopping-guide-coupon-today'||slug==='en-noon-coupon-dubai');
   const languageAlternates=english?'<link rel="alternate" hreflang="en-AE" href="'+esc(canonical)+'"><link rel="alternate" hreflang="ar-AE" href="https://noondealsnow.com/uae"><link rel="alternate" hreflang="x-default" href="'+esc(canonical)+'">':'';
   // Keep source article body and original slugs, but restore its cover and cross-links.
-  let html=page(title,schema+figure+body+cta+extras,{lang:english?'en-AE':'ar',dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
+  let related='';
+  // Read the already-existing 300-item journal only; never list 150k+ objects
+  // or create new storage. If unavailable, the stable market/topic links still work.
+  try{const live=await getJson(env,'blog/latest-live-v1.json');related=renderRelatedArticles(live?.articles,slug,country,english)}catch(error){console.warn('related_articles_feed_unavailable',String(error?.message||error).slice(0,80))}
+  const topOffer=renderCouponAction(country,english,'top'),bottomOffer=renderCouponAction(country,english,'bottom');
+  const mobileOffer='<div class="rescue-mobile-offer" data-market="'+country+'">'+renderCouponAction(country,english,'mobile')+'</div>';
+  const contents=schema+figure+'<article class="rescue-article" data-market="'+country+'">'+topOffer+body+bottomOffer+related+'</article>'+extras+mobileOffer+rescueCopyScript;
+  let html=page(title,contents,{lang:english?'en-AE':'ar',dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
+  html=html.replace('</head>',rescueArticleStyles+'</head>');
   if(languageAlternates)html=html.replace('</head>',languageAlternates+'</head>');
   html=html.replace('</head>','<meta property="og:type" content="article"><meta property="og:title" content="'+esc(title)+'"><meta property="og:description" content="'+esc(description)+'"><meta property="og:image" content="'+esc(featured)+'"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="760"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(featured)+'"></head>');
   return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles','content-language':english?'en':'ar',...(originalEnglishBaseline?{'x-english-canary':'v1'}:{})}});
