@@ -122,6 +122,7 @@ export const rescueCopyScript=String.raw`
     if(navigator.doNotTrack==='1'||window.doNotTrack==='1')return;
     var eventData={type:type,path:location.pathname,label:type==='copy_code'?coupon:'www.noon.com',market:market,coupon_code:coupon,placement:placement,destination_host:type==='open_noon'?'www.noon.com':''};
     var payload=JSON.stringify(eventData);
+    try{if(typeof window.gtag==='function')window.gtag('event',type==='copy_code'?'coupon_copy':'noon_outbound',{page_path:eventData.path,coupon_code:coupon,market:market,placement:placement,cta_position:placement,destination_host:eventData.destination_host});}catch(e){}
     try{if(navigator.sendBeacon&&navigator.sendBeacon('/api/track-event',new Blob([payload],{type:'application/json'})))return}catch(e){}
     try{fetch('/api/track-event',{method:'POST',headers:{'content-type':'application/json'},body:payload,keepalive:true}).catch(function(){})}catch(e){}
   }
