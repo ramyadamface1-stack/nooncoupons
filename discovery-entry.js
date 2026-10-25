@@ -419,7 +419,7 @@ async function sitemapHealth(req,env,ctx,origin){
       // app.fetch(). Measure the identical public response, not the incomplete
       // base index, or a green self-audit can conceal absent historical shards.
       if(path==='/sitemap.xml')res=await augmentRootSitemap(res,origin,env);
-      const text=await res.text(),type=(res.headers.get('content-type')||'').toLowerCase(),root=/<(?:urlset|sitemapindex)\\b/i.test(text),xmlDecl=/^\\s*<\\?xml\\b/i.test(text),locs=(text.match(/<loc>/gi)||[]).length,httpLocs=(text.match(/<loc>http:\\/\\//gi)||[]).length,httpsLocs=(text.match(/<loc>https:\\/\\//gi)||[]).length;
+      const text=await res.text(),type=(res.headers.get('content-type')||'').toLowerCase(),root=/<(?:urlset|sitemapindex)\b/i.test(text),xmlDecl=/^\s*<\?xml\b/i.test(text),locs=(text.match(/<loc>/gi)||[]).length,httpLocs=(text.match(/<loc>http:\/\//gi)||[]).length,httpsLocs=(text.match(/<loc>https:\/\//gi)||[]).length;
       const rescueCoverage=path==='/sitemap.xml'?{
         historicArabic:text.includes(origin+'/sitemap-rescue-articles-'),
         historicEnglish:text.includes(origin+'/sitemap-rescue-english-'),
