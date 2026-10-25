@@ -33,6 +33,7 @@ export function publicEdgeCacheEligible(req,u=new URL(req.url)){
   return kind==='article'&&[...u.searchParams.keys()].every(key=>TRACKING_QUERY.test(key));
 }
 export function publicEdgeTtlSeconds(path){
+  if(['/blog','/blog/saudi','/blog/uae'].includes(path.replace(/\/+$/,'')||'/'))return 30;
   const kind=publicRouteKind(path);
   return kind==='article'?600:kind==='xml'?900:300;
 }

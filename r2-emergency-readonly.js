@@ -16,7 +16,7 @@ function resource(env){return {id:String(env.NOON_RESCUE_R2_ACCESS_KEY_ID||'').t
 export async function signedR2Read(env,key='',params={}){
   const credentials=resource(env);
   if(!credentials.id||!credentials.secret)throw new Error('rescue_credentials_not_configured');
-  if(key&&!(/^(?:articles|bulk|_ops|english-canary|seo-rescue)\//.test(key)))throw new Error('rescue_prefix_not_public');
+  if(key&&!(/^(?:articles|bulk|_ops|english-canary|seo-rescue|blog)\//.test(key)))throw new Error('rescue_prefix_not_public');
   const host=ACCOUNT+'.r2.cloudflarestorage.com',path='/'+encode(BUCKET)+(key?'/'+key.split('/').map(encode).join('/'):'');
   const query=Object.keys(params).sort().map(k=>encode(k)+'='+encode(params[k])).join('&');
   const now=new Date(),stamp=now.toISOString().replace(/[:-]|\.\d{3}/g,''),day=stamp.slice(0,8);
@@ -64,7 +64,7 @@ async function getObject(env,key,cacheMs=0){
   if(cacheMs){manifestCache.set(key,{value,until:Date.now()+cacheMs});if(manifestCache.size>5)manifestCache.delete(manifestCache.keys().next().value)}
   return value;
 }
-async function getJson(env,key){const result=await getObject(env,key,120000);return result?JSON.parse(result.body):null}
+async function getJson(env,key){const result=await getObject(env,key,key==='blog/latest-live-v1.json'?15000:120000);return result?JSON.parse(result.body):null}
 
 const rescueImageUrl=(slug,country='SA',coupon='',variant=1)=>'/assets/coupon-svg/'+encodeURIComponent(String(slug))+'/'+variant+'.svg?v=9&country='+encodeURIComponent(country==='AE'?'AE':'SA')+(coupon?'&coupon='+encodeURIComponent(String(coupon)):'');
 const marketOf=a=>a?.country==='AE'||/^en-/.test(String(a?.slug||''))||/\buae\b|الإمارات/i.test(String(a?.slug||''))?'AE':'SA';
@@ -179,9 +179,15 @@ async function serveBlog(env,u){
       }
     }catch(error){console.warn('live_blog_control_state_unavailable',String(error?.message||error).slice(0,100))}
   }
-  const data=await getJson(env,'bulk/latest.json');
+  const [data,live]=await Promise.all([
+    getJson(env,'bulk/latest.json'),
+    getJson(env,'blog/latest-live-v1.json').catch(error=>{
+      console.warn('recent_blog_feed_unavailable',String(error?.message||error).slice(0,90));
+      return null;
+    })
+  ]);
   const seen=new Set(),rows=[];
-  for(const item of [...legacy,...(data?.articles||[])]){
+  for(const item of [...(live?.articles||[]),...legacy,...(data?.articles||[])]){
     if(!item?.slug||seen.has(item.slug)||item.status==='draft'||item.status==='scheduled'||item.indexable===false||item.slug.startsWith('en-')||market&&item.country!==market)continue;
     seen.add(item.slug);rows.push(item);
   }

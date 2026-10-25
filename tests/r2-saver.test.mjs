@@ -58,7 +58,10 @@ test('public edge caching is strict: no authenticated, admin or personalized res
   assert.equal(publicRouteKind('/en/articles/uae-test'),'article');
   assert.equal(publicEdgeTtlSeconds('/articles/a-1'),600);
   assert.equal(publicEdgeTtlSeconds('/sitemap.xml'),900);
-  assert.equal(publicEdgeTtlSeconds('/blog'),300);
+  assert.equal(publicEdgeTtlSeconds('/blog'),30,'fast-moving public blog should refresh within 30s');
+  assert.equal(publicEdgeTtlSeconds('/blog/saudi'),30);
+  assert.equal(publicEdgeTtlSeconds('/blog/uae'),30);
+  assert.equal(publicEdgeTtlSeconds('/blog/archive/all'),300,'stable archives retain economical five-minute cache');
 });
 
 test('article metadata uses existing R2 GET response without billable public HEAD',()=>{
