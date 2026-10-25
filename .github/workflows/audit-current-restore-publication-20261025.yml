@@ -1,0 +1,83 @@
+name: Verify 25 Oct Existing R2 Restore and Publication (Read Only)
+on:
+  push:
+    branches: [audit/current-restoration-and-publishing-20261025]
+    paths: ['.github/workflows/audit-current-restore-publication-20261025.yml']
+permissions: {contents: read}
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      NEW_R2_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      NEW_CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet boto3
+      - name: Verify current checkpoints for BOTH recovery baselines and latest metadata in existing destination bucket
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import boto3,os,json,urllib.request,urllib.error,datetime
+          from botocore.config import Config
+          aid='e4c35f8a50a7b2e4cfb9d6c534962603';bucket='nooncoupons-content-v2'
+          client=boto3.client('s3',region_name='auto',endpoint_url='https://'+aid+'.r2.cloudflarestorage.com',
+            aws_access_key_id=os.environ['NEW_R2_ACCESS'].strip(),aws_secret_access_key=os.environ['NEW_R2_SECRET'].strip(),
+            config=Config(connect_timeout=10,read_timeout=16,retries={'max_attempts':2,'mode':'standard'}))
+          def read(key):
+            try:
+              ob=client.get_object(Bucket=bucket,Key=key)
+              data=json.loads(ob['Body'].read())
+              return {'exists':True,'lastModified':ob['LastModified'].isoformat(),'keys':list(data.keys())[:20],'data':data}
+            except client.exceptions.NoSuchKey:return {'exists':False}
+            except Exception as e:return {'exists':False,'error':type(e).__name__+':'+str(e)[:80]}
+          for tag in ['20261017-baseline','20261020-old-do-recovery']:
+            for kind in ['ControlPlane','GeneratorControl']:
+              for action,key in [
+                ('export','migration/do-state/'+tag+'/'+kind+'/manifest.json'),
+                ('restore','migration/restore-progress/'+tag+'/'+kind+'.json')]:
+                obj=read(key);d=obj.get('data',{})
+                keys=['complete','parts','exported','partsDone','partsTotal','keysRestored','keysTotal','updatedAt','scanned','tag','type']
+                print('RESTORE_20261025='+json.dumps({'tag':tag,'kind':kind,'action':action,'exists':obj.get('exists'),
+                  'lastModified':obj.get('lastModified'),'fields':{k:d.get(k) for k in keys if k in d},
+                  'error':obj.get('error')},ensure_ascii=False),flush=True)
+          for key in ['bulk/latest.json','bulk/days.json','seo-rescue/index.json']:
+            obj=read(key);d=obj.get('data',{})
+            print('CURRENT_R2_CONTENT_INDEX='+json.dumps({'key':key,'exists':obj.get('exists'),'lastModified':obj.get('lastModified'),
+              'articleEntries':len(d.get('articles') or []),'days':len(d.get('days') or []),
+              'arabicIndex':d.get('count'),'englishIndex':d.get('englishCount'),'generatedAt':d.get('generatedAt')},ensure_ascii=False),flush=True)
+          for key in ['articles/en-noon-uae-coupon-conditions-guide.html','articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي.html']:
+            try:
+              x=client.head_object(Bucket=bucket,Key=key)
+              print('DIRECT_SAMPLE_ARTICLE='+json.dumps({'key_prefix':key[:65],'modified':x['LastModified'].isoformat(),
+                'bytes':x['ContentLength'],'status':x.get('Metadata',{}).get('status')},ensure_ascii=False),flush=True)
+            except Exception as e:print('DIRECT_SAMPLE_ARTICLE_ERROR='+type(e).__name__,flush=True)
+          for path in ['/api/generation-freshness','/api/health','/api/content-stats']:
+            req=urllib.request.Request('https://noondealsnow.com'+path+'?review=20261025',headers={'User-Agent':'NoonCurrentHealthReadOnly/20261025','Accept':'application/json'})
+            try:
+              with urllib.request.urlopen(req,timeout=15) as resp:code=resp.status;data=json.load(resp)
+              print('CURRENT_PRODUCTION_HEALTH='+json.dumps({'path':path,'http':code,'ok':data.get('ok'),
+                'lastSuccessfulPublishAt':data.get('lastSuccessfulPublishAt'),'minutesSinceLastSuccessfulPublish':data.get('minutesSinceLastSuccessfulPublish'),
+                'lastRescueResult':data.get('lastRescueResult'),'lastError':data.get('lastError'),
+                'publishedArticles':data.get('liveTrackedPublished'),'total':data.get('total'),'arabic':data.get('arabic'),'english':data.get('english'),
+                'r2':data.get('r2')},ensure_ascii=False)[:1200],flush=True)
+            except urllib.error.HTTPError as e:print('CURRENT_PRODUCTION_HEALTH_ERROR='+json.dumps({'path':path,'http':e.code}),flush=True)
+            except Exception as e:print('CURRENT_PRODUCTION_HEALTH_ERROR='+json.dumps({'path':path,'error':type(e).__name__+':'+str(e)[:70]}),flush=True)
+          token=os.environ['NEW_CF_TOKEN'].strip()
+          for kind,url in [('zone','/zones/c09077a581adc7aa11d6de0c121e179d'),
+            ('domains','/accounts/'+aid+'/workers/domains'),
+            ('certs','/zones/c09077a581adc7aa11d6de0c121e179d/ssl/certificate_packs?per_page=20')]:
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4'+url,headers={'Authorization':'Bearer '+token})
+            try:
+              with urllib.request.urlopen(req,timeout=17) as r:code=r.status;payload=json.load(r)
+            except urllib.error.HTTPError as e:code=e.code;payload={}
+            except Exception as e:code=0;payload={}
+            res=payload.get('result')
+            summary={'type':kind,'http':code,'success':payload.get('success')}
+            if kind=='zone' and isinstance(res,dict):summary.update({'status':res.get('status'),'name_servers':res.get('name_servers')})
+            elif kind=='certs' and isinstance(res,list):summary['packs']=[{'status':p.get('status'),'hosts':p.get('hosts')} for p in res]
+            elif kind=='domains' and isinstance(res,list):summary['site_domains']=[x.get('hostname') for x in res if 'noondealsnow' in str(x.get('hostname'))]
+            print('NEW_CF_MIGRATION_READY='+json.dumps(summary,ensure_ascii=False),flush=True)
+          print('NO_CHANGES_MADE=true',flush=True)
+          PY
