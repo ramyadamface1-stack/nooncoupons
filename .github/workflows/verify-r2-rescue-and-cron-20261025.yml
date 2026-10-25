@@ -7,6 +7,7 @@ on:
       - '.github/workflows/verify-r2-rescue-and-cron-20261025.yml'
       - 'bulk-candidate-diversity.js'
       - 'r2-emergency-readonly.js'
+      - 'discovery-entry.js'
       - 'rescue-article-conversion.js'
       - 'r2-public-cache-policy.js'
       - 'auto-platform.js'
@@ -35,6 +36,7 @@ jobs:
           set -euo pipefail
           node --check bulk-candidate-diversity.js
           node --check r2-emergency-readonly.js
+          node --check discovery-entry.js
           node --check rescue-article-conversion.js
           node --check r2-public-cache-policy.js
           node --check auto-platform.js
