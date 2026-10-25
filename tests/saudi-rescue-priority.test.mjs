@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pickRescueTopic} from '../generator-core-v2.js';
 import {marketLockedArticleTopic} from '../auto-platform.js';
+import {isApprovedMarketCoupon} from '../approved-coupons.js';
 
 test('with zero Saudi programmatic output, AI rescue can be pinned to Saudi only',()=>{
   const state={articles:[]};
@@ -10,7 +11,8 @@ test('with zero Saudi programmatic output, AI rescue can be pinned to Saudi only
     assert.ok(sa,'Saudi topic pool should contain valid candidates');
     assert.equal(sa.country,'SA');
     assert.equal(marketLockedArticleTopic(sa).country,'SA');
-    assert.equal(marketLockedArticleTopic(sa).code,'NOV170');
+    assert.ok(isApprovedMarketCoupon(marketLockedArticleTopic(sa).code,'SA'));
+    assert.equal(marketLockedArticleTopic(sa).code,sa.code);
   }
 });
 test('English and ordinary AI candidates remain supported and market locked',()=>{
@@ -18,5 +20,6 @@ test('English and ordinary AI candidates remain supported and market locked',()=
   assert.ok(topic);
   assert.equal(topic.country,'AE');
   assert.equal(marketLockedArticleTopic(topic).country,'AE');
-  assert.equal(marketLockedArticleTopic(topic).code,'NOV188');
+  assert.ok(isApprovedMarketCoupon(marketLockedArticleTopic(topic).code,'AE'));
+  assert.equal(marketLockedArticleTopic(topic).code,topic.code);
 });
