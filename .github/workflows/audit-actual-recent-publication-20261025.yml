@@ -53,6 +53,6 @@ jobs:
             except urllib.error.HTTPError as e:
               print('LATEST_PUBLIC_ARTICLE='+json.dumps({'path':prefix+slug,'http':e.code}),flush=True)
             except Exception as e:
-              print('LATEST_PUBLIC_ARTICLE='+json.dumps({'path':prefix+slug,'error':type(e).__name__},flush=True)
+              print('LATEST_PUBLIC_ARTICLE='+json.dumps({'path':prefix+slug,'error':type(e).__name__}),flush=True)
           print('READ_ONLY=true')
           PY
