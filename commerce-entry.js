@@ -9,6 +9,7 @@ import {serveEnglishCanaryArticle,serveEnglishCanaryHealth,englishCanaryHealth,e
 import {serveEnglishCanaryRepairHealth} from './english-canary-repair.js';
 import {readCouponR2MigrationState} from './coupon-r2-migration.js';
 import {APPROVED_COUPON_CODES} from './approved-coupons.js';
+import {createSafeStatsMemo} from './safe-stats-cache.js';
 export {ControlPlane,GeneratorControl} from './public-entry.js';
 
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
@@ -92,7 +93,7 @@ async function augmentSitemapResponse(req,env,res){if(!res.ok||new URL(req.url).
 function permanentRedirect(to){return new Response(null,{status:301,headers:{location:to,'cache-control':'public, max-age=3600','x-seo-migration':'saudi-country-hub-v2'}})}
 async function health(env){const latest=await r2json(env,'bulk/latest.json',{articles:[]}),rows=(latest.articles||[]).slice(0,200),explicit=rows.filter(a=>a?.categoryKey&&a?.landingPath),brand=rows.filter(a=>a?.brandKey),model=rows.filter(a=>a?.modelKey),comparison=rows.filter(a=>a?.comparisonKey),high=rows.filter(a=>a?.commercialPriority==='high'),categoryDirect=rows.filter(a=>a?.landingPath&&/\/(saudi|uae)\/category\//.test(a.landingPath)),brandDirect=rows.filter(a=>a?.landingPath&&/\/(saudi|uae)\/brand\//.test(a.landingPath)),modelDirect=rows.filter(a=>a?.landingPath&&/\/(saudi|uae)\/model\//.test(a.landingPath)),comparisonDirect=rows.filter(a=>a?.landingPath&&/\/(saudi|uae)\/compare\//.test(a.landingPath)),pct=n=>rows.length?Math.round(n/rows.length*100):0,sample=explicit[0]||null;return {ok:true,version:COMMERCE_TAXONOMY_INFO.version,...COMMERCE_TAXONOMY_INFO,generatorTaxonomy:COMMERCE_GENERATOR_INFO,landingContent:LANDING_CONTENT_V3,landingSpecialty:LANDING_SPECIALTY_V4,metadataCoverage:{checked:rows.length,explicit:explicit.length,percent:pct(explicit.length),brand:brand.length,brandPercent:pct(brand.length),model:model.length,modelPercent:pct(model.length),comparison:comparison.length,comparisonPercent:pct(comparison.length),commercialPriorityHigh:high.length,commercialPriorityHighPercent:pct(high.length),directLandingDistribution:{category:categoryDirect.length,categoryPercent:pct(categoryDirect.length),brand:brandDirect.length,brandPercent:pct(brandDirect.length),model:modelDirect.length,modelPercent:pct(modelDirect.length),comparison:comparisonDirect.length,comparisonPercent:pct(comparisonDirect.length)},coverageTargets:{priority:commerceCoverageTarget('mobiles'),standard:commerceCoverageTarget('electronics')},coverageStatus:(()=>{const actual={category:pct(categoryDirect.length),brand:pct(brandDirect.length),model:pct(modelDirect.length),comparison:pct(comparisonDirect.length)},target=commerceCoverageTarget('mobiles'),underTarget=Object.keys(actual).filter(k=>actual[k]<(target[k+'DirectMin']||0));return {actual,target,underTarget,balanced:underTarget.length===0}})()},latestExplicitSample:sample?{slug:sample.slug,country:sample.country,categoryKey:sample.categoryKey,brandKey:sample.brandKey||null,modelKey:sample.modelKey||null,comparisonKey:sample.comparisonKey||null,landingPath:sample.landingPath,quality:sample.quality,provider:sample.provider}:null,sitemap:'/sitemap-commerce.xml',mainSitemap:'/sitemap.xml',sitemapDiscovery:'main-index-or-direct-urlset',time:new Date().toISOString()}}
 
-async function contentStats(req,env,ctx){
+async function computeContentStats(req,env,ctx){
   let generator={};
   try{
     const u=new URL(req.url);u.pathname='/api/generator-health';u.search='';
@@ -122,6 +123,12 @@ async function contentStats(req,env,ctx){
     storageAudit:{trackedPublished,liveTrackedPublished:trackedPublished,r2HtmlObjects:r2Uploaded,authoritativeAuditHtmlCount:r2Uploaded,r2CountComplete:Boolean(r2Count.complete),untrackedEstimate,auditQualified,discoveryComplete:Boolean(discovery?.complete),discoveryShards:Number(discovery?.shards||0),discoveryPolicy:discovery?.policy||null,discoveryRunId:discovery?.runId||null,sourceAuditScanned:Number(discovery?.sourceAuditScanned||0)||null,auditCoveragePercent:auditCoverage,autoDelete:false,note:r2Count.complete?'Authoritative HTML-object snapshot from the last completed full corpus audit. It is not a live publication counter; use liveTrackedPublished for current generator growth. No automatic deletion.':'Legacy/incomplete audit snapshot; use liveTrackedPublished for current generator growth and do not use this snapshot for cleanup or live corpus totals.'},
     r2Count:{count:r2Uploaded,countedAt:r2Count.countedAt,cached:Boolean(r2Count.cached),ageSeconds:r2Count.ageSeconds??null,complete:Boolean(r2Count.complete),source:r2Count.source||null,version:r2Count.version||null,auditVersion:r2Count.auditVersion||null,auditModel:r2Count.auditModel||null,runId:r2Count.runId||null,stale:Boolean(r2Count.stale),reason:r2Count.reason||null,listCalls:r2Count.listCalls??null,listedObjects:r2Count.listedObjects??null,snapshotKey:R2_COUNT_SNAPSHOT_KEY,ttlSeconds:R2_COUNT_TTL_MS/1000}
   };
+}
+
+const memoContentStats=createSafeStatsMemo({ttlMs:90000,maxStaleMs:300000});
+async function contentStats(req,env,ctx){
+  const fresh=new URL(req.url).searchParams.get('fresh')==='1';
+  return memoContentStats(()=>computeContentStats(req,env,ctx),{fresh});
 }
 
 export default{
