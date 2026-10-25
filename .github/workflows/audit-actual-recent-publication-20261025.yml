@@ -22,8 +22,14 @@ jobs:
           from botocore.config import Config
           base='https://noondealsnow.com'
           def get(path):
-            req=urllib.request.Request(base+urllib.parse.quote(path,safe='/?&=%'),headers={'User-Agent':'NoonNewR2PublicationAudit/20261025','Accept':'application/json,text/html'})
-            with urllib.request.urlopen(req,timeout=18) as r:return r.status,r.read(100000)
+            import time
+            req=urllib.request.Request(base+urllib.parse.quote(path,safe='/?&=%'),headers={'User-Agent':'Mozilla/5.0','Accept':'application/json,text/html'})
+            for attempt in range(4):
+              try:
+                with urllib.request.urlopen(req,timeout=18) as r:return r.status,r.read(100000)
+              except urllib.error.HTTPError as e:
+                if e.code not in (429,500,502,503,504) or attempt==3:raise
+                time.sleep(2+attempt*2)
           _,s=get('/api/content-stats?probe=20261025')
           _,fresh=get('/api/generation-freshness?probe=20261025')
           data=json.loads(s);health=json.loads(fresh)
