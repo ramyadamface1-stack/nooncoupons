@@ -57,9 +57,12 @@ test('the stable path is edge-cacheable but query params still bypass cache',()=
 
 test('after FAQ market correction, refresh only article cache and keep costly R2 archive cache stable',()=>{
   const base='r2-jsonld-dedupe-r16';
-  assert.equal(publicEdgePolicyRevision('/articles/saudi-legacy',base),'r2-article-faq-market-v17');
-  assert.equal(publicEdgePolicyRevision('/en/articles/en-uae-test',base),'r2-article-faq-market-v17');
-  for(const path of ['/blog','/blog/archive/catalog','/blog/archive/catalog/700','/sitemap.xml','/sitemap-rescue-catalog.xml']){
+  assert.equal(publicEdgePolicyRevision('/articles/saudi-legacy',base),'r2-article-faq-ga4-v18');
+  assert.equal(publicEdgePolicyRevision('/en/articles/en-uae-test',base),'r2-article-faq-ga4-v18');
+  assert.equal(publicEdgePolicyRevision('/blog',base),'r2-blog-ga4-v17');
+  assert.equal(publicEdgePolicyRevision('/blog/saudi',base),'r2-blog-ga4-v17');
+  assert.equal(publicEdgePolicyRevision('/blog/uae',base),'r2-blog-ga4-v17');
+  for(const path of ['/blog/archive/catalog','/blog/archive/catalog/700','/sitemap.xml','/sitemap-rescue-catalog.xml']){
     assert.equal(publicEdgePolicyRevision(path,base),base);
   }
 });
