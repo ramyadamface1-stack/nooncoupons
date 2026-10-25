@@ -10,7 +10,7 @@ export function publicRouteKind(path){
   if(STATIC_PUBLIC.has(p))return 'page';
   // The read-only new-account R2 archive has expensive cross-account GETs.
   // Cache only the canonical first page; cursor/page parameters still bypass cache.
-  if(p==='/blog/archive'||p==='/blog/archive/all'||p==='/blog/archive/full'||p==='/blog/archive/english'||/^\/blog\/archive\/catalog(?:\/[1-9]\d{0,4})?$/.test(p)||/^\/blog\/archive\/20\d{2}-\d{2}-\d{2}$/.test(p))return 'page';
+  if(p==='/blog/archive'||p==='/blog/archive/all'||p==='/blog/archive/full'||p==='/blog/archive/english'||/^\/blog\/archive\/english\/catalog(?:\/[1-9]\d{0,4})?$/.test(p)||/^\/blog\/archive\/catalog(?:\/[1-9]\d{0,4})?$/.test(p)||/^\/blog\/archive\/20\d{2}-\d{2}-\d{2}$/.test(p))return 'page';
   if(/^\/(?:saudi|uae)\/(?:category|brand|model|compare)\/[^/]+(?:\/[^/]+)?$/.test(p))return 'page';
   if(/^\/en\/(?:saudi|uae)\/noon-coupon-code$/.test(p))return 'page';
   if(/^\/en\/(?:saudi|uae)\/(?:category|product)\/[^/]+$/.test(p))return 'page';
