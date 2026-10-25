@@ -1,0 +1,72 @@
+name: Audit Real Mobile and Desktop Browsers on Live NoonDealsNow
+on:
+  push:
+    branches: [audit/live-browser-mobile-desktop-20261025]
+    paths: ['.github/workflows/audit-real-browser-responsive-20261025.yml']
+permissions: {contents: read}
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install Chromium browser for actual responsive testing
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Open real production pages in mobile and desktop Chromium and validate image/coupon behavior
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {chromium} from 'playwright';
+          const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+          let failures=[];
+          const modes=[{name:'mobile',viewport:{width:390,height:844},isMobile:true,deviceScaleFactor:2},{name:'desktop',viewport:{width:1365,height:900},isMobile:false,deviceScaleFactor:1}];
+          const pages=['/','/blog','/blog/saudi','/blog/uae','/coupons','/saudi','/uae','/articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي'];
+          for(const mode of modes){
+            const context=await browser.newContext({...mode,ignoreHTTPSErrors:false});
+            const tab=await context.newPage(),exceptions=[];
+            tab.on('pageerror',err=>exceptions.push(String(err.message).slice(0,180)));
+            for(const path of pages){
+              const started=Date.now();
+              let status=0,error='';
+              try{
+                const response=await tab.goto('https://noondealsnow.com'+path,{waitUntil:'domcontentloaded',timeout:35000});
+                status=response?.status()||0;
+                await tab.waitForTimeout(600);
+              }catch(e){error=String(e.message).slice(0,150)}
+              const values=await tab.evaluate(()=>{
+                const root=document.documentElement;
+                const all=[...document.querySelectorAll('img')];
+                const imgs=all.filter(x=>x.getBoundingClientRect().width>0);
+                return {
+                  viewport:innerWidth,scrollWidth:root.scrollWidth,contentWidth:root.clientWidth,
+                  pageWidth:document.body.scrollWidth,h1:document.querySelectorAll('h1').length,
+                  viewportMeta:Boolean(document.querySelector('meta[name="viewport"]')),
+                  images:all.length,visibleImages:imgs.length,loadedImages:imgs.filter(x=>x.complete&&x.naturalWidth>0).length,
+                  couponVisible:/NOV(170|188|174|157|177|186|163|153|195|161)/.test(document.body.innerText),
+                  articleLinks:document.querySelectorAll('a[href^="/articles/"],a[href^="/en/articles/"]').length,
+                  title:document.title.slice(0,110)
+                };
+              }).catch(()=>null);
+              console.log('BROWSER_PAGE='+JSON.stringify({mode:mode.name,path,status,elapsedMs:Date.now()-started,...values,error}).slice(0,1400));
+              if(status!==200)failures.push(mode.name+':'+path+':http_'+status);
+              if(!values||!values.viewportMeta||values.h1!==1)failures.push(mode.name+':'+path+':metadata_or_h1');
+              if(values&&values.scrollWidth>values.contentWidth+12)failures.push(mode.name+':'+path+':horizontal_overflow_'+(values.scrollWidth-values.contentWidth));
+              if(path==='/blog'&&values&&values.visibleImages<12)failures.push(mode.name+':'+path+':missing_blog_images');
+              if(path==='/coupons'&&values&&!values.couponVisible)failures.push(mode.name+':'+path+':missing_approved_coupon_code');
+              if(path.startsWith('/articles/')&&values&&!values.couponVisible)failures.push(mode.name+':'+path+':missing_coupon_in_article');
+            }
+            console.log('BROWSER_PAGE_ERRORS='+JSON.stringify({mode:mode.name,count:exceptions.length,sample:exceptions.slice(0,3)}));
+            await context.close();
+          }
+          await browser.close();
+          console.log('BROWSER_QA_FAILURES='+JSON.stringify(failures));
+          console.log('BROWSER_MOBILE_DESKTOP_PASS='+String(failures.length===0));
+          if(failures.length)process.exitCode=1;
+          NODE
