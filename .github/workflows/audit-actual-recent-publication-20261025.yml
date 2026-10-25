@@ -1,0 +1,58 @@
+name: Verify Last New Publication Exists In New R2
+on:
+  push:
+    branches: [audit/current-restoration-and-publishing-20261025]
+    paths: ['.github/workflows/audit-actual-recent-publication-20261025.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      R2_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet boto3
+      - name: Check latest production published slug, actual existing NEW-account R2 object and live page
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,urllib.parse,datetime,boto3
+          from botocore.config import Config
+          base='https://noondealsnow.com'
+          def get(path):
+            req=urllib.request.Request(base+urllib.parse.quote(path,safe='/?&=%'),headers={'User-Agent':'NoonNewR2PublicationAudit/20261025','Accept':'application/json,text/html'})
+            with urllib.request.urlopen(req,timeout=18) as r:return r.status,r.read(100000)
+          _,s=get('/api/content-stats?probe=20261025')
+          _,fresh=get('/api/generation-freshness?probe=20261025')
+          data=json.loads(s);health=json.loads(fresh)
+          print('ACTUAL_PUBLISHING_HEALTH='+json.dumps({'total':data.get('total'),'arabic':data.get('arabic'),'english':data.get('english'),
+            'last':{k:(data.get('last') or {}).get(k) for k in ('slug','run','error','quality','wordCount')},
+            'at':health.get('lastSuccessfulPublishAt'),'minutesAgo':health.get('minutesSinceLastSuccessfulPublish'),
+            'result':health.get('lastRescueResult'),'lastError':health.get('lastError')},ensure_ascii=False)[:1700],flush=True)
+          slug=(data.get('last') or {}).get('slug')
+          if not slug:
+            print('LAST_R2_ARTICLE_VERIFICATION=UNABLE_NO_SLUG')
+            raise SystemExit(0)
+          key='articles/'+slug+'.html'
+          client=boto3.client('s3',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            region_name='auto',aws_access_key_id=os.environ['R2_ID'].strip(),aws_secret_access_key=os.environ['R2_SECRET'].strip(),
+            config=Config(connect_timeout=10,read_timeout=18,retries={'max_attempts':2}))
+          try:
+            o=client.head_object(Bucket='nooncoupons-content-v2',Key=key)
+            print('LATEST_NEW_R2_ARTICLE='+json.dumps({'exists':True,'slug':slug,'size':o['ContentLength'],
+              'lastModified':o['LastModified'].isoformat(),'status':o.get('Metadata',{}).get('status')},ensure_ascii=False),flush=True)
+          except Exception as e:
+            print('LATEST_NEW_R2_ARTICLE='+json.dumps({'exists':False,'slug':slug,'error':type(e).__name__+':'+str(e)[:130]},ensure_ascii=False),flush=True)
+          for prefix in ['/articles/','/en/articles/'] if slug.startswith('en-') else ['/articles/']:
+            try:
+              status,body=get(prefix+slug)
+              print('LATEST_PUBLIC_ARTICLE='+json.dumps({'path':prefix+slug,'http':status,'bytes':len(body),
+                'html':b'<html' in body[:1500].lower()},ensure_ascii=False),flush=True)
+            except urllib.error.HTTPError as e:
+              print('LATEST_PUBLIC_ARTICLE='+json.dumps({'path':prefix+slug,'http':e.code}),flush=True)
+            except Exception as e:
+              print('LATEST_PUBLIC_ARTICLE='+json.dumps({'path':prefix+slug,'error':type(e).__name__},flush=True)
+          print('READ_ONLY=true')
+          PY
