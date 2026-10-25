@@ -1,0 +1,39 @@
+name: Verify R2 Live Sitemap and Safe Minute Publisher
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-r2-rescue-and-cron-20261025.yml'
+      - 'bulk-candidate-diversity.js'
+      - 'r2-emergency-readonly.js'
+      - 'r2-public-cache-policy.js'
+      - 'auto-platform.js'
+      - 'tests/bulk-candidate-diversity.test.mjs'
+      - 'tests/live-recent-sitemap.test.mjs'
+      - 'tests/remote-r2-pace.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read-only-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate source syntax (no deployment)
+        run: |
+          set -euo pipefail
+          node --check bulk-candidate-diversity.js
+          node --check r2-emergency-readonly.js
+          node --check r2-public-cache-policy.js
+          node --check auto-platform.js
+      - name: Validate quality-gated sitemap and one-minute R2 publishing behavior
+        run: |
+          set -euo pipefail
+          node --test tests/bulk-candidate-diversity.test.mjs tests/live-recent-sitemap.test.mjs tests/remote-r2-pace.test.mjs tests/live-publication-feed.test.mjs
