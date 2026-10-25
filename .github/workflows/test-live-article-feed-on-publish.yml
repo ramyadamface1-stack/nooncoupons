@@ -8,6 +8,7 @@ on:
       - 'r2-public-cache-policy.js'
       - 'wrangler.jsonc'
       - 'tests/live-publication-feed.test.mjs'
+      - 'tests/r2-saver.test.mjs'
       - '.github/workflows/test-live-article-feed-on-publish.yml'
 permissions: {contents: read}
 jobs:
