@@ -332,6 +332,13 @@ function generationFreshnessSnapshot(status){
   const lastMs=latestGenerationSuccessMs(status),ageMs=Number.isFinite(lastMs)?Math.max(0,Date.now()-lastMs):null,ageMinutes=ageMs==null?null:Math.round(ageMs/6000)/10;
   return {policy:'quality-gated-no-idle-v2',targetMaxIdleMinutes:60,rescueStartsAfterMinutes:40,rescueCooldownMinutes:8,rescueAttemptsBeforeHour:3,rescueQualityFloor:95,rescueMinWords:1500,lastSuccessfulPublishAt:Number.isFinite(lastMs)?new Date(lastMs).toISOString():null,minutesSinceLastSuccessfulPublish:ageMinutes,withinOneHour:ageMs==null?false:ageMs<NO_IDLE_WINDOW_MS,rescueDue:ageMs==null||ageMs>=NO_IDLE_RESCUE_AFTER_MS,lastRescueAt:status?.bulkNoIdleGuardLastRescueAt||null,lastRescueResult:status?.bulkNoIdleGuardLastRescueResult||null,lastRescueQuality:status?.lastRescueQuality??null,lastRescueWordCount:status?.lastRescueWordCount??null};
 }
+// With signed remote R2, a second generator in the same Worker invocation
+// shares its finite subrequest budget and can terminate the whole Cron tick.
+export function remoteR2CronMarketPlan(env,minute){
+  const remote=String(env?.REMOTE_EXISTING_R2_ENABLED||'').toLowerCase()==='true';
+  return {market:Number(minute)%5===0?'AE':'SA',allowSecondGenerator:!remote,remote};
+}
+
 async function guardedBulkTick(env){
   const statusBefore=await getGeneratorStatus(env),freshBefore=generationFreshnessSnapshot(statusBefore),lastRescueMs=Date.parse(statusBefore.bulkNoIdleGuardLastRescueAt||''),cooldown=Number.isFinite(lastRescueMs)&&Date.now()-lastRescueMs<NO_IDLE_RESCUE_COOLDOWN_MS;
   if(freshBefore.rescueDue&&!cooldown){
@@ -339,6 +346,7 @@ async function guardedBulkTick(env){
     await updateGeneratorStatus(env,{bulkNoIdleGuardLastCheckAt:stamp,bulkNoIdleGuardLastRescueResult:lockBusy?'lock_busy_retry_next_cron':result,...(lockBusy?{}:{bulkNoIdleGuardLastRescueAt:stamp,bulkNoIdleGuardRescueAttempts:Number(statusBefore.bulkNoIdleGuardRescueAttempts||0)+1})});
     if(rescue?.record)return {first:null,rescue,guard:'rescue_published_bulk_deferred'};
     if(lockBusy)return {first:null,rescue,guard:'rescue_lock_busy_retry_next_cron'};
+    if(String(env.REMOTE_EXISTING_R2_ENABLED||'').toLowerCase()==='true')return {first:null,rescue,guard:'remote_r2_one_generator_per_cron'};
   }
   const first=await bulkTick(env),skip=first?.skipped||first?.bulk?.skipped||first?.summary?.bulkLastSkipReason||null;
   if(['bulk_already_running','daily_target_reached','bulk_paused','corpus_audit_in_progress'].includes(String(skip||'')))return {first,rescue:null,guard:'blocked_by_runtime_state'};
@@ -453,6 +461,7 @@ export default{
     // scheduled/manual paths, enforces the 60-second rolling global maximum.
     if(app.scheduled)ctx.waitUntil(app.scheduled(event,env,ctx));
     const minute=Math.floor(Number(event?.scheduledTime||Date.now())/60000);
+    const publishingPlan=remoteR2CronMarketPlan(env,minute);
     ctx.waitUntil((async()=>{
       // Cron triggers at clock boundaries; the previous article may have
       // acquired its rolling DO slot seconds after the prior boundary.
@@ -465,13 +474,13 @@ export default{
       }
       if(minute%5===0){
         const en=await runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)});
-        if(Number(en?.batch?.published||0)===0)await guardedBulkTick(env);
+        if(publishingPlan.allowSecondGenerator&&Number(en?.batch?.published||0)===0)await guardedBulkTick(env);
       }else{
         const sa=await guardedBulkTick(env);
         const published=Number(sa?.first?.bulk?.records?.length||0)+(sa?.rescue?.record?1:0);
         // Quality failure or temporary AI quota cannot bypass the global
         // publication permit. English remains the tested market fallback.
-        if(published===0)await runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)});
+        if(publishingPlan.allowSecondGenerator&&published===0)await runEnglishScheduledTick(env,{maxPerTick:1,timeBudgetMs:Number(env.ENGLISH_CPU_BUDGET_MS||12000)});
       }
     })());
   }
