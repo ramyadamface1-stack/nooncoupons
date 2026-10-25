@@ -1,6 +1,7 @@
 import {enableExistingDestinationR2} from './r2-remote-existing-bucket.js';
 import {claimPublicationSlot} from './publication-rate-limit.js';
 import publicApp from './seo-layer.js';
+import {seedReconcileDue} from './cron-seed-cadence.js';
 import {snapshotDurableObjectKeys,restoreDurableObjectKeys} from './do-migration-state.js';
 import {QUALITY_CRITERIA_COUNT} from './quality-criteria.js';
 import {SEED_ARTICLES} from './seed-articles.js';
@@ -280,5 +281,10 @@ export default{
     if(p.startsWith('/articles/')){await seedIfNeeded(env);const r=await articlePage(p,env);if(r)return r}
     return publicApp.fetch(req,env,ctx);
   },
-  async scheduled(e,env,ctx){ctx.waitUntil(seedIfNeeded(env));ctx.waitUntil(ctl(env,'/publish-due',{method:'POST'}));if(publicApp.scheduled)ctx.waitUntil(publicApp.scheduled(e,env,ctx))}
+  async scheduled(e,env,ctx){
+    // Always publish due articles each minute; only hourly seed work is throttled.
+    if(seedReconcileDue(e?.scheduledTime))ctx.waitUntil(seedIfNeeded(env));
+    ctx.waitUntil(ctl(env,'/publish-due',{method:'POST'}));
+    if(publicApp.scheduled)ctx.waitUntil(publicApp.scheduled(e,env,ctx));
+  }
 };
