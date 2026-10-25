@@ -9,7 +9,7 @@ import {serveEnglishCanaryArticle,serveEnglishCanaryHealth,englishCanaryHealth,e
 import {serveEnglishCanaryRepairHealth} from './english-canary-repair.js';
 import {readCouponR2MigrationState} from './coupon-r2-migration.js';
 import {APPROVED_COUPON_CODES} from './approved-coupons.js';
-import {createSafeStatsMemo} from './safe-stats-cache.js';
+import {createSafeStatsMemo,permitStatsFresh} from './safe-stats-cache.js';
 export {ControlPlane,GeneratorControl} from './public-entry.js';
 
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
@@ -107,8 +107,7 @@ async function computeContentStats(req,env,ctx){
   // Public ?fresh=1 must not trigger a completed-audit read/write in R2.
   // Refresh of historical audit snapshots is admin-only; regular readers use
   // the last verified count, with its original countedAt and stale flag.
-  const statsUrl=new URL(req.url);
-  const freshCount=statsUrl.pathname==='/api/admin/live-overview'&&statsUrl.searchParams.get('fresh')==='1';
+  const freshCount=permitStatsFresh(req.url);
   const r2Count=await countR2ArticleHtml(env,{fresh:freshCount});
   const r2Uploaded=r2Count.count;
   const bulk=generator?.bulk||{};
@@ -138,10 +137,8 @@ async function computeContentStats(req,env,ctx){
 
 const memoContentStats=createSafeStatsMemo({ttlMs:90000,maxStaleMs:300000});
 async function contentStats(req,env,ctx){
-  const u=new URL(req.url);
-  // Only authenticated admin overview can deliberately bypass this bounded cache.
-  // Public fresh=1 would otherwise re-trigger expensive aggregation on every hit.
-  const fresh=u.pathname==='/api/admin/live-overview'&&u.searchParams.get('fresh')==='1';
+  // Public requests cannot bypass the cache or force R2 corpus-audit writes.
+  const fresh=permitStatsFresh(req.url);
   return memoContentStats(()=>computeContentStats(req,env,ctx),{fresh});
 }
 
