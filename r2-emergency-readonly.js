@@ -1,4 +1,4 @@
-import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
+import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
 // Temporary, READ-ONLY fallback for public pages when the old account's R2 is NotEntitled (10042).
 // Source of article bytes: existing mirrored R2 in destination Cloudflare account.
 // No writes, no new Durable Objects, no extra publisher, no DNS changes, no private endpoints.
@@ -82,7 +82,7 @@ const topicLinks=(country='SA',english=false)=>{
     ['/'+market+'/categories',english?'Product categories':'أقسام المنتجات'],
     ['/blog',english?'Latest guides':'أحدث المقالات'],
     ['/blog/archive/all',english?'All archived guides':'أرشيف المقالات'],
-    ['/blog/archive/catalog',english?'Browse old article directory':'فهرس المقالات القديمة']
+    [english?'/blog/archive/english/catalog':'/blog/archive/catalog',english?'Browse English guide directory':'فهرس المقالات القديمة']
   ].map(([href,title])=>'<a href="'+esc(href)+'">'+esc(title)+'</a>').join('')+'</div></nav>';
 };
 function page(title,content,{lang='ar',dir='rtl',canonical='',description='',robots='noindex,follow',image=''}={}){
@@ -156,7 +156,7 @@ async function serveArticle(env,u,english){
   if(!obj)return new Response('Not Found',{status:404,headers:{'cache-control':'public,max-age=60'}});
   if(obj.meta.status&&obj.meta.status!=='published')return new Response('Not Found',{status:404});
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
-  const body=repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country),country),country);
+  const body=repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country),country),country),country,english);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
   const description=cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'')).slice(0,170),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1);
