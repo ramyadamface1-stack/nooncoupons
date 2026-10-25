@@ -49,8 +49,21 @@ test('related article suggestions only come from published, right-market, genuin
   ];
   const html=renderRelatedArticles(items,'saudi-sunscreen-guide','SA',false);
   assert.match(html,/\/articles\/saudi-sunscreen-review/);
-  assert.match(html,/\/articles\/saudi-phone/);
+  assert.doesNotMatch(html,/\/articles\/saudi-phone/,'unrelated phones must not appear on sunscreen article');
   assert.doesNotMatch(html,/en-uae-sunscreen|saudi-draft/);
+});
+test('related links require a shared product or topic, not country/guide filler words',()=>{
+  const rows=[
+    {slug:'saudi-sunscreen-usage',title:'Sunscreen checkout options',country:'SA',status:'published'},
+    {slug:'saudi-sneakers-guide',title:'Shopping Saudi Guide',country:'SA',status:'published'},
+    {slug:'uae-sunscreen-guide',title:'Sunscreen UAE',country:'AE',status:'published'},
+    {slug:'saudi-coupon-code',title:'Noon Saudi coupon guide',country:'SA',status:'published'}
+  ];
+  const html=renderRelatedArticles(rows,'saudi-sunscreen-guide','SA');
+  assert.match(html,/saudi-sunscreen-usage/);
+  assert.doesNotMatch(html,/saudi-sneakers-guide|uae-sunscreen-guide|saudi-coupon-code/);
+  const none=renderRelatedArticles(rows,'saudi-laptop-hp-guide','SA');
+  assert.equal(none,'');
 });
 test('actual emergency R2 article responds with market-specific copy CTA, contrast links and canonical',async()=>{
   const realFetch=globalThis.fetch;
