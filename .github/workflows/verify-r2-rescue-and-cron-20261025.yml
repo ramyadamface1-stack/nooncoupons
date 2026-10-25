@@ -11,6 +11,9 @@ on:
       - 'rescue-article-conversion.js'
       - 'r2-public-cache-policy.js'
       - 'auto-platform.js'
+      - 'platform.js'
+      - 'cron-seed-cadence.js'
+      - 'tests/cron-seed-cadence.test.mjs'
       - 'tests/bulk-candidate-diversity.test.mjs'
       - 'tests/live-recent-sitemap.test.mjs'
       - 'tests/rescue-article-conversion.test.mjs'
@@ -46,7 +49,9 @@ jobs:
           node --check rescue-article-conversion.js
           node --check r2-public-cache-policy.js
           node --check auto-platform.js
+          node --check platform.js
+          node --check cron-seed-cadence.js
       - name: Validate quality-gated sitemap and one-minute R2 publishing behavior
         run: |
           set -euo pipefail
-          node --test tests/bulk-candidate-diversity.test.mjs tests/live-recent-sitemap.test.mjs tests/remote-r2-pace.test.mjs tests/live-publication-feed.test.mjs tests/rescue-article-conversion.test.mjs tests/archive-catalog.test.mjs tests/workers-ai-market-lock.test.mjs tests/safe-stats-cache.test.mjs
+          node --test tests/bulk-candidate-diversity.test.mjs tests/live-recent-sitemap.test.mjs tests/remote-r2-pace.test.mjs tests/live-publication-feed.test.mjs tests/rescue-article-conversion.test.mjs tests/archive-catalog.test.mjs tests/workers-ai-market-lock.test.mjs tests/safe-stats-cache.test.mjs tests/cron-seed-cadence.test.mjs
