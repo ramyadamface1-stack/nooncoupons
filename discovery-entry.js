@@ -415,8 +415,19 @@ async function sitemapHealth(req,env,ctx,origin){
       else if(path==='/sitemap-hubs.xml')res=await hubSitemap(env,origin);
       else if(path==='/sitemap-images.xml')res=await imageSitemap(env,origin);
       else{const u=new URL(req.url);u.pathname=path;u.search='';res=await app.fetch(new Request(u.toString(),{method:'GET',headers:{accept:'application/xml,text/xml,*/*'}}),env,ctx)}
-      const text=await res.text(),type=(res.headers.get('content-type')||'').toLowerCase(),root=/<(?:urlset|sitemapindex)\b/i.test(text),xmlDecl=/^\s*<\?xml\b/i.test(text),locs=(text.match(/<loc>/gi)||[]).length,httpLocs=(text.match(/<loc>http:\/\//gi)||[]).length,httpsLocs=(text.match(/<loc>https:\/\//gi)||[]).length;
-      rows.push({path,status:res.status,ok:res.ok&&type.includes('xml')&&root,contentType:type,xmlDeclaration:xmlDecl,rootDetected:root,locs,httpLocs,httpsLocs,bytes:text.length});
+      // The external /sitemap.xml route appends the R2 rescue indexes AFTER
+      // app.fetch(). Measure the identical public response, not the incomplete
+      // base index, or a green self-audit can conceal absent historical shards.
+      if(path==='/sitemap.xml')res=await augmentRootSitemap(res,origin,env);
+      const text=await res.text(),type=(res.headers.get('content-type')||'').toLowerCase(),root=/<(?:urlset|sitemapindex)\\b/i.test(text),xmlDecl=/^\\s*<\\?xml\\b/i.test(text),locs=(text.match(/<loc>/gi)||[]).length,httpLocs=(text.match(/<loc>http:\\/\\//gi)||[]).length,httpsLocs=(text.match(/<loc>https:\\/\\//gi)||[]).length;
+      const rescueCoverage=path==='/sitemap.xml'?{
+        historicArabic:text.includes(origin+'/sitemap-rescue-articles-'),
+        historicEnglish:text.includes(origin+'/sitemap-rescue-english-'),
+        arabicCatalog:text.includes(origin+'/sitemap-rescue-catalog.xml'),
+        englishCatalog:text.includes(origin+'/sitemap-rescue-english-catalog.xml')
+      }:null;
+      const coverageOk=!rescueCoverage||Object.values(rescueCoverage).every(Boolean);
+      rows.push({path,status:res.status,ok:res.ok&&type.includes('xml')&&root&&coverageOk,contentType:type,xmlDeclaration:xmlDecl,rootDetected:root,locs,httpLocs,httpsLocs,bytes:text.length,...(rescueCoverage?{rescueCoverage}:{} )});
     }catch(e){rows.push({path,status:0,ok:false,error:String(e?.message||e).slice(0,220)})}
   }
   return new Response(JSON.stringify({ok:rows.every(x=>x.ok),origin,checkedAt:new Date().toISOString(),rows},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-sitemap-self-audit':'v1'}});
