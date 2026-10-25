@@ -59,7 +59,8 @@ export function pickTopic(state,attempt=0){
   return null;
 }
 
-export function pickRescueTopic(state,attempt=0){
+export function pickRescueTopic(state,attempt=0,forceCountry=''){
+  const desired=forceCountry==='SA'||forceCountry==='AE'?forceCountry:'';
   const rows=Array.isArray(state?.articles)?state.articles:[],existing=new Set(rows.map(a=>norm(a.primaryKeyword||''))),saturation=new Map();
   for(const a of rows){
     const key=String(a?.country||'')+'|'+norm(a?.category||'');
@@ -69,11 +70,12 @@ export function pickRescueTopic(state,attempt=0){
   let best=null,bestScore=Infinity;
   for(let step=0;step<scan;step++){
     const n=(attempt+step*stride)%total,targeted=topicAtIndex(n);
+    if(desired&&targeted.country!==desired)continue;
     if(existing.has(norm(targeted.kw)))continue;
     const score=saturation.get(String(targeted.country||'')+'|'+norm(targeted.category||''))||0;
     if(score<bestScore){best=targeted;bestScore=score;if(score===0)break}
   }
-  return best||pickTopic(state,attempt);
+  return best||(desired?null:pickTopic(state,attempt));
 }
 
 export function auditGenerated(a,t,cfg){
