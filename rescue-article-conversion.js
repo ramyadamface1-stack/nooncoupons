@@ -82,6 +82,23 @@ main{max-width:980px} .rescue-article{min-width:0;overflow-wrap:anywhere;color:#
 export const rescueCopyScript=String.raw`
 <script id="rescue-coupon-copy">
 (function(){
+  // Match the site's existing privacy-safe aggregate endpoint. The rescue
+  // renderer bypasses the old brand-runtime conversion listener entirely.
+  // Count real copy success and outbound Noon clicks; never collect buyer PII.
+  function track(type,market,coupon,placement){
+    if(navigator.doNotTrack==='1'||window.doNotTrack==='1')return;
+    var eventData={type:type,path:location.pathname,label:type==='copy_code'?coupon:'www.noon.com',market:market,coupon_code:coupon,placement:placement,destination_host:type==='open_noon'?'www.noon.com':''};
+    var payload=JSON.stringify(eventData);
+    try{if(navigator.sendBeacon&&navigator.sendBeacon('/api/track-event',new Blob([payload],{type:'application/json'})))return}catch(e){}
+    try{fetch('/api/track-event',{method:'POST',headers:{'content-type':'application/json'},body:payload,keepalive:true}).catch(function(){})}catch(e){}
+  }
+  document.addEventListener('click',function(event){
+    var anchor=event.target.closest('a[href]');if(!anchor)return;
+    try{var dest=new URL(anchor.href,location.href);if(!/(^|\.)noon\.com$/i.test(dest.hostname))return}catch(e){return}
+    var root=anchor.closest('[data-market]')||document.querySelector('.rescue-article[data-market]');
+    var market=root&&root.getAttribute('data-market')==='AE'?'AE':'SA';
+    track('open_noon',market,market==='AE'?'NOV188':'NOV170',anchor.closest('.rescue-offer')?.querySelector('[data-placement]')?.getAttribute('data-placement')||'article_link');
+  },true);
   document.addEventListener('click',async function(event){
     var button=event.target.closest('button[data-rescue-copy],button[data-copy-code]');
     if(!button)return;
@@ -96,6 +113,7 @@ export const rescueCopyScript=String.raw`
     var status=button.closest('.rescue-offer')?.querySelector('.rescue-copy-status')||document.querySelector('.rescue-copy-status');
     if(status)status.textContent=copied?(document.documentElement.lang.startsWith('en')?'Copied '+code:'تم نسخ '+code):(document.documentElement.lang.startsWith('en')?'Select and copy: '+code:'انسخ الكود: '+code);
     if(copied)button.textContent=(document.documentElement.lang.startsWith('en')?'Copied ':'تم النسخ: ')+code;
+    if(copied)track('copy_code',root.getAttribute('data-market')==='AE'?'AE':'SA',code,button.dataset.placement||'article');
     if(copied)document.dispatchEvent(new CustomEvent('noon:coupon-copied',{detail:{market:root.getAttribute('data-market'),placement:button.dataset.placement||'article'}}));
   },true);
 })();
