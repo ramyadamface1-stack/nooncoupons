@@ -10,7 +10,10 @@ export function presentMarketCouponText(source,country='SA'){
   return String(source||'').split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>|<[^>]+>)/gi).map(part=>{
     if(!part.startsWith('<'))return part.replace(/\b(?:NOV|RAMY|OPS)\d{2,4}\b/gi,code);
     if(/^<(?:img|source)\b/i.test(part)&&/\/assets\/coupon-svg\//i.test(part)){
-      return part.replace(/(\b(?:\?|&amp;|&)coupon=)(?:NOV|RAMY|OPS)\d{2,4}/gi,'$1'+code);
+      // Keep existing product/brand image and src intact, but display the SAME
+      // market code on its SVG query and visible accessible alt/title labels.
+      return part.replace(/(\b(?:\?|&amp;|&)coupon=)(?:NOV|RAMY|OPS)\d{2,4}/gi,'$1'+code)
+        .replace(/((?:alt|title)=["'][^"']*)\b(?:NOV|RAMY|OPS)\d{2,4}\b/gi,'$1'+code);
     }
     if(/^<button\b/i.test(part)&&/data-copy-code/i.test(part)){
       return part.replace(/(data-copy-code=["'])(?:NOV|RAMY|OPS)\d{2,4}(["'])/gi,'$1'+code+'$2');
