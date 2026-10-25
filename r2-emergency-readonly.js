@@ -1,4 +1,4 @@
-import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
+import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
 // Temporary, READ-ONLY fallback for public pages when the old account's R2 is NotEntitled (10042).
 // Source of article bytes: existing mirrored R2 in destination Cloudflare account.
 // No writes, no new Durable Objects, no extra publisher, no DNS changes, no private endpoints.
@@ -100,8 +100,9 @@ function page(title,content,{lang='ar',dir='rtl',canonical='',description='',rob
     'window.gtag("js",new Date());window.gtag("config","G-1551Z7DJ2C");'+
     '})();</script>';
   const css='<style>body{margin:0;color:#152033;background:#f8fafc;font-family:Tahoma,Arial,sans-serif;line-height:1.8}header{background:#111827;color:white;padding:20px 4%}header a{color:#fff;margin-inline-end:20px}main{max-width:950px;margin:26px auto;padding:22px;background:white;border-radius:14px}a{color:#4032a2}article img,article svg{max-width:100%;height:auto}.card>a img{width:100%;aspect-ratio:1200/760;object-fit:cover;border-radius:10px}.featured{margin:12px 0 28px}.featured figcaption{color:#475569;font-size:14px}.related{border-top:1px solid #e2e8f0;margin-top:32px;padding-top:18px}.related-links{display:flex;gap:12px;flex-wrap:wrap}.related-links a{display:inline-block;background:#fffbea;padding:8px 12px;border-radius:10px}.cards{display:grid;gap:12px}.card{padding:18px;border:1px solid #eee;border-radius:12px}.pager{display:flex;gap:14px;justify-content:center;margin:30px 0}.pager a{padding:8px 12px;background:#eee;border-radius:8px}footer{margin:35px auto;padding:15px;max-width:950px;color:#475569}@media(max-width:640px){main{margin:0;border-radius:0;padding:16px}}</style>';
-  const menu=lang==='en'?'<a href="/">Home</a><a href="/blog">Blog</a><a href="/blog/archive/english">English Guides</a><a href="/saudi">Saudi Arabia</a><a href="/uae">UAE</a>':'<a href="/">الرئيسية</a><a href="/blog">المدونة</a><a href="/blog/saudi">مقالات السعودية</a><a href="/blog/uae">مقالات الإمارات</a><a href="/blog/archive/all">كل المقالات</a>';
-  const disclaimer=lang==='en'?'Independent guide. Verify each coupon against your Noon checkout total.':'محتوى مستقل. تحقق من صلاحية الكود داخل سلة نون قبل الدفع.';
+  const isEnglish=String(lang).toLowerCase().startsWith('en');
+  const menu=isEnglish?'<a href="/">Home</a><a href="/blog">Blog</a><a href="/blog/archive/english">English Guides</a><a href="/saudi">Saudi Arabia</a><a href="/uae">UAE</a>':'<a href="/">الرئيسية</a><a href="/blog">المدونة</a><a href="/blog/saudi">مقالات السعودية</a><a href="/blog/uae">مقالات الإمارات</a><a href="/blog/archive/all">كل المقالات</a>';
+  const disclaimer=isEnglish?'Independent guide. Verify each coupon against your Noon checkout total.':'محتوى مستقل. تحقق من صلاحية الكود داخل سلة نون قبل الدفع.';
   return '<!doctype html><html lang="'+lang+'" dir="'+dir+'"><head>'+header+css+analytics+'</head><body><header><nav>'+menu+'</nav></header><main>'+content+'</main><footer>'+disclaimer+'</footer></body></html>';
 }
 function response(title,content,opts={},status=200){return new Response(page(title,content,opts),{status,headers:htmlHeaders})}
@@ -155,7 +156,7 @@ async function serveArticle(env,u,english){
   if(!obj)return new Response('Not Found',{status:404,headers:{'cache-control':'public,max-age=60'}});
   if(obj.meta.status&&obj.meta.status!=='published')return new Response('Not Found',{status:404});
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
-  const body=reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country),country);
+  const body=repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country),country),country);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
   const description=cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'')).slice(0,170),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1);
