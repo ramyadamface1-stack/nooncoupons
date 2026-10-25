@@ -415,6 +415,30 @@ async function liveRecentSitemap(env){
 const rescueOrigin='https://noondealsnow.com';
 const rescueArticleUrl=a=>rescueOrigin+(a.slug.startsWith('en-')?'/en/articles/':'/articles/')+encodeURIComponent(a.slug);
 const sitemapPathNum=p=>{const match=p.match(/^\/sitemap-rescue-(english-images|english|articles|images)-([0-9]{1,4})\.xml$/);return match?{kind:match[1],n:Number(match[2])}:null};
+
+/** Cheap, read-only inventory summary. Manifest entries are *not* validated objects.
+ * This makes their mismatch with DO publication counters explicit instead of
+ * accidentally presenting an old R2 count as the present corpus total.
+ */
+export async function rescueManifestInventory(env){
+  const index=await getJson(env,'seo-rescue/index.json');
+  if(!index||index.version!==1)return {ok:false,reason:'rescue_manifest_unavailable'};
+  const summary=parts=>{
+    const rows=Array.isArray(parts)?parts:[];
+    return {segments:rows.length,entries:rows.reduce((n,x)=>n+Math.max(0,Number(x.count)||0),0)};
+  };
+  const arabic=summary(index.segments),english=summary(index.englishSegments);
+  const arabicClaim=Number(index.count||0),englishClaim=Number(index.englishCount||0);
+  return {
+    ok:arabic.segments>0&&english.segments>0,
+    inventoryType:'R2 rescue manifest references, not confirmed live published URLs',
+    arabic:{...arabic,declaredEntries:arabicClaim,countMatchesSegmentSum:arabicClaim===arabic.entries},
+    english:{...english,declaredEntries:englishClaim,countMatchesSegmentSum:englishClaim===english.entries},
+    declaredCombined:arabicClaim+englishClaim,
+    limitations:['Entries may overlap the generator tracker; do not add these counts to it.','Individual R2 objects and their Google indexation have not been exhaustively verified.','No storage objects are listed, modified or deleted.']
+  };
+}
+
 export async function rescueSitemapIndexPaths(env){
   const index=await getJson(env,'seo-rescue/index.json');
   if(!index||index.version!==1||!Array.isArray(index.segments)||!index.count)return [];
