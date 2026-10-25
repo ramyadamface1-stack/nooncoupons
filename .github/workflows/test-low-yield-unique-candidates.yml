@@ -1,0 +1,25 @@
+name: Verify Stalled Publisher Explores Unique Topic Candidates
+on:
+  push:
+    branches: [fix/quality-unique-candidate-exploration-20261025]
+    paths: ['bulk-candidate-diversity.js','tests/bulk-candidate-diversity.test.mjs','.github/workflows/test-low-yield-unique-candidates.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Strict seed tests and quality compilation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/bulk-candidate-diversity.test.mjs
+          node --check bulk-generator.js
+          node --check bulk-content-engine.js
+          npm install --ignore-scripts --no-audit --no-fund
+          npx wrangler deploy --dry-run --outdir /tmp/noon-bulk-diversity
+          echo 'STRICT_DUPLICATE_AND_SEMANTIC_GATES_UNCHANGED=true'
+          echo 'NO_LIVE_DEPLOY_OR_NEW_RESOURCES=true'
