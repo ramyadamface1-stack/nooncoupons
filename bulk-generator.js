@@ -1,6 +1,6 @@
 import {buildBulkTopic as buildRawBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO} from './bulk-content-engine.js';
 import {claimPublicationSlot,getPublicationSlotStatus} from './publication-rate-limit.js';
-import {chooseBulkCandidateTopicSeed} from './bulk-candidate-diversity.js';
+import {chooseBulkCandidateTopicSeed,boundedBulkCandidateTries} from './bulk-candidate-diversity.js';
 import {applyKeywordStrategy,reconcileKeywordHierarchy,KEYWORD_STRATEGY_INFO} from './keyword-strategy.js';
 import {auditSeoArticle,auditSummary,preAuditSemanticGate} from './quality-audit.js';
 import {loadCluster,bootstrapGlobalIndex,preflightGlobalGate,globalGate,pickRelated,injectContextualLinks,addToCluster,flushClusters,clusterKey,campaignIntentDimension,GLOBAL_INDEX_INFO} from './quality-index.js';
@@ -83,7 +83,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
   const burstForceCountry=String(env.BULK_BURST_FORCE_COUNTRY||'').toUpperCase();
   const burstPriorityProfiles=[...new Set(String(env.BULK_BURST_PRIORITY_PROFILES||'').split(',').map(x=>x.trim()).filter(Boolean))];
   let cursor=Math.max(V2_CURSOR_START,Number(status.bulkCursorV2||0)),tries=0,rejectedQuality=0,rejectedPreAuditSemantic=0,rejectedDuplicate=0,rejectedGlobal=0,rejectedPreflightGlobal=0,rejectedPreflightRecent=0,rejectedPreflightCluster=0,rejectedCoupon=0,rejectedLinks=0,rejectedSchema=0,rejectedIndexation=0,rejectedDemandRouting=0,qualityRejectReasons={},globalRejectReasons={},preflightGlobalRejectReasons={},demandRouteReasons={},campaignAttemptCounts={},campaignPostClusterCounts={},campaignPublishedCounts={};const records=[],pendingArticleWrites=[];
-  const candidateTryLimit=burstMode?Math.max(batch*6,384):(lowYield?Math.max(batch,48):Math.max(batch*6,144));
+  const candidateTryLimit=boundedBulkCandidateTries(env,burstMode?Math.max(batch*6,384):(lowYield?Math.max(batch,48):Math.max(batch*6,144)));
   const candidateLoopStartedMs=Date.now();let candidateBudgetHit=false;
   while(records.length<batch&&countBefore+records.length<target&&tries<candidateTryLimit){
     if(Date.now()-candidateLoopStartedMs>=candidateBudgetMs){candidateBudgetHit=true;break}
