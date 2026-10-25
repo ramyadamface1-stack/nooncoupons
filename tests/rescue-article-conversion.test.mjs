@@ -73,3 +73,27 @@ test('actual emergency R2 article responds with market-specific copy CTA, contra
     assert.equal((html.match(/<h1\b/g)||[]).length,1);
   }finally{globalThis.fetch=realFetch}
 });
+
+test('Saudi and UAE blog listing thumbnails show the correct primary code, not historical article code',async()=>{
+  const original=globalThis.fetch;
+  const feed={articles:[
+    {slug:'saudi-test-topic',country:'SA',status:'published',title:'مراجعة نون السعودية',coupon:'NOV174',createdAt:'2026-10-25T08:00:00Z'},
+    {slug:'uae-test-topic',country:'AE',status:'published',title:'مراجعة نون الإمارات',coupon:'NOV157',createdAt:'2026-10-25T08:00:00Z'}
+  ]};
+  globalThis.fetch=async url=>{
+    const key=decodeURIComponent(new URL(url).pathname);
+    if(key.endsWith('/bulk/latest.json')||key.endsWith('/blog/latest-live-v1.json'))return new Response(JSON.stringify(feed),{status:200});
+    throw Error('Unexpected R2 key '+key);
+  };
+  const env={R2_RESCUE_READONLY_ENABLED:'true',NOON_RESCUE_R2_ACCESS_KEY_ID:'TEST',NOON_RESCUE_R2_SECRET_ACCESS_KEY:'TEST'};
+  try{
+    const sa=await emergencyPublicR2Response(new Request('https://noondealsnow.com/blog/saudi'),env);
+    const saHtml=await sa.text();
+    assert.match(saHtml,/coupon=NOV170/);
+    assert.doesNotMatch(saHtml,/coupon=NOV174/);
+    const ae=await emergencyPublicR2Response(new Request('https://noondealsnow.com/blog/uae'),env);
+    const aeHtml=await ae.text();
+    assert.match(aeHtml,/coupon=NOV188/);
+    assert.doesNotMatch(aeHtml,/coupon=NOV157/);
+  }finally{globalThis.fetch=original}
+});
