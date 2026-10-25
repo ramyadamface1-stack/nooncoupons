@@ -81,6 +81,10 @@ test('English UAE directory exposes 100 links per stable page with own canonical
     assert.match(html,/\/en\/articles\/en-uae-guide-/);
     assert.doesNotMatch(html,/\/articles\/guide-0000/);
     assert.match(html,/G-1551Z7DJ2C/);
+    assert.match(html,/<html lang="en-AE" dir="ltr"/);
+    assert.match(html,/>Home<\/a>/);
+    assert.match(html,/Independent guide\. Verify each coupon/);
+    assert.doesNotMatch(html,/>الرئيسية<\/a>/);
   }
   const bad=await emergencyPublicR2Response(new Request('https://noondealsnow.com/blog/archive/english/catalog/4'),env);
   assert.equal(bad.status,404);
