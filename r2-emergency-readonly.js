@@ -208,7 +208,7 @@ async function serveBlog(env,u){
   const visible=rows.slice((pageNum-1)*size,pageNum*size);
   const path=market==='SA'?'/blog/saudi':market==='AE'?'/blog/uae':'/blog';
   const heading=market==='SA'?'مدونة نون السعودية':market==='AE'?'مدونة نون الإمارات':'مدونة كوبونات نون';
-  const tabs='<nav class="related-links" aria-label="أقسام المدونة"><a href="/blog">كل المقالات</a><a href="/blog/saudi">السعودية</a><a href="/blog/uae">الإمارات</a><a href="/blog/archive/english">English UAE</a><a href="/blog/archive/all">الأرشيف الكامل</a></nav>';
+  const tabs='<nav class="related-links" aria-label="أقسام المدونة"><a href="/blog">كل المقالات</a><a href="/blog/saudi">السعودية</a><a href="/blog/uae">الإمارات</a><a href="/blog/archive/english">English UAE</a><a href="/blog/archive/all">الأرشيف الكامل</a><a href="/blog/archive/catalog">فهرس المقالات القديمة</a></nav>';
   const hint='<h1>'+esc(heading)+'</h1><p>مقالات وأدلة شرائية مرتبطة بكوبونات نون، مع ضرورة مراجعة أهلية الكود والسعر النهائي داخل السلة.</p>'+tabs;
   const pageUrl='https://noondealsnow.com'+path+(pageNum>1?'?page='+pageNum:'');
   const schema='<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@graph':[{'@type':'CollectionPage',name:heading,url:pageUrl,inLanguage:'ar'},{'@type':'ItemList',itemListElement:visible.map((a,i)=>({'@type':'ListItem',position:i+1+(pageNum-1)*size,url:'https://noondealsnow.com'+link(a)}))}]}).replace(/</g,'\\u003c')+'</script>';
@@ -238,6 +238,57 @@ async function serveEnglishArchive(env,u){
   const heading='<h1>Noon UAE English Shopping Guides</h1><p>Browse '+count.toLocaleString('en-US')+' published UAE shopping guides, alphabetically, 15 per page. Check each coupon against your final Noon cart total.</p><nav class="related-links"><a href="/blog">Arabic blog</a><a href="/blog/uae">UAE Arabic articles</a><a href="/uae">UAE store hub</a></nav>';
   return response('Noon UAE English Guides',heading+'<section class="cards">'+cardsHtml+'</section>'+nav(pageNum>1?path+'?page='+(pageNum-1):'',pageNum<pages?path+'?page='+(pageNum+1):'','Page '+pageNum+' of '+pages),{canonical:url,robots:'noindex,follow',lang:'en',dir:'ltr'});
 }
+
+const CATALOG_PAGE_SIZE=100;
+const CATALOG_SHARD_SIZE=2000;
+const catalogUrl=pageNum=>'/blog/archive/catalog'+(pageNum>1?'/'+pageNum:'');
+function catalogSize(index){
+  const parts=Array.isArray(index?.segments)?index.segments:[];
+  if(index?.version!==1||!parts.length)return 0;
+  return Math.max(0,Math.min(1000000,Number(index.count)||parts.reduce((sum,x)=>sum+Math.max(0,Number(x.count)||0),0)));
+}
+async function serveCatalog(env,u){
+  const index=await getJson(env,'seo-rescue/index.json'),count=catalogSize(index);
+  if(!count)return new Response('Catalog index temporarily unavailable',{status:503,headers:{'cache-control':'no-store'}});
+  const match=u.pathname.match(/^\/blog\/archive\/catalog(?:\/([1-9]\d{0,4}))?$/);
+  const pageNum=match?.[1]?Number(match[1]):1,pages=Math.ceil(count/CATALOG_PAGE_SIZE);
+  if(pageNum>pages)return new Response('Archive page not found',{status:404,headers:{'cache-control':'public,max-age=60'}});
+  const from=(pageNum-1)*CATALOG_PAGE_SIZE,to=Math.min(count,from+CATALOG_PAGE_SIZE),first=Math.floor(from/CATALOG_SHARD_SIZE),last=Math.floor((to-1)/CATALOG_SHARD_SIZE),rows=[];
+  for(let n=first;n<=last;n++){
+    const part=index.segments.find(item=>item.n===n);
+    if(!part?.key)return new Response('Catalog shard unavailable',{status:503,headers:{'cache-control':'no-store'}});
+    const file=await getJson(env,part.key);
+    if(file?.version!==1||!Array.isArray(file.articles))return new Response('Catalog data unavailable',{status:503,headers:{'cache-control':'no-store'}});
+    const offset=n*CATALOG_SHARD_SIZE;
+    for(let i=Math.max(0,from-offset);i<Math.min(file.articles.length,to-offset);i++){
+      const a=file.articles[i];
+      if(a?.slug&&!String(a.slug).startsWith('en-'))rows.push(a);
+    }
+  }
+  const path=catalogUrl(pageNum),canonical='https://noondealsnow.com'+path;
+  const links=rows.map(a=>{
+    const slug=String(a.slug),market=a.country==='AE'?'الإمارات':'السعودية';
+    const title=String(a.title||slug).replace(/[-_]+/g,' ').slice(0,180),href='/articles/'+encodeURIComponent(slug);
+    return '<li><a href="'+esc(href)+'">'+esc(title)+'</a> <small>· نون '+market+'</small></li>';
+  }).join('');
+  const navLink=(n,label)=>'<a href="'+catalogUrl(n)+'">'+label+'</a>';
+  const pagination='<nav class="archive-pagination" aria-label="صفحات الأرشيف">'+
+    (pageNum>1?navLink(1,'أول صفحة')+navLink(pageNum-1,'السابق'):'')+
+    '<strong>صفحة '+pageNum.toLocaleString('ar-EG')+' من '+pages.toLocaleString('ar-EG')+'</strong>'+
+    (pageNum<pages?navLink(pageNum+1,'التالي')+navLink(pages,'آخر صفحة'):'')+'</nav>';
+  const title='فهرس مقالات كوبونات نون القديمة — صفحة '+pageNum;
+  const css='<style>.archive-index{padding-inline-start:1.8rem}.archive-index li{line-height:1.8;padding:.6rem 0;border-bottom:1px solid #e2e8f0}.archive-index a{color:#1558c0;text-decoration:underline;text-underline-offset:3px;font-weight:600}.archive-index a:visited{color:#6b36ab}.archive-index small{color:#475569}.archive-pagination{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:25px 0}.archive-pagination a{padding:7px 12px;border:1px solid #cbd5e1;border-radius:8px;color:#1558c0;text-decoration:underline}.archive-pagination strong{padding:7px}</style>';
+  const schema='<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@type':'CollectionPage',name:title,url:canonical,mainEntity:{'@type':'ItemList',itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:from+i+1,url:'https://noondealsnow.com/articles/'+encodeURIComponent(a.slug)}))}}).replace(/</g,'\\u003c')+'</script>';
+  return response(title,css+schema+'<h1>'+esc(title)+'</h1><p>روابط مباشرة للمقالات الأصلية في فهرس الأرشيف المستعاد من R2؛ 100 مقال في الصفحة. لا يغيّر هذا الفهرس رابط المقال أو محتواه.</p><p><a href="/blog">أحدث المقالات</a> · <a href="/blog/saudi">السعودية</a> · <a href="/blog/uae">الإمارات</a> · <a href="/blog/archive/english">الأرشيف الإنجليزي</a></p>'+pagination+'<ol class="archive-index" start="'+(from+1)+'">'+links+'</ol>'+pagination,{canonical,description:'تصفح روابط مقالات كوبونات نون القديمة في السعودية والإمارات — صفحة '+pageNum+' من '+pages,robots:'index,follow'});
+}
+async function catalogSitemap(env){
+  const index=await getJson(env,'seo-rescue/index.json'),count=catalogSize(index);
+  if(!count)return new Response('Catalog index temporarily unavailable',{status:503,headers:{'cache-control':'no-store'}});
+  const pages=Math.ceil(count/CATALOG_PAGE_SIZE),xml='<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+
+    Array.from({length:pages},(_,i)=>'<url><loc>https://noondealsnow.com'+catalogUrl(i+1)+'</loc></url>').join('')+'</urlset>';
+  return xmlResponse(xml);
+}
+
 async function serveAll(env,u){
   const cursor=u.searchParams.get('cursor')||'';
   if(cursor.length>1000)return new Response('Invalid cursor',{status:400});
@@ -246,7 +297,7 @@ async function serveAll(env,u){
   let count='';
   try{const m=await getJson(env,'_ops/article-count.json');count=m?.count?'<p>آخر عد مؤكد لملفات المقالات: '+Number(m.count).toLocaleString('ar-EG')+'</p>':''}catch{}
   const next=rows.more&&rows.token?'/blog/archive/all?cursor='+encodeURIComponent(rows.token):'';
-  return response('كل المقالات المحفوظة','<h1>كل المقالات المحفوظة</h1><p>أرشيف كامل قابل للتصفح، 15 مقالة في الصفحة، بدون تغيير الروابط القديمة.</p>'+count+'<section class="cards">'+cardsHtml+'</section>'+nav('',next,'15 مقالة / صفحة'),{canonical:'https://noondealsnow.com/blog/archive/all',robots:'noindex,follow'});
+  return response('كل المقالات المحفوظة','<h1>كل المقالات المحفوظة</h1><p>أرشيف كامل قابل للتصفح، 15 مقالة في الصفحة، بدون تغيير الروابط القديمة. <a href="/blog/archive/catalog">فهرس ثابت للمقالات القديمة</a>.</p>'+count+'<section class="cards">'+cardsHtml+'</section>'+nav('',next,'15 مقالة / صفحة'),{canonical:'https://noondealsnow.com/blog/archive/all',robots:'noindex,follow'});
 }
 async function serveDays(env){
   const m=await getJson(env,'bulk/days.json'),days=(m?.days||[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x.day||''));
@@ -309,6 +360,7 @@ export async function rescueSitemapIndexPaths(env){
     if(!Number.isSafeInteger(part.n)||part.n<0||part.n>9999||!Number.isSafeInteger(part.count)||part.count<1)continue;
     rows.push('/sitemap-rescue-english-'+part.n+'.xml','/sitemap-rescue-english-images-'+part.n+'.xml');
   }
+  if(catalogSize(index)>0)rows.push('/sitemap-rescue-catalog.xml');
   // Only advertise a live sitemap when the existing R2 feed has published, QA-approved entries.
   // Errors in the optional feed must never hide static rescue shards.
   try{const live=await getJson(env,'blog/latest-live-v1.json');if((live?.articles||[]).some(liveSitemapEligible))rows.push('/sitemap-live-recent.xml')}catch{}
@@ -316,6 +368,7 @@ export async function rescueSitemapIndexPaths(env){
 }
 export async function rescueSitemapResponse(path,env){
   if(path==='/sitemap-live-recent.xml')return liveRecentSitemap(env);
+  if(path==='/sitemap-rescue-catalog.xml')return catalogSitemap(env);
   const info=sitemapPathNum(path);
   if(!info&&path!=='/sitemap-images.xml'&&path!=='/sitemap-en-articles.xml')return null;
   const manifest=await getJson(env,'seo-rescue/index.json');
@@ -341,7 +394,7 @@ export async function emergencyPublicR2Response(req,env){
   const u=new URL(req.url);
   if(req.method!=='GET'||String(env.R2_RESCUE_READONLY_ENABLED||'')!=='true')return null;
   const p=u.pathname.replace(/\/+$/,'')||'/';
-  const isSitemap=p==='/sitemap-live-recent.xml'||p==='/sitemap-images.xml'||p==='/sitemap-en-articles.xml'||/^\/sitemap-rescue-(?:english-images|english|articles|images)-\d{1,4}\.xml$/.test(p);
+  const isSitemap=p==='/sitemap-rescue-catalog.xml'||p==='/sitemap-live-recent.xml'||p==='/sitemap-images.xml'||p==='/sitemap-en-articles.xml'||/^\/sitemap-rescue-(?:english-images|english|articles|images)-\d{1,4}\.xml$/.test(p);
   if(!isSitemap&&!(/^\/articles\/[^/]+$/.test(p)||/^\/en\/articles\/[^/]+$/.test(p)||p==='/blog'||p==='/blog/saudi'||p==='/blog/uae'||p.startsWith('/blog/archive')))return null;
   try{
     if(isSitemap)return await rescueSitemapResponse(p,env);
@@ -350,6 +403,7 @@ export async function emergencyPublicR2Response(req,env){
     if(p==='/blog'||p==='/blog/saudi'||p==='/blog/uae')return await serveBlog(env,u);
     if(p==='/blog/archive'||p==='/blog/archive/full')return await serveDays(env);
     if(p==='/blog/archive/all')return await serveAll(env,u);
+    if(/^\/blog\/archive\/catalog(?:\/[1-9]\d{0,4})?$/.test(p))return await serveCatalog(env,u);
     if(/^\/blog\/archive\/\d{4}-\d{2}-\d{2}$/.test(p))return await serveDay(env,u,p.slice('/blog/archive/'.length));
     if(p==='/blog/archive/english')return await serveEnglishArchive(env,u);
     return null;
