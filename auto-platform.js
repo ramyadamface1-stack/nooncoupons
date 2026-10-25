@@ -270,7 +270,13 @@ async function runOnce(env,{manual=false,rescue=false}={}){
   const started=Date.now(),status=await getGeneratorStatus(env),attempt=Number(status.attempts||0);
   let workersAiCallsUsed=0;
   try{
-    const st=await readState(env),topic=marketLockedArticleTopic(rescue?pickRescueTopic(st,attempt):pickTopic(st,attempt));
+    const st=await readState(env);
+    // Saudi programmatic output has been zero despite 12k+ published English
+    // posts. Use the existing quality-gated AI rescue for SA until the first
+    // Saudi article is actually recorded today; English cron remains active.
+    const today=now().slice(0,10);
+    const rescueCountry=rescue&&String(status.bulkDay||'')===today&&Number(status.bulkPublishedToday||0)===0?'SA':'';
+    const topic=marketLockedArticleTopic(rescue?pickRescueTopic(st,attempt,rescueCountry):pickTopic(st,attempt));
     if(!topic)throw new Error('topic_pool_exhausted');
     const effectiveCfg=rescue?{...cfg,minWords:Math.max(1500,Number(cfg.minWords||1500)),targetWords:1750,qualityThreshold:Math.max(95,Number(cfg.qualityThreshold||95)),rescueMode:true}:cfg;
     const budget=workersAiBudget(env,st,status);
