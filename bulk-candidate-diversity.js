@@ -18,3 +18,20 @@ export function chooseBulkCandidateTopicSeed(cursor,tryIndex,{lowYield=false,bur
   const shouldDiversify=Boolean(lowYield)||(burstLowYield&&(Number(previousYieldPct)<2||attempt%3===0));
   return shouldDiversify ? (Math.imul((n+1)>>>0,2654435761)>>>0)%space : n;
 }
+
+/**
+ * The old-account Worker serves article writes through cross-account R2 signed
+ * fetches while the new account migration remains fenced. Cloudflare Free
+ * Workers allow only 50 external subrequests per invocation; a 48/384-candidate
+ * zero-yield search repeats too many remote GETs and fails the ENTIRE minute.
+ * Bound the candidate loop to 12 attempts, reserving the remaining request
+ * budget for the DO publication permit, catalogs, feed updates and legacy due
+ * publisher. Every original quality, duplicate and coupon gate still runs.
+ * Across cron minutes the persistent cursor advances; topics are not discarded.
+ */
+export function boundedBulkCandidateTries(env,original){
+  const n=Number(original);
+  if(!Number.isSafeInteger(n)||n<1)throw Error('invalid_bulk_candidate_limit');
+  const remote=String(env?.REMOTE_EXISTING_R2_ENABLED||'').toLowerCase()==='true';
+  return remote?Math.min(n,12):n;
+}
