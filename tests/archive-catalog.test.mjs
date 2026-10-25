@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {emergencyPublicR2Response,rescueSitemapResponse,rescueSitemapIndexPaths} from '../r2-emergency-readonly.js';
-import {publicRouteKind,publicEdgeCacheEligible} from '../r2-public-cache-policy.js';
+import {publicRouteKind,publicEdgeCacheEligible,publicEdgePolicyRevision} from '../r2-public-cache-policy.js';
 
 const env={R2_RESCUE_READONLY_ENABLED:'true',NOON_RESCUE_R2_ACCESS_KEY_ID:'TEST_ID',NOON_RESCUE_R2_SECRET_ACCESS_KEY:'TEST_SECRET'};
 const list=Array.from({length:250},(_,i)=>({slug:'guide-'+String(i).padStart(4,'0'),lastmod:'2026-10-01',country:i%2?'AE':'SA'}));
@@ -53,4 +53,13 @@ test('the stable path is edge-cacheable but query params still bypass cache',()=
   assert.equal(publicRouteKind('/blog/archive/catalog/2'),'page');
   assert.equal(publicEdgeCacheEligible(new Request('https://noondealsnow.com/blog/archive/catalog/2')),true);
   assert.equal(publicEdgeCacheEligible(new Request('https://noondealsnow.com/blog/archive/catalog/2?cursor=secret')),false);
+});
+
+test('after FAQ market correction, refresh only article cache and keep costly R2 archive cache stable',()=>{
+  const base='r2-jsonld-dedupe-r16';
+  assert.equal(publicEdgePolicyRevision('/articles/saudi-legacy',base),'r2-article-faq-market-v17');
+  assert.equal(publicEdgePolicyRevision('/en/articles/en-uae-test',base),'r2-article-faq-market-v17');
+  for(const path of ['/blog','/blog/archive/catalog','/blog/archive/catalog/700','/sitemap.xml','/sitemap-rescue-catalog.xml']){
+    assert.equal(publicEdgePolicyRevision(path,base),base);
+  }
 });
