@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
+import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
 import {emergencyPublicR2Response} from '../r2-emergency-readonly.js';
 
 test('primary code is locked to country; never show Saudi code to UAE shoppers',()=>{
@@ -54,7 +54,7 @@ test('related article suggestions only come from published, right-market, genuin
 });
 test('actual emergency R2 article responds with market-specific copy CTA, contrast links and canonical',async()=>{
   const realFetch=globalThis.fetch;
-  const pageHtml='<h1>تجربة NOV174 في نون السعودية</h1><p>جرّب NOV174 بعد المقارنة.</p><p><a href="/saudi">دليل السعودية</a> و<a href="https://www.noon.com/saudi-ar/">نون</a></p>';
+  const pageHtml='<h1>تجربة NOV174 في نون السعودية</h1><p>جرّب NOV174 بعد المقارنة.</p><p><a href="/saudi">دليل السعودية</a> و<a href="/guides">دليل الشراء</a> و<a href="https://www.noon.com/saudi-ar/">نون</a></p>';
   globalThis.fetch=async url=>{
     const key=decodeURIComponent(new URL(url).pathname);
     if(key.includes('/articles/'))return new Response(pageHtml,{status:200,headers:{'x-amz-meta-c':'SA','x-amz-meta-status':'published','content-type':'text/html'}});
@@ -75,6 +75,8 @@ test('actual emergency R2 article responds with market-specific copy CTA, contra
     assert.match(html,/google-site-verification/);
     assert.match(html,/id="rescue-article-ux"/);
     assert.match(html,/href="\/saudi"/);
+    assert.match(html,/href="\/saudi\/shopping-guide"/);
+    assert.doesNotMatch(html,/href="\/guides"/);
     assert.doesNotMatch(html,/تجربة NOV174/);
     assert.equal((html.match(/<h1\b/g)||[]).length,1);
   }finally{globalThis.fetch=realFetch}
@@ -121,4 +123,15 @@ test('invalid or non-FAQ JSON-LD remains safe and bad-market legacy text is reco
   const data=JSON.parse(reconcileSourceCouponJsonLd(input,'AE').match(/<script[^>]*>([\s\S]*?)<\/script>/)[1]);
   assert.equal(data.itemListElement[0].name,'كوبون NOV188');
   assert.equal(data.itemListElement[0].item,'https://noondealsnow.com/coupon/nov170');
+});
+
+test('repair only the confirmed broken /guides link, without touching article or external URLs',()=>{
+  const source='<a href="/guides">Shopping guide</a><a href="/guides/other">Other</a><a href="/articles/original-slug">Original</a><a href="https://www.noon.com/guides">Noon</a>';
+  const sa=repairLegacyGuideLinks(source,'SA'),ae=repairLegacyGuideLinks(source,'AE');
+  assert.match(sa,/href="\/saudi\/shopping-guide"/);
+  assert.match(ae,/href="\/uae\/shopping-guide"/);
+  assert.match(sa,/href="\/guides\/other"/);
+  assert.match(ae,/href="\/articles\/original-slug"/);
+  assert.match(ae,/href="https:\/\/www.noon.com\/guides"/);
+  assert.match(source,/href="\/guides"/);
 });
