@@ -11,7 +11,7 @@ import {publicEdgeCacheEligible,publicEdgeTtlSeconds} from './r2-public-cache-po
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
-const DISCOVERY_RELEASE='2026-10-14-r2-classb-saver-r13';
+const DISCOVERY_RELEASE='2026-10-25-live-r2-sitemap-r14';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const enc=s=>encodeURI(String(s||''));
 const CLOUDFLARE_ACCOUNT_ID='c82274152a942dea53044eae7153cfd7';
