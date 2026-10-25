@@ -14,7 +14,7 @@ export function chooseBulkCandidateTopicSeed(cursor,tryIndex,{lowYield=false,bur
   // Explore ALL candidates in an independent, deterministic topic-space region
   // until a quality-checked article finally passes. Every existing duplicate,
   // originality, coupon, word-depth and SEO gate still runs unchanged.
-  // For ordinary (healthy) publishing preserve stable sequential order.
-  const shouldDiversify=Boolean(lowYield)||(burstLowYield&&attempt%3===0);
+  // For a proven zero-yield burst, diversify every attempt instead of only\n  // one in three. Healthy Saudi burst keeps its one-in-three behavior;\n  // healthy UAE/regular publishing stays sequential. All publication gates remain intact.\n  // For ordinary (healthy) publishing preserve stable sequential order.
+  const shouldDiversify=Boolean(lowYield)||(burstLowYield&&(Number(previousYieldPct)<2||attempt%3===0));
   return shouldDiversify ? (Math.imul((n+1)>>>0,2654435761)>>>0)%space : n;
 }
