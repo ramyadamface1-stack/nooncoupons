@@ -7,7 +7,7 @@ import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
 import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {readRecentPublicManifest} from './r2-public-manifest.js';
-import {publicEdgeCacheEligible,publicEdgeTtlSeconds} from './r2-public-cache-policy.js';
+import {publicEdgeCacheEligible,publicEdgeTtlSeconds,publicEdgePolicyRevision} from './r2-public-cache-policy.js';
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
 
@@ -424,7 +424,7 @@ async function sitemapHealth(req,env,ctx,origin){
 
 const EDGE_CACHE_POLICY_REVISION='r2-jsonld-dedupe-r16';
 function edgePageCacheKey(u){
-  return new Request(u.origin+u.pathname+'?__ndn_edge_policy='+EDGE_CACHE_POLICY_REVISION,{method:'GET'});
+  return new Request(u.origin+u.pathname+'?__ndn_edge_policy='+publicEdgePolicyRevision(u.pathname,EDGE_CACHE_POLICY_REVISION),{method:'GET'});
 }
 function edgePageCacheEligible(req,u){return publicEdgeCacheEligible(req,u)}
 
@@ -439,7 +439,7 @@ function edgePageCachePut(req,u,res,ctx){
   if(!edgePageCacheEligible(req,u)||!res?.ok)return res;
   const type=(res.headers.get('content-type')||'').toLowerCase(),cc=(res.headers.get('cache-control')||'').toLowerCase();
   if(!(type.includes('text/html')||type.includes('application/xml')||type.includes('text/xml'))||res.headers.has('set-cookie')||cc.includes('private')||cc.includes('no-store'))return res;
-  const h=new Headers(res.headers);h.delete('content-length');h.set('cache-control','public, max-age=30, s-maxage='+publicEdgeTtlSeconds(u.pathname)+', stale-while-revalidate=600');h.set('x-edge-page-cache','MISS');h.set('x-edge-policy',EDGE_CACHE_POLICY_REVISION);
+  const h=new Headers(res.headers);h.delete('content-length');h.set('cache-control','public, max-age=30, s-maxage='+publicEdgeTtlSeconds(u.pathname)+', stale-while-revalidate=600');h.set('x-edge-page-cache','MISS');h.set('x-edge-policy',publicEdgePolicyRevision(u.pathname,EDGE_CACHE_POLICY_REVISION));
   const out=new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
   ctx?.waitUntil?.(caches.default.put(edgePageCacheKey(u),out.clone()));
   return out;
