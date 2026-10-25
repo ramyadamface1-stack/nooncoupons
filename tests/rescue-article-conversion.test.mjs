@@ -30,6 +30,9 @@ test('copy UI is keyboard accessible, makes no guaranteed discount claim, and ha
   assert.match(rescueCopyScript,/navigator\.clipboard\.writeText/);
   assert.match(rescueCopyScript,/execCommand\('copy'\)/);
   assert.match(rescueCopyScript,/\/api\/track-event/);
+  assert.match(rescueCopyScript,/typeof window\.gtag/);
+  assert.match(rescueCopyScript,/coupon_copy/);
+  assert.match(rescueCopyScript,/noon_outbound/);
   assert.match(rescueCopyScript,/sendBeacon/);
   assert.match(rescueCopyScript,/doNotTrack/);
   assert.match(rescueCopyScript,/track\('copy_code'/);
@@ -67,6 +70,9 @@ test('actual emergency R2 article responds with market-specific copy CTA, contra
     assert.match(html,/<button type="button" class="rescue-copy" data-rescue-copy="NOV170"/);
     assert.match(html,/class="rescue-mobile-offer"/);
     assert.match(html,/id="rescue-coupon-copy"/);
+    assert.match(html,/G-1551Z7DJ2C/);
+    assert.match(html,/id="rescue-site-analytics"/);
+    assert.match(html,/google-site-verification/);
     assert.match(html,/id="rescue-article-ux"/);
     assert.match(html,/href="\/saudi"/);
     assert.doesNotMatch(html,/تجربة NOV174/);
