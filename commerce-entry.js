@@ -104,7 +104,11 @@ async function computeContentStats(req,env,ctx){
   try{english=await englishCanaryHealth(env,{light:true})}catch{}
   let couponMigration={ok:false,done:false,scanned:0,updated:0,replaced:0};
   try{couponMigration=await readCouponR2MigrationState(env)}catch{}
-  const freshCount=new URL(req.url).searchParams.get('fresh')==='1';
+  // Public ?fresh=1 must not trigger a completed-audit read/write in R2.
+  // Refresh of historical audit snapshots is admin-only; regular readers use
+  // the last verified count, with its original countedAt and stale flag.
+  const statsUrl=new URL(req.url);
+  const freshCount=statsUrl.pathname==='/api/admin/live-overview'&&statsUrl.searchParams.get('fresh')==='1';
   const r2Count=await countR2ArticleHtml(env,{fresh:freshCount});
   const r2Uploaded=r2Count.count;
   const bulk=generator?.bulk||{};
