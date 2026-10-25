@@ -7,10 +7,12 @@ on:
       - '.github/workflows/verify-r2-rescue-and-cron-20261025.yml'
       - 'bulk-candidate-diversity.js'
       - 'r2-emergency-readonly.js'
+      - 'rescue-article-conversion.js'
       - 'r2-public-cache-policy.js'
       - 'auto-platform.js'
       - 'tests/bulk-candidate-diversity.test.mjs'
       - 'tests/live-recent-sitemap.test.mjs'
+      - 'tests/rescue-article-conversion.test.mjs'
       - 'tests/remote-r2-pace.test.mjs'
   workflow_dispatch:
 
@@ -31,9 +33,10 @@ jobs:
           set -euo pipefail
           node --check bulk-candidate-diversity.js
           node --check r2-emergency-readonly.js
+          node --check rescue-article-conversion.js
           node --check r2-public-cache-policy.js
           node --check auto-platform.js
       - name: Validate quality-gated sitemap and one-minute R2 publishing behavior
         run: |
           set -euo pipefail
-          node --test tests/bulk-candidate-diversity.test.mjs tests/live-recent-sitemap.test.mjs tests/remote-r2-pace.test.mjs tests/live-publication-feed.test.mjs
+          node --test tests/bulk-candidate-diversity.test.mjs tests/live-recent-sitemap.test.mjs tests/remote-r2-pace.test.mjs tests/live-publication-feed.test.mjs tests/rescue-article-conversion.test.mjs
