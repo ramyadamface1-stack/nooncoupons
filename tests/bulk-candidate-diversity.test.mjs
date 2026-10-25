@@ -46,10 +46,10 @@ test('proven zero-yield burst diversifies every candidate without relaxing publi
   assert.equal(pick(1000,2,{...opts,burstMode:true,forceCountry:'AE',previousYieldPct:40}),1000,'healthy UAE burst stays sequential');
 });
 
-test('remote R2 limits every real publisher candidate batch to 12 external-read-safe attempts',()=>{
-  assert.equal(budget({REMOTE_EXISTING_R2_ENABLED:'true'},48),12);
-  assert.equal(budget({REMOTE_EXISTING_R2_ENABLED:'true'},384),12);
-  assert.equal(budget({REMOTE_EXISTING_R2_ENABLED:'true'},8),8);
+test('remote R2 limits every real publisher candidate batch to 6 external-read-safe attempts',()=>{
+  assert.equal(budget({REMOTE_EXISTING_R2_ENABLED:'true'},48),6);
+  assert.equal(budget({REMOTE_EXISTING_R2_ENABLED:'true'},384),6);
+  assert.equal(budget({REMOTE_EXISTING_R2_ENABLED:'true'},8),6);
   assert.equal(budget({REMOTE_EXISTING_R2_ENABLED:'false'},384),384);
   assert.throws(()=>budget({REMOTE_EXISTING_R2_ENABLED:'true'},0),/invalid_bulk_candidate_limit/);
 });
