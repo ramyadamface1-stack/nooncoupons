@@ -1,0 +1,34 @@
+name: Bootstrap Existing R2 Live Article Feed Once
+on:
+  push:
+    branches: [ops/bootstrap-recent-articles-feed-20261025]
+    paths: ['.github/workflows/bootstrap-existing-r2-article-feed.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: noon-existing-r2-feed-bootstrap-once
+  cancel-in-progress: false
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax validate no deletions and install R2 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile .github/scripts/bootstrap-recent-publication-feed.py
+          grep -Fq "IfNoneMatch='*'" .github/scripts/bootstrap-recent-publication-feed.py
+          ! grep -E 'delete_object|delete_objects|put_object_acl|create_bucket' .github/scripts/bootstrap-recent-publication-feed.py
+          python3 -m pip install -q boto3
+      - name: Only if absent, atomically initialize a 300-entry live feed in EXISTING new R2 bucket
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u .github/scripts/bootstrap-recent-publication-feed.py
+          echo 'FEED_BOOTSTRAP_GITHUB_ACTION=PASSED'
