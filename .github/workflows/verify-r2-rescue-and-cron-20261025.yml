@@ -15,7 +15,10 @@ on:
       - 'tests/live-recent-sitemap.test.mjs'
       - 'tests/rescue-article-conversion.test.mjs'
       - 'tests/archive-catalog.test.mjs'
-      - 'tests/workers-ai-market-lock.test.mjs'
+      - 'tests/safe-stats-cache.test.mjs'
+      - 'safe-stats-cache.js'
+      - 'commerce-entry.js'
+      - 'tests/workers-ai-market-lock.test.mjs tests/safe-stats-cache.test.mjs'
       - 'tests/remote-r2-pace.test.mjs'
   workflow_dispatch:
 
@@ -37,6 +40,8 @@ jobs:
           node --check bulk-candidate-diversity.js
           node --check r2-emergency-readonly.js
           node --check discovery-entry.js
+          node --check safe-stats-cache.js
+          node --check commerce-entry.js
           node --check rescue-article-conversion.js
           node --check r2-public-cache-policy.js
           node --check auto-platform.js
