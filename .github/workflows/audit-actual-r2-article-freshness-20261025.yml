@@ -1,0 +1,44 @@
+name: Validate Actual New R2 Article Upload Dates 25 Oct (Read Only)
+on:
+  push:
+    branches: [audit/current-restoration-and-publishing-20261025]
+    paths: ['.github/workflows/audit-actual-r2-article-freshness-20261025.yml']
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      R2_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet boto3
+      - name: Read only full current article OBJECT lastmodified dates from existing R2 bucket; no writes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import boto3,os,json,collections
+          from botocore.config import Config
+          s=boto3.client('s3',region_name='auto',
+            endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            aws_access_key_id=os.environ['R2_ID'].strip(),aws_secret_access_key=os.environ['R2_SECRET'].strip(),
+            config=Config(connect_timeout=12,read_timeout=25,retries={'max_attempts':3,'mode':'standard'}))
+          count=0;dates=collections.Counter();max_seen=[];size=0;pages=0
+          for batch in s.get_paginator('list_objects_v2').paginate(Bucket='nooncoupons-content-v2',Prefix='articles/',PaginationConfig={'PageSize':1000}):
+            pages+=1
+            if pages>400:raise RuntimeError('unsafe_400_pages_exceeded')
+            for obj in batch.get('Contents',[]):
+              if not obj['Key'].endswith('.html'):continue
+              count+=1;size+=obj['Size'];d=obj['LastModified'];dates[d.date().isoformat()]+=1
+              if len(max_seen)<12 or d>max_seen[-1][0]:
+                max_seen.append((d,obj['Key'],obj['Size']))
+                max_seen.sort(key=lambda x:x[0],reverse=True)
+                max_seen=max_seen[:12]
+          print('CURRENT_R2_ARTICLE_COUNT='+str(count),flush=True)
+          print('CURRENT_R2_ARTICLE_BYTES='+str(size),flush=True)
+          print('CURRENT_R2_LIST_PAGES='+str(pages),flush=True)
+          print('CURRENT_R2_DAILY_UPLOADS='+json.dumps({k:v for k,v in sorted(dates.items()) if k>='2026-10-17'}),flush=True)
+          print('CURRENT_R2_LATEST_12='+json.dumps([{'utc':dt.isoformat(),'slug':k[len('articles/'):-5][:90],'bytes':sz} for dt,k,sz in max_seen],ensure_ascii=False),flush=True)
+          print('READ_ONLY_NO_WRITES=true')
+          PY
