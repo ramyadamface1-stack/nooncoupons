@@ -11,12 +11,13 @@ test('primary code is locked to country; never show Saudi code to UAE shoppers',
   assert.doesNotMatch(renderCouponAction('AE'),/NOV170/);
 });
 test('rewrite displayed article codes but do not change old URLs, scripts or original stored body',()=>{
-  const original='<h1>نون NOV174</h1><p>كوبون NOV195، كود RAMY25</p><a href="/coupon/nov174">NOV174</a><img src="/assets/coupon-svg/abc/1.svg?v=9&amp;coupon=NOV174"/><script type="application/ld+json">{"code":"NOV174"}</script>';
+  const original='<h1>نون NOV174</h1><p>كوبون NOV195، كود RAMY25</p><a href="/coupon/nov174">NOV174</a><img alt="كود NOV174 للعروض" src="/assets/coupon-svg/abc/1.svg?v=9&amp;coupon=NOV174"/><script type="application/ld+json">{"code":"NOV174"}</script>';
   const rendered=presentMarketCouponText(original,'SA');
   assert.match(rendered,/<h1>نون NOV170<\/h1>/);
   assert.match(rendered,/<p>كوبون NOV170، كود NOV170<\/p>/);
   assert.match(rendered,/href="\/coupon\/nov174">NOV170<\/a>/);
   assert.match(rendered,/coupon=NOV170/);
+  assert.match(rendered,/alt="كود NOV170 للعروض"/);
   assert.match(rendered,/<script type="application\/ld\+json">{"code":"NOV174"}<\/script>/);
   assert.match(original,/نون NOV174/,'stored HTML remains unchanged');
 });
