@@ -1,0 +1,42 @@
+name: Verify Recently Published Articles Actually Appear in Public Blog
+on:
+  push:
+    branches: [audit/verify-new-articles-in-blog-20261025]
+    paths: ['.github/workflows/check-latest-article-blog-discoverability.yml']
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Inspect publicly visible newest articles and blog chronology, no writes
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,urllib.parse,json,re
+          base='https://noondealsnow.com'
+          slugs=[
+          'شروط-كود-نون-على-nivea-body-care-في-الإمارات-لاستخدام-مكثف',
+          'شراء-l-or-al-hair-care-من-نون-السعودية-بميزانية-محددة-الضمان',
+          'كود-خصم-نون-الإمارات-اللابتوبات-قبل-تغيير-طريقة-الدفع',
+          'التوفير-في-nike-running-على-نون-الإمارات-ميزانية-مرنة',
+          'en-noon-affordable-shopping-guide-uae-jbl-speaker-shipping-cost']
+          def get(path):
+            req=urllib.request.Request(base+urllib.parse.quote(path,safe='/?=%&'),headers={'User-Agent':'Mozilla/5.0 Content-Blog-Sync-Audit','Cache-Control':'no-cache'})
+            try:
+              with urllib.request.urlopen(req,timeout=16) as r:return r.status,r.read(180000).decode('utf8','replace'),dict(r.headers)
+            except urllib.error.HTTPError as e:return e.code,e.read(2500).decode('utf8','replace'),dict(e.headers)
+            except Exception as e:return 0,str(e),{}
+          pages={}
+          for path in ['/blog','/blog/saudi','/blog/uae','/blog/archive/english','/api/content-stats']:
+            status,body,headers=get(path)
+            matches=re.findall(r'href="(/(?:en/)?articles/[^"]+)"',body)
+            pages[path]={'status':status,'body':body,'items':matches}
+            print('BLOG_CHECK='+json.dumps({'path':path,'http':status,'article_links':len(matches),'first_links':[urllib.parse.unquote(u[:145]) for u in matches[:4]],'bytes':len(body)},ensure_ascii=False),flush=True)
+          for slug in slugs:
+            en=slug.startswith('en-')
+            article_path=('/en/articles/' if en else '/articles/')+slug
+            status,html,headers=get(article_path)
+            found=[name for name,entry in pages.items() if slug in urllib.parse.unquote(entry['body'])]
+            print('RECENT_ARTICLE_BLOG_LINK='+json.dumps({'slug':slug[:130],'http':status,'present_on':found,'title_in_h1':bool(re.search(r'<h1[^>]*>',html)),'image':bool(re.search(r'<img\b',html)),'robots_noindex':'noindex' in (re.search(r'<meta name="robots" content="([^"]+)"',html) or [None,''])[1]},ensure_ascii=False),flush=True)
+          print('READ_ONLY_BLOG_SYNC_PROBE=true')
+          PY
