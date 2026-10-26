@@ -14,6 +14,13 @@ function jsonSafe(value,seen=new WeakSet()){
   return Object.entries(value).every(([,v])=>jsonSafe(v,seen));
 }
 
+export function migrationExportPageBudget(env={}){
+  const configured=Number.parseInt(String(env.DO_MIGRATION_EXPORT_PAGES_PER_TICK||'2'),10);
+  const original=Number.isFinite(configured)?Math.max(1,Math.min(20,configured)):2;
+  // Two DO migrations and one publishing pipeline share the same Cron budget.
+  // Preserve all progress/checkpoints, but avoid 2x20 R2 writes per minute.
+  return String(env.REMOTE_EXISTING_R2_ENABLED||'').toLowerCase()==='true'?Math.min(2,original):original;
+}
 export async function snapshotDurableObjectKeys(storage,env,type){
   if(String(env?.DO_MIGRATION_EXPORT_ENABLED||'')!=='true')return json({ok:false,reason:'export_disabled'},404);
   if(!SAFE_DO_TYPES.has(type)||!env?.CONTENT_FINAL)return json({ok:false,reason:'invalid_config'},503);
@@ -32,8 +39,7 @@ export async function snapshotDurableObjectKeys(storage,env,type){
   }
   // Bounded acceleration for emergency source-account migration:
   // the default remains two pages; production opts into twenty, never more.
-  const configured=Number.parseInt(String(env.DO_MIGRATION_EXPORT_PAGES_PER_TICK||'2'),10);
-  const pagesPerRequest=Number.isFinite(configured)?Math.max(1,Math.min(20,configured)):2;
+  const pagesPerRequest=migrationExportPageBudget(env);
   const pageSize=128,startedAt=Date.now();
   let scanned=0,exported=0,lastPart=0;
   for(let i=0;i<pagesPerRequest;i++){
