@@ -24,6 +24,8 @@ test('diagnose bounded Arabic article word window without publishing or storage 
   result.push({seed,market:topic.country,count:wc(article?.html),sections:(article?.html?.match(/data-diversity-frame=/g)||[]).length,quality:audit.score,productionReady:audit.productionReady,failed:audit.failed?.slice(0,3),schema:schema.pass,campaign:article?.html?.includes('campaign-search-context')});
  }
  assert.equal(result.filter(x=>x.count<1500||x.count>1900).length,0,'all 18 quality-gated Arabic article samples must fit 1500–1900 words');
+ assert.equal(result.filter(x=>x.productionReady!==true).length,0,'all 18 Arabic samples must pass the unchanged production SEO/quality gate');
+ assert.equal(result.filter(x=>x.schema!==true).length,0,'all 18 Arabic article schemas must validate');
  assert.ok(result.some(x=>x.sections>=3),'underlength templates should receive targeted decision context');
- console.log('ARABIC_WORD_WINDOW_DIAGNOSTIC '+JSON.stringify(result));
+ console.log('ARABIC_QUALITY_GATE_SUMMARY '+JSON.stringify({tested:result.length,productionReady:result.filter(x=>x.productionReady).length,schemaPassed:result.filter(x=>x.schema).length,minWords:Math.min(...result.map(x=>x.count)),maxWords:Math.max(...result.map(x=>x.count))}));
 });
