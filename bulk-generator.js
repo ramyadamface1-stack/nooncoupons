@@ -1,6 +1,7 @@
 import {buildBulkTopic as buildRawBulkTopic,buildUsefulArticle,BULK_ENGINE_INFO} from './bulk-content-engine.js';
 import {claimPublicationSlot,getPublicationSlotStatus} from './publication-rate-limit.js';
 import {chooseBulkCandidateTopicSeed,boundedBulkCandidateTries} from './bulk-candidate-diversity.js';
+import {fitArabicFinalWordWindow} from './arabic-final-word-window.js';
 import {applyKeywordStrategy,reconcileKeywordHierarchy,KEYWORD_STRATEGY_INFO} from './keyword-strategy.js';
 import {auditSeoArticle,auditSummary,preAuditSemanticGate} from './quality-audit.js';
 import {loadCluster,bootstrapGlobalIndex,preflightGlobalGate,globalGate,pickRelated,injectContextualLinks,addToCluster,flushClusters,clusterKey,campaignIntentDimension,GLOBAL_INDEX_INFO} from './quality-index.js';
@@ -101,7 +102,7 @@ export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batc
     const cluster=await loadCluster(env,topic,clusterCache),clusterPreflight=preflightGlobalGate(topic,cluster);if(!clusterPreflight.pass){rejectedGlobal++;rejectedPreflightGlobal++;rejectedPreflightCluster++;for(const reason of clusterPreflight.reasons||[]){globalRejectReasons[reason]=(globalRejectReasons[reason]||0)+1;preflightGlobalRejectReasons[reason]=(preflightGlobalRejectReasons[reason]||0)+1}continue}
     campaignPostClusterCounts[campaignKey]=(campaignPostClusterCounts[campaignKey]||0)+1;
     const combinedEntries=dedupeRecent([...(cluster.entries||[]),...latestRecent]),relatedPool={entries:combinedEntries},links=pickRelated(relatedPool,topic,6);if((cluster.entries||[]).length>=4&&links.length<2){rejectedLinks++;continue}
-    let article=decorateArticleCommerce(buildUsefulArticle(topic,currentCursor),topic);article=injectCouponFreshness(article,coupon);article=injectContextualLinks(article,links);article=injectEditorialTrust(article);
+    let article=decorateArticleCommerce(buildUsefulArticle(topic,currentCursor),topic);article=injectCouponFreshness(article,coupon);article=injectContextualLinks(article,links);article=injectEditorialTrust(article);article=fitArabicFinalWordWindow(article);
     const auditRecent=combinedEntries.filter(x=>(!x?.country||x.country===topic.country)&&(!x?.category||x.category===topic.category)).slice(0,25000),semanticRecent=auditRecent.filter(x=>(!x?.intent||x.intent===topic.intent)&&campaignIntentDimension(x)===campaignIntentDimension(topic)),semanticPreflight=preAuditSemanticGate(article,semanticRecent);
     if(!semanticPreflight.pass){rejectedQuality++;rejectedPreAuditSemantic++;qualityRejectReasons.semantic_distance=(qualityRejectReasons.semantic_distance||0)+1;continue}
     const schemaGate=validateStructuredData(article);if(!schemaGate.pass){rejectedSchema++;continue}
