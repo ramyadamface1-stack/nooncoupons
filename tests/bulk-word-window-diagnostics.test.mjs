@@ -14,6 +14,7 @@ test('diagnose bounded Arabic article word window without publishing or storage 
   const semanticPreflight=preAuditSemanticGate(article,[]);
   const audit=auditSeoArticle(article,topic,{minWords:1500,threshold:95,recent:[],semanticRecent:[],semanticPreflight});
   const schema=validateStructuredData(article);
+  if(!audit.productionReady)console.log('ARABIC_TITLE_ALIGNMENT_DIAGNOSTIC '+JSON.stringify({seed,kw:topic.kw,title:article?.title,titleChars:article?.title?.length,h1:article?.html?.match(/<h1[^>]*>([^<]+)<\/h1>/)?.[1],failed:audit.failed}));
   result.push({seed,market:topic.country,count:wc(article?.html),sections:(article?.html?.match(/data-diversity-frame=/g)||[]).length,quality:audit.score,productionReady:audit.productionReady,failed:audit.failed?.slice(0,3),schema:schema.pass,campaign:article?.html?.includes('campaign-search-context')});
  }
  assert.equal(result.filter(x=>x.count<1500||x.count>1900).length,0,'all 18 quality-gated Arabic article samples must fit 1500–1900 words');
