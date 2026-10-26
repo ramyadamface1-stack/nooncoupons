@@ -8,6 +8,7 @@ import {decorateArticleCommerce} from '../commerce-generator-taxonomy.js';
 import {couponStatus,injectCouponFreshness} from '../coupon-registry.js';
 import {injectContextualLinks} from '../quality-index.js';
 import {injectEditorialTrust} from '../editorial-trust-layer.js';
+import {fitArabicFinalWordWindow} from '../arabic-final-word-window.js';
 const strip=s=>String(s||'').replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
 const wc=html=>strip(html).split(/\s+/).filter(Boolean).length;
 test('diagnose bounded Arabic article word window without publishing or storage IO',()=>{
@@ -23,7 +24,12 @@ test('diagnose bounded Arabic article word window without publishing or storage 
   full=injectCouponFreshness(full,couponStatus(topic));
   full=injectContextualLinks(full,related);
   full=injectEditorialTrust(full);
+  const beforeFinalWindow=wc(full.html);
+  full=fitArabicFinalWordWindow(full);
   const fullAudit=auditSeoArticle(full,topic,{minWords:1500,threshold:95,recent:[],semanticRecent:[],semanticPreflight:preAuditSemanticGate(full,[])});
+  assert.ok(fullAudit.wordCount>=1500&&fullAudit.wordCount<=1900,'post-overlay word depth must fit real SEO validator: '+seed+' from '+beforeFinalWindow+' to '+fullAudit.wordCount);
+  assert.ok(fullAudit.productionReady,'post-overlay article must pass same 95+ SEO gate: '+seed+' '+JSON.stringify(fullAudit.failed));
+  assert.ok(validateStructuredData(full).pass,'post-overlay FAQ/article schema must remain valid');
   if(fullAudit.wordCount>1900||fullAudit.wordCount<1500)console.log('ARABIC_FINAL_PIPELINE_WORDS '+JSON.stringify({seed,base:wc(article.html),final:fullAudit.wordCount,failed:fullAudit.failed,quality:fullAudit.score}));
   const alignedKeyword=String(topic.title||'').replace(/\s+ال$/,'').replace(/[،:]+/g,' ').replace(/\s+/g,' ').trim()+' '+topic.queryModifier;
   const alignedTopic={...topic,kw:alignedKeyword.trim()};
