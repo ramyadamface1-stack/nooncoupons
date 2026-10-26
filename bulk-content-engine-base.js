@@ -63,7 +63,17 @@ const BLUEPRINTS=[
 ['factors','coupon','scenario','seller','market','eligibility','trouble','savings','matrix'],['scenario','factors','market','coupon','matrix','seller','savings','eligibility','trouble'],['coupon','factors','seller','scenario','eligibility','market','matrix','trouble','savings'],['factors','matrix','scenario','coupon','market','seller','trouble','eligibility','savings'],['market','scenario','factors','seller','coupon','eligibility','matrix','savings','trouble'],['seller','factors','coupon','market','scenario','trouble','matrix','eligibility','savings'],['scenario','coupon','factors','eligibility','seller','market','savings','trouble','matrix'],['factors','scenario','matrix','seller','market','coupon','trouble','savings','eligibility'],['coupon','scenario','market','factors','seller','matrix','eligibility','trouble','savings'],['matrix','factors','scenario','coupon','seller','market','savings','eligibility','trouble'],['market','factors','coupon','scenario','matrix','seller','trouble','savings','eligibility'],['scenario','seller','factors','coupon','market','matrix','eligibility','savings','trouble']
 ];
 
-function titleFromKeyword(kw,topic){if(kw.length<=70)return kw;const ctx=topic.decisionContext?` ${topic.decisionContext}`:'';const base=`${topic.intentLabel} ${topic.category} نون ${topic.market}${ctx} ${topic.scenario}`;return base.length<=70?base.slice(0,70):`${topic.category} نون ${topic.market}${ctx}: ${topic.scenario}`.slice(0,70)}
+function titleWordSafe(text,max=70){
+  const raw=String(text||'').trim();if(raw.length<=max)return raw;
+  const start=raw.slice(0,max),lastSpace=start.lastIndexOf(' ');
+  return (lastSpace>=Math.floor(max*0.7)?start.slice(0,lastSpace):start).replace(/[\s:،-]+$/g,'');
+}
+export function titleFromKeyword(kw,topic){
+  if(kw.length<=70)return kw;
+  const ctx=topic.decisionContext?` ${topic.decisionContext}`:'';
+  const base=`${topic.intentLabel} ${topic.category} نون ${topic.market}${ctx} ${topic.scenario}`;
+  return titleWordSafe(base.length<=70?base:`${topic.category} نون ${topic.market}${ctx}: ${topic.scenario}`);
+}
 function metaFor(t){const ctx=t.decisionContext?`، ${t.decisionContext}`:'';let s=`${t.kw}: دليل عملي في نون ${t.market} يوضح فحص ${t.factor}${ctx}، تجربة ${t.code}، مقارنة البائع والسعر النهائي، وما يجب مراجعته قبل الدفع.`;if(s.length<110)s+=' مع خطوات واضحة للمقارنة واتخاذ قرار شراء مناسب.';return s.slice(0,160)}
 function image(t,v,role){const src=`/assets/coupon-svg/${encodeURIComponent(t.slug)}/${v}.svg?v=10&coupon=${encodeURIComponent(t.code)}&country=${t.country}`,alt=`${t.category} على نون ${t.market} — ${role} مع كود ${t.code}`;return `<figure class="article-visual visual-${v}"><img src="${src}" alt="${esc(alt)}" title="${esc(t.category)}: ${esc(role)}" width="1200" height="760" loading="lazy" decoding="async"><figcaption>${esc(role)} لـ${esc(t.category)} في نون ${esc(t.market)} عند تجربة ${t.code}</figcaption></figure>`}
 
