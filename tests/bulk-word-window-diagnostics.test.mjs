@@ -1,8 +1,8 @@
 import test from 'node:test';
 import {buildBulkTopic,buildUsefulArticle} from '../bulk-content-engine.js';
 import {chooseBulkCandidateTopicSeed as pick} from '../bulk-candidate-diversity.js';
-const strip=s=>String(s||'').replace(/<script\\b[\\s\\S]*?<\\/script>/gi,' ').replace(/<style\\b[\\s\\S]*?<\\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\\s+/g,' ').trim();
-const wc=html=>strip(html).split(/\\s+/).filter(Boolean).length;
+const strip=s=>String(s||'').replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
+const wc=html=>strip(html).split(/\s+/).filter(Boolean).length;
 test('diagnose bounded Arabic article word window without publishing or storage IO',()=>{
  const result=[];
  for(let i=1;i<=18;i++){
