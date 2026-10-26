@@ -7,6 +7,8 @@ on:
       - '.github/workflows/verify-r2-rescue-and-cron-20261025.yml'
       - 'bulk-candidate-diversity.js'
       - 'bulk-content-engine.js'
+      - 'bulk-generator.js'
+      - 'arabic-final-word-window.js'
       - 'bulk-content-engine-base.js'
       - 'r2-emergency-readonly.js'
       - 'discovery-entry.js'
@@ -48,6 +50,8 @@ jobs:
           set -euo pipefail
           node --check bulk-candidate-diversity.js
           node --check bulk-content-engine.js
+          node --check bulk-generator.js
+          node --check arabic-final-word-window.js
           node --check r2-emergency-readonly.js
           node --check discovery-entry.js
           node --check safe-stats-cache.js
