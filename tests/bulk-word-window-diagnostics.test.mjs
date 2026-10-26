@@ -14,6 +14,12 @@ test('diagnose bounded Arabic article word window without publishing or storage 
   const semanticPreflight=preAuditSemanticGate(article,[]);
   const audit=auditSeoArticle(article,topic,{minWords:1500,threshold:95,recent:[],semanticRecent:[],semanticPreflight});
   const schema=validateStructuredData(article);
+  const alignedKeyword=String(topic.title||'').replace(/\s+ال$/,'').replace(/[،:]+/g,' ').replace(/\s+/g,' ').trim()+' '+topic.queryModifier;
+  const alignedTopic={...topic,kw:alignedKeyword.trim()};
+  const alignedArticle=buildUsefulArticle(alignedTopic,seed);
+  const alignedSemantic=preAuditSemanticGate(alignedArticle,[]);
+  const alignedAudit=auditSeoArticle(alignedArticle,alignedTopic,{minWords:1500,threshold:95,recent:[],semanticRecent:[],semanticPreflight:alignedSemantic});
+  if(!audit.productionReady)console.log('ARABIC_ALIGNED_KEYWORD_TRIAL '+JSON.stringify({seed,keyword:alignedKeyword,title:alignedArticle.title,score:alignedAudit.score,ready:alignedAudit.productionReady,failed:alignedAudit.failed,words:alignedAudit.wordCount}));
   if(!audit.productionReady)console.log('ARABIC_TITLE_ALIGNMENT_DIAGNOSTIC '+JSON.stringify({seed,kw:topic.kw,title:article?.title,titleChars:article?.title?.length,h1:article?.html?.match(/<h1[^>]*>([^<]+)<\/h1>/)?.[1],failed:audit.failed}));
   result.push({seed,market:topic.country,count:wc(article?.html),sections:(article?.html?.match(/data-diversity-frame=/g)||[]).length,quality:audit.score,productionReady:audit.productionReady,failed:audit.failed?.slice(0,3),schema:schema.pass,campaign:article?.html?.includes('campaign-search-context')});
  }
