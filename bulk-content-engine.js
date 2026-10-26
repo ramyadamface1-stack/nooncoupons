@@ -3,6 +3,7 @@ export * from './bulk-content-engine-base.js';
 import {
   buildBulkTopic as buildBulkTopicBase,
   buildUsefulArticle as buildUsefulArticleBase,
+  titleFromKeyword,
   buildEnglishNativeCandidate as buildEnglishNativeCandidateBase,
   buildEnglishUsefulArticle as buildEnglishUsefulArticleBase
 } from './bulk-content-engine-base.js';
@@ -71,9 +72,14 @@ function campaignContextSection(topic){
 
 export function buildBulkTopic(cursor=0,options={}){
   const topic=buildBulkTopicBase(cursor,options),queryModifier=queryModifierFor(cursor);
-  const kw=(String(topic.kw||'')+' '+queryModifier).replace(/\s+/g,' ').trim();
+  // Align the actual indexable headline and keyword, rather than appending
+  // every factor/context into an unsearchably long phrase. Retain the
+  // unique query modifier and all underlying scenario/category details.
+  const headline=titleFromKeyword((String(topic.kw||'')+' '+queryModifier).trim(),topic);
+  const stem=headline.replace(/\s+ال$/,'').replace(/[،:]+/g,' ').replace(/\s+/g,' ').trim();
+  const kw=(stem.includes(queryModifier)?stem:stem+' '+queryModifier).replace(/\s+/g,' ').trim();
   const slug=arabicSlugify(kw);
-  return {...topic,kw,slug,queryModifier,diversitySeed:Math.max(0,Number(cursor)||0),diversityVersion:4,topicExpansionVersion:'query-modifier-v4'};
+  return {...topic,kw,slug,title:titleFromKeyword(kw,topic),queryModifier,diversitySeed:Math.max(0,Number(cursor)||0),diversityVersion:4,topicExpansionVersion:'query-modifier-v4'};
 }
 
 export function buildUsefulArticle(topic,cursor=0){
