@@ -85,8 +85,21 @@ export function buildUsefulArticle(topic,cursor=0){
   if(baseWords<1660)sections.push(diversitySection(topic,cursor,1));
   if(!sections.length)return article;
   const marker='<section class="methodology accountability">',insert=sections.join('');
-  const html=String(article.html||'').includes(marker)?String(article.html).replace(marker,`${insert}${marker}`):String(article.html).replace('</article>',`${insert}</article>`);
-  return {...article,html,diversityVersion:4,topicExpansionVersion:'query-modifier-v4',diversityKey:`${stableIndex(cursor,ARABIC_QUERY_MODIFIERS.length,17)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,101)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,138)}`};
+  let html=String(article.html||''),enhancementCount=0;
+  const addSection=section=>{
+    if(!section)return;
+    html=html.includes(marker)?html.replace(marker,section+marker):html.replace('</article>',section+'</article>');
+    enhancementCount++;
+  };
+  for(const section of sections)addSection(section);
+  // The source template often finishes at 1,480 words: add truly different
+  // scenario/decision frames only below 1,600, retaining 1,900-word headroom.
+  for(let offset=2;offset<=4&&plainWords(html)<1600;offset++){
+    const candidate=diversitySection(topic,cursor,offset);
+    if(plainWords(html)+plainWords(candidate)>1850)break;
+    addSection(candidate);
+  }
+  return {...article,html,diversityVersion:5,wordDepthReinforced:enhancementCount>sections.length,topicExpansionVersion:'query-modifier-v4',diversityKey:`${stableIndex(cursor,ARABIC_QUERY_MODIFIERS.length,17)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,101)}-${stableIndex(cursor,DIVERSITY_FRAMES.length,138)}`};
 }
 
 const UAE_ENGLISH_QUERY_MODIFIERS=['UAE','Dubai','Abu Dhabi','Sharjah','online','UAE online','buy online UAE','coupon code','promo code','voucher code','coupon eligibility','coupon not working','price UAE','price comparison','final price','shopping guide','checkout guide','seller guide','shipping cost guide','delivery guide','cart guide','returns guide','warranty guide','Dubai shopping','Abu Dhabi shopping','Sharjah shopping'];
