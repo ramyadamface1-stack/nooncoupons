@@ -9,6 +9,8 @@ on:
       - 'bulk-content-engine.js'
       - 'bulk-generator.js'
       - 'arabic-final-word-window.js'
+      - 'do-migration-state.js'
+      - 'tests/remote-migration-page-budget.test.mjs'
       - 'bulk-content-engine-base.js'
       - 'r2-emergency-readonly.js'
       - 'discovery-entry.js'
@@ -52,6 +54,7 @@ jobs:
           node --check bulk-content-engine.js
           node --check bulk-generator.js
           node --check arabic-final-word-window.js
+          node --check do-migration-state.js
           node --check r2-emergency-readonly.js
           node --check discovery-entry.js
           node --check safe-stats-cache.js
@@ -65,4 +68,4 @@ jobs:
       - name: Validate quality-gated sitemap and one-minute R2 publishing behavior
         run: |
           set -euo pipefail
-          node --test tests/bulk-candidate-diversity.test.mjs tests/live-recent-sitemap.test.mjs tests/remote-r2-pace.test.mjs tests/live-publication-feed.test.mjs tests/rescue-article-conversion.test.mjs tests/archive-catalog.test.mjs tests/workers-ai-market-lock.test.mjs tests/safe-stats-cache.test.mjs tests/cron-seed-cadence.test.mjs tests/saudi-rescue-priority.test.mjs tests/bulk-word-window-diagnostics.test.mjs
+          node --test tests/bulk-candidate-diversity.test.mjs tests/live-recent-sitemap.test.mjs tests/remote-r2-pace.test.mjs tests/live-publication-feed.test.mjs tests/rescue-article-conversion.test.mjs tests/archive-catalog.test.mjs tests/workers-ai-market-lock.test.mjs tests/safe-stats-cache.test.mjs tests/cron-seed-cadence.test.mjs tests/saudi-rescue-priority.test.mjs tests/bulk-word-window-diagnostics.test.mjs tests/remote-migration-page-budget.test.mjs
