@@ -17,6 +17,7 @@ on:
       - 'cron-seed-cadence.js'
       - 'tests/cron-seed-cadence.test.mjs'
       - 'tests/bulk-candidate-diversity.test.mjs'
+      - 'tests/bulk-word-window-diagnostics.test.mjs'
       - 'tests/live-recent-sitemap.test.mjs'
       - 'tests/rescue-article-conversion.test.mjs'
       - 'tests/archive-catalog.test.mjs'
@@ -57,4 +58,4 @@ jobs:
       - name: Validate quality-gated sitemap and one-minute R2 publishing behavior
         run: |
           set -euo pipefail
-          node --test tests/bulk-candidate-diversity.test.mjs tests/live-recent-sitemap.test.mjs tests/remote-r2-pace.test.mjs tests/live-publication-feed.test.mjs tests/rescue-article-conversion.test.mjs tests/archive-catalog.test.mjs tests/workers-ai-market-lock.test.mjs tests/safe-stats-cache.test.mjs tests/cron-seed-cadence.test.mjs tests/saudi-rescue-priority.test.mjs
+          node --test tests/bulk-candidate-diversity.test.mjs tests/live-recent-sitemap.test.mjs tests/remote-r2-pace.test.mjs tests/live-publication-feed.test.mjs tests/rescue-article-conversion.test.mjs tests/archive-catalog.test.mjs tests/workers-ai-market-lock.test.mjs tests/safe-stats-cache.test.mjs tests/cron-seed-cadence.test.mjs tests/saudi-rescue-priority.test.mjs tests/bulk-word-window-diagnostics.test.mjs
