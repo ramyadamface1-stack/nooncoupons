@@ -4,6 +4,10 @@ import {buildBulkTopic,buildUsefulArticle} from '../bulk-content-engine.js';
 import {chooseBulkCandidateTopicSeed as pick} from '../bulk-candidate-diversity.js';
 import {auditSeoArticle,preAuditSemanticGate} from '../quality-audit.js';
 import {validateStructuredData} from '../schema-validator.js';
+import {decorateArticleCommerce} from '../commerce-generator-taxonomy.js';
+import {couponStatus,injectCouponFreshness} from '../coupon-registry.js';
+import {injectContextualLinks} from '../quality-index.js';
+import {injectEditorialTrust} from '../editorial-trust-layer.js';
 const strip=s=>String(s||'').replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
 const wc=html=>strip(html).split(/\s+/).filter(Boolean).length;
 test('diagnose bounded Arabic article word window without publishing or storage IO',()=>{
@@ -14,6 +18,13 @@ test('diagnose bounded Arabic article word window without publishing or storage 
   const semanticPreflight=preAuditSemanticGate(article,[]);
   const audit=auditSeoArticle(article,topic,{minWords:1500,threshold:95,recent:[],semanticRecent:[],semanticPreflight});
   const schema=validateStructuredData(article);
+  const related=Array.from({length:6},(_,j)=>({slug:'existing-'+j,title:'دليل '+topic.category+' '+topic.market+' '+j,intentLabel:'مراجعة'}));
+  let full=decorateArticleCommerce({...article},topic);
+  full=injectCouponFreshness(full,couponStatus(topic));
+  full=injectContextualLinks(full,related);
+  full=injectEditorialTrust(full);
+  const fullAudit=auditSeoArticle(full,topic,{minWords:1500,threshold:95,recent:[],semanticRecent:[],semanticPreflight:preAuditSemanticGate(full,[])});
+  if(fullAudit.wordCount>1900||fullAudit.wordCount<1500)console.log('ARABIC_FINAL_PIPELINE_WORDS '+JSON.stringify({seed,base:wc(article.html),final:fullAudit.wordCount,failed:fullAudit.failed,quality:fullAudit.score}));
   const alignedKeyword=String(topic.title||'').replace(/\s+ال$/,'').replace(/[،:]+/g,' ').replace(/\s+/g,' ').trim()+' '+topic.queryModifier;
   const alignedTopic={...topic,kw:alignedKeyword.trim()};
   const alignedArticle=buildUsefulArticle(alignedTopic,seed);
