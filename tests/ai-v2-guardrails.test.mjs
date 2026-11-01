@@ -91,3 +91,16 @@ test('trusted JSON-LD does not trigger executable-script violation in AI draft p
  assert.equal(report.violations.includes('SCRIPT_NOT_ALLOWED'),false);
  assert.equal(qualityPreflight({html:html+'<script>alert(1)</script>',topic:t},config).violations.includes('SCRIPT_NOT_ALLOWED'),true);
 });
+
+test('Groq GPT-OSS uses low reasoning and completion-token budget for editorial HTML',async()=>{
+ let body;
+ const result=await callProvider({provider:'groq',model:'openai/gpt-oss-120b',key:'fixture',prompt:'Editorial section',fetchFn:async (_url,options)=>{
+  body=JSON.parse(options.body);
+  return new Response(JSON.stringify({choices:[{message:{content:'<h2>Section</h2><p>'+'Shopping guidance '.repeat(60)+'</p>'}}]}),{status:200});
+ }});
+ assert.equal(result.ok,true);
+ assert.equal(body.reasoning_effort,'low');
+ assert.equal(body.include_reasoning,false);
+ assert.equal(body.max_completion_tokens,3200);
+ assert.equal('max_tokens' in body,false);
+});

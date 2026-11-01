@@ -13,7 +13,7 @@ export async function callProvider({provider,model,key,prompt,fetchFn=fetch}){
   }else if(provider==='groq'){
     url='https://api.groq.com/openai/v1/chat/completions';
     headers.authorization='Bearer '+key;
-    payload={model,temperature:0.65,max_tokens:2400,messages:[{role:'system',content:'Return original editorial article section HTML only. No fake prices, claims or coupon guarantees.'},{role:'user',content:prompt}]};
+    payload={model,temperature:0.65,reasoning_effort:'low',include_reasoning:false,max_completion_tokens:3200,messages:[{role:'system',content:'Return original editorial article section HTML only. No fake prices, claims or coupon guarantees.'},{role:'user',content:prompt}]};
   }else throw Error('UNSUPPORTED_PROVIDER');
   // No blind retry. A lost connection after sending may still consume quota.
   const response=await fetchFn(url,{method:'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(105000)});
