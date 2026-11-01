@@ -1,0 +1,27 @@
+name: NoonDealsNow AI V2 Saudi Native Gate Diagnosis
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-ai-v2-saudi-gate-diagnostic.yml'
+permissions:
+  contents: read
+jobs:
+  inspect-failed-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Read only masked editorial diagnostics for saved Saudi checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler r2 object get nooncoupons-content-v2/_ops/ai-v2-checkpoints/33ad8c59b224dd2b3a40393c.json --remote --file /tmp/sa-gate.json > /tmp/wrangler-out.log
+          jq '{state,errorCategory,sectionIndex,sectionCount:(.sections|length),nativeGateDiagnostics:{score:.nativeGateDiagnostics.score,words:.nativeGateDiagnostics.words,p0:.nativeGateDiagnostics.p0,failed:.nativeGateDiagnostics.failed,schemas:.nativeGateDiagnostics.schemas,duplicates:.nativeGateDiagnostics.duplicates,indexation:.nativeGateDiagnostics.indexation}}' /tmp/sa-gate.json
+          echo 'AI_GENERATION_CALLS=ZERO'
