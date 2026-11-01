@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'automation/ai-v2/**'
+      - 'ai-scheduler-v2/**'
+      - 'tests/ai-v2-scheduler.test.mjs'
       - 'tests/ai-v2-guardrails.test.mjs'
       - '.github/workflows/noondealsnow-ai-v2.yml'
   workflow_dispatch:
@@ -41,7 +43,8 @@ jobs:
           node --check automation/ai-v2/providers.mjs
           node --check automation/ai-v2/r2-checkpoints.mjs
           node --check automation/ai-v2/run.mjs
-          node --test tests/ai-v2-guardrails.test.mjs
+          node --check ai-scheduler-v2/worker.mjs
+          node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-scheduler.test.mjs
 
   preflight-or-generate:
     needs: safety-tests
