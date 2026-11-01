@@ -1,5 +1,6 @@
 import {enableExistingDestinationR2} from './r2-remote-existing-bucket.js';
 import {publishAiV2NativeArticle} from './ai-v2-native-publish-bridge.js';
+import {reconcileAiV2Publication} from './ai-v2-publication-ledger.js';
 import app from './brand-runtime.js';
 import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
 import {emergencyPublicR2Response,rescueSitemapIndexPaths,rescueManifestInventory} from './r2-emergency-readonly.js';
@@ -609,6 +610,12 @@ export default{
       let limit=2,timeBudgetMs=22000,ignoreInterval=true;try{const body=await req.json();limit=Math.max(1,Math.min(8,Number(body?.limit)||2));timeBudgetMs=Math.max(5000,Math.min(30000,Number(body?.timeBudgetMs)||22000));ignoreInterval=body?.ignoreInterval!==false}catch{}
       const state=await runEnglishCanaryBatch(env,{maxPerTick:limit,timeBudgetMs,ignoreIntervalFirst:ignoreInterval});
       return new Response(JSON.stringify(state),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
+    }
+    if(req.method==='POST'&&u.pathname==='/api/internal/ai-v2/reconcile'){
+      if(!await verifyMaintenanceToken(req))return new Response(JSON.stringify({ok:false,reason:'unauthorized'}),{status:401,headers:{'content-type':'application/json','cache-control':'no-store'}});
+      let body;try{body=await req.json()}catch{return new Response(JSON.stringify({ok:false,reason:'invalid_json'}),{status:400})}
+      let result;try{result=await reconcileAiV2Publication(env,{slug:body?.slug})}catch{result={ok:false,reason:'ledger_reconciliation_unavailable'}}
+      return new Response(JSON.stringify(result),{status:result.ok?200:409,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     if(req.method==='POST'&&u.pathname==='/api/internal/ai-v2/publish'){
       if(!await verifyMaintenanceToken(req))return new Response(JSON.stringify({ok:false,reason:'unauthorized'}),{status:401,headers:{'content-type':'application/json','cache-control':'no-store'}});

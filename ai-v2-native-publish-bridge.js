@@ -5,6 +5,7 @@ import {validateStructuredData} from './schema-validator.js';
 import {evaluateIndexation} from './indexation-gate.js';
 import {couponStatus} from './coupon-registry.js';
 import {getPublicationSlotStatus,claimPublicationSlot} from './publication-rate-limit.js';
+import {recordAiV2Publication} from './ai-v2-publication-ledger.js';
 
 // Protected by the existing Cloudflare-authenticated /api/internal/ route.
 // This bridge NEVER accepts a fragment as a live article or reduces any
@@ -71,7 +72,10 @@ export async function publishAiV2NativeArticle(env,payload){
     c:topic.country,cp:article.coupon,q:String(audit.score),w:String(audit.wordCount),at,p:'ai-v2-native'}});
   if(!saved)return reject('ARTICLE_ALREADY_EXISTS_AFTER_PERMIT');
  }catch{return reject('ARTICLE_WRITE_OUTCOME_UNKNOWN',{articleId:checkpoint.articleId})}
+ let ledgerResult;
+ try{ledgerResult=await recordAiV2Publication(env,{slug:article.slug,country:topic.country,publishedAt:at})}
+ catch{ledgerResult={ok:false,reason:'LEDGER_UNAVAILABLE'}}
  // A durable acknowledgement is not proof that the public URL renders.
  return {ok:true,stored:true,state:'STORED_AWAITING_LIVE_VERIFICATION',articleId:checkpoint.articleId,slug:article.slug,
-  url:'https://noondealsnow.com/articles/'+encodeURIComponent(article.slug),contentHash:digest,quality:audit.score};
+  url:'https://noondealsnow.com/articles/'+encodeURIComponent(article.slug),contentHash:digest,quality:audit.score,ledgerRecorded:ledgerResult.ok===true,ledgerReason:ledgerResult.ok?null:ledgerResult.reason};
 }
