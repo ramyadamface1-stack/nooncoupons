@@ -6,7 +6,10 @@ export async function callProvider({provider,model,key,prompt,fetchFn=fetch}){
   if(provider==='gemini'){
     url='https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(model)+':generateContent';
     headers['x-goog-api-key']=key;
-    payload={contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.65,maxOutputTokens:2500}};
+    // Gemini 3.8 Flash no longer accepts the old sampling temperature/top_p
+    // migration knobs. Keep model-specific payloads minimal and supported.
+    const generationConfig=model.startsWith('gemini-3.8-')?{maxOutputTokens:2500}:{temperature:0.65,maxOutputTokens:2500};
+    payload={contents:[{parts:[{text:prompt}]}],generationConfig};
   }else if(provider==='groq'){
     url='https://api.groq.com/openai/v1/chat/completions';
     headers.authorization='Bearer '+key;

@@ -68,3 +68,18 @@ test('Groq transport executes exactly one call and categorizes explicit 429 with
  const fail=await callProvider({provider:'groq',model:config.models.groq,key,prompt:'test',fetchFn:async()=>{calls++;return new Response('quota',{status:429,headers:{'retry-after':'180'}})}});
  assert.equal(fail.category,'QUOTA');assert.equal(fail.retry,false);assert.equal(calls,2);
 });
+
+
+test('Gemini 3.8 Flash request omits deprecated sampling parameters while preserving one-call semantics',async()=>{
+ let attempts=0,payload;
+ const answer=await callProvider({provider:'gemini',model:'gemini-3.8-flash',key:'test-not-real',prompt:'Original article fragment',fetchFn:async (url,init)=>{
+  attempts++;assert.ok(url.endsWith('/models/gemini-3.8-flash:generateContent'));
+  assert.equal(init.headers['x-goog-api-key'],'test-not-real');
+  payload=JSON.parse(init.body);
+  return new Response(JSON.stringify({candidates:[{content:{parts:[{text:'Useful verified shopping checklist. '.repeat(30)}]}}]}),{status:200});
+ }});
+ assert.equal(answer.ok,true);
+ assert.equal(attempts,1);
+ assert.deepEqual(payload.generationConfig,{maxOutputTokens:2500});
+ assert.equal('temperature' in payload.generationConfig,false);
+});
