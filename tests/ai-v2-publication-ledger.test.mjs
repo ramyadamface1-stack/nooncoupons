@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AI_V2_LEDGER_KEY,inspectAiV2Ledger,readAiV2PublicationLedger,recordAiV2Publication,reconcileAiV2Publication} from '../ai-v2-publication-ledger.js';
+import {AI_V2_LEDGER_KEY,inspectAiV2Ledger,readAiV2PublicationLedger,recordAiV2Publication,reconcileAiV2Publication,combineGenerationFreshness} from '../ai-v2-publication-ledger.js';
 const slug='uae-ninja-airfryer-capacity-warranty-checklist-2026';
 function mock(){
  let doc=null,etag=null,rev=0;
@@ -30,4 +30,16 @@ test('authenticated reconciliation only counts real metadata-marked articles',as
 test('malformed, duplicate and unrelated entries fail closed',()=>{
  assert.equal(inspectAiV2Ledger({version:1,articles:[{slug,country:'AE'},{slug,country:'AE'}]}).ok,false);
  assert.equal(inspectAiV2Ledger({version:1,articles:[{slug:'not-valid!',country:'AE'}]}).ok,false);
+});
+
+test('public freshness includes actually published AI V2 while keeping legacy rescue state',()=>{
+ const snapshot={lastSuccessfulPublishAt:'2026-10-31T07:54:28.734Z',minutesSinceLastSuccessfulPublish:2000,rescueDue:true};
+ const ledger={ok:true,count:1,ledger:{articles:[{slug,country:'AE',publishedAt:'2026-11-01T20:54:43.401Z'}]}};
+ const at=Date.parse('2026-11-01T21:05:00Z');
+ const combined=combineGenerationFreshness(snapshot,ledger,at);
+ assert.equal(combined.lastSuccessfulPublishSource,'ai-v2-native');
+ assert.equal(combined.lastSuccessfulPublishAt,'2026-11-01T20:54:43.401Z');
+ assert.equal(combined.legacyRescueDue,true);
+ assert.equal(combined.aiV2PublishedCount,1);
+ assert.equal(combined.aiV2PublishedLast24Hours,1);
 });

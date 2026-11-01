@@ -54,3 +54,29 @@ export async function reconcileAiV2Publication(env,{slug}={}){
  const result=await recordAiV2Publication(env,{slug,country,publishedAt:meta.at});
  return {...result,verifiedInR2:true};
 }
+
+// Public-facing freshness is portfolio-wide; preserve legacy generation's
+// own rescue state separately so active legacy Cron controls are unaffected.
+export function combineGenerationFreshness(snapshot,ledgerRead,atMs=Date.now()){
+ const entries=ledgerRead?.ok?ledgerRead.ledger.articles:[];
+ const nativeCount=ledgerRead?.ok?ledgerRead.count:null;
+ const aiTime=entries.reduce((latest,a)=>a.publishedAt>latest?a.publishedAt:latest,'');
+ const aiMs=Date.parse(aiTime);
+ const legacyMs=Date.parse(String(snapshot?.lastSuccessfulPublishAt||''));
+ const aiValid=Number.isFinite(aiMs),legacyValid=Number.isFinite(legacyMs);
+ const newest=aiValid&&(!legacyValid||aiMs>legacyMs)?aiMs:legacyMs;
+ const known=Number.isFinite(newest);
+ const elapsed=known?Math.max(0,atMs-newest):null;
+ return {...snapshot,
+   legacyLastSuccessfulPublishAt:snapshot?.lastSuccessfulPublishAt||null,
+   legacyMinutesSinceLastSuccessfulPublish:snapshot?.minutesSinceLastSuccessfulPublish??null,
+   legacyRescueDue:Boolean(snapshot?.rescueDue),
+   lastSuccessfulPublishAt:known?new Date(newest).toISOString():null,
+   lastSuccessfulPublishSource:known&&(aiValid&&newest===aiMs)?'ai-v2-native':'legacy',
+   minutesSinceLastSuccessfulPublish:elapsed==null?null:Math.round(elapsed/6000)/10,
+   withinOneHour:elapsed!=null&&elapsed<3600000,
+   aiV2PublishedCount:nativeCount,
+   aiV2LastPublishedAt:aiValid?new Date(aiMs).toISOString():null,
+   aiV2PublishedLast24Hours:ledgerRead?.ok?entries.filter(x=>Number.isFinite(Date.parse(x.publishedAt))&&atMs-Date.parse(x.publishedAt)>=0&&atMs-Date.parse(x.publishedAt)<86400000).length:null
+ };
+}

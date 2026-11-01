@@ -11,7 +11,7 @@ import {APPROVED_COUPON_CODES,normalizeApprovedCoupon,replaceUnapprovedCouponTok
 import {ensureRuntimeArticleQuality,normalizeRuntimeTitle,normalizeRuntimeMeta,RUNTIME_ARTICLE_QUALITY_INFO} from './article-quality-runtime.js';
 import {runEnglishScheduledTick} from './english-canary.js';
 import {getPublicationSlotStatus} from './publication-rate-limit.js';
-import {readAiV2PublicationLedger} from './ai-v2-publication-ledger.js';
+import {readAiV2PublicationLedger,combineGenerationFreshness} from './ai-v2-publication-ledger.js';
 import {awaitPublicationWindow} from './cron-publication-window.js';
 import {getCampaignWindow} from './campaign-calendar.js';
 
@@ -439,8 +439,8 @@ export default{
     }
     if(u.pathname.startsWith('/api/admin/')){const r=await handleAdminApi(req,env);if(r)return r}
     if(u.pathname==='/api/generation-freshness'&&req.method==='GET'){
-      const [status,aiV2]=await Promise.all([getGeneratorStatus(env),readAiV2PublicationLedger(env)]),snapshot=generationFreshnessSnapshot(status);
-      return json({ok:true,...snapshot,cron:'* * * * *',bulkLastTickAt:status.bulkLastTickAt||null,bulkLastTickPublished:Number(status.bulkLastTickPublished||0),bulkLastError:status.bulkLastError||null,workersAiLastSuccess:status.lastSuccess||null,aiV2PublishedCount:aiV2.ok?aiV2.count:null,aiV2LastPublishedAt:aiV2.ok?aiV2.ledger.articles.reduce((v,e)=>e.publishedAt>v?e.publishedAt:v,'')||null:null,qualityThreshold:95,minArticleWords:1500});
+      const [status,aiV2]=await Promise.all([getGeneratorStatus(env),readAiV2PublicationLedger(env)]),snapshot=combineGenerationFreshness(generationFreshnessSnapshot(status),aiV2);
+      return json({ok:true,...snapshot,cron:'* * * * *',bulkLastTickAt:status.bulkLastTickAt||null,bulkLastTickPublished:Number(status.bulkLastTickPublished||0),bulkLastError:status.bulkLastError||null,workersAiLastSuccess:status.lastSuccess||null,qualityThreshold:95,minArticleWords:1500});
     }
     if(u.pathname==='/api/generator-health'){
       const [cfg,status,aiV2]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env),readAiV2PublicationLedger(env)]);
