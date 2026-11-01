@@ -34,7 +34,7 @@ test('enabled scheduler verifies workflow runs, then dispatches one token-free p
  });
  assert.equal(response.reason,'DISPATCH_ACCEPTED');assert.equal(response.dispatched,true);
  assert.deepEqual(calls.map(x=>x.method),['GET','GET','POST']);
- const body=JSON.parse(calls[3].body);
+ const body=JSON.parse(calls[2].body);
  assert.equal(body.ref,'main');
  assert.equal(body.inputs.preflight_only,'true');assert.equal(body.inputs.scheduled_ms,String(start));
  assert.equal(lines.length,1);
@@ -70,7 +70,7 @@ test('one real scheduled-minute diagnostic dispatch only, with no AI calls',asyn
  }});
  assert.equal(result.dispatched,true);
  assert.equal(calls.length,4);
- const body=JSON.parse(calls[2].body);
+ const body=JSON.parse(calls[3].body);
  assert.equal(body.inputs.preflight_only,'true');
  assert.equal(body.inputs.scheduled_ms,String(ms));
 });
