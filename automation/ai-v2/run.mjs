@@ -16,7 +16,7 @@ async function run(){
   // Isolated, finite GitHub Actions canary: NEVER enables the live Cron Worker.
   // Normal scheduling continues to respect the disabled main config.
   const oneOffCanary=process.env.AI_ONE_OFF_CANARY==='true'&&
-    process.env.GITHUB_WORKFLOW==='NoonDealsNow AI V2 One-off Canary'&&
+    ['NoonDealsNow AI V2 One-off Canary','NoonDealsNow AI V2 Groq Resume Canary'].includes(process.env.GITHUB_WORKFLOW)&&
     process.env.GITHUB_EVENT_NAME==='push';
   const runConfig=oneOffCanary?{...config,enabled:true}:config;
   const due=cadence(runConfig,Number(process.env.AI_SCHEDULED_MS||Date.now()));
@@ -28,10 +28,12 @@ async function run(){
   const blocked=mayCallProvider({config:runConfig,freeApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true',checkpointWritable:Boolean(process.env.CLOUDFLARE_API_TOKEN&&process.env.CLOUDFLARE_ACCOUNT_ID),topicReserved:true,hasAnyKey:Boolean(geminiKeys.hasGemini||process.env.GROQ_API_KEY)});
   if(blocked){report('SKIPPED',blocked);return}
   let selected;
+  const explicitGroqResume=oneOffCanary&&process.env.AI_RESUME_PAUSED_QUOTA==='true'&&process.env.AI_PROVIDER_OVERRIDE==='groq';
   for(const topic of topics){
     if(oneOffCanary&&topic.country!=='AE')continue;
     const articleId=assertTopic(topic,config),saved=readCheckpoint(config,articleId);
-    if(['BLOCKED_REVIEW','QUALITY_PASSED','COMMITTED','DEPLOYING','LIVE_VERIFIED','FAILED_FINAL','PAUSED_QUOTA','UNKNOWN_REQUEST_OUTCOME'].includes(saved?.state))continue;
+    if(['BLOCKED_REVIEW','QUALITY_PASSED','COMMITTED','DEPLOYING','LIVE_VERIFIED','FAILED_FINAL','UNKNOWN_REQUEST_OUTCOME'].includes(saved?.state))continue;
+    if(saved?.state==='PAUSED_QUOTA'&&!explicitGroqResume)continue;
     selected={topic,articleId,saved};break;
   }
   if(!selected){report('SKIPPED','NO_ELIGIBLE_TOPIC');return}
@@ -61,7 +63,9 @@ async function run(){
     report('BLOCKED','UNKNOWN_REQUEST_OUTCOME',{articleId});return;
   }
   if(topic.country!=='AE'){report('SKIPPED','ARABIC_NATIVE_RENDERER_PENDING',{articleId});return}
-  const provider=geminiKeys.hasGemini?'gemini':'groq',model=config.models[provider];
+  // A confirmed Gemini 429 is NOT retried. An explicitly approved, isolated
+  // one-time job may resume the exact saved section using a different provider.
+  const provider=explicitGroqResume?'groq':(geminiKeys.hasGemini?'gemini':'groq'),model=config.models[provider];
   let calls=0;
   while(state.sectionIndex<topic.sections.length){
     if(calls>=config.limits.maxProviderCallsPerRun){report('CHECKPOINTED','CALL_BUDGET_LIMIT',{articleId,sectionIndex:state.sectionIndex});return}
