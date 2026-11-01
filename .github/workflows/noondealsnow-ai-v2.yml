@@ -60,6 +60,18 @@ jobs:
           node --check automation/ai-v2/run.mjs
           node --check ai-scheduler-v2/worker.mjs
           node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-scheduler.test.mjs
+      - name: Verify destination private R2 checkpoint (tiny isolated canary, no AI)
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo 'AI_V2_R2_CHECKPOINT=MISSING_SECRET'; exit 12
+          fi
+          npm install --no-audit --no-fund --ignore-scripts
+          node automation/ai-v2/smoke-test-r2.mjs
       - name: Safe runtime dry-run with no provider credentials or R2 access
         env:
           AI_PREFLIGHT_ONLY: 'true'
