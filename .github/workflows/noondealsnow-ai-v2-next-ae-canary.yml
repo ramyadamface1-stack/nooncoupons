@@ -1,0 +1,46 @@
+name: NoonDealsNow AI V2 Next UAE Quality Canary
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-ai-v2-next-ae-canary.yml'
+permissions:
+  contents: read
+concurrency:
+  group: noondealsnow-ai-v2-single-site
+  cancel-in-progress: false
+jobs:
+  one-original-uae-article:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Pre-check safe free-only runtime and quality
+        run: |
+          node --check automation/ai-v2/run.mjs
+          node --test tests/ai-v2-topic-queue.test.mjs tests/ai-v2-guardrails.test.mjs tests/ai-v2-native-article.test.mjs
+      - name: Generate and verify one new UAE article from distinct topic queue
+        shell: bash
+        env:
+          AI_PREFLIGHT_ONLY: 'false'
+          AI_ONE_OFF_CANARY: 'true'
+          AI_PROVIDER_OVERRIDE: 'groq'
+          AI_RESUME_PAUSED_QUOTA: 'true'
+          GEMINI_API_KEYS: ''
+          GEMINI_API_KEY: ''
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+          NOONDEALSNOW_AI_FREE_ONLY_APPROVED: ${{ secrets.NOONDEALSNOW_AI_FREE_ONLY_APPROVED }}
+          NOONDEALSNOW_AI_SITE_PUBLISH_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+        run: |
+          set -euo pipefail
+          [ "${NOONDEALSNOW_AI_FREE_ONLY_APPROVED:-}" = 'true' ] || { echo 'FREE_BUDGET_APPROVAL_REQUIRED'; exit 12; }
+          [ -n "${GROQ_API_KEY:-}" ] || { echo 'GROQ_MISSING'; exit 13; }
+          npm install --no-audit --no-fund --ignore-scripts
+          node automation/ai-v2/run.mjs | tee /tmp/ndn-uae-live-canary.log
+          echo '### NoonDealsNow AI V2 — New UAE Article Quality Canary' >> "$GITHUB_STEP_SUMMARY"
+          grep '^AI_V2_REPORT ' /tmp/ndn-uae-live-canary.log >> "$GITHUB_STEP_SUMMARY" || true
+          echo 'Success requires a new LIVE_VERIFIED article URL, not a successful job alone.' >> "$GITHUB_STEP_SUMMARY"
