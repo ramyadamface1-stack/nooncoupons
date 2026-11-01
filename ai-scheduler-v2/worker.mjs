@@ -8,7 +8,7 @@ export function decideTick(config,scheduledTime,actualTime){
   if(!config.enabled){
     if(diag?.preflightOnly===true&&diag?.maxAcceptedDispatches===1&&
       Number.isFinite(Date.parse(diag.fromUtc))&&Number.isFinite(Date.parse(diag.untilUtc))&&
-      ms>=Date.parse(diag.fromUtc)&&ms<=Date.parse(diag.untilUtc)&&ms%60000===0)
+      Math.floor(ms/60000)*60000>=Date.parse(diag.fromUtc)&&Math.floor(ms/60000)*60000<=Date.parse(diag.untilUtc))
       return {due:true,reason:'DIAGNOSTIC_PREFLIGHT_DUE',preflightOnly:true};
     return {due:false,reason:'SCHEDULER_DISABLED'};
   }
