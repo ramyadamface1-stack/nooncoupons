@@ -37,6 +37,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Audit secret name presence without revealing values
+        shell: bash
+        env:
+          GEMINI_PRESENT: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_PRESENT: ${{ secrets.GROQ_API_KEY }}
+          R2_TOKEN_PRESENT: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
+          FREE_APPROVAL_PRESENT: ${{ secrets.NOONDEALSNOW_AI_FREE_ONLY_APPROVED }}
+        run: |
+          for name in GEMINI_PRESENT GROQ_PRESENT R2_TOKEN_PRESENT FREE_APPROVAL_PRESENT; do
+            if [ -n "${!name}" ]; then
+              echo "AI_V2_SECRET_NAME_STATUS ${name}=PRESENT"
+            else
+              echo "AI_V2_SECRET_NAME_STATUS ${name}=MISSING"
+            fi
+          done
       - name: Syntax and entirely token-free regression tests
         run: |
           node --check automation/ai-v2/guardrails.mjs
