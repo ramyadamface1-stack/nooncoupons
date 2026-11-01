@@ -49,5 +49,11 @@
     "noDelete": true,
     "noOldSlugChanges": true,
     "noAutomaticPublishUntilLiveBridgeVerified": true
+  },
+  "schedulerDiagnostic": {
+    "atUtc": "2026-11-01T20:11:00.000Z",
+    "preflightOnly": true,
+    "purpose": "ONE_REAL_CRON_TO_GITHUB_DISPATCH_PROOF",
+    "maxDueTicks": 1
   }
 }

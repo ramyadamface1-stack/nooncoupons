@@ -37,3 +37,7 @@ Never mistake a workflow success, saved draft or commit for a live indexed artic
 ## Scheduler bootstrap (2026-11-01)
 
 GitHub Actions run 41344178398 validated the fine-grained dispatch token READ, deployed the isolated noondealsnow-ai-scheduler-v2 Worker to the destination Cloudflare account, stored GITHUB_DISPATCH_TOKEN as an encrypted Worker secret, and verified a * * * * * cron trigger. The Worker is intentionally inert while enabled=false. No live Cron event, GitHub dispatch, AI-generated live article or native publication bridge has been verified. The deploy workflow's one-time push bootstrap is guarded by a special commit message marker; ordinary pushes cannot deploy this scheduler.
+
+## One-time real Cron-to-GitHub diagnostic
+
+The isolated Scheduler is allowed exactly one preflight-only dispatch in the scheduled minute specified by `schedulerDiagnostic.atUtc` (2026-11-01T20:11:00.000Z). It cannot publish or call Gemini/Groq, and no subsequent minute may dispatch while config.enabled=false. A real successful github.com/actions workflow_dispatch run (not a push or fake mock) is required to prove delivery. Do not equate this diagnostic with live article publication. Once observed, remove schedulerDiagnostic or leave the expired minute harmlessly inert. No additional scheduled Workers are created.

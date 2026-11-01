@@ -2,7 +2,15 @@ import config from '../automation/ai-v2/config.json' with {type:'json'};
 export function decideTick(config,scheduledTime,actualTime){
   const ms=Number(scheduledTime),now=Number(actualTime);
   if(!Number.isFinite(ms)||ms<0||!Number.isFinite(now)||Math.abs(now-ms)>180000)return {due:false,reason:'CLOCK_SKEW'};
-  if(!config.enabled)return {due:false,reason:'SCHEDULER_DISABLED'};
+  // A bounded ONE-MINUTE preflight dispatch can prove real Cron -> GitHub delivery
+  // while the article generator and publishing bridge remain disabled.
+  const diag=config.schedulerDiagnostic;
+  if(!config.enabled){
+    if(diag?.preflightOnly===true&&diag?.maxDueTicks===1&&
+      Number.isFinite(Date.parse(diag.atUtc))&&
+      ms===Date.parse(diag.atUtc))return {due:true,reason:'DIAGNOSTIC_PREFLIGHT_DUE',preflightOnly:true};
+    return {due:false,reason:'SCHEDULER_DISABLED'};
+  }
   const interval=Number(config.intervalMinutes),minute=Math.floor(ms/60000);
   if(![1,5,10,15,30,60].includes(interval))return {due:false,reason:'INVALID_INTERVAL'};
   if(minute%interval!==0)return {due:false,reason:'INTERVAL_NOT_ELAPSED'};
@@ -47,7 +55,7 @@ export async function dispatchDue({config:cfg=config,scheduledTime,actualTime=Da
     const response=await fetchFn(ROOT+'/dispatches',{
       method:'POST',
       headers:{...requestHeaders,'content-type':'application/json'},
-      body:JSON.stringify({ref:'main',inputs:{preflight_only:'false',scheduled_ms:String(scheduled),verify_gemini_metadata:'false'}})
+      body:JSON.stringify({ref:'main',inputs:{preflight_only:(decision.preflightOnly===true||cfg.publicationMode!=='live_verified'||cfg.safety?.noAutomaticPublishUntilLiveBridgeVerified!==false)?'true':'false',scheduled_ms:String(scheduled),verify_gemini_metadata:'false'}})
     });
     dispatchHttpStatus=response.status;
     reason=response.status===204?'DISPATCH_ACCEPTED':githubHttpStatus(response.status);
@@ -68,6 +76,6 @@ export default {
   fetch(request){
     const path=new URL(request.url).pathname;
     if(path!=='/health')return new Response('Not Found',{status:404});
-    return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:config.enabled,intervalMinutes:config.intervalMinutes,source:'single-ai-v2-config',legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:true,publicationBridgeVerified:false});
+    return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:config.enabled,intervalMinutes:config.intervalMinutes,source:'single-ai-v2-config',legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:true,publicationBridgeVerified:false,diagnosticPreflightAt:config.schedulerDiagnostic?.atUtc||null,diagnosticPreflightOnly:true});
   }
 };

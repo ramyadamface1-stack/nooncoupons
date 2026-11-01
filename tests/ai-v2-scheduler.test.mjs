@@ -35,7 +35,8 @@ test('enabled scheduler verifies workflow runs, then dispatches one token-free p
  assert.equal(response.reason,'DISPATCH_ACCEPTED');assert.equal(response.dispatched,true);
  assert.deepEqual(calls.map(x=>x.method),['GET','GET','POST']);
  const body=JSON.parse(calls[2].body);
- assert.equal(body.ref,'main');assert.equal(body.inputs.scheduled_ms,String(start));
+ assert.equal(body.ref,'main');
+ assert.equal(body.inputs.preflight_only,'true');assert.equal(body.inputs.scheduled_ms,String(start));
  assert.equal(lines.length,1);
  assert.equal(lines[0].includes('fake'),false);
 });
@@ -52,4 +53,21 @@ test('missing token, 401 and 403 reject safely',async()=>{
    fetchFn:async()=>new Response('{}',{status})});
   assert.equal(result.reason,githubHttpStatus(status));assert.equal(result.dispatched,false);
  }
+});
+
+test('one real scheduled-minute diagnostic dispatch only, with no AI calls',async()=>{
+ const ms=Date.parse(config.schedulerDiagnostic.atUtc);
+ assert.equal(decideTick(config,ms-60000,ms-60000).reason,'SCHEDULER_DISABLED');
+ assert.equal(decideTick(config,ms+60000,ms+60000).reason,'SCHEDULER_DISABLED');
+ assert.equal(decideTick(config,ms,ms+1000).reason,'DIAGNOSTIC_PREFLIGHT_DUE');
+ let calls=[];
+ const result=await dispatchDue({config,scheduledTime:ms,actualTime:ms+1000,token:'fake',logger:()=>{},fetchFn:async (url,init)=>{
+   calls.push({url,method:init.method||'GET',body:init.body||null});
+   return url.endsWith('/dispatches')?new Response(null,{status:204}):new Response(JSON.stringify({total_count:0}),{status:200});
+ }});
+ assert.equal(result.dispatched,true);
+ assert.equal(calls.length,3);
+ const body=JSON.parse(calls[2].body);
+ assert.equal(body.inputs.preflight_only,'true');
+ assert.equal(body.inputs.scheduled_ms,String(ms));
 });
