@@ -3,6 +3,7 @@ import {createHash} from 'node:crypto';
 import {cadence,validateConfig,assertTopic,mayCallProvider,qualityPreflight} from './guardrails.mjs';
 import {readCheckpoint,saveCheckpoint,checkpointState} from './r2-checkpoints.mjs';
 import {callProvider} from './providers.mjs';
+import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
 const report=(status,reason,data={})=>console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,...data}));
@@ -12,11 +13,12 @@ validateConfig(config);
 
 async function run(){
   const due=cadence(config,Number(process.env.AI_SCHEDULED_MS||Date.now()));
+  const geminiKeys=geminiKeyInventory(process.env);
   if(process.env.AI_PREFLIGHT_ONLY==='true'){
-    report('PREFLIGHT',due.reason,{enabled:config.enabled,targetPerHour:config.targetPerHour,mode:config.publicationMode,hasGemini:Boolean(process.env.GEMINI_API_KEY),hasGroq:Boolean(process.env.GROQ_API_KEY),hasPrivateStorageToken:Boolean(process.env.CLOUDFLARE_API_TOKEN),freeBudgetApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true'});return;
+    report('PREFLIGHT',due.reason,{enabled:config.enabled,targetPerHour:config.targetPerHour,mode:config.publicationMode,hasGemini:geminiKeys.hasGemini,geminiNewKeys:geminiKeys.newCount,geminiNewAuthKeys:geminiKeys.newAuthCount,geminiOldKeys:geminiKeys.oldCount,geminiSelectedSource:geminiKeys.selectedSource,hasGroq:Boolean(process.env.GROQ_API_KEY),hasPrivateStorageToken:Boolean(process.env.CLOUDFLARE_API_TOKEN),freeBudgetApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true'});return;
   }
   if(!due.due){report('SKIPPED',due.reason);return}
-  const blocked=mayCallProvider({config,freeApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true',checkpointWritable:Boolean(process.env.CLOUDFLARE_API_TOKEN&&process.env.CLOUDFLARE_ACCOUNT_ID),topicReserved:true,hasAnyKey:Boolean(process.env.GEMINI_API_KEY||process.env.GROQ_API_KEY)});
+  const blocked=mayCallProvider({config,freeApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true',checkpointWritable:Boolean(process.env.CLOUDFLARE_API_TOKEN&&process.env.CLOUDFLARE_ACCOUNT_ID),topicReserved:true,hasAnyKey:Boolean(geminiKeys.hasGemini||process.env.GROQ_API_KEY)});
   if(blocked){report('SKIPPED',blocked);return}
   let selected;
   for(const topic of topics){
@@ -38,7 +40,7 @@ async function run(){
     state=saveCheckpoint(config,checkpointState(state,'UNKNOWN_REQUEST_OUTCOME',{errorCategory:'PREVIOUS_PROVIDER_REQUEST_MAY_HAVE_BEEN_BILLED'}));
     report('BLOCKED','UNKNOWN_REQUEST_OUTCOME',{articleId});return;
   }
-  const provider=process.env.GEMINI_API_KEY?'gemini':'groq',key=provider==='gemini'?process.env.GEMINI_API_KEY:process.env.GROQ_API_KEY,model=config.models[provider];
+  const provider=geminiKeys.hasGemini?'gemini':'groq',model=config.models[provider];
   let calls=0;
   while(state.sectionIndex<topic.sections.length){
     if(calls>=config.limits.maxProviderCallsPerRun){report('CHECKPOINTED','CALL_BUDGET_LIMIT',{articleId,sectionIndex:state.sectionIndex});return}
@@ -48,7 +50,9 @@ async function run(){
       state=saveCheckpoint(config,checkpointState(state,'DRAFT_SAVED',{sections:[...state.sections,{heading:topic.sections[index],html,hash:hash(html)}],sectionIndex:index+1,pendingResponse:null}));
       continue;
     }
-    state=saveCheckpoint(config,checkpointState(state,'REQUEST_PENDING',{provider,model,pendingSection:index}));
+    const credential=provider==='gemini'?selectGeminiKey(process.env,index):{key:process.env.GROQ_API_KEY,keySlot:0,source:'GROQ_API_KEY'};
+    if(!credential){report('SKIPPED','PROVIDER_KEY_UNAVAILABLE',{provider});return}
+    state=saveCheckpoint(config,checkpointState(state,'REQUEST_PENDING',{provider,model,pendingSection:index,keySource:credential.source,keySlot:credential.keySlot}));
     const prompt=[
       'Write an original, useful '+(topic.country==='SA'?'Saudi Arabic':'UAE English')+' consumer shopping article SECTION, valid HTML fragment only.',
       'Topic: '+topic.topic+'. Brand: '+topic.brand+'. Category: '+topic.category+'.',
@@ -59,9 +63,9 @@ async function run(){
       'No HTML head, JS, CSS, whole-article H1 or markdown code fences.'
     ].join('\n');
     // Persist the ambiguous billing boundary before sending the HTTP request.
-    state=saveCheckpoint(config,checkpointState(state,'REQUEST_SENT',{sentAt:now(),pendingSection:index,lastRequestStatus:'UNKNOWN'}));calls++;
+    state=saveCheckpoint(config,checkpointState(state,'REQUEST_SENT',{sentAt:now(),pendingSection:index,lastRequestStatus:'UNKNOWN',keySource:credential.source,keySlot:credential.keySlot}));calls++;
     let result;
-    try{result=await callProvider({provider,model,key,prompt})}
+    try{result=await callProvider({provider,model,key:credential.key,prompt})}
     catch{
       saveCheckpoint(config,checkpointState(state,'UNKNOWN_REQUEST_OUTCOME',{errorCategory:'NETWORK_OR_TIMEOUT_AFTER_REQUEST_SENT'}));
       report('BLOCKED','UNKNOWN_REQUEST_OUTCOME',{articleId,sectionIndex:index,provider,calls});return;
