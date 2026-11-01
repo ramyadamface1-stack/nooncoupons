@@ -19,7 +19,7 @@ async function run(){
   // Isolated, finite GitHub Actions canary: NEVER enables the live Cron Worker.
   // Normal scheduling continues to respect the disabled main config.
   const oneOffCanary=process.env.AI_ONE_OFF_CANARY==='true'&&
-    ['NoonDealsNow AI V2 One-off Canary','NoonDealsNow AI V2 Groq Resume Canary','NoonDealsNow AI V2 Groq Content Retry Canary','NoonDealsNow AI V2 Trim and Publish Canary','NoonDealsNow AI V2 Next UAE Quality Canary','NoonDealsNow AI V2 Short Draft Recovery Canary','NoonDealsNow AI V2 Saudi Quality Canary'].includes(process.env.GITHUB_WORKFLOW)&&
+    ['NoonDealsNow AI V2 One-off Canary','NoonDealsNow AI V2 Groq Resume Canary','NoonDealsNow AI V2 Groq Content Retry Canary','NoonDealsNow AI V2 Trim and Publish Canary','NoonDealsNow AI V2 Next UAE Quality Canary','NoonDealsNow AI V2 Short Draft Recovery Canary','NoonDealsNow AI V2 Saudi Quality Canary','NoonDealsNow AI V2 Saudi Quality Recovery Canary'].includes(process.env.GITHUB_WORKFLOW)&&
     process.env.GITHUB_EVENT_NAME==='push';
   const runConfig=oneOffCanary?{...config,enabled:true}:config;
   const due=cadence(runConfig,Number(process.env.AI_SCHEDULED_MS||Date.now()));
@@ -31,7 +31,7 @@ async function run(){
   const savedOnly=oneOffCanary&&process.env.AI_REPROCESS_SAVED_DRAFT==='true'&&process.env.AI_NO_PROVIDER_CALLS==='true';
   const blocked=mayCallProvider({config:runConfig,freeApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true',checkpointWritable:Boolean(process.env.CLOUDFLARE_API_TOKEN&&process.env.CLOUDFLARE_ACCOUNT_ID),topicReserved:true,hasAnyKey:Boolean(geminiKeys.hasGemini||process.env.GROQ_API_KEY||savedOnly)});
   if(blocked){report('SKIPPED',blocked);return}
-  const safeSaudiCanary=oneOffCanary&&process.env.GITHUB_WORKFLOW==='NoonDealsNow AI V2 Saudi Quality Canary'&&process.env.AI_SA_ONE_OFF==='true';
+  const safeSaudiCanary=oneOffCanary&&['NoonDealsNow AI V2 Saudi Quality Canary','NoonDealsNow AI V2 Saudi Quality Recovery Canary'].includes(process.env.GITHUB_WORKFLOW)&&process.env.AI_SA_ONE_OFF==='true';
   let selected;
   const explicitGroqResume=oneOffCanary&&process.env.AI_RESUME_PAUSED_QUOTA==='true'&&process.env.AI_PROVIDER_OVERRIDE==='groq';
   for(const topic of topics){
@@ -40,7 +40,7 @@ async function run(){
     const articleId=assertTopic(topic,config),saved=readCheckpoint(config,articleId);
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
-    if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry}))continue;
+    if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly}))continue;
     selected={topic,articleId,saved};break;
   }
   if(!selected){report('SKIPPED','NO_ELIGIBLE_TOPIC',{queue:queueInventory(topics)});return}

@@ -29,3 +29,10 @@ test('queue inventory explicitly distinguishes unready Arabic market',()=>{
  assert.ok(info.renderable<info.total);
  assert.ok(info.pendingMarketRenderer.every(c=>c==='SA'));
 });
+
+test('Arabic native gate repair may resume only a persisted complete saved draft with explicit approval',()=>{
+ const saved={state:'BLOCKED_REVIEW',errorCategory:'NATIVE_QUALITY_BLOCKED',sections:Array(5).fill({}),sectionIndex:5};
+ assert.equal(resumableCheckpoint(saved,{savedOnly:true}),false);
+ assert.equal(resumableCheckpoint(saved,{savedOnly:true,nativeGateRepair:true}),true);
+ assert.equal(resumableCheckpoint({...saved,sectionIndex:3},{savedOnly:true,nativeGateRepair:true}),false);
+});
