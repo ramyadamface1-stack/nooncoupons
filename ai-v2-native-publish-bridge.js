@@ -1,0 +1,76 @@
+import {isApprovedMarketCoupon} from './approved-coupons.js';
+import {auditSeoArticle,auditEnglishSeoArticle,preAuditSemanticGate} from './quality-audit.js';
+import {loadCluster,preflightGlobalGate,globalGate} from './quality-index.js';
+import {validateStructuredData} from './schema-validator.js';
+import {evaluateIndexation} from './indexation-gate.js';
+import {couponStatus} from './coupon-registry.js';
+import {getPublicationSlotStatus,claimPublicationSlot} from './publication-rate-limit.js';
+
+// Protected by the existing Cloudflare-authenticated /api/internal/ route.
+// This bridge NEVER accepts a fragment as a live article or reduces any
+// quality, freshness, originality, coupon, or global publishing standards.
+const rules={SA:{code:'NOV170',lang:'ar-SA'},AE:{code:'NOV188',lang:'en-AE'}};
+const reject=(reason,extra={})=>({ok:false,reason,...extra});
+const hash=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))].map(v=>v.toString(16).padStart(2,'0')).join('');
+export function validateAiV2NativePayload(payload){
+ const {article,topic,checkpoint}=payload||{},rule=rules[topic?.country];
+ if(!rule||!article||!checkpoint)return reject('INCOMPLETE_OR_WRONG_MARKET');
+ if(topic.code!==rule.code||article.coupon!==rule.code||!isApprovedMarketCoupon(rule.code,topic.country))return reject('INVALID_MARKET_COUPON');
+ if(topic.language!==rule.lang||article.country!==topic.country)return reject('INVALID_LANGUAGE');
+ if(checkpoint.state!=='QUALITY_PASSED'||!/[a-f0-9]{24}/.test(String(checkpoint.articleId||'')))return reject('CHECKPOINT_NOT_APPROVED');
+ if(typeof article.slug!=='string'||!/^[a-z0-9-]{16,120}$/.test(article.slug)||article.slug!==topic.slug||article.slug.includes('--'))return reject('INVALID_SLUG');
+ if(!article.title||!article.primaryKeyword||!article.metaDescription)return reject('INCOMPLETE_SEO');
+ const html=article.html;
+ if(typeof html!=='string'||html.length<4000||html.length>240000)return reject('INVALID_HTML_SIZE');
+ // JSON-LD is permitted; executable scripts and event handlers are rejected.
+ const noSchema=html.replace(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script\s*>/gi,'');
+ if(/<\s*(?:script|iframe|form|object|embed|style|svg|base)\b|\son[a-z]+\s*=|javascript\s*:/i.test(noSchema))return reject('UNSAFE_MARKUP');
+ if(!/<article\b/i.test(html)||!/<\/article\s*>/i.test(html)||!/<h1\b/i.test(html))return reject('INCOMPLETE_ARTICLE');
+ if(!html.includes(rule.code)||!/https:\/\/www\.noon\.com\//i.test(html))return reject('COUPON_OR_OFFICIAL_STORE_MISSING');
+ return {ok:true};
+}
+export async function publishAiV2NativeArticle(env,payload){
+ const shape=validateAiV2NativePayload(payload);
+ if(!shape.ok)return shape;
+ if(!env?.CONTENT_FINAL||!env?.GENERATOR_CONTROL)return reject('NATIVE_BINDINGS_MISSING');
+ const {topic,article,checkpoint}=payload,expected=String(checkpoint.contentHash||''),digest=await hash(article.html);
+ if(!/^[a-f0-9]{64}$/.test(expected)||expected!==digest)return reject('CHECKPOINT_HASH_MISMATCH');
+ let recent,cluster;
+ try{
+  const feed=await env.CONTENT_FINAL.get('bulk/latest.json');
+  const latest=feed?await feed.json():{articles:[]};
+  cluster=await loadCluster(env,topic,new Map());
+  recent=[...(Array.isArray(latest.articles)?latest.articles:[]),...(cluster.entries||[])];
+ }catch{return reject('QUALITY_INDEX_UNAVAILABLE')}
+ const pre=preflightGlobalGate({...topic,kw:article.primaryKeyword},{entries:recent});
+ if(!pre.pass)return reject('DUPLICATE_INTENT',{violations:pre.reasons});
+ const coupon=couponStatus(topic);
+ if(!coupon.publishAllowed)return reject('COUPON_FRESHNESS_BLOCK',{detail:coupon.reason});
+ const schema=validateStructuredData(article);
+ const preSemantic=preAuditSemanticGate(article,recent);
+ const audit=topic.country==='SA'?
+  auditSeoArticle(article,topic,{minWords:1500,threshold:95,recent,semanticRecent:recent,semanticPreflight:preSemantic}):
+  auditEnglishSeoArticle(article,topic,{threshold:95,recent});
+ const global=globalGate(article,topic,audit,{entries:recent});
+ const indexation=evaluateIndexation(article,topic,{globalGate:global,contextualLinks:(article.contextualLinks||[]).length,clusterSize:cluster.entries.length,schemaGate:schema,coupon});
+ if(!schema.pass||!audit.productionReady||audit.score<95||!global.pass||!indexation.indexable){
+  return reject('NATIVE_QUALITY_BLOCKED',{diagnostics:{score:audit.score,words:audit.wordCount,p0:audit.p0,failed:audit.failed,schemas:schema.errors,duplicates:global.reasons,indexation:indexation.reasons}});
+ }
+ const key='articles/'+article.slug+'.html';
+ let old;try{old=await env.CONTENT_FINAL.head(key)}catch{return reject('DUPLICATE_CHECK_UNAVAILABLE')}
+ if(old)return reject('ARTICLE_ALREADY_PUBLISHED');
+ const status=await getPublicationSlotStatus(env);
+ if(!status.ok||status.eligible===false)return reject('GLOBAL_PUBLICATION_SLOT_NOT_DUE',{nextEligibleAt:status.nextEligibleAt||null});
+ const permit=await claimPublicationSlot(env,topic.country,'ai-v2-native');
+ if(!permit.ok)return reject('GLOBAL_PUBLICATION_SLOT_NOT_GRANTED');
+ const at=new Date().toISOString();
+ try{
+  const saved=await env.CONTENT_FINAL.put(key,article.html,{onlyIf:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'text/html; charset=utf-8'},
+   customMetadata:{status:'published',t:encodeURIComponent(article.title).slice(0,900),m:encodeURIComponent(article.metaDescription).slice(0,900),
+    c:topic.country,cp:article.coupon,q:String(audit.score),w:String(audit.wordCount),at,p:'ai-v2-native'}});
+  if(!saved)return reject('ARTICLE_ALREADY_EXISTS_AFTER_PERMIT');
+ }catch{return reject('ARTICLE_WRITE_OUTCOME_UNKNOWN',{articleId:checkpoint.articleId})}
+ // A durable acknowledgement is not proof that the public URL renders.
+ return {ok:true,stored:true,state:'STORED_AWAITING_LIVE_VERIFICATION',articleId:checkpoint.articleId,slug:article.slug,
+  url:'https://noondealsnow.com/articles/'+encodeURIComponent(article.slug),contentHash:digest,quality:audit.score};
+}
