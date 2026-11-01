@@ -69,7 +69,7 @@ export function buildEnglishAiV2Article(topic,sections){
  // When a saved five-section draft is underlength, add non-promotional,
  // product-specific decision support rather than spending more AI calls.
  // The final native quality gate STILL enforces wordCount >=1500 and <=1900.
- const wordCountHtml=value=>countWords(value.replace(/<script\\b[\\s\\S]*?<\\/script>/gi,' '));
+ const wordCountHtml=value=>countWords(value.replace(/<script\b[\s\S]*?<\/script>/gi,' '));
  const buyerChecks=[
   '<p>Before comparing '+esc(brand)+' '+esc(category)+', write down your actual intended use and which features are genuinely necessary. A specification only matters when it matches the type of tasks you perform. Check whether the product page names the precise version and whether the accessories shown are included in that listing. Do not assume that a similarly named model has identical parts, warranty or connectivity. Save the seller name and model identifier so that each shortlisted offer can be compared on equivalent terms. This avoids comparing a base configuration to a different, more expensive variant.</p>',
   '<p>For the next comparison, look at the total payable amount rather than the headline price alone. Delivery charges, availability, seller terms, bundled accessories and any applicable coupon rules can alter the final calculation. If the cart changes after applying '+code+', review the totals again. The final Noon UAE checkout is the commercial reference, and neither this guide nor a saved screenshot proves eligibility for every account. If an item is temporarily unavailable, keep the product requirements unchanged when selecting an alternative so that a replacement is evaluated fairly.</p>',
