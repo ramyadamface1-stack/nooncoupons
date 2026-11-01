@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "siteId": "noondealsnow",
+  "domain": "https://noondealsnow.com",
+  "repository": "ramyadamface1-stack/nooncoupons",
+  "timezone": "Africa/Cairo",
+  "enabled": false,
+  "publicationMode": "checkpoint_only",
+  "intervalMinutes": 5,
+  "cronHeartbeat": "* * * * *",
+  "targetPerHour": 12,
+  "targetPerDay": 288,
+  "maxConcurrent": 1,
+  "checkpoint": {
+    "backend": "private-r2",
+    "bucket": "nooncoupons-content-v2",
+    "prefix": "_ops/ai-v2-checkpoints/",
+    "verifyReadBack": true
+  },
+  "providers": [
+    "gemini",
+    "groq"
+  ],
+  "models": {
+    "gemini": "gemini-3.8-flash",
+    "groq": "openai/gpt-oss-120b"
+  },
+  "limits": {
+    "freeOnly": true,
+    "requiresFreeBudgetApproval": true,
+    "maxProviderCallsPerRun": 5,
+    "maxAutomatedRepairCalls": 0,
+    "minWords": 1500,
+    "maxWords": 1900,
+    "qualityFloor": 95
+  },
+  "siteMarkets": {
+    "SA": {
+      "language": "ar-SA",
+      "coupon": "NOV170"
+    },
+    "AE": {
+      "language": "en-AE",
+      "coupon": "NOV188"
+    }
+  },
+  "safety": {
+    "keepLegacyCron": true,
+    "noDelete": true,
+    "noOldSlugChanges": true,
+    "noAutomaticPublishUntilLiveBridgeVerified": true
+  }
+}
