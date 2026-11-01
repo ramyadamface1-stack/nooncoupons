@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseGeminiKeys,geminiKeyInventory,selectGeminiKey} from '../automation/ai-v2/gemini-key-pool.mjs';
 import {callProvider} from '../automation/ai-v2/providers.mjs';
+import {inspectGeminiAuth} from '../automation/ai-v2/check-gemini-model.mjs';
 const newer=(n)=>'AQ.'+'x'.repeat(18)+n;
 const older=(n)=>'AIza'+'y'.repeat(18)+n;
 test('accepts multiple new Gemini auth keys in newline CSV semicolon and JSON formats',()=>{
@@ -42,4 +43,21 @@ test('new auth key uses documented Gemini API header without a real provider req
   const result=await callProvider({provider:'gemini',model:'gemini-3.8-flash',key:auth,prompt:'Write a section',fetchFn:testFetch});
   assert.equal(result.ok,true);
   assert.equal(calls,1);
+});
+test('one read-only model check verifies first new auth key without calling generation endpoint',async()=>{
+  const auth=newer('a');let calls=0;
+  const result=await inspectGeminiAuth({GEMINI_API_KEYS:auth},async (url,opts)=>{
+    calls++;assert.ok(url.endsWith('/models/gemini-3.8-flash'));
+    assert.equal(opts.method,'GET');assert.equal(opts.headers['x-goog-api-key'],auth);
+    return new Response('{}',{status:200});
+  });
+  assert.equal(result.authenticationVerified,true);assert.equal(result.checkedKeys,1);assert.equal(result.generationCalls,0);assert.equal(calls,1);
+  assert.equal(JSON.stringify(result).includes(auth),false);
+});
+test('read-only model check reports 403 without rotating or logging key',async()=>{
+  const auth=newer('b');let calls=0;
+  const result=await inspectGeminiAuth({GEMINI_API_KEYS:auth},async()=>{calls++;return new Response('Permission denied',{status:403})});
+  assert.equal(result.authenticationVerified,false);
+  assert.equal(result.httpStatus,403);assert.equal(result.checkedKeys,1);assert.equal(calls,1);
+  assert.equal(JSON.stringify(result).includes(auth),false);
 });
