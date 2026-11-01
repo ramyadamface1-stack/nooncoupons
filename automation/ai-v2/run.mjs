@@ -16,7 +16,7 @@ async function run(){
   // Isolated, finite GitHub Actions canary: NEVER enables the live Cron Worker.
   // Normal scheduling continues to respect the disabled main config.
   const oneOffCanary=process.env.AI_ONE_OFF_CANARY==='true'&&
-    ['NoonDealsNow AI V2 One-off Canary','NoonDealsNow AI V2 Groq Resume Canary'].includes(process.env.GITHUB_WORKFLOW)&&
+    ['NoonDealsNow AI V2 One-off Canary','NoonDealsNow AI V2 Groq Resume Canary','NoonDealsNow AI V2 Groq Content Retry Canary'].includes(process.env.GITHUB_WORKFLOW)&&
     process.env.GITHUB_EVENT_NAME==='push';
   const runConfig=oneOffCanary?{...config,enabled:true}:config;
   const due=cadence(runConfig,Number(process.env.AI_SCHEDULED_MS||Date.now()));
@@ -32,7 +32,10 @@ async function run(){
   for(const topic of topics){
     if(oneOffCanary&&topic.country!=='AE')continue;
     const articleId=assertTopic(topic,config),saved=readCheckpoint(config,articleId);
-    if(['BLOCKED_REVIEW','QUALITY_PASSED','COMMITTED','DEPLOYING','LIVE_VERIFIED','FAILED_FINAL','UNKNOWN_REQUEST_OUTCOME'].includes(saved?.state))continue;
+    const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
+      saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
+    if(['QUALITY_PASSED','COMMITTED','DEPLOYING','LIVE_VERIFIED','FAILED_FINAL','UNKNOWN_REQUEST_OUTCOME'].includes(saved?.state))continue;
+    if(saved?.state==='BLOCKED_REVIEW'&&!explicitIncompleteRetry)continue;
     if(saved?.state==='PAUSED_QUOTA'&&!explicitGroqResume)continue;
     selected={topic,articleId,saved};break;
   }
