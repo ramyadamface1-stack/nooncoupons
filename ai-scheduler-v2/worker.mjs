@@ -68,6 +68,6 @@ export default {
   fetch(request){
     const path=new URL(request.url).pathname;
     if(path!=='/health')return new Response('Not Found',{status:404});
-    return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:config.enabled,intervalMinutes:config.intervalMinutes,source:'single-ai-v2-config',legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:true});
+    return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:config.enabled,intervalMinutes:config.intervalMinutes,source:'single-ai-v2-config',legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:true,publicationBridgeVerified:false});
   }
 };
