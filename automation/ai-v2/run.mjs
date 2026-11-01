@@ -75,11 +75,13 @@ async function run(){
   // one-time job may resume the exact saved section using a different provider.
   const priority=config.providerPriority||['gemini','groq'];
   const available={gemini:geminiKeys.hasGemini,groq:Boolean(process.env.GROQ_API_KEY)};
-  const provider=explicitGroqResume?'groq':priority.find(p=>available[p]);
+  // A completed saved draft needs NO credential and must not be blocked by
+  // an unrelated provider quota circuit during zero-AI editorial repair.
+  const provider=savedOnly?'groq':(explicitGroqResume?'groq':priority.find(p=>available[p]));
   if(!provider){report('SKIPPED','NO_FREE_PROVIDER_AVAILABLE',{articleId});return}
   const model=config.models[provider];
-  const circuitId=providerCircuitId(provider,hash),circuit=readCheckpoint(config,circuitId);
-  if(providerCircuitActive(circuit)){report('SKIPPED','PROVIDER_QUOTA_COOLDOWN',{provider,resumeAt:circuit.resumeAt,articleId});return}
+  const circuitId=providerCircuitId(provider,hash),circuit=savedOnly?null:readCheckpoint(config,circuitId);
+  if(!savedOnly&&providerCircuitActive(circuit)){report('SKIPPED','PROVIDER_QUOTA_COOLDOWN',{provider,resumeAt:circuit.resumeAt,articleId});return}
   let calls=0;
   while(state.sectionIndex<topic.sections.length){
     if(calls>=config.limits.maxProviderCallsPerRun){report('CHECKPOINTED','CALL_BUDGET_LIMIT',{articleId,sectionIndex:state.sectionIndex});return}
