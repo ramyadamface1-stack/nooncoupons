@@ -1,0 +1,101 @@
+name: Activate Verified NoonDealsNow AI V2 Minute Scheduler
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-ai-v2-activate-verified-scheduler.yml'
+permissions:
+  contents: read
+concurrency:
+  group: noondealsnow-ai-v2-activation
+  cancel-in-progress: false
+jobs:
+  verify-and-activate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+      GH_DISPATCH_TOKEN: ${{ secrets.NOONDEALSNOW_GITHUB_DISPATCH_TOKEN }}
+      GROQ_KEY: ${{ secrets.GROQ_API_KEY }}
+      FREE_APPROVED: ${{ secrets.NOONDEALSNOW_AI_FREE_ONLY_APPROVED }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Fail closed unless all free-only and dispatch credentials are present
+        shell: bash
+        run: |
+          set -euo pipefail
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo 'CF_DESTINATION_TOKEN_MISSING'; exit 12; }
+          [ -n "${GH_DISPATCH_TOKEN:-}" ] || { echo 'DISPATCH_TOKEN_MISSING'; exit 13; }
+          [ -n "${GROQ_KEY:-}" ] || { echo 'GROQ_KEY_MISSING'; exit 14; }
+          [ "${FREE_APPROVED:-}" = 'true' ] || { echo 'FREE_ONLY_APPROVAL_MISSING'; exit 15; }
+          node -e "const c=require('./automation/ai-v2/config.json');if(c.enabled!==false || c.safety.keepLegacyCron!==true || c.intervalMinutes!==1 || c.limits.freeOnly!==true)process.exit(16)"
+      - name: Run all native market, quota, scheduler and checkpoint regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check automation/ai-v2/run.mjs
+          node --test tests/ai-v2-scheduler.test.mjs tests/ai-v2-guardrails.test.mjs tests/ai-v2-topic-queue.test.mjs tests/ai-v2-provider-circuit.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-publication-ledger.test.mjs
+      - name: Verify 3 actually published R2-ledger articles and both countries from Production
+        shell: bash
+        run: |
+          set -euo pipefail
+          for url in \
+            'https://noondealsnow.com/articles/uae-ninja-airfryer-capacity-warranty-checklist-2026' \
+            'https://noondealsnow.com/articles/uae-samsung-galaxy-battery-display-seller-checklist-2026' \
+            'https://noondealsnow.com/articles/saudi-samsung-storage-warranty-seller-checklist-2026'; do
+            code=$(curl -sSL --max-time 20 -o /tmp/ndn-last-article.html -w '%{http_code}' "$url")
+            [ "$code" = 200 ] || { echo 'PUBLISHED_URL_UNVERIFIED'; exit 25; }
+            if [[ "$url" == *saudi* ]]; then
+              grep -q NOV170 /tmp/ndn-last-article.html || { echo 'SA_COUPON_UNVERIFIED'; exit 26; }
+            else
+              grep -q NOV188 /tmp/ndn-last-article.html || { echo 'AE_COUPON_UNVERIFIED'; exit 27; }
+            fi
+          done
+          curl -fsSL --max-time 20 https://noondealsnow.com/api/generator-health > /tmp/ndn-v2-health.json
+          jq -e '.aiV2.publishedCount >= 3 and .aiV2.ledgerAvailable == true' /tmp/ndn-v2-health.json >/dev/null || { echo 'AI_V2_LIVE_PROOF_INSUFFICIENT'; exit 28; }
+          jq '{publishedCount,aiV2}' /tmp/ndn-v2-health.json
+      - name: Verify GitHub dispatch permission and real configured Cloudflare Cron
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS -o /tmp/ndn-dispatch-runs.json -w '%{http_code}' -H "Authorization: Bearer $GH_DISPATCH_TOKEN" -H 'Accept: application/vnd.github+json' 'https://api.github.com/repos/ramyadamface1-stack/nooncoupons/actions/workflows/noondealsnow-ai-v2.yml/runs?per_page=1')
+          [ "$code" = 200 ] || { echo "GH_DISPATCH_READ_FAILED_HTTP=$code"; exit 31; }
+          code=$(curl -sS -o /tmp/ndn-cloudflare-cron.json -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/noondealsnow-ai-scheduler-v2/schedules")
+          [ "$code" = 200 ] || { echo 'CLOUDFLARE_CRON_READ_FAILED'; exit 32; }
+          jq -e '.success == true and any(.result.schedules[]?; .cron == "* * * * *")' /tmp/ndn-cloudflare-cron.json >/dev/null || { echo 'CRON_CONFIG_MISSING'; exit 33; }
+          curl -fsSL --max-time 15 https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health > /tmp/ndn-scheduler-before.json
+          jq -e '.ok == true and .source == "config-plus-explicit-runtime-secret" and .freeOnly == true and (.verifiedMarkets|index("SA")!=null) and (.verifiedMarkets|index("AE")!=null)' /tmp/ndn-scheduler-before.json >/dev/null || { echo 'VERIFIED_RUNTIME_NOT_DEPLOYED'; exit 34; }
+      - name: Activate existing one-minute Scheduler with an encrypted Worker secret only
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          printf '%s' 'true' | npx wrangler secret put AI_V2_RUNTIME_ENABLED --config ai-scheduler-v2/wrangler.jsonc
+          npx wrangler secret list --config ai-scheduler-v2/wrangler.jsonc > /tmp/ndn-ai-v2-secret-names.json
+          jq -e 'map(select(.name=="AI_V2_RUNTIME_ENABLED"))|length==1' /tmp/ndn-ai-v2-secret-names.json >/dev/null
+          echo 'AI_V2_RUNTIME_SECRET_STORED=TRUE'
+      - name: Verify live Scheduler activation without assuming article publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in $(seq 1 8); do
+            if curl -fsSL --max-time 15 https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health -o /tmp/ndn-scheduler-after.json &&
+                jq -e '.schedulerEnabled==true and .intervalMinutes==1 and .publicationBridgeVerified==true and .freeOnly==true' /tmp/ndn-scheduler-after.json >/dev/null; then
+              ok=1
+              break
+            fi
+            sleep 3
+          done
+          if [ "$ok" != 1 ]; then
+            echo 'ACTIVATION_HEALTH_FAILED_REVERTING_TO_INERT'
+            printf '%s' 'false' | npx wrangler secret put AI_V2_RUNTIME_ENABLED --config ai-scheduler-v2/wrangler.jsonc || true
+            exit 41
+          fi
+          echo 'SCHEDULER_RUNTIME_ENABLED=TRUE'
+          echo 'CRON_INTERVAL=ONE_MINUTE'
+          echo 'REQUIRES_SEPARATE_EVIDENCE: actual GitHub workflow_dispatch, generation, and live article URL'
+          echo 'Legacy Cron retained; all article writes claim the existing shared 60-second DO permit.'
