@@ -1,0 +1,45 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {parseGeminiKeys,geminiKeyInventory,selectGeminiKey} from '../automation/ai-v2/gemini-key-pool.mjs';
+import {callProvider} from '../automation/ai-v2/providers.mjs';
+const newer=(n)=>'AQ.'+'x'.repeat(18)+n;
+const older=(n)=>'AIza'+'y'.repeat(18)+n;
+test('accepts multiple new Gemini auth keys in newline CSV semicolon and JSON formats',()=>{
+  const a=newer('a'),b=newer('b');
+  for(const input of [a+'\n'+b,a+','+b,a+'; '+b,JSON.stringify([a,b])]){
+    assert.deepEqual(parseGeminiKeys(input),[a,b]);
+  }
+});
+test('rejects duplicates, empty entries and malformed JSON without exposing input',()=>{
+  const a=newer('a');
+  assert.deepEqual(parseGeminiKeys(a+'\n'+a+'\ninvalid'),[a]);
+  assert.deepEqual(parseGeminiKeys('[bad'),[]);
+  assert.deepEqual(parseGeminiKeys(''),[]);
+});
+test('prefers AQ auth secrets over legacy single-key format without blind fallback',()=>{
+  const a=newer('a'),b=newer('b'),old=older('o');
+  const env={GEMINI_API_KEYS:a+'\n'+b,GEMINI_API_KEY:old};
+  const inventory=geminiKeyInventory(env);
+  assert.equal(inventory.newAuthCount,2);
+  assert.equal(inventory.oldCount,1);
+  assert.equal(inventory.selectedSource,'GEMINI_API_KEYS_AUTH');
+  assert.equal(selectGeminiKey(env,0).key,a);
+  assert.equal(selectGeminiKey(env,1).key,b);
+  assert.equal(selectGeminiKey(env,2).key,a);
+  assert.equal(JSON.stringify(inventory).includes(a),false);
+  assert.equal(JSON.stringify(inventory).includes(old),false);
+  assert.equal(selectGeminiKey({GEMINI_API_KEY:old},0).key,old);
+});
+test('new auth key uses documented Gemini API header without a real provider request',async()=>{
+  const auth=newer('a');let calls=0;
+  const testFetch=async(url,options)=>{
+    calls++;
+    assert.ok(url.includes('/v1beta/models/gemini-3.8-flash:generateContent'));
+    assert.equal(options.headers['x-goog-api-key'],auth);
+    assert.equal(options.headers.authorization,undefined);
+    return new Response(JSON.stringify({candidates:[{content:{parts:[{text:'Valid generated section. '.repeat(60)}]}}]}),{status:200});
+  };
+  const result=await callProvider({provider:'gemini',model:'gemini-3.8-flash',key:auth,prompt:'Write a section',fetchFn:testFetch});
+  assert.equal(result.ok,true);
+  assert.equal(calls,1);
+});
