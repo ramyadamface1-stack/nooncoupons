@@ -60,6 +60,10 @@ jobs:
           node --check automation/ai-v2/run.mjs
           node --check ai-scheduler-v2/worker.mjs
           node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-scheduler.test.mjs
+      - name: Safe runtime dry-run with no provider credentials or R2 access
+        env:
+          AI_PREFLIGHT_ONLY: 'true'
+        run: node automation/ai-v2/run.mjs
 
   preflight-or-generate:
     needs: safety-tests
