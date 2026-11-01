@@ -104,7 +104,7 @@ export default {
     return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:active.enabled,
       intervalMinutes:active.intervalMinutes,source:'config-plus-explicit-runtime-secret',
       legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:!active.enabled,
-      publicationBridgeVerified:active.enabled,freeOnly:true,
+      publicationBridgeVerified:active.enabled,freeOnly:true,verifiedMarkets:['SA','AE'],
       diagnosticWindow:config.schedulerDiagnostic?{from:config.schedulerDiagnostic.fromUtc,until:config.schedulerDiagnostic.untilUtc}:null,
       diagnosticPreflightOnly:!active.enabled});
   }
