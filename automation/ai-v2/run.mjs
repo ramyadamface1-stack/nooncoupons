@@ -16,7 +16,7 @@ async function run(){
   // Isolated, finite GitHub Actions canary: NEVER enables the live Cron Worker.
   // Normal scheduling continues to respect the disabled main config.
   const oneOffCanary=process.env.AI_ONE_OFF_CANARY==='true'&&
-    ['NoonDealsNow AI V2 One-off Canary','NoonDealsNow AI V2 Groq Resume Canary','NoonDealsNow AI V2 Groq Content Retry Canary'].includes(process.env.GITHUB_WORKFLOW)&&
+    ['NoonDealsNow AI V2 One-off Canary','NoonDealsNow AI V2 Groq Resume Canary','NoonDealsNow AI V2 Groq Content Retry Canary','NoonDealsNow AI V2 Trim and Publish Canary'].includes(process.env.GITHUB_WORKFLOW)&&
     process.env.GITHUB_EVENT_NAME==='push';
   const runConfig=oneOffCanary?{...config,enabled:true}:config;
   const due=cadence(runConfig,Number(process.env.AI_SCHEDULED_MS||Date.now()));
@@ -25,7 +25,8 @@ async function run(){
     report('PREFLIGHT',due.reason,{enabled:config.enabled,targetPerHour:config.targetPerHour,mode:config.publicationMode,hasGemini:geminiKeys.hasGemini,geminiNewKeys:geminiKeys.newCount,geminiNewAuthKeys:geminiKeys.newAuthCount,geminiOldKeys:geminiKeys.oldCount,geminiSelectedSource:geminiKeys.selectedSource,hasGroq:Boolean(process.env.GROQ_API_KEY),hasPrivateStorageToken:Boolean(process.env.CLOUDFLARE_API_TOKEN),freeBudgetApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true'});return;
   }
   if(!due.due){report('SKIPPED',due.reason);return}
-  const blocked=mayCallProvider({config:runConfig,freeApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true',checkpointWritable:Boolean(process.env.CLOUDFLARE_API_TOKEN&&process.env.CLOUDFLARE_ACCOUNT_ID),topicReserved:true,hasAnyKey:Boolean(geminiKeys.hasGemini||process.env.GROQ_API_KEY)});
+  const savedOnly=oneOffCanary&&process.env.AI_REPROCESS_SAVED_DRAFT==='true'&&process.env.AI_NO_PROVIDER_CALLS==='true';
+  const blocked=mayCallProvider({config:runConfig,freeApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true',checkpointWritable:Boolean(process.env.CLOUDFLARE_API_TOKEN&&process.env.CLOUDFLARE_ACCOUNT_ID),topicReserved:true,hasAnyKey:Boolean(geminiKeys.hasGemini||process.env.GROQ_API_KEY||savedOnly)});
   if(blocked){report('SKIPPED',blocked);return}
   let selected;
   const explicitGroqResume=oneOffCanary&&process.env.AI_RESUME_PAUSED_QUOTA==='true'&&process.env.AI_PROVIDER_OVERRIDE==='groq';
@@ -35,13 +36,15 @@ async function run(){
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
     if(['QUALITY_PASSED','COMMITTED','DEPLOYING','LIVE_VERIFIED','FAILED_FINAL','UNKNOWN_REQUEST_OUTCOME'].includes(saved?.state))continue;
-    if(saved?.state==='BLOCKED_REVIEW'&&!explicitIncompleteRetry)continue;
+    const safeReprocess=savedOnly&&saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='WORD_WINDOW'&&saved?.sectionIndex===topic.sections.length&&saved?.sections?.length===topic.sections.length;
+    if(saved?.state==='BLOCKED_REVIEW'&&!explicitIncompleteRetry&&!safeReprocess)continue;
     if(saved?.state==='PAUSED_QUOTA'&&!explicitGroqResume)continue;
     selected={topic,articleId,saved};break;
   }
   if(!selected){report('SKIPPED','NO_ELIGIBLE_TOPIC');return}
   const {topic,articleId}=selected;
   let state=selected.saved;
+  if(savedOnly&&(!state||state.sectionIndex!==topic.sections.length)){report('BLOCKED','SAVED_DRAFT_NOT_READY_FOR_NO_AI_REPROCESS',{articleId});return}
   // An uncertain publish is never automatically retried. Inspect only the
   // public URL; do not spend AI tokens or repeat potentially committed writes.
   if(['PUBLISH_REQUEST_SENT','UNKNOWN_PUBLICATION_OUTCOME','DEPLOYING'].includes(state?.state)){
