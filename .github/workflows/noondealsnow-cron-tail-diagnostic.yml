@@ -27,10 +27,14 @@ jobs:
         run: |
           set -uo pipefail
           [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo 'CF_TOKEN_MISSING'; exit 2; }
-          timeout 165s npx wrangler tail noondealsnow-ai-scheduler-v2 --format json > /tmp/cron-tail.jsonl 2>&1
+          set +e
+          timeout 95s npx wrangler tail noondealsnow-ai-scheduler-v2 --format json > /tmp/cron-tail.jsonl 2>&1
           rc=$?
+          set -e
           echo "TAIL_PROCESS_EXIT=$rc"
           grep -E 'AI_V2_SCHEDULER|scheduledTime|scheduled|DISPATCH_ACCEPTED|GITHUB_' /tmp/cron-tail.jsonl | tail -n 35 || true
+          echo 'TAIL_FIRST_LINES_REDACTED'
+          head -n 10 /tmp/cron-tail.jsonl | sed -E 's/(Bearer )[A-Za-z0-9._-]+/\\1[REDACTED]/g' || true
           if grep -q 'AI_V2_SCHEDULER ' /tmp/cron-tail.jsonl; then
             echo 'REAL_CRON_LOG_SEEN=TRUE'
           else
