@@ -89,3 +89,12 @@ test('bounded diagnostic stops after one accepted GitHub workflow_dispatch',asyn
  assert.equal(result.reason,'DIAGNOSTIC_ALREADY_RECEIVED');
  assert.equal(calls.length,3);
 });
+
+test('real Cloudflare Cron timestamps may contain second and millisecond offsets',()=>{
+ const from=Date.parse(config.schedulerDiagnostic.fromUtc);
+ const actualScheduledTime=from+19812;
+ const decision=decideTick(config,actualScheduledTime,actualScheduledTime+1000);
+ assert.equal(decision.due,true);
+ assert.equal(decision.preflightOnly,true);
+ assert.equal(decision.reason,'DIAGNOSTIC_PREFLIGHT_DUE');
+});

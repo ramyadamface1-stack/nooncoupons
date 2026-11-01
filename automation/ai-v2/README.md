@@ -38,6 +38,12 @@ Never mistake a workflow success, saved draft or commit for a live indexed artic
 
 GitHub Actions run 41344178398 validated the fine-grained dispatch token READ, deployed the isolated noondealsnow-ai-scheduler-v2 Worker to the destination Cloudflare account, stored GITHUB_DISPATCH_TOKEN as an encrypted Worker secret, and verified a * * * * * cron trigger. The Worker is intentionally inert while enabled=false. No live Cron event, GitHub dispatch, AI-generated live article or native publication bridge has been verified. The deploy workflow's one-time push bootstrap is guarded by a special commit message marker; ordinary pushes cannot deploy this scheduler.
 
-## One-time real Cron-to-GitHub diagnostic
+## Verified real Cloudflare Cron to GitHub dispatch (2026-11-01)
 
-The isolated Scheduler is allowed exactly one preflight-only dispatch in the scheduled minute specified by `schedulerDiagnostic.atUtc` (2026-11-01T20:11:00.000Z). It cannot publish or call Gemini/Groq, and no subsequent minute may dispatch while config.enabled=false. A real successful github.com/actions workflow_dispatch run (not a push or fake mock) is required to prove delivery. Do not equate this diagnostic with live article publication. Once observed, remove schedulerDiagnostic or leave the expired minute harmlessly inert. No additional scheduled Workers are created.
+- Scheduler preflight (GitHub Actions run 41346510679): Cloudflare Worker deployed, token read permission and encrypted secret name confirmed, Cron `* * * * *` configured.
+- Real scheduled event proof (tail run 41346268908): `scheduledTime=1793564419812` (20:20:19.812 UTC) and another event one minute later; triggered Worker log `AI_V2_SCHEDULER`.
+- Bug identified: production Cron's scheduledTime has a 19.812-second offset. Earlier exact `ms%60000===0` diagnostic gate was wrong. Fixed in commit 107365788ba1390835a378af5ad172745dfdcd32 to compare UTC minute buckets.
+- Real `workflow_dispatch` received at 2026-11-01 20:23:23 UTC: GitHub Actions run 41346601004, with input `AI_SCHEDULED_MS=1793564599812` (Cloudflare event at 20:23:19.812 UTC).
+- Workflow run 41346601004: safety-tests=success, preflight-or-generate=success, `AI_V2_REPORT.status=PREFLIGHT`. No Gemini or Groq generation requests were made.
+- The diagnostic window is finite, 20:14 through 20:24 UTC, and suppresses repeated dispatches after the first received workflow_dispatch. One receiving run was observed; no second diagnostic run during the next Cron minute.
+- The main AI config remains `enabled=false`, `publicationMode=checkpoint_only`, publication bridge unverified; these tests DO NOT prove draft generation or live publishing. Article generation and publication require the full native quality gate, DO permit, image/SEO checks and live article URL verification. Do not weaken the quality gate or spend provider calls on connectivity retries.
