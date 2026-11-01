@@ -6,16 +6,18 @@ import {objectPath,checkpointState} from '../automation/ai-v2/r2-checkpoints.mjs
 import {callProvider} from '../automation/ai-v2/providers.mjs';
 const config=JSON.parse(readFileSync(new URL('../automation/ai-v2/config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('../automation/ai-v2/topics.json',import.meta.url)));
-test('safe no-cost defaults, unified five-minute cadence and market policy',()=>{
+test('safe no-cost defaults, unified one-minute cadence and market policy',()=>{
  assert.equal(validateConfig(config),true);assert.equal(config.enabled,false);
- assert.equal(config.targetPerHour,12);assert.equal(config.targetPerDay,288);
+ assert.equal(config.targetPerHour,60);assert.equal(config.targetPerDay,1440);
  assert.equal(config.publicationMode,'checkpoint_only');assert.equal(config.maxConcurrent,1);
  assert.equal(config.siteMarkets.SA.coupon,'NOV170');assert.equal(config.siteMarkets.AE.coupon,'NOV188');
 });
-test('5-minute skip is not a publication; 1/5/10/15/30/60 configurable',()=>{
+test('one-minute due is not a publication; all configured cadences remain supported',()=>{
  const active={...config,enabled:true},base=Date.parse('2026-11-01T12:00:00Z');
  assert.equal(cadence(active,base).due,true);
- assert.equal(cadence(active,base+60000).reason,'INTERVAL_NOT_ELAPSED');
+ assert.equal(cadence(active,base+60000).reason,'DUE');
+ const five={...active,intervalMinutes:5,targetPerHour:12,targetPerDay:288};
+ assert.equal(cadence(five,base+60000).reason,'INTERVAL_NOT_ELAPSED');
  assert.equal(cadence(active,base+300000).due,true);
  assert.equal(cadence(config,base).reason,'SCHEDULER_DISABLED');
  for(const i of [1,5,10,15,30,60]){
