@@ -1,6 +1,6 @@
 // Fail closed on unfinished market rendering. Never create a paid provider
 // request for a country whose native publish-quality renderer is not ready.
-export const READY_NATIVE_RENDERERS=Object.freeze(['AE']);
+export const READY_NATIVE_RENDERERS=Object.freeze(['AE','SA']);
 export function publicationReadyTopic(topic,markets=READY_NATIVE_RENDERERS){
  return Boolean(topic&&markets.includes(topic.country)&&Array.isArray(topic.sections)&&topic.sections.length===5&&
   typeof topic.slug==='string'&&/^[a-z0-9-]{16,120}$/.test(topic.slug));

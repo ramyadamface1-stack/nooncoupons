@@ -38,7 +38,7 @@ async function run(){
   let selected;
   const explicitGroqResume=oneOffCanary&&process.env.AI_RESUME_PAUSED_QUOTA==='true'&&process.env.AI_PROVIDER_OVERRIDE==='groq';
   for(const topic of topics){
-    if(!publicationReadyTopic(topic,safeSaudiCanary?['AE','SA']:['AE']))continue;
+    if(!publicationReadyTopic(topic))continue;
     if(oneOffCanary&&topic.country!==String(process.env.AI_CANARY_MARKET||'AE'))continue;
     const articleId=assertTopic(topic,config),saved=readCheckpoint(config,articleId);
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
@@ -73,7 +73,6 @@ async function run(){
     state=saveCheckpoint(config,checkpointState(state,'UNKNOWN_REQUEST_OUTCOME',{errorCategory:'PREVIOUS_PROVIDER_REQUEST_MAY_HAVE_BEEN_BILLED'}));
     report('BLOCKED','UNKNOWN_REQUEST_OUTCOME',{articleId});return;
   }
-  if(topic.country==='SA'&&!safeSaudiCanary){report('SKIPPED','ARABIC_NATIVE_RENDERER_PENDING',{articleId});return}
   // A confirmed Gemini 429 is NOT retried. An explicitly approved, isolated
   // one-time job may resume the exact saved section using a different provider.
   const priority=config.providerPriority||['gemini','groq'];

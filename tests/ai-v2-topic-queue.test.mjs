@@ -11,7 +11,7 @@ test('curated queue has unique topic slugs, stable IDs, country and approved cou
  assert.ok(topics.length>=16);
  assert.ok(topics.some(t=>t.country==='SA'));
  assert.ok(topics.filter(t=>publicationReadyTopic(t)).length>=10);
- assert.equal(publicationReadyTopic(topics.find(t=>t.country==='SA')),false);
+ assert.equal(publicationReadyTopic(topics.find(t=>t.country==='SA')),true);
 });
 test('one verified live article cannot repeat and stored ambiguity is inspected, not re-generated',()=>{
  assert.equal(resumableCheckpoint({state:'LIVE_VERIFIED'}),false);
@@ -26,8 +26,8 @@ test('one verified live article cannot repeat and stored ambiguity is inspected,
 test('queue inventory explicitly distinguishes unready Arabic market',()=>{
  const info=queueInventory(topics);
  assert.equal(info.total,topics.length);
- assert.ok(info.renderable<info.total);
- assert.ok(info.pendingMarketRenderer.every(c=>c==='SA'));
+ assert.equal(info.renderable,info.total);
+ assert.deepEqual(info.pendingMarketRenderer,[]);
 });
 
 test('Arabic native gate repair may resume only a persisted complete saved draft with explicit approval',()=>{
