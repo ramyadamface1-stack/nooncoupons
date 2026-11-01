@@ -8,6 +8,7 @@ on:
       - 'ai-scheduler-v2/**'
       - 'tests/ai-v2-scheduler.test.mjs'
       - 'tests/ai-v2-guardrails.test.mjs'
+      - 'tests/ai-v2-gemini-key-pool.test.mjs'
       - '.github/workflows/noondealsnow-ai-v2.yml'
   workflow_dispatch:
     inputs:
@@ -46,7 +47,7 @@ jobs:
           R2_TOKEN_PRESENT: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
           FREE_APPROVAL_PRESENT: ${{ secrets.NOONDEALSNOW_AI_FREE_ONLY_APPROVED }}
         run: |
-          for name in GEMINI_PRESENT GROQ_PRESENT R2_TOKEN_PRESENT FREE_APPROVAL_PRESENT; do
+          for name in GEMINI_PRESENT GEMINI_NEW_PRESENT GROQ_PRESENT R2_TOKEN_PRESENT FREE_APPROVAL_PRESENT; do
             if [ -n "${!name}" ]; then
               echo "AI_V2_SECRET_NAME_STATUS ${name}=PRESENT"
             else
@@ -65,8 +66,7 @@ jobs:
       - name: Inspect Gemini secret pool types without exposing any key values
         env:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
-          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
-      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
@@ -96,6 +96,7 @@ jobs:
     env:
       AI_PREFLIGHT_ONLY: ${{ inputs.preflight_only }}
       AI_SCHEDULED_MS: ${{ inputs.scheduled_ms }}
+      GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
