@@ -5,6 +5,7 @@ import {readCheckpoint,saveCheckpoint,checkpointState} from './r2-checkpoints.mj
 import {callProvider} from './providers.mjs';
 import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory} from './topic-queue.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
 const report=(status,reason,data={})=>console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,...data}));
@@ -31,17 +32,15 @@ async function run(){
   let selected;
   const explicitGroqResume=oneOffCanary&&process.env.AI_RESUME_PAUSED_QUOTA==='true'&&process.env.AI_PROVIDER_OVERRIDE==='groq';
   for(const topic of topics){
+    if(!publicationReadyTopic(topic))continue;
     if(oneOffCanary&&topic.country!=='AE')continue;
     const articleId=assertTopic(topic,config),saved=readCheckpoint(config,articleId);
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
-    if(['QUALITY_PASSED','COMMITTED','DEPLOYING','LIVE_VERIFIED','FAILED_FINAL','UNKNOWN_REQUEST_OUTCOME'].includes(saved?.state))continue;
-    const safeReprocess=savedOnly&&saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='WORD_WINDOW'&&saved?.sectionIndex===topic.sections.length&&saved?.sections?.length===topic.sections.length;
-    if(saved?.state==='BLOCKED_REVIEW'&&!explicitIncompleteRetry&&!safeReprocess)continue;
-    if(saved?.state==='PAUSED_QUOTA'&&!explicitGroqResume)continue;
+    if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry}))continue;
     selected={topic,articleId,saved};break;
   }
-  if(!selected){report('SKIPPED','NO_ELIGIBLE_TOPIC');return}
+  if(!selected){report('SKIPPED','NO_ELIGIBLE_TOPIC',{queue:queueInventory(topics)});return}
   const {topic,articleId}=selected;
   let state=selected.saved;
   if(savedOnly&&(!state||state.sectionIndex!==topic.sections.length)){report('BLOCKED','SAVED_DRAFT_NOT_READY_FOR_NO_AI_REPROCESS',{articleId});return}
