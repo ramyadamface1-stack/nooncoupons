@@ -51,9 +51,10 @@
     "noAutomaticPublishUntilLiveBridgeVerified": true
   },
   "schedulerDiagnostic": {
-    "atUtc": "2026-11-01T20:11:00.000Z",
+    "fromUtc": "2026-11-01T20:14:00.000Z",
+    "untilUtc": "2026-11-01T20:24:00.000Z",
     "preflightOnly": true,
-    "purpose": "ONE_REAL_CRON_TO_GITHUB_DISPATCH_PROOF",
-    "maxDueTicks": 1
+    "maxAcceptedDispatches": 1,
+    "purpose": "ONE_ACCEPTED_REAL_CRON_TO_GITHUB_PREFLIGHT_PROOF"
   }
 }

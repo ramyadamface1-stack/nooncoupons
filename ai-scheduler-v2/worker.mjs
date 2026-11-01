@@ -6,9 +6,10 @@ export function decideTick(config,scheduledTime,actualTime){
   // while the article generator and publishing bridge remain disabled.
   const diag=config.schedulerDiagnostic;
   if(!config.enabled){
-    if(diag?.preflightOnly===true&&diag?.maxDueTicks===1&&
-      Number.isFinite(Date.parse(diag.atUtc))&&
-      ms===Date.parse(diag.atUtc))return {due:true,reason:'DIAGNOSTIC_PREFLIGHT_DUE',preflightOnly:true};
+    if(diag?.preflightOnly===true&&diag?.maxAcceptedDispatches===1&&
+      Number.isFinite(Date.parse(diag.fromUtc))&&Number.isFinite(Date.parse(diag.untilUtc))&&
+      ms>=Date.parse(diag.fromUtc)&&ms<=Date.parse(diag.untilUtc)&&ms%60000===0)
+      return {due:true,reason:'DIAGNOSTIC_PREFLIGHT_DUE',preflightOnly:true};
     return {due:false,reason:'SCHEDULER_DISABLED'};
   }
   const interval=Number(config.intervalMinutes),minute=Math.floor(ms/60000);
@@ -52,6 +53,19 @@ export async function dispatchDue({config:cfg=config,scheduledTime,actualTime=Da
       }
       if(data.total_count>0){reason='WORKFLOW_ALREADY_RUNNING';return {dispatched:false,reason}}
     }
+    // Diagnostic mode is bounded by one accepted Workflow Dispatch.
+    // Check GitHub's actual workflow_dispatch events; never retry after
+    // the first received event even if the publishing bridge is offline.
+    if(decision.preflightOnly===true){
+      const response=await fetchFn(ROOT+'/runs?branch=main&event=workflow_dispatch&per_page=5',{headers:requestHeaders});
+      if(!response.ok){dispatchHttpStatus=response.status;reason=githubHttpStatus(response.status);return {dispatched:false,reason,dispatchHttpStatus}}
+      const body=await response.json();
+      if(!Array.isArray(body?.workflow_runs)){reason='GITHUB_API_INVALID_RESPONSE';return {dispatched:false,reason}}
+      const start=Date.parse(cfg.schedulerDiagnostic?.fromUtc||'');
+      if(body.workflow_runs.some(run=>run?.event==='workflow_dispatch'&&Date.parse(run.created_at)>=start)){
+        reason='DIAGNOSTIC_ALREADY_RECEIVED';return {dispatched:false,reason};
+      }
+    }
     const response=await fetchFn(ROOT+'/dispatches',{
       method:'POST',
       headers:{...requestHeaders,'content-type':'application/json'},
@@ -76,6 +90,6 @@ export default {
   fetch(request){
     const path=new URL(request.url).pathname;
     if(path!=='/health')return new Response('Not Found',{status:404});
-    return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:config.enabled,intervalMinutes:config.intervalMinutes,source:'single-ai-v2-config',legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:true,publicationBridgeVerified:false,diagnosticPreflightAt:config.schedulerDiagnostic?.atUtc||null,diagnosticPreflightOnly:true});
+    return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:config.enabled,intervalMinutes:config.intervalMinutes,source:'single-ai-v2-config',legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:true,publicationBridgeVerified:false,diagnosticWindow:config.schedulerDiagnostic?{from:config.schedulerDiagnostic.fromUtc,until:config.schedulerDiagnostic.untilUtc}:null,diagnosticPreflightOnly:true});
   }
 };
