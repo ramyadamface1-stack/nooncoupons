@@ -15,30 +15,54 @@ const headers=token=>({
   'X-GitHub-Api-Version':'2022-11-28',
   'User-Agent':'NoonDealsNow-AI-V2-Scheduler'
 });
-async function tick(event,env){
-  const scheduled=Number(event?.scheduledTime),started=Date.now(),decision=decideTick(config,scheduled,started);
-  let result=decision.reason,dispatchStatus=null;
-  try{
-    if(!decision.due)return;
-    if(!env.GITHUB_DISPATCH_TOKEN){result='DISPATCH_TOKEN_MISSING';return}
-    const token=env.GITHUB_DISPATCH_TOKEN;
-    // Avoid dispatching a second generation workflow while one is active.
-    for(const state of ['in_progress','queued']){
-      const url=ROOT+'/runs?branch=main&status='+state+'&per_page=1';
-      const check=await fetch(url,{headers:headers(token)});
-      if(!check.ok){result='GITHUB_API_UNAVAILABLE';dispatchStatus=check.status;return}
-      const data=await check.json();
-      if(Number(data.total_count||0)>0){result='WORKFLOW_ALREADY_RUNNING';return}
-    }
-    const response=await fetch(ROOT+'/dispatches',{
-      method:'POST',headers:{...headers(token),'content-type':'application/json'},
-      body:JSON.stringify({ref:'main',inputs:{preflight_only:'false',scheduled_ms:String(scheduled)}})
-    });
-    dispatchStatus=response.status;
-    result=response.status===204?'DISPATCH_ACCEPTED':'DISPATCH_REJECTED';
-  }catch{result='GITHUB_API_UNAVAILABLE'}
-  finally{console.log('AI_V2_SCHEDULER '+JSON.stringify({site:'noondealsnow',result,scheduledTime:scheduled,dispatchStatus,durationMs:Date.now()-started}))}
+export function githubHttpStatus(status){
+  if(status===401)return 'GITHUB_TOKEN_INVALID_OR_EXPIRED';
+  if(status===403)return 'GITHUB_TOKEN_FORBIDDEN';
+  if(status===404)return 'GITHUB_WORKFLOW_NOT_FOUND_OR_UNAUTHORIZED';
+  return 'GITHUB_API_UNAVAILABLE';
 }
+// The outcome describes ONLY a scheduled dispatch attempt, never publication.
+// An injected fetch implementation enables token-free, zero-AI regression tests.
+export async function dispatchDue({config:cfg=config,scheduledTime,actualTime=Date.now(),token,fetchFn=fetch,logger=console.log}={}){
+  const started=Number(actualTime),scheduled=Number(scheduledTime);
+  const decision=decideTick(cfg,scheduled,started);
+  let reason=decision.reason,dispatchHttpStatus=null;
+  try{
+    if(!decision.due)return {dispatched:false,reason};
+    if(!token){reason='DISPATCH_TOKEN_MISSING';return {dispatched:false,reason}}
+    const requestHeaders=headers(token);
+    // Explicitly serialize per-site Jobs in addition to GitHub concurrency.
+    for(const status of ['in_progress','queued']){
+      const response=await fetchFn(ROOT+'/runs?branch=main&status='+status+'&per_page=1',{headers:requestHeaders});
+      if(!response.ok){
+        dispatchHttpStatus=response.status;reason=githubHttpStatus(response.status);
+        return {dispatched:false,reason,dispatchHttpStatus};
+      }
+      const data=await response.json();
+      if(!Number.isInteger(data?.total_count)||data.total_count<0){
+        reason='GITHUB_API_INVALID_RESPONSE';return {dispatched:false,reason};
+      }
+      if(data.total_count>0){reason='WORKFLOW_ALREADY_RUNNING';return {dispatched:false,reason}}
+    }
+    const response=await fetchFn(ROOT+'/dispatches',{
+      method:'POST',
+      headers:{...requestHeaders,'content-type':'application/json'},
+      body:JSON.stringify({ref:'main',inputs:{preflight_only:'false',scheduled_ms:String(scheduled),verify_gemini_metadata:'false'}})
+    });
+    dispatchHttpStatus=response.status;
+    reason=response.status===204?'DISPATCH_ACCEPTED':githubHttpStatus(response.status);
+    return {dispatched:response.status===204,reason,dispatchHttpStatus};
+  }catch{
+    reason='GITHUB_API_UNAVAILABLE';
+    return {dispatched:false,reason};
+  }finally{
+    logger('AI_V2_SCHEDULER '+JSON.stringify({site:'noondealsnow',reason,scheduledTime:scheduled,dispatchHttpStatus,durationMs:Math.max(0,Date.now()-started)}));
+  }
+}
+async function tick(event,env){
+  return dispatchDue({scheduledTime:event?.scheduledTime,token:env.GITHUB_DISPATCH_TOKEN});
+}
+
 export default {
   scheduled(event,env,ctx){ctx.waitUntil(tick(event,env))},
   fetch(request){
