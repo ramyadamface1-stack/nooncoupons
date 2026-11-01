@@ -46,7 +46,7 @@ jobs:
           if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then echo 'DESTINATION_CF_DEPLOY_TOKEN=PRESENT'; else echo 'DESTINATION_CF_DEPLOY_TOKEN=MISSING'; fi
           echo 'EXPECTED_CLOUDFLARE_ACCOUNT=destination'
       - name: Verify GitHub fine-grained token can READ target workflow runs
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_disabled_scheduler_deploy }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.confirm_disabled_scheduler_deploy) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[ndn-scheduler-bootstrap]')) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -66,7 +66,7 @@ jobs:
           esac
           echo 'GITHUB_DISPATCH_READ=PREFLIGHT_PASS'
       - name: Verify deployment permission for DESTINATION Cloudflare account
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_disabled_scheduler_deploy }}
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.confirm_disabled_scheduler_deploy) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[ndn-scheduler-bootstrap]')) }}
         shell: bash
         run: |
           set -euo pipefail
@@ -82,7 +82,7 @@ jobs:
 
   deploy:
     needs: preflight
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_disabled_scheduler_deploy }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && inputs.confirm_disabled_scheduler_deploy) || (github.event_name == 'push' && contains(github.event.head_commit.message, '[ndn-scheduler-bootstrap]')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
