@@ -1,0 +1,34 @@
+[
+  {
+    "country": "SA",
+    "language": "ar-SA",
+    "brand": "Samsung",
+    "category": "جوالات",
+    "topic": "مقارنة النسخ والتخزين والضمان لجوال سامسونج قبل طلبه على نون السعودية",
+    "coupon": "NOV170",
+    "slug": "saudi-samsung-storage-warranty-seller-checklist-2026",
+    "sections": [
+      "كيف تحدد نسخة الهاتف والتخزين المناسبة",
+      "فحص البائع والضمان والمنتج المحدد",
+      "مقارنة التكلفة النهائية والشحن",
+      "طريقة تجربة كوبون NOV170 بدون افتراض قبول مضمون",
+      "القرار النهائي والاسئلة الشائعة"
+    ]
+  },
+  {
+    "country": "AE",
+    "language": "en-AE",
+    "brand": "Ninja",
+    "category": "Air fryers",
+    "topic": "Practical Ninja air fryer capacity, warranty and delivery comparison before ordering on Noon UAE",
+    "coupon": "NOV188",
+    "slug": "uae-ninja-airfryer-capacity-warranty-checklist-2026",
+    "sections": [
+      "Capacity and cooking needs",
+      "Seller listing and warranty validation",
+      "Final checkout delivery cost comparison",
+      "Testing NOV188 without promising savings",
+      "Decision checklist and common questions"
+    ]
+  }
+]
