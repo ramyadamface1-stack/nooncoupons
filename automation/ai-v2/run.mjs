@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
-import {cadence,validateConfig,assertTopic,mayCallProvider,qualityPreflight,checkpointState} from './guardrails.mjs';
-import {readCheckpoint,saveCheckpoint} from './r2-checkpoints.mjs';
+import {cadence,validateConfig,assertTopic,mayCallProvider,qualityPreflight} from './guardrails.mjs';
+import {readCheckpoint,saveCheckpoint,checkpointState} from './r2-checkpoints.mjs';
 import {callProvider} from './providers.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
