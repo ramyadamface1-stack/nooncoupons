@@ -43,3 +43,5 @@ jobs:
           echo '### NoonDealsNow: Saudi full-quality checkpoint recovery' >> "$GITHUB_STEP_SUMMARY"
           grep '^AI_V2_REPORT ' /tmp/ndn-sa-native-recovery.log >> "$GITHUB_STEP_SUMMARY" || true
           echo 'No Gemini/Groq credentials were provided. Verify LIVE_VERIFIED before counting publication.' >> "$GITHUB_STEP_SUMMARY"
+
+# One-time retry after zero-provider guard correction (still no AI secrets).
