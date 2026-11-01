@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {decideTick,dispatchDue,githubHttpStatus} from '../ai-scheduler-v2/worker.mjs';
+import {decideTick,dispatchDue,githubHttpStatus,effectiveRuntimeConfig} from '../ai-scheduler-v2/worker.mjs';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 const start=Date.parse('2026-11-01T12:00:00.000Z');
 test('default disables dispatch',()=>{assert.equal(decideTick(config,start,start).reason,'SCHEDULER_DISABLED')});
@@ -97,4 +97,24 @@ test('real Cloudflare Cron timestamps may contain second and millisecond offsets
  assert.equal(decision.due,true);
  assert.equal(decision.preflightOnly,true);
  assert.equal(decision.reason,'DIAGNOSTIC_PREFLIGHT_DUE');
+});
+
+test('scheduler only activates when the explicit Cloudflare secret is present; one-minute rhythm is preserved',async()=>{
+ const inert=effectiveRuntimeConfig(config,{});
+ assert.equal(inert.enabled,false);
+ const active=effectiveRuntimeConfig(config,{AI_V2_RUNTIME_ENABLED:'true'});
+ assert.equal(active.enabled,true);
+ assert.equal(active.publicationMode,'live_verified');
+ assert.equal(active.safety.keepLegacyCron,true);
+ assert.equal(active.safety.noAutomaticPublishUntilLiveBridgeVerified,false);
+ assert.equal(decideTick(active,start+19812,start+21000).due,true);
+ let requests=[];
+ const out=await dispatchDue({config:active,scheduledTime:start+19812,actualTime:start+20000,token:'fake',logger:()=>{},
+  fetchFn:async(url,init)=>{
+   requests.push({url,method:init.method||'GET',body:init.body});
+   return url.endsWith('/dispatches')?new Response(null,{status:204}):new Response(JSON.stringify({total_count:0}),{status:200});
+  }});
+ assert.equal(out.dispatched,true);
+ assert.equal(JSON.parse(requests[2].body).inputs.preflight_only,'false');
+ assert.equal(requests.length,3);
 });

@@ -21,7 +21,10 @@ async function run(){
   const oneOffCanary=process.env.AI_ONE_OFF_CANARY==='true'&&
     ['NoonDealsNow AI V2 One-off Canary','NoonDealsNow AI V2 Groq Resume Canary','NoonDealsNow AI V2 Groq Content Retry Canary','NoonDealsNow AI V2 Trim and Publish Canary','NoonDealsNow AI V2 Next UAE Quality Canary','NoonDealsNow AI V2 Short Draft Recovery Canary','NoonDealsNow AI V2 Saudi Quality Canary','NoonDealsNow AI V2 Saudi Quality Recovery Canary'].includes(process.env.GITHUB_WORKFLOW)&&
     process.env.GITHUB_EVENT_NAME==='push';
-  const runConfig=oneOffCanary?{...config,enabled:true}:config;
+  const approvedCronDispatch=process.env.GITHUB_EVENT_NAME==='workflow_dispatch'&&
+    process.env.GITHUB_WORKFLOW==='NoonDealsNow AI V2 - Safe Checkpoints and Preflight'&&
+    process.env.AI_PREFLIGHT_ONLY==='false';
+  const runConfig=(oneOffCanary||approvedCronDispatch)?{...config,enabled:true}:config;
   const due=cadence(runConfig,Number(process.env.AI_SCHEDULED_MS||Date.now()));
   const geminiKeys=geminiKeyInventory(process.env);
   if(process.env.AI_PREFLIGHT_ONLY==='true'){

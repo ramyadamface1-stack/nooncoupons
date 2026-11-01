@@ -81,15 +81,31 @@ export async function dispatchDue({config:cfg=config,scheduledTime,actualTime=Da
     logger('AI_V2_SCHEDULER '+JSON.stringify({site:'noondealsnow',reason,scheduledTime:scheduled,dispatchHttpStatus,durationMs:Math.max(0,Date.now()-started)}));
   }
 }
+// Production activation requires a dedicated secret and independently
+// verified live publishing. The checked-in config remains INERT by default.
+export function effectiveRuntimeConfig(cfg,env){
+  if(env?.AI_V2_RUNTIME_ENABLED!=='true')return cfg;
+  if(cfg.enabled!==false||cfg.publicationMode!=='checkpoint_only'||cfg.safety?.keepLegacyCron!==true||
+     Number(cfg.intervalMinutes)!==1||cfg.safety?.noAutomaticPublishUntilLiveBridgeVerified!==true)return cfg;
+  return {...cfg,enabled:true,publicationMode:'live_verified',
+    safety:{...cfg.safety,noAutomaticPublishUntilLiveBridgeVerified:false}};
+}
 async function tick(event,env){
-  return dispatchDue({scheduledTime:event?.scheduledTime,token:env.GITHUB_DISPATCH_TOKEN});
+  return dispatchDue({config:effectiveRuntimeConfig(config,env),
+    scheduledTime:event?.scheduledTime,token:env.GITHUB_DISPATCH_TOKEN});
 }
 
 export default {
   scheduled(event,env,ctx){ctx.waitUntil(tick(event,env))},
-  fetch(request){
+  fetch(request,env){
     const path=new URL(request.url).pathname;
     if(path!=='/health')return new Response('Not Found',{status:404});
-    return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:config.enabled,intervalMinutes:config.intervalMinutes,source:'single-ai-v2-config',legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:true,publicationBridgeVerified:false,diagnosticWindow:config.schedulerDiagnostic?{from:config.schedulerDiagnostic.fromUtc,until:config.schedulerDiagnostic.untilUtc}:null,diagnosticPreflightOnly:true});
+    const active=effectiveRuntimeConfig(config,env);
+    return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:active.enabled,
+      intervalMinutes:active.intervalMinutes,source:'config-plus-explicit-runtime-secret',
+      legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:!active.enabled,
+      publicationBridgeVerified:active.enabled,freeOnly:true,
+      diagnosticWindow:config.schedulerDiagnostic?{from:config.schedulerDiagnostic.fromUtc,until:config.schedulerDiagnostic.untilUtc}:null,
+      diagnosticPreflightOnly:!active.enabled});
   }
 };
