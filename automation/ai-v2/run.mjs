@@ -5,6 +5,7 @@ import {readCheckpoint,saveCheckpoint,checkpointState} from './r2-checkpoints.mj
 import {callProvider} from './providers.mjs';
 import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
+import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
 import {publicationReadyTopic,resumableCheckpoint,queueInventory} from './topic-queue.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
@@ -17,7 +18,7 @@ async function run(){
   // Isolated, finite GitHub Actions canary: NEVER enables the live Cron Worker.
   // Normal scheduling continues to respect the disabled main config.
   const oneOffCanary=process.env.AI_ONE_OFF_CANARY==='true'&&
-    ['NoonDealsNow AI V2 One-off Canary','NoonDealsNow AI V2 Groq Resume Canary','NoonDealsNow AI V2 Groq Content Retry Canary','NoonDealsNow AI V2 Trim and Publish Canary','NoonDealsNow AI V2 Next UAE Quality Canary','NoonDealsNow AI V2 Short Draft Recovery Canary'].includes(process.env.GITHUB_WORKFLOW)&&
+    ['NoonDealsNow AI V2 One-off Canary','NoonDealsNow AI V2 Groq Resume Canary','NoonDealsNow AI V2 Groq Content Retry Canary','NoonDealsNow AI V2 Trim and Publish Canary','NoonDealsNow AI V2 Next UAE Quality Canary','NoonDealsNow AI V2 Short Draft Recovery Canary','NoonDealsNow AI V2 Saudi Quality Canary'].includes(process.env.GITHUB_WORKFLOW)&&
     process.env.GITHUB_EVENT_NAME==='push';
   const runConfig=oneOffCanary?{...config,enabled:true}:config;
   const due=cadence(runConfig,Number(process.env.AI_SCHEDULED_MS||Date.now()));
@@ -29,11 +30,12 @@ async function run(){
   const savedOnly=oneOffCanary&&process.env.AI_REPROCESS_SAVED_DRAFT==='true'&&process.env.AI_NO_PROVIDER_CALLS==='true';
   const blocked=mayCallProvider({config:runConfig,freeApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true',checkpointWritable:Boolean(process.env.CLOUDFLARE_API_TOKEN&&process.env.CLOUDFLARE_ACCOUNT_ID),topicReserved:true,hasAnyKey:Boolean(geminiKeys.hasGemini||process.env.GROQ_API_KEY||savedOnly)});
   if(blocked){report('SKIPPED',blocked);return}
+  const safeSaudiCanary=oneOffCanary&&process.env.GITHUB_WORKFLOW==='NoonDealsNow AI V2 Saudi Quality Canary'&&process.env.AI_SA_ONE_OFF==='true';
   let selected;
   const explicitGroqResume=oneOffCanary&&process.env.AI_RESUME_PAUSED_QUOTA==='true'&&process.env.AI_PROVIDER_OVERRIDE==='groq';
   for(const topic of topics){
-    if(!publicationReadyTopic(topic))continue;
-    if(oneOffCanary&&topic.country!=='AE')continue;
+    if(!publicationReadyTopic(topic,safeSaudiCanary?['AE','SA']:['AE']))continue;
+    if(oneOffCanary&&topic.country!==String(process.env.AI_CANARY_MARKET||'AE'))continue;
     const articleId=assertTopic(topic,config),saved=readCheckpoint(config,articleId);
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
@@ -67,7 +69,7 @@ async function run(){
     state=saveCheckpoint(config,checkpointState(state,'UNKNOWN_REQUEST_OUTCOME',{errorCategory:'PREVIOUS_PROVIDER_REQUEST_MAY_HAVE_BEEN_BILLED'}));
     report('BLOCKED','UNKNOWN_REQUEST_OUTCOME',{articleId});return;
   }
-  if(topic.country!=='AE'){report('SKIPPED','ARABIC_NATIVE_RENDERER_PENDING',{articleId});return}
+  if(topic.country==='SA'&&!safeSaudiCanary){report('SKIPPED','ARABIC_NATIVE_RENDERER_PENDING',{articleId});return}
   // A confirmed Gemini 429 is NOT retried. An explicitly approved, isolated
   // one-time job may resume the exact saved section using a different provider.
   const provider=explicitGroqResume?'groq':(geminiKeys.hasGemini?'gemini':'groq'),model=config.models[provider];
@@ -116,7 +118,7 @@ async function run(){
   // Build one full, SEO-reviewable document from already checkpointed AI
   // sections. This deterministic step NEVER calls the provider.
   let native;
-  try{native=buildEnglishAiV2Article(topic,state.sections)}
+  try{native=topic.country==='SA'?buildSaudiAiV2Article(topic,state.sections):buildEnglishAiV2Article(topic,state.sections)}
   catch(e){saveCheckpoint(config,checkpointState(state,'BLOCKED_REVIEW',{errorCategory:String(e?.message||e).slice(0,80)}));report('BLOCKED','NATIVE_RENDER_FAILED',{articleId});return}
   const html=native.article.html;
   state=saveCheckpoint(config,checkpointState(state,'VALIDATING',{draftHtml:html,contentHash:hash(html)}));
