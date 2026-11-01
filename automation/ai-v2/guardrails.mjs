@@ -57,7 +57,8 @@ export function qualityPreflight(draft,config){
   if(w<config.limits.minWords||w>config.limits.maxWords)violations.push('WORD_WINDOW');
   if(!/<h1\b/i.test(t)||!/<h2\b/i.test(t))violations.push('HEADINGS');
   if(/\$\{[^}]+\}|{{[^}]+}}/.test(t))violations.push('PLACEHOLDER');
-  if(/<script\b/i.test(t))violations.push('SCRIPT_NOT_ALLOWED');
+  const withoutSchema=t.replace(/<script\\b[^>]*type=["']application\\/ld\\+json["'][^>]*>[\\s\\S]*?<\\/script\\s*>/gi,'');
+  if(/<script\\b/i.test(withoutSchema))violations.push('SCRIPT_NOT_ALLOWED');
   const codes=[...t.matchAll(/\b(?:NOV|OPS)\d+\b/gi)].map(m=>m[0].toUpperCase());
   if(codes.some(c=>c!==coupon))violations.push('WRONG_COUPON');
   if(!t.includes(coupon))violations.push('COUPON_MISSING');

@@ -83,3 +83,11 @@ test('Gemini 3.8 Flash request omits deprecated sampling parameters while preser
  assert.deepEqual(payload.generationConfig,{maxOutputTokens:2500});
  assert.equal('temperature' in payload.generationConfig,false);
 });
+
+test('trusted JSON-LD does not trigger executable-script violation in AI draft preflight',()=>{
+ const html='<article><h1>Noon UAE NOV188</h1><h2>Final cart</h2><p>Check eligibility.</p><script type="application/ld+json">{"@type":"Article"}</script></article>';
+ const t={...topics[1],country:'AE'};
+ const report=qualityPreflight({html,topic:t},config);
+ assert.equal(report.violations.includes('SCRIPT_NOT_ALLOWED'),false);
+ assert.equal(qualityPreflight({html:html+'<script>alert(1)</script>',topic:t},config).violations.includes('SCRIPT_NOT_ALLOWED'),true);
+});
