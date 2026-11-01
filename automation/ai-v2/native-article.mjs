@@ -40,7 +40,7 @@ export function trimAiSectionHtml(raw,maxWords=285){
   }
   if(used>=maxWords)break;
  }
- if(used<180)throw Error('AI_SECTION_TOO_SHORT_AFTER_TRIM');
+ if(used<50)throw Error('AI_SECTION_TOO_SHORT_AFTER_TRIM');
  return items.join('\n');
 }
 
