@@ -1,0 +1,35 @@
+// Saudi editorial AI V2 article renderer (deterministic, zero provider calls).
+// Native R2 publisher still decides if the full document is qualified.
+import {trimAiSectionHtml} from './native-article.mjs';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const data=s=>JSON.stringify(s).replace(/</g,'\\u003c');
+export function buildSaudiAiV2Article(topic,sections,{verifiedAt=new Date().toISOString()}={}){
+ if(topic?.country!=='SA'||topic.language!=='ar-SA'||topic.coupon!=='NOV170')throw Error('WRONG_SAUDI_MARKET');
+ if(!Array.isArray(sections)||sections.length!==5)throw Error('AI_SECTION_COUNT_MISMATCH');
+ const slug=String(topic.slug||''),title=String(topic.topic||''),brand=String(topic.brand||''),category=String(topic.category||'');
+ if(!/^[a-z0-9-]{16,120}$/.test(slug)||!title||!brand||!category)throw Error('INCOMPLETE_SAUDI_TOPIC');
+ const code='NOV170',factor='الضمان',scenario='اختيار البائع قبل الشراء',useCase='المقارنة قبل الدفع';
+ const saved=sections.map(s=>trimAiSectionHtml(s.html,250));
+ const market='السعودية',currency='الريال السعودي',currencyCode='SAR';
+ const description=('دليل مقارنة '+category+' من '+brand+' على نون السعودية: فحص المواصفات والبائع والضمان والشحن والسعر النهائي قبل الدفع، وتجربة كوبون '+code+' وفق شروط السلة.').slice(0,165);
+ const faq=[
+  {q:'كيف أستخدم كوبون '+code+' في نون السعودية؟',a:'جهّز السلة، اقرأ شروط العرض، ثم جرّب الكود وتأكد من المبلغ النهائي بالريال السعودي قبل الدفع؛ لا نفترض قبول القسيمة لكل حساب.'},
+  {q:'هل كوبون '+code+' مضمون لجميع الحسابات؟',a:'لا. العرض والمنتجات المؤهلة وتاريخ الانتهاء يحددها متجر نون وقت الدفع، ولا توجد نسبة خصم مضمونة هنا.'},
+  {q:'ماذا أفعل إذا رفضت السلة كوبون '+code+'؟',a:'راجع فئة المنتج والبائع والحساب وأي شروط حد أدنى معلنة في صفحة العرض ثم أعد فحص الإجمالي قبل الدفع.'},
+  {q:'متى أراجع الشحن والضمان قبل الطلب؟',a:'اقرأ المدة وشروط الإرجاع والضمان من البائع قبل إتمام الطلب، ثم قارن التكلفة النهائية الظاهرة في السلة.'}
+ ];
+ const htmlFaq=faq.map(x=>'<details><summary><h3>'+esc(x.q)+'</h3></summary><p>'+esc(x.a)+'</p></details>').join('');
+ const image=(n,label)=>'<figure><img src="/assets/coupon-svg/'+slug+'/'+n+'.svg?v=10&amp;coupon='+code+'&amp;country=SA" alt="'+esc(category+' نون السعودية '+label+' كود '+code)+'" title="'+esc(label)+'" width="1200" height="760" loading="lazy" decoding="async"><figcaption>'+esc(label)+' — راجع الأسعار والشروط في سلة نون الرسمية.</figcaption></figure>';
+ const articleSchema={'@context':'https://schema.org','@type':'Article',headline:title,description,inLanguage:'ar-SA',url:'https://noondealsnow.com/articles/'+slug,author:{'@type':'Organization',name:'Noon Deals Now'},publisher:{'@type':'Organization',name:'Noon Deals Now'}};
+ const faqSchema={'@context':'https://schema.org','@type':'FAQPage',mainEntity:faq.map(x=>({'@type':'Question',name:x.q,acceptedAnswer:{'@type':'Answer',text:x.a}}))};
+ const navigation='<nav class="article-toc quick-nav" aria-label="روابط دليل الشراء"><a href="/saudi">نون السعودية</a> · <a href="/coupons">الكوبونات</a> · <a href="/categories">التصنيفات</a> · <a href="/blog">المدونة</a> · <a href="/guides">أدلة التسوق</a></nav>';
+ const copy='<div class="coupon-actions"><button type="button" data-copy-code="'+code+'" aria-label="نسخ كود الخصم '+code+'">'+code+'</button><span class="copy-feedback" aria-live="polite">انسخ الكود ثم راجع شروط السلة.</span></div>';
+ const decision='<section class="decision-matrix"><h2>جدول قرار الشراء قبل الدفع</h2><p>قارن الخيارات بحسب الفئة والمواصفات والبائع والضمان والشحن؛ التحقق من التكلفة الإجمالية هو معيار قرار الشراء وليس أي سعر ترويجي غير موثق.</p><table><thead><tr><th>معيار المقارنة</th><th>طريقة التحقق</th></tr></thead><tbody><tr><td>المواصفات</td><td>مطابقة رقم الموديل والإصدار</td></tr><tr><td>البائع والضمان</td><td>قراءة صفحة المنتج الرسمية</td></tr><tr><td>الشحن والرسوم</td><td>مراجعة الإجمالي النهائي في السلة</td></tr></tbody></table></section>';
+ const evidence='<section class="evidence-ledger"><h2>سجل الأدلة وشفافية العروض</h2><p>نسبة الخصم: غير موثقة بشكل ثابت؛ تاريخ الانتهاء: راجع الصفحة الرسمية للحملة؛ المرجع التجاري النهائي: تفاصيل سلة نون السعودية عند الدفع. لا نفترض وجود خصم محدد أو أهلية مؤكدة لأي حساب.</p></section>';
+ const official='<section class="sources"><h2>المصدر الرسمي وكيف نتحقق</h2><p>المصدر الرسمي هو <a href="https://www.noon.com/saudi-ar/" rel="noopener external sponsored">موقع نون السعودية</a>. اتبع منهجية التحقق: افتح صفحة المنتج، دوّن رقم الموديل والبائع، وراجع سعر السلة بعد الشحن. لا ندعي شراءً أو تجربة شخصية لم تحدث. يجب مراجعة السعر والضمان والإرجاع من المصدر التجاري النهائي.</p><p>للتأكد من شروط العرض أو حالة الشحن ارجع إلى <a href="https://www.noon.com/saudi-ar/" rel="noopener external sponsored">نون الرسمي</a> قبل الدفع.</p></section>';
+ const team='<section class="methodology"><h2>طريقة التحقق والمراجعة التحريرية</h2><p>تعتمد المراجعة التحريرية في كوبونات نون على مطابقة البيانات الظاهرة للمشتري: الفئة، المواصفات، الضمان، سياسة الإرجاع وشروط استخدام الكود. لا نعد بخصم مضمون، ولا نفترض أن جميع المنتجات متاحة في الوقت نفسه. السلة هي المرجع النهائي.</p><p>آخر مراجعة لبنية الدليل: <time datetime="'+esc(verifiedAt)+'">'+esc(verifiedAt.slice(0,10))+'</time>. هذه ليست شهادة على أهلية الكوبون أو سعر منتج بعينه.</p></section>';
+ const introduction='<p class="direct-answer answer-box"><strong>الإجابة المباشرة:</strong> عند البحث عن '+esc(title)+'، ابدأ بالمقارنة بين '+esc(brand)+' و'+esc(category)+' والضمان وشروط البائع، وتحقق من التكلفة النهائية بعملة '+currency+' ('+currencyCode+'). جرّب '+code+' داخل سلة نون '+market+' قبل الدفع، ولا نفترض أن القسيمة صالحة لكل حساب.</p>';
+ const content=saved.map((s,i)=>'<section class="ai-verified-section" data-order="'+(i+1)+'">'+(i===1?'<p class="atomic-answer">تحقق من '+factor+' و'+useCase+' قبل تثبيت قرار الشراء.</p>':'')+s+(i===2?'<p class="atomic-answer">أعد فحص البائع والشحن والمبلغ النهائي بعد تجربة القسيمة.</p>':'')+'</section>').join('');
+ const html='<article lang="ar-SA" dir="rtl" data-market="SA" data-scope="national" data-coupon="'+code+'"><p class="eyebrow">كوبونات نون · نون السعودية · '+esc(category)+'</p><h1>'+esc(title)+'</h1>'+introduction+copy+navigation+content+image(2,'فحص السعر والكوبون')+image(3,'مقارنة خيارات الشراء')+image(4,'تأكيد البائع والشحن')+image(5,'قرار الشراء النهائي')+decision+evidence+team+official+'<section class="faq"><h2>أسئلة شائعة حول الكوبون والطلب</h2>'+htmlFaq+'</section><script type="application/ld+json">'+data(articleSchema)+'</script><script type="application/ld+json">'+data(faqSchema)+'</script></article>';
+ return {topic:{...topic,code,kw:title,market,marketPath:'/saudi',category,brandKey:brand,scenario,useCase,factor,factors:['المواصفات','الضمان','البائع','الشحن'],intent:'decision',intentLabel:'قرار الشراء'},article:{slug,title,metaDescription:description,country:'SA',coupon:code,primaryKeyword:title,language:'ar-SA',blueprint:'ai-v2-sa-original-v1',faq,contextualLinks:['/saudi','/coupons','/categories','/blog','/guides'],html}};
+}
