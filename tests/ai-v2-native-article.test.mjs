@@ -31,3 +31,11 @@ test('overlong checkpoint sections trim without another provider call or broken 
  const total=article.html.replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<[^>]+>/g,' ').trim().split(/\s+/).filter(Boolean).length;
  assert.ok(total>=1500&&total<=1800,'native draft word count: '+total);
 });
+
+test('short but useful AI sections receive substantive buying checks without another provider call',()=>{
+ const sections=Array.from({length:5},(_,i)=>({html:'<h2>Buying step '+i+'</h2>'+Array.from({length:4},()=>'<p>'+('Check the specific model, seller and shipping policy before checkout. '.repeat(5))+'</p>').join('')}));
+ const article=buildEnglishAiV2Article(topic,sections).article;
+ const wc=article.html.replace(/<script\\b[\\s\\S]*?<\\/script>/gi,' ').replace(/<[^>]+>/g,' ').trim().split(/\\s+/).filter(Boolean).length;
+ assert.ok(wc>=1500&&wc<=1900,'word count '+wc);
+ assert.ok(article.html.includes('Independent Ninja Air fryers decision checklist'));
+});
