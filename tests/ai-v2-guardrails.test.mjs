@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {cadence,validateConfig,assertTopic,stableId,classifyFailure,normalizeDraft,qualityPreflight,mayCallProvider,checkpointState} from '../automation/ai-v2/guardrails.mjs';
-import {objectPath} from '../automation/ai-v2/r2-checkpoints.mjs';
+import {cadence,validateConfig,assertTopic,stableId,classifyFailure,normalizeDraft,qualityPreflight,mayCallProvider} from '../automation/ai-v2/guardrails.mjs';
+import {objectPath,checkpointState} from '../automation/ai-v2/r2-checkpoints.mjs';
 import {callProvider} from '../automation/ai-v2/providers.mjs';
 const config=JSON.parse(readFileSync(new URL('../automation/ai-v2/config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('../automation/ai-v2/topics.json',import.meta.url)));
