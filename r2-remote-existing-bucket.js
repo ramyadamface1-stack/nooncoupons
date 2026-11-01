@@ -190,12 +190,26 @@ export async function recordPublishedR2ArticleInBlogFeed(env,key,meta={}){
   }
   throw Error('recent_feed_update_conflict_after_3_tries');
 }
+// One invocation of the old-account Free Worker has at most 50 external
+// subrequests, shared by publishing, recovery and article reads. Reserve
+// headroom for non-R2 activity and fail CLOSED instead of reaching Error 1102.
+export function createRemoteR2SubrequestBudget(max=30){
+  if(!Number.isSafeInteger(max)||max<1||max>40)throw Error('invalid_remote_r2_budget');
+  let used=0;
+  return Object.freeze({
+    take(){if(used>=max)throw Error('remote_r2_subrequest_budget_deferred');used++;return used},
+    snapshot(){return {used,limit:max,remaining:Math.max(0,max-used)}}
+  });
+}
 export function existingDestinationR2Binding(env){
+  const budget=createRemoteR2SubrequestBudget();
+  const limitedSigned=(...args)=>{budget.take();return signed(...args)};
   return {
+    remoteBudgetSnapshot(){return budget.snapshot()},
     async get(key,options){
       if(!allowedKey(key))throw Error('remote_r2_get_key_not_allowlisted');
       if(options?.range||options?.onlyIf)throw Error('remote_r2_get_range_or_onlyIf_not_implemented');
-      const res=await signed(env,'GET',key);
+      const res=await limitedSigned(env,'GET',key);
       if(!res)return null;
       const obj=objectResult(res,true);obj.key=key;return obj;
     },
@@ -204,7 +218,7 @@ export function existingDestinationR2Binding(env){
       // Cloudflare R2's S3 HEAD response omits Content-Length in Workers fetch.
       // Use a one-byte ranged GET: it returns actual object size in Content-Range
       // while avoiding full body transfers and legacy HeadObject retry storms.
-      const res=await signed(env,'GET',key,{},null,{range:'bytes=0-0'});
+      const res=await limitedSigned(env,'GET',key,{},null,{range:'bytes=0-0'});
       if(!res)return null;
       const obj=objectResult(res,false);obj.key=key;
       const range=res.headers.get('content-range')||'';
@@ -232,7 +246,7 @@ export function existingDestinationR2Binding(env){
       }
       // A 412 means the native R2 put() contract returns null. Never emulate
       // etag conditional writes with a HEAD+PUT pair: it would not be atomic.
-      const result=await signed(env,'PUT',key,{},data,{...extra,...conditions},Object.keys(conditions).length>0);
+      const result=await limitedSigned(env,'PUT',key,{},data,{...extra,...conditions},Object.keys(conditions).length>0);
       if(result.status===412)return null;
       if(key.startsWith('articles/')&&options.customMetadata?.status==='published'&&String(env?.PUBLICATION_FEED_ENABLED||'')==='true'){
         try{await recordPublishedR2ArticleInBlogFeed(env,key,options.customMetadata)}
@@ -247,7 +261,7 @@ export function existingDestinationR2Binding(env){
       const query={'list-type':'2','max-keys':String(limit),'encoding-type':'url',prefix};
       if(options.cursor)query['continuation-token']=String(options.cursor);
       if(options.delimiter)query.delimiter=String(options.delimiter);
-      const res=await signed(env,'GET','',query);
+      const res=await limitedSigned(env,'GET','',query);
       if(!res)throw Error('remote_r2_list_unexpected_404');
       const xml=await res.text();
       const objects=[];
