@@ -1,0 +1,13 @@
+{
+  "name": "noondealsnow-ai-scheduler-v2",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-01",
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  },
+  "vars": {
+    "SITE_ID": "noondealsnow"
+  }
+}
