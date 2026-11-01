@@ -8,10 +8,46 @@ function safeSection(html){
  if(fragment.length<200||/<script\b|<iframe\b|<form\b|<object\b|<style\b|\son[a-z]+\s*=|javascript\s*:/i.test(fragment))throw Error('UNSAFE_AI_SECTION');
  return fragment;
 }
+
+// Trim only already generated content, at whole HTML blocks and sentence
+// boundaries. Preserve headers and source text; never fabricate more words
+// or make another model request to repair an overlong checkpoint.
+const plain=x=>String(x||'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/gi,' ').replace(/\s+/g,' ').trim();
+const countWords=x=>plain(x).split(/\s+/).filter(Boolean).length;
+function trimSentence(text,maxWords){
+ const words=plain(text).split(/\s+/).filter(Boolean);
+ if(words.length<=maxWords)return plain(text);
+ let value=words.slice(0,maxWords).join(' ');
+ const end=Math.max(value.lastIndexOf('. '),value.lastIndexOf('! '),value.lastIndexOf('? '),value.lastIndexOf('؟ '));
+ if(end>value.length*.55)value=value.slice(0,end+1);
+ else value=value.replace(/[;,:\s]+$/,'')+'.';
+ return value;
+}
+export function trimAiSectionHtml(raw,maxWords=285){
+ const html=safeSection(raw);
+ const blocks=[...html.matchAll(/<h[23]\b[^>]*>[\s\S]*?<\/h[23]>|<p\b[^>]*>[\s\S]*?<\/p>|<(?:ul|ol)\b[^>]*>[\s\S]*?<\/(?:ul|ol)>|<table\b[^>]*>[\s\S]*?<\/table>/gi)].map(m=>m[0]);
+ if(!blocks.length)throw Error('AI_SECTION_HAS_NO_RECOGNIZABLE_BLOCKS');
+ let used=0,items=[];
+ for(const block of blocks){
+  const n=countWords(block),heading=/^<h[23]\b/i.test(block);
+  if(heading){items.push(block);used+=n;continue}
+  if(used+n<=maxWords){items.push(block);used+=n;continue}
+  const remaining=maxWords-used;
+  if(remaining>=24&&/^<p\b/i.test(block)){
+   const clean=trimSentence(block,remaining);
+   if(clean)items.push('<p>'+esc(clean)+'</p>');
+   used+=remaining;
+  }
+  if(used>=maxWords)break;
+ }
+ if(used<180)throw Error('AI_SECTION_TOO_SHORT_AFTER_TRIM');
+ return items.join('\n');
+}
+
 export function buildEnglishAiV2Article(topic,sections){
  if(topic?.country!=='AE'||topic.language!=='en-AE'||topic.coupon!=='NOV188')throw Error('WRONG_ENGLISH_MARKET');
  if(!Array.isArray(sections)||sections.length!==5)throw Error('AI_SECTION_COUNT_MISMATCH');
- const safe=sections.map(s=>safeSection(s.html));
+ const safe=sections.map(s=>trimAiSectionHtml(s.html,285));
  const slug=String(topic.slug||''),brand=String(topic.brand||''),category=String(topic.category||''),code=topic.coupon;
  const title=String(topic.topic||'').trim();
  if(!/^[a-z0-9-]{16,120}$/.test(slug)||!title||!brand||!category)throw Error('INCOMPLETE_NATIVE_TOPIC');
