@@ -12,6 +12,7 @@ on:
       - 'tests/ai-v2-topic-queue.test.mjs'
       - 'tests/ai-v2-native-arabic-article.test.mjs'
       - 'tests/ai-v2-provider-circuit.test.mjs'
+      - 'tests/ai-v2-workflow-wiring.test.mjs'
       - '.github/workflows/noondealsnow-ai-v2.yml'
   workflow_dispatch:
     inputs:
@@ -54,8 +55,9 @@ jobs:
           GROQ_PRESENT: ${{ secrets.GROQ_API_KEY }}
           R2_TOKEN_PRESENT: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
           FREE_APPROVAL_PRESENT: ${{ secrets.NOONDEALSNOW_AI_FREE_ONLY_APPROVED }}
+          SITE_PUBLISH_PRESENT: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
         run: |
-          for name in GEMINI_PRESENT GEMINI_NEW_PRESENT GROQ_PRESENT R2_TOKEN_PRESENT FREE_APPROVAL_PRESENT; do
+          for name in GEMINI_PRESENT GEMINI_NEW_PRESENT GROQ_PRESENT R2_TOKEN_PRESENT FREE_APPROVAL_PRESENT SITE_PUBLISH_PRESENT; do
             if [ -n "${!name}" ]; then
               echo "AI_V2_SECRET_NAME_STATUS ${name}=PRESENT"
             else
@@ -75,7 +77,7 @@ jobs:
           node --check automation/ai-v2/topic-queue.mjs
           node --check automation/ai-v2/provider-circuit.mjs
           node --check ai-scheduler-v2/worker.mjs
-          node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-scheduler.test.mjs tests/ai-v2-gemini-key-pool.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-topic-queue.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-provider-circuit.test.mjs
+          node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-scheduler.test.mjs tests/ai-v2-gemini-key-pool.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-topic-queue.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-provider-circuit.test.mjs tests/ai-v2-workflow-wiring.test.mjs
       - name: Inspect Gemini secret pool types without exposing any key values
         env:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
