@@ -17,7 +17,7 @@ export function validateAiV2NativePayload(payload){
  if(!rule||!article||!checkpoint)return reject('INCOMPLETE_OR_WRONG_MARKET');
  if(topic.code!==rule.code||article.coupon!==rule.code||!isApprovedMarketCoupon(rule.code,topic.country))return reject('INVALID_MARKET_COUPON');
  if(topic.language!==rule.lang||article.country!==topic.country)return reject('INVALID_LANGUAGE');
- if(checkpoint.state!=='QUALITY_PASSED'||!/[a-f0-9]{24}/.test(String(checkpoint.articleId||'')))return reject('CHECKPOINT_NOT_APPROVED');
+ if(checkpoint.state!=='PREPARED_FOR_NATIVE_AUDIT'||!/[a-f0-9]{24}/.test(String(checkpoint.articleId||'')))return reject('CHECKPOINT_NOT_APPROVED');
  if(typeof article.slug!=='string'||!/^[a-z0-9-]{16,120}$/.test(article.slug)||article.slug!==topic.slug||article.slug.includes('--'))return reject('INVALID_SLUG');
  if(!article.title||!article.primaryKeyword||!article.metaDescription)return reject('INCOMPLETE_SEO');
  const html=article.html;
@@ -47,10 +47,11 @@ export async function publishAiV2NativeArticle(env,payload){
  const coupon=couponStatus(topic);
  if(!coupon.publishAllowed)return reject('COUPON_FRESHNESS_BLOCK',{detail:coupon.reason});
  const schema=validateStructuredData(article);
- const preSemantic=preAuditSemanticGate(article,recent);
+ const auditRecent=recent.slice(0,300); // Native full cluster still checks intent/slug collisions.
+ const preSemantic=preAuditSemanticGate(article,auditRecent);
  const audit=topic.country==='SA'?
-  auditSeoArticle(article,topic,{minWords:1500,threshold:95,recent,semanticRecent:recent,semanticPreflight:preSemantic}):
-  auditEnglishSeoArticle(article,topic,{threshold:95,recent});
+  auditSeoArticle(article,topic,{minWords:1500,threshold:95,recent:auditRecent,semanticRecent:auditRecent,semanticPreflight:preSemantic}):
+  auditEnglishSeoArticle(article,topic,{threshold:95,recent:auditRecent});
  const global=globalGate(article,topic,audit,{entries:recent});
  const indexation=evaluateIndexation(article,topic,{globalGate:global,contextualLinks:(article.contextualLinks||[]).length,clusterSize:cluster.entries.length,schemaGate:schema,coupon});
  if(!schema.pass||!audit.productionReady||audit.score<95||!global.pass||!indexation.indexable){
