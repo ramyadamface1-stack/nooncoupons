@@ -1,0 +1,39 @@
+name: NoonDealsNow one-time Cron delivery diagnosis
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-cron-tail-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Observe actual Cloudflare scheduled events (read-only, no AI)
+        shell: bash
+        run: |
+          set -uo pipefail
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo 'CF_TOKEN_MISSING'; exit 2; }
+          timeout 165s npx wrangler tail noondealsnow-ai-scheduler-v2 --format json > /tmp/cron-tail.jsonl 2>&1
+          rc=$?
+          echo "TAIL_PROCESS_EXIT=$rc"
+          grep -E 'AI_V2_SCHEDULER|scheduledTime|scheduled|DISPATCH_ACCEPTED|GITHUB_' /tmp/cron-tail.jsonl | tail -n 35 || true
+          if grep -q 'AI_V2_SCHEDULER ' /tmp/cron-tail.jsonl; then
+            echo 'REAL_CRON_LOG_SEEN=TRUE'
+          else
+            echo 'REAL_CRON_LOG_SEEN=NOT_PROVEN'
+          fi
+          echo 'No provider requests are made by this observer.'
