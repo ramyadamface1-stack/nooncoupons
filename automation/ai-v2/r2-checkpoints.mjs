@@ -13,7 +13,7 @@ export function objectPath(config,id){
 }
 function wrangler(args){
   try{return execFileSync('npx',['--no-install','wrangler',...args],{encoding:'utf8',stdio:['ignore','pipe','pipe'],timeout:60000,maxBuffer:1_000_000})}
-  catch(e){throw Error('R2_CHECKPOINT_IO_ERROR: '+String(e.stderr||e.message).slice(0,280).replace(/(?i)Bearer\s+\S+/g,'[REDACTED]'))}
+  catch(e){throw Error('R2_CHECKPOINT_IO_ERROR: '+String(e.stderr||e.message).slice(0,280).replace(/Bearer\s+\S+/gi,'[REDACTED]'))}
 }
 export function readCheckpoint(config,id,{missingOk=true}={}){
   const dir=mkdtempSync(join(tmpdir(),'ndn-read-')),file=join(dir,'state.json');
