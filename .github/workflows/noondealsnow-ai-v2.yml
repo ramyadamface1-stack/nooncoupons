@@ -17,6 +17,11 @@ on:
         required: true
         type: boolean
         default: true
+      verify_gemini_metadata:
+        description: 'Optional ONE read-only model metadata request; may return quota HTTP 429'
+        required: false
+        type: boolean
+        default: false
       scheduled_ms:
         description: Original Cloudflare Cron scheduledTime in Unix milliseconds
         required: false
@@ -73,6 +78,7 @@ jobs:
           set -euo pipefail
           node --input-type=module -e "import {geminiKeyInventory} from './automation/ai-v2/gemini-key-pool.mjs'; console.log('AI_V2_GEMINI_POOL '+JSON.stringify(geminiKeyInventory(process.env)))"
       - name: Read-only check of one new Gemini auth key against Google model metadata
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_gemini_metadata == true }}
         env:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
         run: node automation/ai-v2/check-gemini-model.mjs
