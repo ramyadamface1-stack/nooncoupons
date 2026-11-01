@@ -1,0 +1,50 @@
+name: NoonDealsNow AI V2 One-off Canary
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-ai-v2-one-off-canary.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noondealsnow-ai-v2-single-site
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify no-cost editorial and transport guards before AI
+        run: |
+          node --check automation/ai-v2/run.mjs
+          node --check automation/ai-v2/native-article.mjs
+          node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-gemini-key-pool.test.mjs
+      - name: Run exactly one protected UAE checkpointed AI draft and native publish attempt
+        shell: bash
+        env:
+          AI_PREFLIGHT_ONLY: 'false'
+          AI_ONE_OFF_CANARY: 'true'
+          AI_CANARY_MARKET: 'AE'
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+          NOONDEALSNOW_AI_FREE_ONLY_APPROVED: ${{ secrets.NOONDEALSNOW_AI_FREE_ONLY_APPROVED }}
+          NOONDEALSNOW_AI_SITE_PUBLISH_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || { echo 'CHECKPOINT_STORAGE_TOKEN_MISSING'; exit 10; }
+          [ "${NOONDEALSNOW_AI_FREE_ONLY_APPROVED:-}" = 'true' ] || { echo 'FREE_ONLY_APPROVAL_REQUIRED'; exit 11; }
+          node automation/ai-v2/run.mjs | tee /tmp/ndn-ai-v2-canary.log
+          echo '### NoonDealsNow AI V2 controlled one-off canary' >> "$GITHUB_STEP_SUMMARY"
+          grep '^AI_V2_REPORT ' /tmp/ndn-ai-v2-canary.log >> "$GITHUB_STEP_SUMMARY" || true
+          echo 'A successful GitHub job is NOT proof of live publication; require AI_V2_REPORT status LIVE_VERIFIED and public URL response.' >> "$GITHUB_STEP_SUMMARY"
