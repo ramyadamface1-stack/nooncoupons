@@ -7,6 +7,7 @@ import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
 import {publicationReadyTopic,resumableCheckpoint,queueInventory} from './topic-queue.mjs';
+import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive} from './provider-circuit.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
 const report=(status,reason,data={})=>console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,...data}));
@@ -72,7 +73,13 @@ async function run(){
   if(topic.country==='SA'&&!safeSaudiCanary){report('SKIPPED','ARABIC_NATIVE_RENDERER_PENDING',{articleId});return}
   // A confirmed Gemini 429 is NOT retried. An explicitly approved, isolated
   // one-time job may resume the exact saved section using a different provider.
-  const provider=explicitGroqResume?'groq':(geminiKeys.hasGemini?'gemini':'groq'),model=config.models[provider];
+  const priority=config.providerPriority||['gemini','groq'];
+  const available={gemini:geminiKeys.hasGemini,groq:Boolean(process.env.GROQ_API_KEY)};
+  const provider=explicitGroqResume?'groq':priority.find(p=>available[p]);
+  if(!provider){report('SKIPPED','NO_FREE_PROVIDER_AVAILABLE',{articleId});return}
+  const model=config.models[provider];
+  const circuitId=providerCircuitId(provider,hash),circuit=readCheckpoint(config,circuitId);
+  if(providerCircuitActive(circuit)){report('SKIPPED','PROVIDER_QUOTA_COOLDOWN',{provider,resumeAt:circuit.resumeAt,articleId});return}
   let calls=0;
   while(state.sectionIndex<topic.sections.length){
     if(calls>=config.limits.maxProviderCallsPerRun){report('CHECKPOINTED','CALL_BUDGET_LIMIT',{articleId,sectionIndex:state.sectionIndex});return}
@@ -105,6 +112,12 @@ async function run(){
     if(!result.ok){
       const next=result.category==='QUOTA'?'PAUSED_QUOTA':'BLOCKED_REVIEW';
       saveCheckpoint(config,checkpointState(state,next,{errorCategory:result.category,lastRequestStatus:result.httpStatus,retryAfter:result.retryAfter||null}));
+      if(result.category==='QUOTA'){
+        const pauseSec=quotaCooldownSeconds(result.retryAfter);
+        try{saveCheckpoint(config,{articleId:circuitId,state:'PAUSED_QUOTA',provider,createdAt:now(),
+          resumeAt:new Date(Date.now()+pauseSec*1000).toISOString(),version:Number(circuit?.version||0)+1});}
+        catch(e){report('BLOCKED','PROVIDER_QUOTA_CIRCUIT_WRITE_FAILED',{provider,articleId});return}
+      }
       report('BLOCKED',next,{articleId,provider,httpStatus:result.httpStatus,reason:result.category,calls});return;
     }
     const html=result.content.trim();

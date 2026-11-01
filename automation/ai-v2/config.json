@@ -56,5 +56,9 @@
     "preflightOnly": true,
     "maxAcceptedDispatches": 1,
     "purpose": "ONE_ACCEPTED_REAL_CRON_TO_GITHUB_PREFLIGHT_PROOF"
-  }
+  },
+  "providerPriority": [
+    "groq",
+    "gemini"
+  ]
 }

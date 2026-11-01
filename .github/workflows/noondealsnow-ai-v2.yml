@@ -11,6 +11,7 @@ on:
       - 'tests/ai-v2-gemini-key-pool.test.mjs'
       - 'tests/ai-v2-topic-queue.test.mjs'
       - 'tests/ai-v2-native-arabic-article.test.mjs'
+      - 'tests/ai-v2-provider-circuit.test.mjs'
       - '.github/workflows/noondealsnow-ai-v2.yml'
   workflow_dispatch:
     inputs:
@@ -72,8 +73,9 @@ jobs:
           node --check automation/ai-v2/native-article.mjs
           node --check automation/ai-v2/native-arabic-article.mjs
           node --check automation/ai-v2/topic-queue.mjs
+          node --check automation/ai-v2/provider-circuit.mjs
           node --check ai-scheduler-v2/worker.mjs
-          node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-scheduler.test.mjs tests/ai-v2-gemini-key-pool.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-topic-queue.test.mjs tests/ai-v2-native-arabic-article.test.mjs
+          node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-scheduler.test.mjs tests/ai-v2-gemini-key-pool.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-topic-queue.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-provider-circuit.test.mjs
       - name: Inspect Gemini secret pool types without exposing any key values
         env:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
