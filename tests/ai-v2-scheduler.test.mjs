@@ -4,11 +4,11 @@ import {decideTick,dispatchDue,githubHttpStatus} from '../ai-scheduler-v2/worker
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 const start=Date.parse('2026-11-01T12:00:00.000Z');
 test('default disables dispatch',()=>{assert.equal(decideTick(config,start,start).reason,'SCHEDULER_DISABLED')});
-test('exactly twelve five-minute slots in an hour',()=>{
+test('exactly sixty one-minute slots in an hour',()=>{
 const c={...config,enabled:true};let count=0;
 for(let i=0;i<60;i++){const t=start+i*60000;if(decideTick(c,t,t+1000).due)count++}
-assert.equal(count,12);
-assert.equal(decideTick(c,start+60000,start+60000).reason,'INTERVAL_NOT_ELAPSED');
+assert.equal(count,60);
+assert.equal(decideTick(c,start+60000,start+60000).reason,'DUE');
 });
 test('clock-skew and unsupported intervals are rejected',()=>{
 const c={...config,enabled:true};

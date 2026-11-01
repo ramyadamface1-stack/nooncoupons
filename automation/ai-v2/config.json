@@ -6,10 +6,10 @@
   "timezone": "Africa/Cairo",
   "enabled": false,
   "publicationMode": "checkpoint_only",
-  "intervalMinutes": 5,
+  "intervalMinutes": 1,
   "cronHeartbeat": "* * * * *",
-  "targetPerHour": 12,
-  "targetPerDay": 288,
+  "targetPerHour": 60,
+  "targetPerDay": 1440,
   "maxConcurrent": 1,
   "checkpoint": {
     "backend": "private-r2",
