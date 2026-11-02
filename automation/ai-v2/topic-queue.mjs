@@ -59,7 +59,7 @@ export function queueInventory(topics){
 
 /** Durable cursor scan with bounded R2 reads per invocation. The first new
  * cycle starts after the previous 20 legacy topics, but wraps around safely. */
-export const QUEUE_SCAN_LIMIT=8;
+export const QUEUE_SCAN_LIMIT=24;
 export function queueScanWindow(total,cursor,limit=QUEUE_SCAN_LIMIT){
  if(!Number.isInteger(total)||total<1)return [];
  if(!Number.isInteger(limit)||limit<1||limit>24)throw Error('INVALID_QUEUE_SCAN_LIMIT');
