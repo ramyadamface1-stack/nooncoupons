@@ -13,8 +13,9 @@ export function safeSaudiDeterministicRecovery(checkpoint,topic){
  }
  if(checkpoint.errorCategory!=='NATIVE_QUALITY_BLOCKED')return false;
  const d=checkpoint.nativeGateDiagnostics;
- return Array.isArray(d?.p0)&&d.p0.length===1&&d.p0[0]==='title_avoids_literal_coupon_code'&&
-   Array.isArray(d.failed)&&d.failed.length===1&&d.failed[0]==='title_avoids_literal_coupon_code'&&
+ return Array.isArray(d?.p0)&&d.p0.length===1&&
+   ['title_avoids_literal_coupon_code','coupon_lock'].includes(d.p0[0])&&
+   Array.isArray(d.failed)&&d.failed.length===1&&d.failed[0]===d.p0[0]&&
    Array.isArray(d.schemas)&&d.schemas.length===0&&
    Array.isArray(d.duplicates)&&d.duplicates.length===0&&
    Array.isArray(d.indexation)&&d.indexation.length===0;
