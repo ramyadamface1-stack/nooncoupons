@@ -22,3 +22,18 @@ export function queueInventory(topics){
  return {total:topics.length,renderable:topics.filter(t=>publicationReadyTopic(t)).length,
   pendingMarketRenderer:topics.filter(t=>!publicationReadyTopic(t)).map(t=>t.country)};
 }
+
+/** Durable cursor scan with bounded R2 reads per invocation. The first new
+ * cycle starts after the previous 20 legacy topics, but wraps around safely. */
+export const QUEUE_SCAN_LIMIT=8;
+export function queueScanWindow(total,cursor,limit=QUEUE_SCAN_LIMIT){
+ if(!Number.isInteger(total)||total<1)return [];
+ if(!Number.isInteger(limit)||limit<1||limit>24)throw Error('INVALID_QUEUE_SCAN_LIMIT');
+ const start=Number.isSafeInteger(cursor)&&cursor>=0?cursor%total:Math.min(20,total-1);
+ return Array.from({length:Math.min(total,limit)},(_,i)=>(start+i)%total);
+}
+export function nextQueueCursor(total,lastChecked){
+ if(!Number.isInteger(total)||total<1||!Number.isSafeInteger(lastChecked)||lastChecked<0||lastChecked>=total)
+  throw Error('INVALID_QUEUE_CURSOR');
+ return (lastChecked+1)%total;
+}

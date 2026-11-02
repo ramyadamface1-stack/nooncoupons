@@ -6,7 +6,7 @@ import {callProvider} from './providers.mjs';
 import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor} from './topic-queue.mjs';
 import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive} from './provider-circuit.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
@@ -37,16 +37,36 @@ async function run(){
   const safeSaudiCanary=oneOffCanary&&['NoonDealsNow AI V2 Saudi Quality Canary','NoonDealsNow AI V2 Saudi Quality Recovery Canary'].includes(process.env.GITHUB_WORKFLOW)&&process.env.AI_SA_ONE_OFF==='true';
   let selected;
   const explicitGroqResume=oneOffCanary&&process.env.AI_RESUME_PAUSED_QUOTA==='true'&&process.env.AI_PROVIDER_OVERRIDE==='groq';
-  for(const topic of topics){
+  const cursorId=hash('noondealsnow|ai-v2|round-robin-cursor-v1').slice(0,24);
+  // Keep historical one-off recovery semantics untouched. Production reads a
+  // maximum of eight article checkpoints per invocation, not the whole queue.
+  const oldCursor=oneOffCanary?null:readCheckpoint(config,cursorId);
+  const positions=oneOffCanary?topics.map((_,i)=>i):queueScanWindow(topics.length,oldCursor?.cursor);
+  let checked=0,lastChecked=null;
+  for(const position of positions){
+    const topic=topics[position];
+    lastChecked=position;
     if(!publicationReadyTopic(topic))continue;
     if(oneOffCanary&&topic.country!==String(process.env.AI_CANARY_MARKET||'AE'))continue;
+    checked++;
     const articleId=assertTopic(topic,config),saved=readCheckpoint(config,articleId);
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
     if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly}))continue;
     selected={topic,articleId,saved};break;
   }
-  if(!selected){report('SKIPPED','NO_ELIGIBLE_TOPIC',{queue:queueInventory(topics)});return}
+  if(!oneOffCanary&&lastChecked!==null){
+    // Fail closed if the queue cursor cannot be persisted. This prevents
+    // repeated scans and makes successful scheduled runs progress durably.
+    const next=nextQueueCursor(topics.length,lastChecked);
+    saveCheckpoint(config,{articleId:cursorId,state:'QUEUE_CURSOR',cursor:next,
+      createdAt:oldCursor?.createdAt||now(),version:Number(oldCursor?.version||0)+1});
+  }
+  if(!selected){
+    report('SKIPPED',oneOffCanary?'NO_ELIGIBLE_TOPIC':'QUEUE_WINDOW_EMPTY',
+      {queue:queueInventory(topics),checked,scanLimit:positions.length,nextCursor:oneOffCanary?null:nextQueueCursor(topics.length,lastChecked)});
+    return;
+  }
   const {topic,articleId}=selected;
   let state=selected.saved;
   if(savedOnly&&(!state||state.sectionIndex!==topic.sections.length)){report('BLOCKED','SAVED_DRAFT_NOT_READY_FOR_NO_AI_REPROCESS',{articleId});return}

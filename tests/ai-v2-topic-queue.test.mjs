@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 import topics from '../automation/ai-v2/topics.json' with {type:'json'};
-import {publicationReadyTopic,resumableCheckpoint,queueInventory} from '../automation/ai-v2/topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,QUEUE_SCAN_LIMIT} from '../automation/ai-v2/topic-queue.mjs';
 import {assertTopic} from '../automation/ai-v2/guardrails.mjs';
 test('curated queue has unique topic slugs, stable IDs, country and approved coupon',()=>{
  const ids=topics.map(t=>assertTopic(t,config));
@@ -35,4 +35,26 @@ test('Arabic native gate repair may resume only a persisted complete saved draft
  assert.equal(resumableCheckpoint(saved,{savedOnly:true}),false);
  assert.equal(resumableCheckpoint(saved,{savedOnly:true,nativeGateRepair:true}),true);
  assert.equal(resumableCheckpoint({...saved,sectionIndex:3},{savedOnly:true,nativeGateRepair:true}),false);
+});
+
+test('bounded round robin never scans the entire corpus and eventually covers every topic',()=>{
+ let seen=new Set(),cursor=20;
+ for(let n=0;n<Math.ceil(topics.length/QUEUE_SCAN_LIMIT);n++){
+  let window=queueScanWindow(topics.length,cursor);
+  assert.ok(window.length<=8);
+  window.forEach(i=>seen.add(i));
+  cursor=nextQueueCursor(topics.length,window.at(-1));
+ }
+ assert.equal(seen.size,topics.length);
+ assert.equal(queueScanWindow(20,undefined)[0],19);
+ assert.deepEqual(queueScanWindow(10,9,3),[9,0,1]);
+ assert.equal(nextQueueCursor(10,9),0);
+});
+test('product-specific buying topics are not duplicated and preserve market codes in titles',()=>{
+ assert.ok(topics.length>=85);
+ for(const t of topics.slice(20)){
+  assert.ok(t.topic.length>=28&&t.topic.length<=72,t.topic);
+  assert.ok(t.topic.includes(t.coupon)&&t.topic.includes(t.country==='SA'?'نون السعودية':'Noon UAE'));
+  assert.equal(t.sections.length,5);
+ }
 });
