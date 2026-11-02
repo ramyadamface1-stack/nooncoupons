@@ -28,7 +28,7 @@ jobs:
           AI_ONE_OFF_CANARY: 'true'
           AI_SA_ONE_OFF: 'true'
           AI_CANARY_MARKET: 'SA'
-          AI_CANARY_SLUG: 'sa-apple-airpods-fit-calls-nov170-2026'
+          AI_CANARY_SLUG: 'sa-canon-photo-printer-ink-nov170-2026'
           AI_REPROCESS_SAVED_DRAFT: 'true'
           AI_NO_PROVIDER_CALLS: 'true'
           CLOUDFLARE_API_TOKEN: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
