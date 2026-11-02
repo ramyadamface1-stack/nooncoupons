@@ -2,13 +2,15 @@
 // Preserve the P0 coupon lock for every actual voucher-like token.
 export function couponCodeCandidates(plain,topic={}){
  const body=String(plain||'');
- const specs=/^(?:HDR10|HDR10PLUS|IP\d{2}|DDR[23456]|USB[234]|HDMI[12])$/i;
+ const specs=/^(?:HDR10|HDR10PLUS|IP\d{2}|DDR[23456]|USB[234]|HDMI[12]|WPA[23])$/i;
  // CP1300 is a genuine Canon SELPHY printer model, but ignore it ONLY in
  // matching Canon editorial context. Other unknown voucher-like tokens remain
  // a critical failure; never blanket-allow CP-number patterns.
  const canonSelphy=/(?:canon|كانون)/i.test(String(topic?.brand||''))&&/\bselphy\b|سيلفي/i.test(body);
+ // TP-Link Archer AX90 is a genuine router model, not a discount code.
+ const tpLinkRouter=/(?:tp[-\\s]?link|تي\\s*بي\\s*لينك)/i.test(String(topic?.brand||''))&&/(?:archer|راوتر|router|آرتشر)/i.test(body);
  return [...new Set((body.match(/\b[A-Z]{2,8}\d{1,6}\b/g)||[])
-   .map(x=>x.toUpperCase()).filter(x=>!specs.test(x)&&!(canonSelphy&&x==='CP1300')))];
+   .map(x=>x.toUpperCase()).filter(x=>!specs.test(x)&&!(canonSelphy&&x==='CP1300')&&!(tpLinkRouter&&x==='AX90')))];
 }
 
 import {QUALITY_CRITERIA,QUALITY_CRITERIA_COUNT} from './quality-criteria.js';
