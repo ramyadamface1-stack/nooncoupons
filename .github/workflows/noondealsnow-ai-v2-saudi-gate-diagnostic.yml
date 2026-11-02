@@ -22,6 +22,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler r2 object get nooncoupons-content-v2/_ops/ai-v2-checkpoints/33ad8c59b224dd2b3a40393c.json --remote --file /tmp/sa-gate.json > /tmp/wrangler-out.log
+          npx wrangler r2 object get nooncoupons-content-v2/_ops/ai-v2-checkpoints/703e5cd674a98f5dbc1d2049.json --remote --file /tmp/sa-gate.json > /tmp/wrangler-out.log
           jq '{state,errorCategory,sectionIndex,sectionCount:(.sections|length),nativeGateDiagnostics:{score:.nativeGateDiagnostics.score,words:.nativeGateDiagnostics.words,p0:.nativeGateDiagnostics.p0,failed:.nativeGateDiagnostics.failed,schemas:.nativeGateDiagnostics.schemas,duplicates:.nativeGateDiagnostics.duplicates,indexation:.nativeGateDiagnostics.indexation}}' /tmp/sa-gate.json
           echo 'AI_GENERATION_CALLS=ZERO'
