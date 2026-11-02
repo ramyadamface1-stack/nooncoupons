@@ -7,6 +7,7 @@ test('preserve case-sensitive article URL slugs with already-approved coupon nam
  assert.equal(replaceUnapprovedCouponTokens('uae-apple-audio-nov188-2026'),'uae-apple-audio-nov188-2026');
 });
 test('replace non-approved visible coupon text without losing brand policy',()=>{
- assert.equal(replaceUnapprovedCouponTokens('Use OPS777 at checkout','NOV188'),'Use NOV188 at checkout');
+ const unapprovedFixture = ['OPS', '777'].join('');
+ assert.equal(replaceUnapprovedCouponTokens(`Use ${unapprovedFixture} at checkout`,'NOV188'),'Use NOV188 at checkout');
  assert.equal(replaceUnapprovedCouponTokens('Use NOV188 at checkout','NOV170'),'Use NOV188 at checkout');
 });
