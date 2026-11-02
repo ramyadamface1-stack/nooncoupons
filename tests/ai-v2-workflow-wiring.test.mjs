@@ -34,7 +34,9 @@ test('provider section persists an ambiguous-request boundary then one verified 
  assert.match(runtime,/if\(state\.state==='PREPARED_FOR_NATIVE_AUDIT'\)/);
  assert.doesNotMatch(runtime,/checkpointState\(state,'VALIDATING'/);
  assert.match(runtime,/needsProvider=state\.sectionIndex<topic\.sections\.length/);
- assert.match(runtime,/if\(needsProvider&&!savedOnly&&providerCircuitActive\(circuit\)\)/);
+ assert.match(runtime,/if\(providerCircuitActive\(circuit\)\)continue/);
+ assert.match(runtime,/selectGeminiKey\(process\.env,index\+n\)/);
+ assert.match(runtime,/ALL_FREE_PROVIDERS_IN_COOLDOWN/);
  assert.match(runtime,/checkpointState\(state,'PUBLISH_REQUEST_SENT'/);
  assert.match(runtime,/checkpointState\(state,'LIVE_VERIFIED'/);
 });

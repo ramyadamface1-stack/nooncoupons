@@ -14,5 +14,8 @@ test('confirmed Groq 429 pauses across topics with bounded cooldown',()=>{
 });
 test('separate provider circuit records never collide',()=>{
  assert.notEqual(providerCircuitId('groq',sha),providerCircuitId('gemini',sha));
+ assert.notEqual(providerCircuitId('gemini',sha,'aaaaaaaaaaaa'),providerCircuitId('gemini',sha,'bbbbbbbbbbbb'));
+ assert.equal(providerCircuitId('groq',sha),providerCircuitId('groq',sha,'aaaaaaaaaaaa'));
+ assert.throws(()=>providerCircuitId('gemini',sha,'bad'),/invalid_key_ref/);
  assert.throws(()=>providerCircuitId('paid-provider',sha),/unsupported_provider/);
 });

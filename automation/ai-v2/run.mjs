@@ -122,18 +122,33 @@ async function run(){
   // one-time job may resume the exact saved section using a different provider.
   const priority=config.providerPriority||['gemini','groq'];
   const available={gemini:geminiKeys.hasGemini,groq:Boolean(process.env.GROQ_API_KEY)};
-  // A completed saved draft needs NO credential and must not be blocked by
-  // an unrelated provider quota circuit during zero-AI editorial repair.
-  // A fully checkpointed article needs ZERO provider calls. A provider quota
-  // circuit must not prevent publishing an already prepared, verified draft.
+  // Only request the NEXT missing section. Prefer Groq, but fall back to
+  // Gemini when Groq is in quota cooldown, and rotate Gemini key cooldowns.
+  // Completed drafts reach publication with no provider calls.
   const needsProvider=state.sectionIndex<topic.sections.length;
-  const provider=needsProvider?(savedOnly?'groq':(explicitGroqResume?'groq':priority.find(p=>available[p]))):null;
-  if(needsProvider&&!provider){report('SKIPPED','NO_FREE_PROVIDER_AVAILABLE',{articleId});return}
-  const model=provider?config.models[provider]:null;
-  const circuitId=needsProvider?providerCircuitId(provider,hash):null;
-  const circuit=needsProvider&&!savedOnly?await readCheckpoint(config,circuitId):null;
-  if(needsProvider&&!savedOnly&&providerCircuitActive(circuit)){report('SKIPPED','PROVIDER_QUOTA_COOLDOWN',{provider,resumeAt:circuit.resumeAt,articleId});return}
-  let calls=0;
+  const chooseCredential=async index=>{
+    const preferred=explicitGroqResume?['groq']:priority;
+    for(const candidateProvider of preferred){
+      if(!available[candidateProvider])continue;
+      const poolSize=candidateProvider==='gemini'?geminiKeys.eligibleCount:1;
+      for(let n=0;n<poolSize;n++){
+        const credential=candidateProvider==='gemini'
+          ?selectGeminiKey(process.env,index+n)
+          :{key:process.env.GROQ_API_KEY,keySlot:0,source:'GROQ_API_KEY'};
+        if(!credential?.key)continue;
+        const keyRef=hash(credential.key).slice(0,12); // never store the secret
+        const circuitId=providerCircuitId(candidateProvider,hash,candidateProvider==='gemini'?keyRef:null);
+        const circuit=await readCheckpoint(config,circuitId);
+        if(providerCircuitActive(circuit))continue;
+        return {provider:candidateProvider,credential,keyRef,circuitId,circuit};
+      }
+    }
+    return null;
+  };
+  if(needsProvider&&!Object.values(available).some(Boolean)){
+    report('SKIPPED','NO_FREE_PROVIDER_AVAILABLE',{articleId});return;
+  }
+  let calls=0,lastProvider=null;
   while(state.sectionIndex<topic.sections.length){
     if(calls>=config.limits.maxProviderCallsPerRun){report('CHECKPOINTED','CALL_BUDGET_LIMIT',{articleId,sectionIndex:state.sectionIndex});return}
     const index=state.sectionIndex;
@@ -142,8 +157,14 @@ async function run(){
       state=await saveCheckpoint(config,checkpointState(state,'DRAFT_SAVED',{sections:[...state.sections,{heading:topic.sections[index],html,hash:hash(html)}],sectionIndex:index+1,pendingResponse:null}));
       continue;
     }
-    const credential=provider==='gemini'?selectGeminiKey(process.env,index):{key:process.env.GROQ_API_KEY,keySlot:0,source:'GROQ_API_KEY'};
-    if(!credential){report('SKIPPED','PROVIDER_KEY_UNAVAILABLE',{provider});return}
+    const chosen=await chooseCredential(index);
+    if(!chosen){
+      report('SKIPPED','ALL_FREE_PROVIDERS_IN_COOLDOWN',{articleId,enabledProviders:priority.filter(p=>available[p])});
+      return;
+    }
+    const {provider,credential,keyRef,circuitId,circuit}=chosen;
+    const model=config.models[provider];
+    lastProvider=provider;
     const prompt=[
       'Write an original, useful '+(topic.country==='SA'?'Saudi Arabic':'UAE English')+' consumer shopping article SECTION, valid HTML fragment only.',
       'Topic: '+topic.topic+'. Brand: '+topic.brand+'. Category: '+topic.category+'.',
@@ -170,7 +191,7 @@ async function run(){
           resumeAt:new Date(Date.now()+pauseSec*1000).toISOString(),version:Number(circuit?.version||0)+1});}
         catch(e){report('BLOCKED','PROVIDER_QUOTA_CIRCUIT_WRITE_FAILED',{provider,articleId});return}
       }
-      report('BLOCKED',next,{articleId,provider,httpStatus:result.httpStatus,reason:result.category,calls});return;
+      report('BLOCKED',next,{articleId,provider,keyRef,httpStatus:result.httpStatus,reason:result.category,calls});return;
     }
     const html=result.content.trim();
     if(!html||html.includes(String.fromCharCode(96).repeat(3))||/<script\b|<iframe\b|<form\b/i.test(html)){
@@ -181,7 +202,7 @@ async function run(){
     // confirmed response and incremented section index. If interrupted before
     // this write, REQUEST_SENT remains and forbids an unbilled blind retry.
     state=await saveCheckpoint(config,checkpointState(state,'DRAFT_SAVED',{
-      sections:[...state.sections,{heading:topic.sections[index],html,hash:hash(html)}],
+      sections:[...state.sections,{heading:topic.sections[index],html,hash:hash(html),provider,keyRef}],
       sectionIndex:index+1,pendingResponse:null,requestId:result.requestId||null,
       lastRequestStatus:200,provider,model}));
   }
@@ -250,6 +271,6 @@ async function run(){
   }catch{}
   if(!verified){report('CHECKPOINTED','STORED_BUT_LIVE_NOT_VERIFIED',{articleId,url:payload.url,livePublished:false});return}
   await saveCheckpoint(config,checkpointState(state,'LIVE_VERIFIED',{liveVerifiedAt:now(),liveUrl:payload.url}));
-  report('LIVE_VERIFIED','NATIVE_QUALITY_AND_PUBLIC_URL_VERIFIED',{articleId,url:payload.url,quality:payload.quality,words:check.wordCount,provider,calls,livePublished:true});
+  report('LIVE_VERIFIED','NATIVE_QUALITY_AND_PUBLIC_URL_VERIFIED',{articleId,url:payload.url,quality:payload.quality,words:check.wordCount,provider:lastProvider,calls,livePublished:true});
 }
 run().catch(e=>{console.error('AI_V2_SAFE_FAILURE '+String(e?.message||e).slice(0,250));process.exitCode=1});

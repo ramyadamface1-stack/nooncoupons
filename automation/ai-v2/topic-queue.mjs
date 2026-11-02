@@ -35,7 +35,12 @@ export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume
  // Quarantine it for independent reconciliation: never auto-publish it again
  // and never let it monopolize the global queue cursor.
  if(['LIVE_VERIFIED','QUALITY_PASSED','COMMITTED','FAILED_FINAL','UNKNOWN_PUBLICATION_OUTCOME'].includes(state))return false;
- if(state==='PAUSED_QUOTA')return manualGroqResume;
+ // Resume only a definitive HTTP 429 with another healthy free key/provider.
+ // Ambiguous responses remain quarantined; never risk duplicate charges.
+ if(state==='PAUSED_QUOTA')return manualGroqResume||(
+  checkpoint.errorCategory==='QUOTA'&&Number(checkpoint.lastRequestStatus)===429&&
+  Number.isInteger(checkpoint.sectionIndex)&&checkpoint.sectionIndex>=0&&checkpoint.sectionIndex<5&&
+  checkpoint.sections?.length===checkpoint.sectionIndex);
  if(state==='BLOCKED_REVIEW')
   return (autoSafeSaudiRecovery&&safeSaudiDeterministicRecovery(checkpoint,topic))||
    (manualIncompleteRetry&&manualGroqResume&&checkpoint.errorCategory==='INCOMPLETE_RESPONSE')||
