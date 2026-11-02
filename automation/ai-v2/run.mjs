@@ -133,6 +133,10 @@ async function run(){
     const preferred=explicitGroqResume?['groq']:priority;
     for(const candidateProvider of preferred){
       if(!available[candidateProvider])continue;
+      // A provider-wide definite 503 uses a short circuit so a failing
+      // service never burns through every free key or fills the draft queue.
+      const globalCircuitId=providerCircuitId(candidateProvider,hash);
+      if(providerCircuitActive(await readCheckpoint(config,globalCircuitId)))continue;
       const poolSize=candidateProvider==='gemini'?geminiKeys.eligibleCount:groqKeys.eligibleCount;
       for(let n=0;n<poolSize;n++){
         const credential=candidateProvider==='gemini'
@@ -189,23 +193,30 @@ async function run(){
       report('BLOCKED','UNKNOWN_REQUEST_OUTCOME',{articleId,sectionIndex:index,provider,calls});return;
     }
     if(!result.ok){
-      const next=result.category==='QUOTA'?'PAUSED_QUOTA':'BLOCKED_REVIEW';
-      // A definitive 429 never consumed this section. Persist that known result
-      // BEFORE switching credentials; uncertain network outcomes stay quarantined.
+      const quota=result.category==='QUOTA'&&result.httpStatus===429;
+      const temporary=result.category==='PROVIDER_TEMPORARY'&&[500,502,503,504].includes(result.httpStatus);
+      const next=quota?'PAUSED_QUOTA':temporary?'PAUSED_PROVIDER':'BLOCKED_REVIEW';
+      // Confirmed provider HTTP errors are checkpointed; network uncertainty
+      // still stays quarantined above and must never be retried automatically.
       state=await saveCheckpoint(config,checkpointState(state,next,{
         errorCategory:result.category,lastRequestStatus:result.httpStatus,retryAfter:result.retryAfter||null
       }));
-      if(result.category==='QUOTA'){
-        const pauseSec=quotaCooldownSeconds(result.retryAfter);
-        try{await saveCheckpoint(config,{articleId:circuitId,state:'PAUSED_QUOTA',provider,createdAt:now(),
-          resumeAt:new Date(Date.now()+pauseSec*1000).toISOString(),version:Number(circuit?.version||0)+1});}
-        catch(e){report('BLOCKED','PROVIDER_QUOTA_CIRCUIT_WRITE_FAILED',{provider,articleId});return}
-        // The next pass reads per-key circuits. Groq 429 falls straight through
-        // to an available Gemini key (or another independent free Groq key).
-        // Keep the saved section index and the overall per-run call budget.
-        console.log('AI_V2_QUOTA_FAILOVER '+JSON.stringify({provider,keyRef,articleId,
-          nextPreference:provider==='groq'?'gemini':'next-healthy-free-key',
-          calls,sectionIndex:index,pauseSeconds:pauseSec}));
+      if(quota||temporary){
+        const pauseSec=quota?quotaCooldownSeconds(result.retryAfter):300;
+        const pauseCircuitId=temporary?providerCircuitId(provider,hash):circuitId;
+        const oldPause=temporary?await readCheckpoint(config,pauseCircuitId):circuit;
+        try{await saveCheckpoint(config,{articleId:pauseCircuitId,
+          state:quota?'PAUSED_QUOTA':'PAUSED_PROVIDER',provider,createdAt:now(),
+          resumeAt:new Date(Date.now()+pauseSec*1000).toISOString(),version:Number(oldPause?.version||0)+1});}
+        catch(e){report('BLOCKED','PROVIDER_CIRCUIT_WRITE_FAILED',{provider,articleId});return}
+        // No section is regenerated or discarded. On the next iteration the
+        // selector skips the paused provider/key and tries another free source
+        // in the SAME GitHub run, subject to the strict 5-request maximum.
+        console.log('AI_V2_PROVIDER_FAILOVER '+JSON.stringify({
+          provider,keyRef,articleId,httpStatus:result.httpStatus,
+          fallbackPreference:provider==='groq'?'gemini':'healthy-free-provider',
+          calls,sectionIndex:index,pauseSeconds:pauseSec
+        }));
         continue;
       }
       report('BLOCKED',next,{articleId,provider,keyRef,httpStatus:result.httpStatus,reason:result.category,calls});return;
