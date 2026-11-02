@@ -38,6 +38,9 @@ test('provider section persists an ambiguous-request boundary then one verified 
  assert.match(runtime,/selectGeminiKey\(process\.env,index\+n\)/);
  assert.match(runtime,/selectGroqKey\(process\.env,index\+n\)/);
  assert.match(runtime,/ALL_FREE_PROVIDERS_IN_COOLDOWN/);
+ assert.match(runtime,/AI_V2_PROVIDER_FAILOVER/);
+ assert.match(runtime,/const temporary=result.category==='PROVIDER_TEMPORARY'/);
+ assert.match(runtime,/const quota=result.category==='QUOTA'/);
  assert.match(runtime,/checkpointState\(state,'PUBLISH_REQUEST_SENT'/);
  assert.match(runtime,/checkpointState\(state,'LIVE_VERIFIED'/);
 });
