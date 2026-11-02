@@ -6,6 +6,7 @@ Outputs only aggregate ADD/CHANGE/UNCHANGED/MISSING counts, never key names
 or value contents. Missing from newer snapshot is never a deletion instruction.
 """
 import collections
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import os
@@ -58,28 +59,33 @@ def fingerprint(value):
 
 
 def load_items(s3, tag, kind, manifest, t0):
+    # Eight bounded concurrent GETs cut a 5,700-object read-only comparison
+    # from ~30 min to a few minutes. No R2 PUT/DELETE or DO requests.
     seen = {}
     count = 0
-    for n in range(1, manifest["parts"] + 1):
-        if time.monotonic() - t0 > MAX_SECONDS:
-            raise RuntimeError("diff_time_budget_exceeded_no_data_written")
+    def fetch_part(n):
         key = f"migration/do-state/{tag}/{kind}/part-{n:07d}.json"
-        obj = get_json(s3, key)
-        if not (isinstance(obj, dict) and obj.get("version") == 1
-                and obj.get("tag") == tag and obj.get("type") == kind
-                and obj.get("part") == n and isinstance(obj.get("entries"), list)
-                and len(obj["entries"]) <= 128):
-            raise RuntimeError("bad_export_part_" + tag + "_" + kind + "_" + str(n))
-        for row in obj["entries"]:
-            if not (isinstance(row, list) and len(row) == 2 and isinstance(row[0], str)):
-                raise RuntimeError("bad_row_in_export_" + kind)
-            name, val = row
-            if name in seen:
-                raise RuntimeError("duplicate_export_key_" + kind)
-            seen[name] = fingerprint(val)
-            count += 1
-        if n % 500 == 0:
-            print(f"DO_DELTA_PROGRESS kind={kind} snapshot={tag} parts={n}/{manifest['parts']}", flush=True)
+        return get_json(s3, key)
+
+    with ThreadPoolExecutor(max_workers=8, thread_name_prefix="r2-read-only") as pool:
+        for n, obj in enumerate(pool.map(fetch_part, range(1, manifest["parts"] + 1)), 1):
+            if time.monotonic() - t0 > MAX_SECONDS:
+                raise RuntimeError("diff_time_budget_exceeded_no_data_written")
+            if not (isinstance(obj, dict) and obj.get("version") == 1
+                    and obj.get("tag") == tag and obj.get("type") == kind
+                    and obj.get("part") == n and isinstance(obj.get("entries"), list)
+                    and len(obj["entries"]) <= 128):
+                raise RuntimeError("bad_export_part_" + tag + "_" + kind + "_" + str(n))
+            for row in obj["entries"]:
+                if not (isinstance(row, list) and len(row) == 2 and isinstance(row[0], str)):
+                    raise RuntimeError("bad_row_in_export_" + kind)
+                name, val = row
+                if name in seen:
+                    raise RuntimeError("duplicate_export_key_" + kind)
+                seen[name] = fingerprint(val)
+                count += 1
+            if n % 500 == 0:
+                print(f"DO_DELTA_PROGRESS kind={kind} snapshot={tag} parts={n}/{manifest['parts']}", flush=True)
     if count != manifest["exported"]:
         raise RuntimeError("manifest_count_mismatch_" + tag + "_" + kind)
     return seen
