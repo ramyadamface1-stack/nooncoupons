@@ -142,5 +142,5 @@ jobs:
           node --check automation/ai-v2/r2-checkpoints.mjs
           node automation/ai-v2/run.mjs | tee /tmp/noondealsnow-ai-v2-report.txt
           echo '### NoonDealsNow AI V2' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Successful job does not equal a published article; live integration is off.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Publication is confirmed only when AI_V2_REPORT.status=LIVE_VERIFIED and the public article URL is verified; PREFLIGHT, CHECKPOINTED, BLOCKED, and SKIPPED are not publications.' >> "$GITHUB_STEP_SUMMARY"
           grep '^AI_V2_REPORT ' /tmp/noondealsnow-ai-v2-report.txt >> "$GITHUB_STEP_SUMMARY" || true
