@@ -105,6 +105,8 @@ test('Saudi saved drafts get one strict zero-provider native gate re-audit, neve
   score:99,p0:['title_avoids_literal_coupon_code'],failed:['title_avoids_literal_coupon_code'],schemas:[],duplicates:[],indexation:[]
  }};
  assert.equal(safeSaudiDeterministicRecovery(native,sa),true);
+ const technicalCouponLock={...native,nativeGateDiagnostics:{...native.nativeGateDiagnostics,p0:['coupon_lock'],failed:['coupon_lock']}};
+ assert.equal(safeSaudiDeterministicRecovery(technicalCouponLock,sa),true);
  assert.equal(safeSaudiDeterministicRecovery({...native,nativeGateDiagnostics:{...native.nativeGateDiagnostics,failed:['title_avoids_literal_coupon_code','duplicate']}},sa),false);
  assert.equal(safeSaudiDeterministicRecovery({...native,sections:[]},sa),false);
  assert.equal(safeSaudiDeterministicRecovery({state:'UNKNOWN_REQUEST_OUTCOME',sectionIndex:5,sections:base.sections},sa),false);
