@@ -1,4 +1,4 @@
-name: NoonDealsNow AI V2 Saudi Native Gate Diagnosis
+name: NoonDealsNow AI V2 Native Gate Diagnosis
 on:
   push:
     branches: [main]
@@ -18,11 +18,11 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: '22'}
       - run: npm install --no-audit --no-fund --ignore-scripts
-      - name: Read only masked editorial diagnostics for saved Saudi checkpoint
+      - name: Read only masked editorial diagnostics for saved AI V2 checkpoint
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler r2 object get nooncoupons-content-v2/_ops/ai-v2-checkpoints/2f9d4f9c9f4a8514460f762f.json --remote --file /tmp/sa-gate.json > /tmp/wrangler-out.log
+          npx wrangler r2 object get nooncoupons-content-v2/_ops/ai-v2-checkpoints/eb741fe3fd42c1e30d15b677.json --remote --file /tmp/sa-gate.json > /tmp/wrangler-out.log
           jq '{state,errorCategory,sectionIndex,sectionCount:(.sections|length),nativeGateDiagnostics:{score:.nativeGateDiagnostics.score,words:.nativeGateDiagnostics.words,p0:.nativeGateDiagnostics.p0,failed:.nativeGateDiagnostics.failed,schemas:.nativeGateDiagnostics.schemas,duplicates:.nativeGateDiagnostics.duplicates,indexation:.nativeGateDiagnostics.indexation}}' /tmp/sa-gate.json
           node --input-type=module - <<'NODE'
           import {readFileSync} from 'node:fs';
@@ -30,6 +30,6 @@ jobs:
           const html=String(s.nativeArticle?.html||s.draftHtml||'');
           const plain=html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ');
           const codes=[...new Set(plain.match(/\b[A-Z]{2,8}\d{1,6}\b/g)||[])];
-          console.log('SA_COUPON_LOCK_TOKENS='+JSON.stringify({tokens:codes,approved:s.nativeTopic?.code||s.topic?.coupon||null}));
+          console.log('AI_V2_COUPON_LOCK_TOKENS='+JSON.stringify({tokens:codes,approved:s.nativeTopic?.code||s.topic?.coupon||null}));
           NODE
           echo 'AI_GENERATION_CALLS=ZERO'
