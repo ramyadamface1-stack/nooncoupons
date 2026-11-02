@@ -9,7 +9,7 @@ export function buildSaudiAiV2Article(topic,sections,{verifiedAt=new Date().toIS
  // Buying-guide titles stay editorial; coupon tokens remain in CTA, body,
  // image alt text and the existing immutable slug. This is required by the
  // full native SEO P0 title_avoids_literal_coupon_code gate.
- const slug=String(topic.slug||''),title=String(topic.topic||'').replace(/\\b(?:NOV|OPS)\\d+\\b/gi,'').replace(/\\s{2,}/g,' ').replace(/\\s+\\|/g,' |').trim(),brand=String(topic.brand||''),category=String(topic.category||'');
+ const slug=String(topic.slug||''),title=String(topic.topic||'').replace(/\b(?:NOV|OPS)\d+\b/gi,'').replace(/\s{2,}/g,' ').replace(/\s+\|/g,' |').trim(),brand=String(topic.brand||''),category=String(topic.category||'');
  if(!/^[a-z0-9-]{16,120}$/.test(slug)||!title||!brand||!category)throw Error('INCOMPLETE_SAUDI_TOPIC');
  const code='NOV170',factor='الضمان',scenario='اختيار البائع قبل الشراء',useCase='المقارنة قبل الدفع';
  const saved=sections.map(s=>trimAiSectionHtml(s.html,250));
