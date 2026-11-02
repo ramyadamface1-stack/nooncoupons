@@ -8,7 +8,7 @@ export function couponCodeCandidates(plain,topic={}){
  // a critical failure; never blanket-allow CP-number patterns.
  const canonSelphy=/(?:canon|كانون)/i.test(String(topic?.brand||''))&&/\bselphy\b|سيلفي/i.test(body);
  // TP-Link Archer AX90 is a genuine router model, not a discount code.
- const tpLinkRouter=/(?:tp[-\\s]?link|تي\\s*بي\\s*لينك)/i.test(String(topic?.brand||''))&&/(?:archer|راوتر|router|آرتشر)/i.test(body);
+ const tpLinkRouter=/(?:tp[-\s]?link|تي\s*بي\s*لينك)/i.test(String(topic?.brand||''))&&/(?:archer|راوتر|router|آرتشر)/i.test(body);
  return [...new Set((body.match(/\b[A-Z]{2,8}\d{1,6}\b/g)||[])
    .map(x=>x.toUpperCase()).filter(x=>!specs.test(x)&&!(canonSelphy&&x==='CP1300')&&!(tpLinkRouter&&x==='AX90')))];
 }
