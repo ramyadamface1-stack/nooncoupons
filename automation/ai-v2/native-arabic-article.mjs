@@ -6,7 +6,10 @@ const data=s=>JSON.stringify(s).replace(/</g,'\\u003c');
 export function buildSaudiAiV2Article(topic,sections,{verifiedAt=new Date().toISOString()}={}){
  if(topic?.country!=='SA'||topic.language!=='ar-SA'||topic.coupon!=='NOV170')throw Error('WRONG_SAUDI_MARKET');
  if(!Array.isArray(sections)||sections.length!==5)throw Error('AI_SECTION_COUNT_MISMATCH');
- const slug=String(topic.slug||''),title=String(topic.topic||''),brand=String(topic.brand||''),category=String(topic.category||'');
+ // Buying-guide titles stay editorial; coupon tokens remain in CTA, body,
+ // image alt text and the existing immutable slug. This is required by the
+ // full native SEO P0 title_avoids_literal_coupon_code gate.
+ const slug=String(topic.slug||''),title=String(topic.topic||'').replace(/\\b(?:NOV|OPS)\\d+\\b/gi,'').replace(/\\s{2,}/g,' ').replace(/\\s+\\|/g,' |').trim(),brand=String(topic.brand||''),category=String(topic.category||'');
  if(!/^[a-z0-9-]{16,120}$/.test(slug)||!title||!brand||!category)throw Error('INCOMPLETE_SAUDI_TOPIC');
  const code='NOV170',factor='الضمان',scenario='اختيار البائع قبل الشراء',useCase='المقارنة قبل الدفع';
  const saved=sections.map(s=>trimAiSectionHtml(s.html,250));
