@@ -75,9 +75,7 @@ test('mixed AQ and AIza Gemini keys are all eligible in the bulk secret',()=>{
 
 test('Gemini extra secret adds keys without replacing existing bulk keys',()=>{
   const a=newer('a'),b=older('b'),c=newer('c');
-  const env={GEMINI_API_KEYS:a,GEMINI_API_KEYS_EXTRA:b+'\
-'+c+'\
-'+a};
+  const env={GEMINI_API_KEYS:a,GEMINI_API_KEYS_EXTRA:[b,c,a].join(',')};
   const i=geminiKeyInventory(env);
   assert.equal(i.eligibleCount,3);
   assert.equal(i.extraCount,3);
