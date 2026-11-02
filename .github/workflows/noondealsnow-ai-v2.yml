@@ -40,6 +40,9 @@ concurrency:
 
 jobs:
   safety-tests:
+    # A push checks the complete safety suite once per release, not on every
+    # minute tick; scheduled generation still performs fast syntax/secret guards.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -109,7 +112,6 @@ jobs:
         run: node automation/ai-v2/run.mjs
 
   preflight-or-generate:
-    needs: safety-tests
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -135,6 +137,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node --check automation/ai-v2/run.mjs
+          node --check automation/ai-v2/guardrails.mjs
+          node --check automation/ai-v2/r2-checkpoints.mjs
           node automation/ai-v2/run.mjs | tee /tmp/noondealsnow-ai-v2-report.txt
           echo '### NoonDealsNow AI V2' >> "$GITHUB_STEP_SUMMARY"
           echo 'Successful job does not equal a published article; live integration is off.' >> "$GITHUB_STEP_SUMMARY"
