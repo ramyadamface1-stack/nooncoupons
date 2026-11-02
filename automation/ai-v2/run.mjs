@@ -89,8 +89,22 @@ async function run(){
     try{const res=await fetch(url,{signal:AbortSignal.timeout(18000),headers:{'cache-control':'no-cache'}});
       live=res.status===200&&(await res.text()).includes(topic.coupon);
     }catch{}
-    if(live){await saveCheckpoint(config,checkpointState(state,'LIVE_VERIFIED',{liveVerifiedAt:now(),liveUrl:url}));report('LIVE_VERIFIED','RESUMED_AFTER_AMBIGUOUS_PUBLISH',{articleId,url});}
-    else report('BLOCKED','PUBLISH_OUTCOME_REQUIRES_REVIEW',{articleId,state:state.state});
+    if(live){
+      await saveCheckpoint(config,checkpointState(state,'LIVE_VERIFIED',{liveVerifiedAt:now(),liveUrl:url}));
+      report('LIVE_VERIFIED','RESUMED_AFTER_AMBIGUOUS_PUBLISH',{articleId,url});
+    }else{
+      // The write may have committed even when the network response was lost.
+      // Preserve it as an ambiguous quarantine record; the queue excludes it
+      // from future unattended attempts, while manual reconciliation remains
+      // possible from its immutable R2 checkpoint and public URL.
+      if(state.state!=='UNKNOWN_PUBLICATION_OUTCOME'){
+        state=await saveCheckpoint(config,checkpointState(state,'UNKNOWN_PUBLICATION_OUTCOME',{
+          errorCategory:'PUBLISH_PUBLIC_URL_NOT_VERIFIED',reviewRequired:true,
+          lastPublicVerificationAt:now(),candidateLiveUrl:url
+        }));
+      }
+      report('BLOCKED','PUBLISH_OUTCOME_QUARANTINED_FOR_REVIEW',{articleId,formerState:state.state,livePublished:false});
+    }
     return;
   }
   if(!state){
