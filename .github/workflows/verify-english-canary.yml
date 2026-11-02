@@ -99,7 +99,11 @@ jobs:
             grep -Fq "<html lang=\"$market_lang\" dir=\"ltr\">" /tmp/page.html
             grep -Fq "<link rel=\"canonical\" href=\"$ORIGIN$path\">" /tmp/page.html
             grep -Fq "hreflang=\"$market_lang\" href=\"$ORIGIN$path\"" /tmp/page.html
-            grep -Fq "hreflang=\"$arabic_lang\" href=\"$ORIGIN$arabic_path\"" /tmp/page.html
+            # A country landing page is not a translated edition of this article.
+            # Never demand a misleading Arabic hub URL as a reciprocal hreflang.
+            if grep -Fq "hreflang=\"$arabic_lang\" href=\"$ORIGIN$arabic_path\"" /tmp/page.html; then
+              echo "ENGLISH_CANARY_INVALID_ARABIC_HUB_HREFLANG=$path"; exit 1
+            fi
             grep -Fq "hreflang=\"x-default\" href=\"$ORIGIN$path\"" /tmp/page.html
             grep -Fq 'data-copy-code=' /tmp/page.html
             grep -Fq 'Copy ' /tmp/page.html
