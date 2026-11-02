@@ -53,10 +53,12 @@ test('AI V2 hourly publication counters are based on actual ledger entries by co
  {slug:'d-earlier-comparison-2026',country:'SA',publishedAt:'2026-10-31T09:00:00Z'}
  ]}};
  const result=aiV2PublicationWindows(ledger,now);
- assert.deepEqual(result.windows['1h'],{total:1,SA:1,AE:0});
- assert.deepEqual(result.windows['2h'],{total:2,SA:1,AE:1});
- assert.deepEqual(result.windows['6h'],{total:2,SA:1,AE:1});
- assert.deepEqual(result.windows['24h'],{total:3,SA:1,AE:2});
+ assert.deepEqual({total:result.windows['1h'].total,SA:result.windows['1h'].SA,AE:result.windows['1h'].AE},{total:1,SA:1,AE:0});
+ assert.deepEqual({total:result.windows['2h'].total,SA:result.windows['2h'].SA,AE:result.windows['2h'].AE},{total:2,SA:1,AE:1});
+ assert.deepEqual({total:result.windows['6h'].total,SA:result.windows['6h'].SA,AE:result.windows['6h'].AE},{total:2,SA:1,AE:1});
+ assert.deepEqual({total:result.windows['24h'].total,SA:result.windows['24h'].SA,AE:result.windows['24h'].AE},{total:3,SA:1,AE:2});
+ assert.deepEqual(result.windows['24h'].byProvider,{gemini:0,groq:0,unknown:3});
+ assert.deepEqual(result.windows['24h'].byKey,{unknown:3});
  assert.equal(result.lastArticle.country,'SA');
  assert.equal(aiV2PublicationWindows({ok:false,reason:'UNAVAILABLE'}).available,false);
 });
