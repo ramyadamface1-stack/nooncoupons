@@ -23,6 +23,7 @@
   ],
   "models": {
     "gemini": "gemini-3.8-flash",
+    "geminiFallback": "gemini-3.5-flash-lite",
     "groq": "openai/gpt-oss-120b"
   },
   "limits": {
