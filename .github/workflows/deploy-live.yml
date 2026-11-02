@@ -3,6 +3,12 @@ name: Deploy Live Worker
 on:
   push:
     branches: [main]
+    # AI generation, scheduler and tests are not changes to the live site Worker.
+    # Avoid unnecessary production deployments and repeated 1027 smoke checks.
+    paths-ignore:
+      - 'automation/ai-v2/**'
+      - 'ai-scheduler-v2/**'
+      - 'tests/ai-v2-*.mjs'
   workflow_dispatch:
 
 permissions:
