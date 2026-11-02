@@ -1,6 +1,7 @@
 // Dedicated canonical count for AI V2 articles on the existing R2 bucket.
 // DO publisher, existing bulk counters, historical manifests are NOT modified.
 // Atomic conditional writes prevent duplicate IDs and lost updates.
+import {normalizeAttribution} from './automation/ai-v2/attribution.mjs';
 export const AI_V2_LEDGER_KEY='_ops/ai-v2-publication-ledger-v1.json';
 const fmt=s=>String(s||'');
 const slugOk=s=>/^[a-z0-9-]{16,120}$/.test(fmt(s))&&!fmt(s).includes('--');
@@ -26,11 +27,15 @@ export async function readAiV2PublicationLedger(env){
 }
 export async function recordAiV2Publication(env,entry){
  if(!slugOk(entry?.slug)||!['SA','AE'].includes(entry?.country))return {ok:false,reason:'INVALID_PUBLICATION_RECORD'};
+ const attribution=entry.attribution==null?null:normalizeAttribution(entry.attribution);
+ if(entry.attribution!=null&&!attribution)return {ok:false,reason:'INVALID_PROVIDER_ATTRIBUTION'};
  for(let i=0;i<4;i++){
   const old=await readAiV2PublicationLedger(env);
   if(!old.ok)return old;
   if(old.ledger.articles.some(x=>x.slug===entry.slug))return {ok:true,recorded:false,alreadyPresent:true,count:old.count};
-  const article={slug:entry.slug,country:entry.country,publishedAt:fmt(entry.publishedAt)||new Date().toISOString(),provider:'ai-v2-native'};
+  const article={slug:entry.slug,country:entry.country,publishedAt:fmt(entry.publishedAt)||new Date().toISOString(),
+   provider:attribution?.provider||'unknown',keyRef:attribution?.keyRef||null,
+   contributors:attribution?.contributors||[],attributionComplete:Boolean(attribution)};
   const ledger={version:1,updatedAt:new Date().toISOString(),articles:[...old.ledger.articles,article]};
   const options={onlyIf:old.etag?{etagMatches:old.etag}:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'application/json; charset=utf-8'}};
   try{
@@ -51,7 +56,9 @@ export async function reconcileAiV2Publication(env,{slug}={}){
  if(meta.p!=='ai-v2-native'||meta.status!=='published')return {ok:false,reason:'NOT_VERIFIED_AI_V2_PUBLICATION'};
  const country=meta.c==='AE'?'AE':meta.c==='SA'?'SA':null;
  if(!country)return {ok:false,reason:'UNVERIFIED_ARTICLE_MARKET'};
- const result=await recordAiV2Publication(env,{slug,country,publishedAt:meta.at});
+ let attribution=null;
+ try{attribution=meta.aiAttribution?normalizeAttribution(JSON.parse(meta.aiAttribution)):null}catch{}
+ const result=await recordAiV2Publication(env,{slug,country,publishedAt:meta.at,attribution});
  return {...result,verifiedInR2:true};
 }
 
@@ -88,11 +95,18 @@ export function aiV2PublicationWindows(ledgerRead,atMs=Date.now()){
  const durations=[1,2,6,24],windows={};
  for(const h of durations){
   const byMarket={SA:0,AE:0};
+  const byProvider={gemini:0,groq:0,unknown:0},byKey={};
   for(const a of data){
    const timestamp=Date.parse(a.publishedAt),age=atMs-timestamp;
-   if(Number.isFinite(timestamp)&&age>=0&&age<h*3600000&&['SA','AE'].includes(a.country))byMarket[a.country]++;
+   if(!(Number.isFinite(timestamp)&&age>=0&&age<h*3600000&&['SA','AE'].includes(a.country)))continue;
+   byMarket[a.country]++;
+   const provider=a.provider==='gemini'||a.provider==='groq'?a.provider:'unknown';
+   const key=provider!=='unknown'&&typeof a.keyRef==='string'&&/^[a-f0-9]{12}$/.test(a.keyRef)
+     ?provider+':'+a.keyRef:'unknown';
+   byProvider[provider]++;
+   byKey[key]=(byKey[key]||0)+1;
   }
-  windows[h+'h']={total:byMarket.SA+byMarket.AE,...byMarket};
+  windows[h+'h']={total:byMarket.SA+byMarket.AE,...byMarket,byProvider,byKey};
  }
  const newest=[...data].sort((a,b)=>String(b.publishedAt).localeCompare(String(a.publishedAt)))[0]||null;
  return {available:true,total:data.length,windows,lastArticle:newest?

@@ -6,6 +6,7 @@ import {evaluateIndexation} from './indexation-gate.js';
 import {couponStatus} from './coupon-registry.js';
 import {getPublicationSlotStatus,claimPublicationSlot} from './publication-rate-limit.js';
 import {recordAiV2Publication} from './ai-v2-publication-ledger.js';
+import {normalizeAttribution} from './automation/ai-v2/attribution.mjs';
 
 // Protected by the existing Cloudflare-authenticated /api/internal/ route.
 // This bridge NEVER accepts a fragment as a live article or reduces any
@@ -19,6 +20,7 @@ export function validateAiV2NativePayload(payload){
  if(topic.code!==rule.code||article.coupon!==rule.code||!isApprovedMarketCoupon(rule.code,topic.country))return reject('INVALID_MARKET_COUPON');
  if(topic.language!==rule.lang||article.country!==topic.country)return reject('INVALID_LANGUAGE');
  if(checkpoint.state!=='PREPARED_FOR_NATIVE_AUDIT'||!/[a-f0-9]{24}/.test(String(checkpoint.articleId||'')))return reject('CHECKPOINT_NOT_APPROVED');
+ if(checkpoint.attribution!=null&&!normalizeAttribution(checkpoint.attribution))return reject('INVALID_PROVIDER_ATTRIBUTION');
  if(typeof article.slug!=='string'||!/^[a-z0-9-]{16,120}$/.test(article.slug)||article.slug!==topic.slug||article.slug.includes('--'))return reject('INVALID_SLUG');
  if(!article.title||!article.primaryKeyword||!article.metaDescription)return reject('INCOMPLETE_SEO');
  const html=article.html;
@@ -66,14 +68,16 @@ export async function publishAiV2NativeArticle(env,payload){
  const permit=await claimPublicationSlot(env,topic.country,'ai-v2-native');
  if(!permit.ok)return reject('GLOBAL_PUBLICATION_SLOT_NOT_GRANTED');
  const at=new Date().toISOString();
+ const attribution=checkpoint.attribution?normalizeAttribution(checkpoint.attribution):null;
  try{
   const saved=await env.CONTENT_FINAL.put(key,article.html,{onlyIf:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'text/html; charset=utf-8'},
    customMetadata:{status:'published',t:encodeURIComponent(article.title).slice(0,900),m:encodeURIComponent(article.metaDescription).slice(0,900),
-    c:topic.country,cp:article.coupon,q:String(audit.score),w:String(audit.wordCount),at,p:'ai-v2-native'}});
+    c:topic.country,cp:article.coupon,q:String(audit.score),w:String(audit.wordCount),at,p:'ai-v2-native',
+     ...(attribution?{aiAttribution:JSON.stringify(attribution)}:{})}});
   if(!saved)return reject('ARTICLE_ALREADY_EXISTS_AFTER_PERMIT');
  }catch{return reject('ARTICLE_WRITE_OUTCOME_UNKNOWN',{articleId:checkpoint.articleId})}
  let ledgerResult;
- try{ledgerResult=await recordAiV2Publication(env,{slug:article.slug,country:topic.country,publishedAt:at})}
+ try{ledgerResult=await recordAiV2Publication(env,{slug:article.slug,country:topic.country,publishedAt:at,attribution})}
  catch{ledgerResult={ok:false,reason:'LEDGER_UNAVAILABLE'}}
  // A durable acknowledgement is not proof that the public URL renders.
  return {ok:true,stored:true,state:'STORED_AWAITING_LIVE_VERIFICATION',articleId:checkpoint.articleId,slug:article.slug,

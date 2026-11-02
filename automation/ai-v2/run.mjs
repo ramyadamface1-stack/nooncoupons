@@ -9,6 +9,7 @@ import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
 import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive} from './provider-circuit.mjs';
+import {summarizeSectionAttribution} from './attribution.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
 const runStartedAt=Date.now();
@@ -239,6 +240,9 @@ async function run(){
       draftHtml:draftHtml,contentHash:hash(draftHtml),errorCategory:null}));
   }
   const html=native.article.html;
+  // Historical incomplete checkpoints are intentionally attributed to UNKNOWN.
+  // New full drafts record only opaque provider key fingerprints.
+  const attribution=summarizeSectionAttribution(state.sections);
   const token=process.env.NOONDEALSNOW_AI_SITE_PUBLISH_TOKEN;
   if(!token){report('CHECKPOINTED','SITE_PUBLISH_TOKEN_MISSING',{articleId,words:check.wordCount,livePublished:false});return}
   // The native Worker re-runs full quality, schema, novelty and 60s DO gate.
@@ -249,7 +253,7 @@ async function run(){
     response=await fetch(config.domain+'/api/internal/ai-v2/publish',{
       method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},
       body:JSON.stringify({topic:native.topic,article:native.article,
-        checkpoint:{articleId,state:'PREPARED_FOR_NATIVE_AUDIT',contentHash:hash(html)}}),
+        checkpoint:{articleId,state:'PREPARED_FOR_NATIVE_AUDIT',contentHash:hash(html),attribution}}),
       signal:AbortSignal.timeout(45000)});
     payload=await response.json();
   }catch{
@@ -271,6 +275,6 @@ async function run(){
   }catch{}
   if(!verified){report('CHECKPOINTED','STORED_BUT_LIVE_NOT_VERIFIED',{articleId,url:payload.url,livePublished:false});return}
   await saveCheckpoint(config,checkpointState(state,'LIVE_VERIFIED',{liveVerifiedAt:now(),liveUrl:payload.url}));
-  report('LIVE_VERIFIED','NATIVE_QUALITY_AND_PUBLIC_URL_VERIFIED',{articleId,url:payload.url,quality:payload.quality,words:check.wordCount,provider:lastProvider,calls,livePublished:true});
+  report('LIVE_VERIFIED','NATIVE_QUALITY_AND_PUBLIC_URL_VERIFIED',{articleId,url:payload.url,quality:payload.quality,words:check.wordCount,provider:attribution?.provider||lastProvider,keyRef:attribution?.keyRef||null,providerMixed:attribution?.mixed||false,calls,livePublished:true});
 }
 run().catch(e=>{console.error('AI_V2_SAFE_FAILURE '+String(e?.message||e).slice(0,250));process.exitCode=1});
