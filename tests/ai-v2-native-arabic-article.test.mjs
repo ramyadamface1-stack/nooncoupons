@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import topics from '../automation/ai-v2/topics.json' with {type:'json'};
 import {buildSaudiAiV2Article} from '../automation/ai-v2/native-arabic-article.mjs';
 import {validateAiV2NativePayload} from '../ai-v2-native-publish-bridge.js';
+import {couponCodeCandidates} from '../quality-audit.js';
 import {qualityPreflight} from '../automation/ai-v2/guardrails.mjs';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 const sa=topics.find(t=>t.country==='SA');
@@ -55,4 +56,10 @@ test('short Saudi drafts receive useful verification guidance without bypassing 
  const quality=qualityPreflight({html:article.html,topic:sa},config);
  assert.equal(quality.fullNativeQualityAuditRequired,true);
  assert.equal(quality.pass,quality.violations.length===0);
+});
+
+test('Saudi coupon P0 gate ignores HDR10 product standard but still rejects wrong coupon token',()=>{
+ assert.deepEqual(couponCodeCandidates('نون السعودية NOV170 يدعم HDR10 و IP67 و DDR5'),['NOV170']);
+ assert.deepEqual(couponCodeCandidates('NOV170 NOV188 HDR10'),['NOV170','NOV188']);
+ assert.deepEqual(couponCodeCandidates('NOV170 HDR10 NOV170'),['NOV170']);
 });
