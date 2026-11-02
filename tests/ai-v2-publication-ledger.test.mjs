@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AI_V2_LEDGER_KEY,inspectAiV2Ledger,readAiV2PublicationLedger,recordAiV2Publication,reconcileAiV2Publication,combineGenerationFreshness} from '../ai-v2-publication-ledger.js';
+import {AI_V2_LEDGER_KEY,inspectAiV2Ledger,readAiV2PublicationLedger,recordAiV2Publication,reconcileAiV2Publication,combineGenerationFreshness,aiV2PublicationWindows} from '../ai-v2-publication-ledger.js';
 const slug='uae-ninja-airfryer-capacity-warranty-checklist-2026';
 function mock(){
  let doc=null,etag=null,rev=0;
@@ -42,4 +42,21 @@ test('public freshness includes actually published AI V2 while keeping legacy re
  assert.equal(combined.legacyRescueDue,true);
  assert.equal(combined.aiV2PublishedCount,1);
  assert.equal(combined.aiV2PublishedLast24Hours,1);
+});
+
+test('AI V2 hourly publication counters are based on actual ledger entries by country, not scheduled ticks',()=>{
+ const now=Date.parse('2026-11-02T12:00:00Z');
+ const ledger={ok:true,ledger:{articles:[
+ {slug:'a-samsung-device-selection-2026',country:'SA',publishedAt:'2026-11-02T11:50:00Z'},
+ {slug:'b-ninja-cooking-selection-2026',country:'AE',publishedAt:'2026-11-02T10:15:00Z'},
+ {slug:'c-apple-audio-selection-2026',country:'AE',publishedAt:'2026-11-02T04:00:00Z'},
+ {slug:'d-earlier-comparison-2026',country:'SA',publishedAt:'2026-10-31T09:00:00Z'}
+ ]}};
+ const result=aiV2PublicationWindows(ledger,now);
+ assert.deepEqual(result.windows['1h'],{total:1,SA:1,AE:0});
+ assert.deepEqual(result.windows['2h'],{total:2,SA:1,AE:1});
+ assert.deepEqual(result.windows['6h'],{total:2,SA:1,AE:1});
+ assert.deepEqual(result.windows['24h'],{total:3,SA:1,AE:2});
+ assert.equal(result.lastArticle.country,'SA');
+ assert.equal(aiV2PublicationWindows({ok:false,reason:'UNAVAILABLE'}).available,false);
 });

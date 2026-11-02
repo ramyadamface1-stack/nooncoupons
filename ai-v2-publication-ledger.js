@@ -80,3 +80,21 @@ export function combineGenerationFreshness(snapshot,ledgerRead,atMs=Date.now()){
    aiV2PublishedLast24Hours:ledgerRead?.ok?entries.filter(x=>Number.isFinite(Date.parse(x.publishedAt))&&atMs-Date.parse(x.publishedAt)>=0&&atMs-Date.parse(x.publishedAt)<86400000).length:null
  };
 }
+
+export function aiV2PublicationWindows(ledgerRead,atMs=Date.now()){
+ if(!ledgerRead?.ok||!Array.isArray(ledgerRead.ledger?.articles))
+  return {available:false,reason:ledgerRead?.reason||'LEDGER_UNAVAILABLE'};
+ const data=ledgerRead.ledger.articles;
+ const durations=[1,2,6,24],windows={};
+ for(const h of durations){
+  const byMarket={SA:0,AE:0};
+  for(const a of data){
+   const timestamp=Date.parse(a.publishedAt),age=atMs-timestamp;
+   if(Number.isFinite(timestamp)&&age>=0&&age<h*3600000&&['SA','AE'].includes(a.country))byMarket[a.country]++;
+  }
+  windows[h+'h']={total:byMarket.SA+byMarket.AE,...byMarket};
+ }
+ const newest=[...data].sort((a,b)=>String(b.publishedAt).localeCompare(String(a.publishedAt)))[0]||null;
+ return {available:true,total:data.length,windows,lastArticle:newest?
+  {slug:newest.slug,country:newest.country,publishedAt:newest.publishedAt}:null};
+}
