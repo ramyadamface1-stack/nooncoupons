@@ -81,7 +81,7 @@ test('Gemini 3.8 Flash request omits deprecated sampling parameters while preser
  }});
  assert.equal(answer.ok,true);
  assert.equal(attempts,1);
- assert.deepEqual(payload.generationConfig,{maxOutputTokens:2500});
+ assert.deepEqual(payload.generationConfig,{maxOutputTokens:4096,thinkingConfig:{thinkingLevel:'LOW'}});
  assert.equal('temperature' in payload.generationConfig,false);
 });
 
