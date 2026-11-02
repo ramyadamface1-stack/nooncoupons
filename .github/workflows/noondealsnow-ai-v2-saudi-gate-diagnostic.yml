@@ -30,6 +30,6 @@ jobs:
           const html=String(s.nativeArticle?.html||s.draftHtml||'');
           const plain=html.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ');
           const codes=[...new Set(plain.match(/\b[A-Z]{2,8}\d{1,6}\b/g)||[])];
-          console.log('AI_V2_COUPON_LOCK_TOKENS='+JSON.stringify({tokens:codes,approved:s.nativeTopic?.code||s.topic?.coupon||null}));
+          console.log('AI_V2_COUPON_LOCK_TOKENS='+JSON.stringify({tokens:codes,approved:s.nativeTopic?.code||s.topic?.coupon||null,brand:s.topic?.brand||s.nativeTopic?.brand||null,slug:s.topic?.slug||s.nativeArticle?.slug||null,selphyMentioned:/selphy|سيلفي/i.test(plain)}));
           NODE
           echo 'AI_GENERATION_CALLS=ZERO'
