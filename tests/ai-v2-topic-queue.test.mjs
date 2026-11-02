@@ -18,6 +18,8 @@ test('one verified live article cannot repeat and stored ambiguity is inspected,
  assert.equal(resumableCheckpoint({state:'PAUSED_QUOTA'}),false);
  assert.equal(resumableCheckpoint({state:'PAUSED_QUOTA'},{manualGroqResume:true}),true);
  assert.equal(resumableCheckpoint({state:'UNKNOWN_REQUEST_OUTCOME'}),false);
+ assert.equal(resumableCheckpoint({state:'UNKNOWN_PUBLICATION_OUTCOME'}),false);
+ assert.equal(resumableCheckpoint({state:'UNKNOWN_PUBLICATION_OUTCOME'},{manualGroqResume:true,savedOnly:true}),false);
  assert.equal(resumableCheckpoint({state:'PUBLISH_REQUEST_SENT'}),true);
  assert.equal(resumableCheckpoint({state:'DEPLOYING'}),true);
  assert.equal(resumableCheckpoint({state:'BLOCKED_REVIEW',errorCategory:'WORD_WINDOW',sections:Array(5).fill({}),sectionIndex:5},{savedOnly:true}),true);
@@ -110,4 +112,15 @@ test('Saudi saved drafts get one strict zero-provider native gate re-audit, neve
  assert.equal(safeSaudiDeterministicRecovery({...native,nativeGateDiagnostics:{...native.nativeGateDiagnostics,failed:['title_avoids_literal_coupon_code','duplicate']}},sa),false);
  assert.equal(safeSaudiDeterministicRecovery({...native,sections:[]},sa),false);
  assert.equal(safeSaudiDeterministicRecovery({state:'UNKNOWN_REQUEST_OUTCOME',sectionIndex:5,sections:base.sections},sa),false);
+});
+
+// Reproduces the production queue freeze observed after a lost publish ack.
+// The ambiguous checkpoint must remain intact, while cursor moves past it.
+test('quarantined uncertain publication never blocks scheduled cursor forever',()=>{
+ const ambiguous={state:'UNKNOWN_PUBLICATION_OUTCOME',sectionIndex:5,sections:Array(5).fill({})};
+ assert.equal(resumableCheckpoint(ambiguous),false);
+ assert.equal(resumableCheckpoint({...ambiguous,state:'PUBLISH_REQUEST_SENT'}),true);
+ assert.equal(resumableCheckpoint({...ambiguous,state:'DEPLOYING'}),true);
+ assert.equal(queueCursorAfterScan(100,38,false),39);
+ assert.equal(resumableCheckpoint({...ambiguous,state:'PREPARED_FOR_NATIVE_AUDIT'}),true);
 });
