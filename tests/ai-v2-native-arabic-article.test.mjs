@@ -31,3 +31,15 @@ test('wrong code, invalid country and executable fragment fail closed',()=>{
  const bad=sections.map(x=>({...x}));bad[0].html+='<script>alert(1)</script>';
  assert.throws(()=>buildSaudiAiV2Article(sa,bad),/UNSAFE_AI_SECTION/);
 });
+
+test('Saudi product guide removes literal code from title without changing approved code, URL or CTA',()=>{
+ const sample=topics.find(t=>t.country==='SA'&&t.topic.includes('NOV170'));
+ assert.ok(sample,'Saudi buying topic with embedded coupon must exist');
+ const output=buildSaudiAiV2Article(sample,sections);
+ assert.equal(output.article.slug,sample.slug);
+ assert.equal(output.article.title.includes('NOV170'),false);
+ assert.ok(output.article.title.length>=28&&output.article.title.length<=72);
+ assert.ok(output.article.html.includes('data-copy-code="NOV170"'));
+ assert.ok(output.article.html.includes('https://www.noon.com/saudi-ar/'));
+ assert.equal(output.article.html.includes('NOV188'),false);
+});
