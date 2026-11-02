@@ -6,7 +6,7 @@ import {callProvider} from './providers.mjs';
 import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan} from './topic-queue.mjs';
 import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive} from './provider-circuit.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
@@ -58,7 +58,7 @@ async function run(){
   if(!oneOffCanary&&lastChecked!==null){
     // Fail closed if the queue cursor cannot be persisted. This prevents
     // repeated scans and makes successful scheduled runs progress durably.
-    const next=nextQueueCursor(topics.length,lastChecked);
+    const next=queueCursorAfterScan(topics.length,lastChecked,Boolean(selected));
     saveCheckpoint(config,{articleId:cursorId,state:'QUEUE_CURSOR',cursor:next,
       createdAt:oldCursor?.createdAt||now(),version:Number(oldCursor?.version||0)+1});
   }

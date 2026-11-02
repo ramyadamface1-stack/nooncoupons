@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 import topics from '../automation/ai-v2/topics.json' with {type:'json'};
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,QUEUE_SCAN_LIMIT} from '../automation/ai-v2/topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,QUEUE_SCAN_LIMIT} from '../automation/ai-v2/topic-queue.mjs';
 import {assertTopic} from '../automation/ai-v2/guardrails.mjs';
 test('curated queue has unique topic slugs, stable IDs, country and approved coupon',()=>{
  const ids=topics.map(t=>assertTopic(t,config));
@@ -68,4 +68,13 @@ test('new editorial titles never end with a broken word or violate the 72-charac
    assert.ok(focus===included||focus.charAt(included.length)===' ','cut a word: '+t.slug);
    assert.ok(t.topic.length<=72&&t.topic.length>=28);
  }
+});
+
+test('selected topic is retried on next minute before moving to the following product',()=>{
+ assert.equal(queueCursorAfterScan(100,20,true),20);
+ assert.equal(queueCursorAfterScan(100,20,false),21);
+ const slot={state:'PREPARED_FOR_NATIVE_AUDIT',sectionIndex:5,sections:Array(5).fill({})};
+ assert.equal(resumableCheckpoint(slot),true);
+ const published={...slot,state:'LIVE_VERIFIED'};
+ assert.equal(resumableCheckpoint(published),false);
 });

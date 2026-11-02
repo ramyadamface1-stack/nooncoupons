@@ -37,3 +37,10 @@ export function nextQueueCursor(total,lastChecked){
   throw Error('INVALID_QUEUE_CURSOR');
  return (lastChecked+1)%total;
 }
+
+/** Hold the current topic until the next tick has observed its terminal
+ * checkpoint. Native publication slot delays therefore retry without new AI
+ * calls, while LIVE_VERIFIED/blocked states advance on the following tick. */
+export function queueCursorAfterScan(total,lastChecked,wasSelected){
+ return wasSelected?lastChecked:nextQueueCursor(total,lastChecked);
+}
