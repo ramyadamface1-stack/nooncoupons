@@ -22,7 +22,7 @@ jobs:
       - name: Validate package
         run: node -e "JSON.parse(require('fs').readFileSync('package.json','utf8')); console.log('package.json ok')"
       - name: R2 Class B savings regression tests
-        run: node --test tests/r2-saver.test.mjs tests/r2-head-health.test.mjs tests/remote-r2-subrequest-budget.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/coupon-case-urls.test.mjs
+        run: node --test tests/r2-saver.test.mjs tests/r2-head-health.test.mjs tests/remote-r2-subrequest-budget.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/coupon-case-urls.test.mjs tests/stale-legacy-bulk-recovery.test.mjs
 
       - name: Syntax-check runtime
         shell: bash

@@ -65,9 +65,25 @@ async function writeCatalogs(env,day,countBefore,records,{writeDaysIndex=true}={
   return {latestWritten:true,shardsWritten:groups.size,daysIndexWritten:Boolean(writeDaysIndex)};
 }
 
+
+/** Never reserve the shared global publication minute for a bulk engine that
+ * has recorded >100 failed passes and no actual publication for over a day.
+ * Keep one quality recovery attempt every 30 minutes, with all gates intact. */
+export function legacyBulkCircuit(status,atMs=Date.now()){
+ const last=Date.parse(String(status?.bulkLastSuccessAt||''));
+ const noPass=Number(status?.bulkNoPassStreak||0);
+ const stale=Number.isFinite(last)&&atMs-last>86400000&&noPass>=100;
+ const recoveryMinute=Math.floor(atMs/60000)%30===0;
+ return {defer:stale&&!recoveryMinute,stale,recoveryMinute};
+}
+
 export async function runProgrammaticBatch(env,cfg,status,{dailyTarget=2000,batchSize=3}={}){
   const startedMs=Date.now(),previousYield=Number(status.bulkLastBatchYieldPct),burstMode=String(env.BULK_BURST_MODE||'false').toLowerCase()==='true',rawLowYield=(Number.isFinite(previousYield)&&previousYield<2)||Number(status.bulkNoPassStreak||0)>0,lowYield=rawLowYield&&!burstMode,configuredCandidateBudgetMs=Math.max(6000,Math.min(burstMode?30000:15000,Number(env.BULK_CANDIDATE_BUDGET_MS||12000))),candidateBudgetMs=lowYield?Math.min(configuredCandidateBudgetMs,6000):configuredCandidateBudgetMs;
   if(!env.CONTENT_FINAL)return {ok:false,error:'r2_binding_missing',patch:{bulkLastError:'r2_binding_missing',bulkLastRun:now()}};
+  const legacyCircuit=legacyBulkCircuit(status);
+  if(legacyCircuit.defer)return {ok:true,skipped:'legacy_quality_no_yield_deferred',records:[],
+    patch:{bulkLastRun:now(),bulkLastError:null,bulkLastSkipReason:'legacy_quality_no_yield_deferred',
+      bulkQualityRecoveryMode:'once_per_30_minutes',bulkNoPassStreak:Number(status.bulkNoPassStreak||0)}};
   const paceStatus=await getPublicationSlotStatus(env);
   if(!paceStatus.ok||!paceStatus.eligible)return {ok:true,skipped:'publication_rate_limit',records:[],patch:{bulkLastRun:now(),bulkLastError:null,publicationNextEligibleAt:paceStatus.nextEligibleAt||null,publicationPolicy:'one-article-per-minute-global-v1'}};
   const auditLock=await publicationBlockedByArticleAudit(env);
