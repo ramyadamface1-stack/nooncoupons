@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 import topics from '../automation/ai-v2/topics.json' with {type:'json'};
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,QUEUE_SCAN_LIMIT} from '../automation/ai-v2/topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,QUEUE_SCAN_LIMIT,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION} from '../automation/ai-v2/topic-queue.mjs';
 import {assertTopic} from '../automation/ai-v2/guardrails.mjs';
 test('curated queue has unique topic slugs, stable IDs, country and approved coupon',()=>{
  const ids=topics.map(t=>assertTopic(t,config));
@@ -88,4 +88,24 @@ test('new buying-topic queue interleaves UAE and Saudi markets without changing 
   assert.equal(topics[i+1].country,'AE','expected AE at queue '+(i+1));
  }
  assert.equal(new Set(topics.map(t=>t.slug)).size,topics.length);
+});
+
+test('Saudi saved drafts get one strict zero-provider native gate re-audit, never an unsafe retry',()=>{
+ const sa=topics.find(t=>t.country==='SA'),ae=topics.find(t=>t.country==='AE');
+ const base={state:'BLOCKED_REVIEW',sectionIndex:5,sections:Array.from({length:5},()=>({html:'<h2>قارن</h2><p>دليل أصلي</p>'}))};
+ const short={...base,errorCategory:'WORD_WINDOW',qualityPreview:{wordCount:1483,violations:['WORD_WINDOW']}};
+ assert.equal(safeSaudiDeterministicRecovery(short,sa),true);
+ assert.equal(resumableCheckpoint(short,{autoSafeSaudiRecovery:true,topic:sa}),true);
+ assert.equal(resumableCheckpoint(short,{topic:sa}),false);
+ assert.equal(resumableCheckpoint(short,{autoSafeSaudiRecovery:true,topic:ae}),false);
+ assert.equal(safeSaudiDeterministicRecovery({...short,qualityPreview:{wordCount:1200,violations:['WORD_WINDOW']}},sa),false);
+ assert.equal(safeSaudiDeterministicRecovery({...short,qualityPreview:{wordCount:1483,violations:['WORD_WINDOW','SCRIPT_NOT_ALLOWED']}},sa),false);
+ assert.equal(safeSaudiDeterministicRecovery({...short,deterministicRecoveryRevision:SA_SAFE_RECOVERY_REVISION},sa),false);
+ const native={...base,errorCategory:'NATIVE_QUALITY_BLOCKED',nativeGateDiagnostics:{
+  score:99,p0:['title_avoids_literal_coupon_code'],failed:['title_avoids_literal_coupon_code'],schemas:[],duplicates:[],indexation:[]
+ }};
+ assert.equal(safeSaudiDeterministicRecovery(native,sa),true);
+ assert.equal(safeSaudiDeterministicRecovery({...native,nativeGateDiagnostics:{...native.nativeGateDiagnostics,failed:['title_avoids_literal_coupon_code','duplicate']}},sa),false);
+ assert.equal(safeSaudiDeterministicRecovery({...native,sections:[]},sa),false);
+ assert.equal(safeSaudiDeterministicRecovery({state:'UNKNOWN_REQUEST_OUTCOME',sectionIndex:5,sections:base.sections},sa),false);
 });
