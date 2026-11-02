@@ -9,7 +9,7 @@
   "workers_dev": false,
   "minify": true,
   "triggers": {
-    "crons": ["* * * * *"]
+    "crons": ["*/3 * * * *"]
   },
   "vars": {
     "SITE_ORIGIN": "https://noondealsnow.com",
@@ -55,7 +55,7 @@
     "R2_COUPON_FRESHNESS_MINUTES": "60",
     "INDEXNOW_KEY": "8a3c907d7cbe7404c97aba32ed3fc7c9",
     "DO_MIGRATION_RESTORE_ENABLED": "true",
-    "DO_MIGRATION_RESTORE_PARTS_PER_TICK": "20"
+    "DO_MIGRATION_RESTORE_PARTS_PER_TICK": "1"
   },
   "observability": {
     "enabled": true,
