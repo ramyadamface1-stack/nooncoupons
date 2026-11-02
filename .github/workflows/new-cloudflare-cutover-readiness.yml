@@ -42,19 +42,18 @@ jobs:
                   'baseline':{},'fresh':{},'dnsRecordsVerified':False,
                   'publicStatus':None,'liveCutoverApplied':False,'notes':[]}
           def cfget(endpoint):
+              import subprocess
               if not token: raise RuntimeError('new_account_cf_token_missing')
-              req=urllib.request.Request('https://api.cloudflare.com/client/v4/'+endpoint,
-                  headers={'Authorization':'Bearer '+token,'Accept':'application/json',
-                           'User-Agent':'NoonDealsNow-ReadOnly-Cutover-Audit'})
-              try:
-                  with urllib.request.urlopen(req,timeout=20) as response:
-                      raw=response.read(1024*1024)
-                      result['notes'].append('cf_http_'+endpoint.split('?')[0]+':'+str(response.status))
-                      try: data=json.loads(raw)
-                      except ValueError: raise RuntimeError('cf_non_json_response_'+str(response.status))
-              except urllib.error.HTTPError as exc:
-                  result['notes'].append('cf_http_'+endpoint.split('?')[0]+':'+str(exc.code))
-                  raise
+              api='https://api.cloudflare.com/client/v4/'+endpoint
+              response=subprocess.run(['curl','-sS','--connect-timeout','10','--max-time','25',
+                   '-H','Authorization: Bearer '+token,'-H','Accept: application/json',
+                   '-w','\\n%{http_code}',api],capture_output=True,text=True,timeout=30)
+              if response.returncode: raise RuntimeError('cf_curl_connection_failed')
+              raw,sep,http=response.stdout.rpartition('\\n')
+              result['notes'].append('cf_http_'+endpoint.split('?')[0]+':'+http)
+              if not http.isdigit() or int(http)!=200: raise RuntimeError('cf_http_not_200')
+              try:data=json.loads(raw)
+              except ValueError: raise RuntimeError('cf_non_json_http_200')
               if not isinstance(data,dict) or data.get('success') is not True:
                   raise RuntimeError('cloudflare_api_result_unavailable')
               return data.get('result')
