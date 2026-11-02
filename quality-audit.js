@@ -1,9 +1,14 @@
 // Product standards such as HDR10, IP67 or DDR5 are not coupon codes.
 // Preserve the P0 coupon lock for every actual voucher-like token.
-export function couponCodeCandidates(plain){
+export function couponCodeCandidates(plain,topic={}){
+ const body=String(plain||'');
  const specs=/^(?:HDR10|HDR10PLUS|IP\d{2}|DDR[23456]|USB[234]|HDMI[12])$/i;
- return [...new Set((String(plain||'').match(/\b[A-Z]{2,8}\d{1,6}\b/g)||[])
-   .map(x=>x.toUpperCase()).filter(x=>!specs.test(x)))];
+ // CP1300 is a genuine Canon SELPHY printer model, but ignore it ONLY in
+ // matching Canon editorial context. Other unknown voucher-like tokens remain
+ // a critical failure; never blanket-allow CP-number patterns.
+ const canonSelphy=/(?:canon|كانون)/i.test(String(topic?.brand||''))&&/\bselphy\b|سيلفي/i.test(body);
+ return [...new Set((body.match(/\b[A-Z]{2,8}\d{1,6}\b/g)||[])
+   .map(x=>x.toUpperCase()).filter(x=>!specs.test(x)&&!(canonSelphy&&x==='CP1300')))];
 }
 
 import {QUALITY_CRITERIA,QUALITY_CRITERIA_COUNT} from './quality-criteria.js';
@@ -45,7 +50,7 @@ export function auditSeoArticle(article,topic,opts={}){
   const html=String(article?.html||''),plain=semanticPreflight?.plain||strip(html),wordCount=words(plain).length,keyword=String(article?.primaryKeyword||topic?.kw||''),title=String(article?.title||''),meta=String(article?.metaDescription||''),slug=String(article?.slug||'');
   const country=topic?.country==='AE'?'AE':'SA',market=country==='SA'?'السعودية':'الإمارات',currency=country==='SA'?'الريال السعودي':'الدرهم الإماراتي',currencyCode=country==='SA'?'SAR':'AED',wrongCountry=country==='SA'?/(?:الإمارات|الامارات|\bUAE\b|Emirates)/i:/(?:السعودية|المملكة العربية السعودية|\bKSA\b|Saudi(?: Arabia)?)/i;
   const checks=[],pstats=paragraphStats(html),h1=count(html,/<h1\b/gi),h2=count(html,/<h2\b/gi),h3=count(html,/<h3\b/gi),imgs=[...html.matchAll(/<img\b[^>]*>/gi)].map(m=>m[0]);
-  const codes=couponCodeCandidates(plain),targetCode=String(topic?.code||article?.coupon||'').toUpperCase();
+  const codes=couponCodeCandidates(plain,topic),targetCode=String(topic?.code||article?.coupon||'').toUpperCase();
   const ar=count(plain,/[\u0600-\u06FF]/g),latin=count(plain,/[A-Za-z]/g),arabicRatio=ar/Math.max(1,ar+latin);
   const intro=strip(html.slice(0,Math.min(html.length,7000))),exactKw=exactOccurrences(plain,keyword),sig=semanticPreflight?.signature||contentSignature(plain);
   const recent=Array.isArray(opts.recent)?opts.recent:[],semanticRecent=Array.isArray(opts.semanticRecent)?opts.semanticRecent:recent,distances=semanticPreflight?[]:semanticRecent.map(r=>signatureDistance(sig,r.signature)).filter(Number.isFinite),minSignatureDistance=Number.isFinite(Number(semanticPreflight?.minSignatureDistance))?Number(semanticPreflight.minSignatureDistance):(distances.length?Math.min(...distances):32);
