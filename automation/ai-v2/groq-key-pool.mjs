@@ -17,17 +17,24 @@ export function parseGroqKeys(value){
  }
  return keys;
 }
+// Extra pool is additive; original single/bulk secrets remain unchanged.
+function candidates(env={}){
+ const recent=parseGroqKeys(env.GROQ_API_KEYS),legacy=parseGroqKeys(env.GROQ_API_KEY);
+ const extra=parseGroqKeys(env.GROQ_API_KEYS_EXTRA);
+ const out=[],seen=new Set();
+ for(const [keys,source] of [[recent.length?recent:legacy,recent.length?'GROQ_API_KEYS':'GROQ_API_KEY'],[extra,'GROQ_API_KEYS_EXTRA']]){
+   for(const key of keys)if(!seen.has(key)){seen.add(key);out.push({key,source})}
+ }
+ return {recent,legacy,extra,out};
+}
 export function groqKeyInventory(env={}){
- const recent=parseGroqKeys(env.GROQ_API_KEYS);
- const legacy=parseGroqKeys(env.GROQ_API_KEY);
- const keys=recent.length?recent:legacy;
- return {hasGroq:keys.length>0,newCount:recent.length,legacyCount:legacy.length,
-   eligibleCount:keys.length,selectedSource:recent.length?'GROQ_API_KEYS':legacy.length?'GROQ_API_KEY':null};
+ const {recent,legacy,extra,out}=candidates(env);
+ return {hasGroq:out.length>0,newCount:recent.length,legacyCount:legacy.length,extraCount:extra.length,
+   eligibleCount:out.length,selectedSource:out[0]?.source||null};
 }
 export function selectGroqKey(env={},slot=0){
- const pool=groqKeyInventory(env);
- if(!pool.hasGroq)return null;
- const keys=pool.selectedSource==='GROQ_API_KEYS'?parseGroqKeys(env.GROQ_API_KEYS):parseGroqKeys(env.GROQ_API_KEY);
- const keySlot=Math.abs(Math.trunc(Number(slot)||0))%keys.length;
- return {key:keys[keySlot],keySlot,source:pool.selectedSource};
+ const pool=candidates(env).out;
+ if(!pool.length)return null;
+ const keySlot=Math.abs(Math.trunc(Number(slot)||0))%pool.length;
+ return {...pool[keySlot],keySlot};
 }

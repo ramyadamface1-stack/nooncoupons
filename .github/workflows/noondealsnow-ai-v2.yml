@@ -57,13 +57,15 @@ jobs:
         env:
           GEMINI_PRESENT: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_NEW_PRESENT: ${{ secrets.GEMINI_API_KEYS }}
+          GEMINI_EXTRA_PRESENT: ${{ secrets.GEMINI_API_KEYS_EXTRA }}
           GROQ_PRESENT: ${{ secrets.GROQ_API_KEY }}
           GROQ_POOL_PRESENT: ${{ secrets.GROQ_API_KEYS }}
+          GROQ_EXTRA_PRESENT: ${{ secrets.GROQ_API_KEYS_EXTRA }}
           R2_TOKEN_PRESENT: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
           FREE_APPROVAL_PRESENT: ${{ secrets.NOONDEALSNOW_AI_FREE_ONLY_APPROVED }}
           SITE_PUBLISH_PRESENT: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
         run: |
-          for name in GEMINI_PRESENT GEMINI_NEW_PRESENT GROQ_PRESENT GROQ_POOL_PRESENT R2_TOKEN_PRESENT FREE_APPROVAL_PRESENT SITE_PUBLISH_PRESENT; do
+          for name in GEMINI_PRESENT GEMINI_NEW_PRESENT GEMINI_EXTRA_PRESENT GROQ_PRESENT GROQ_POOL_PRESENT GROQ_EXTRA_PRESENT R2_TOKEN_PRESENT FREE_APPROVAL_PRESENT SITE_PUBLISH_PRESENT; do
             if [ -n "${!name}" ]; then
               echo "AI_V2_SECRET_NAME_STATUS ${name}=PRESENT"
             else
@@ -89,6 +91,7 @@ jobs:
       - name: Inspect Gemini secret pool types without exposing any key values
         env:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          GEMINI_API_KEYS_EXTRA: ${{ secrets.GEMINI_API_KEYS_EXTRA }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         shell: bash
         run: |
@@ -134,9 +137,11 @@ jobs:
       AI_PREFLIGHT_ONLY: ${{ inputs.preflight_only }}
       AI_SCHEDULED_MS: ${{ inputs.scheduled_ms }}
       GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+      GEMINI_API_KEYS_EXTRA: ${{ secrets.GEMINI_API_KEYS_EXTRA }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
+      GROQ_API_KEYS_EXTRA: ${{ secrets.GROQ_API_KEYS_EXTRA }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
       NOONDEALSNOW_AI_FREE_ONLY_APPROVED: ${{ secrets.NOONDEALSNOW_AI_FREE_ONLY_APPROVED }}

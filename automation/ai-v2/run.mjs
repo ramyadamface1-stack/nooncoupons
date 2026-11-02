@@ -33,7 +33,7 @@ async function run(){
   const geminiKeys=geminiKeyInventory(process.env);
   const groqKeys=groqKeyInventory(process.env);
   if(process.env.AI_PREFLIGHT_ONLY==='true'){
-    report('PREFLIGHT',due.reason,{enabled:config.enabled,targetPerHour:config.targetPerHour,mode:config.publicationMode,hasGemini:geminiKeys.hasGemini,geminiNewKeys:geminiKeys.newCount,geminiNewAuthKeys:geminiKeys.newAuthCount,geminiOldKeys:geminiKeys.oldCount,geminiSelectedSource:geminiKeys.selectedSource,hasGroq:groqKeys.hasGroq,groqNewKeys:groqKeys.newCount,groqEligibleKeys:groqKeys.eligibleCount,hasPrivateStorageToken:Boolean(process.env.CLOUDFLARE_API_TOKEN),freeBudgetApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true'});return;
+    report('PREFLIGHT',due.reason,{enabled:config.enabled,targetPerHour:config.targetPerHour,mode:config.publicationMode,hasGemini:geminiKeys.hasGemini,geminiNewKeys:geminiKeys.newCount,geminiNewAuthKeys:geminiKeys.newAuthCount,geminiOldKeys:geminiKeys.oldCount,geminiSelectedSource:geminiKeys.selectedSource,hasGroq:groqKeys.hasGroq,groqNewKeys:groqKeys.newCount,groqExtraKeys:groqKeys.extraCount,groqEligibleKeys:groqKeys.eligibleCount,geminiExtraKeys:geminiKeys.extraCount,hasPrivateStorageToken:Boolean(process.env.CLOUDFLARE_API_TOKEN),freeBudgetApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true'});return;
   }
   if(!due.due){report('SKIPPED',due.reason);return}
   const savedOnly=oneOffCanary&&process.env.AI_REPROCESS_SAVED_DRAFT==='true'&&process.env.AI_NO_PROVIDER_CALLS==='true';
@@ -142,7 +142,7 @@ async function run(){
         const keyRef=hash(credential.key).slice(0,12); // never store the secret
         // The old single-Groq key still honors its existing global cooldown.
         // A newly installed Groq pool has independent key fingerprints.
-        const usePerKey=candidateProvider==='gemini'||credential.source==='GROQ_API_KEYS';
+        const usePerKey=candidateProvider==='gemini'||credential.source!=='GROQ_API_KEY';
         const circuitId=providerCircuitId(candidateProvider,hash,usePerKey?keyRef:null);
         const circuit=await readCheckpoint(config,circuitId);
         if(providerCircuitActive(circuit))continue;

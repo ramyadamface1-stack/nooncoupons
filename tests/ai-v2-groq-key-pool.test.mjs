@@ -18,3 +18,14 @@ test('multi-Groq keys work from multiline, comma/semicolon, and JSON, with no se
  assert.equal(JSON.stringify(report).includes(a),false);
  assert.equal(selectGroqKey({GROQ_API_KEY:key('old')},0).source,'GROQ_API_KEY');
 });
+
+test('Groq extra secret adds multiple keys without replacing existing key',()=>{
+ const old=key('old'),newA=key('newA'),newB=key('newB');
+ const env={GROQ_API_KEY:old,GROQ_API_KEYS_EXTRA:newA+'\
+'+newB+'\
+'+old};
+ assert.equal(groqKeyInventory(env).eligibleCount,3);
+ assert.equal(selectGroqKey(env,0).source,'GROQ_API_KEY');
+ assert.equal(selectGroqKey(env,1).source,'GROQ_API_KEYS_EXTRA');
+ assert.deepEqual([0,1,2].map(n=>selectGroqKey(env,n).key),[old,newA,newB]);
+});

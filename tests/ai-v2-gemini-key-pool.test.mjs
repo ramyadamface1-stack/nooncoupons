@@ -72,3 +72,15 @@ test('mixed AQ and AIza Gemini keys are all eligible in the bulk secret',()=>{
   assert.equal(inventory.selectedSource,'GEMINI_API_KEYS');
   assert.deepEqual([0,1,2,3].map(i=>selectGeminiKey(env,i).key),[a,old,b,a]);
 });
+
+test('Gemini extra secret adds keys without replacing existing bulk keys',()=>{
+  const a=newer('a'),b=older('b'),c=newer('c');
+  const env={GEMINI_API_KEYS:a,GEMINI_API_KEYS_EXTRA:b+'\
+'+c+'\
+'+a};
+  const i=geminiKeyInventory(env);
+  assert.equal(i.eligibleCount,3);
+  assert.equal(i.extraCount,3);
+  assert.deepEqual([0,1,2].map(n=>selectGeminiKey(env,n).key),[a,b,c]);
+  assert.equal(selectGeminiKey(env,1).source,'GEMINI_API_KEYS_EXTRA');
+});

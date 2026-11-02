@@ -15,22 +15,26 @@ export function parseGeminiKeys(input){
   }
   return result;
 }
+// Extend current pools without replacing existing GitHub secrets.
+function candidates(env={}){
+  const newer=parseGeminiKeys(env.GEMINI_API_KEYS),old=parseGeminiKeys(env.GEMINI_API_KEY);
+  const extra=parseGeminiKeys(env.GEMINI_API_KEYS_EXTRA);
+  const auth=newer.filter(k=>k.startsWith('AQ.'));
+  const baseSource=newer.length&&auth.length===newer.length?'GEMINI_API_KEYS_AUTH':newer.length?'GEMINI_API_KEYS':'GEMINI_API_KEY';
+  const out=[],seen=new Set();
+  for(const [keys,source] of [[newer.length?newer:old,baseSource],[extra,'GEMINI_API_KEYS_EXTRA']]){
+    for(const key of keys)if(!seen.has(key)){seen.add(key);out.push({key,source})}
+  }
+  return {newer,old,extra,auth,out};
+}
 export function selectGeminiKey(env={},slot=0){
-  const newer=parseGeminiKeys(env.GEMINI_API_KEYS);
-  const old=parseGeminiKeys(env.GEMINI_API_KEY);
-  // All unique keys in the bulk secret are candidates, regardless of format.
-  // Keep the older single-key secret as a fallback for compatibility.
-  const keys=newer.length?newer:old;
-  if(!keys.length)return null;
-  const keySlot=Math.abs(Math.trunc(Number(slot)||0))%keys.length;
-  const allAuth=newer.length>0&&newer.every(k=>k.startsWith('AQ.'));
-  return {key:keys[keySlot],keySlot,source:allAuth?'GEMINI_API_KEYS_AUTH':newer.length?'GEMINI_API_KEYS':'GEMINI_API_KEY'};
+  const pool=candidates(env).out;
+  if(!pool.length)return null;
+  const keySlot=Math.abs(Math.trunc(Number(slot)||0))%pool.length;
+  return {...pool[keySlot],keySlot};
 }
 export function geminiKeyInventory(env={}){
-  const newer=parseGeminiKeys(env.GEMINI_API_KEYS),old=parseGeminiKeys(env.GEMINI_API_KEY);
-  const auth=newer.filter(k=>k.startsWith('AQ.'));
-  const keys=newer.length?newer:old;
-  return {hasGemini:keys.length>0,newCount:newer.length,newAuthCount:auth.length,oldCount:old.length,
-    selectedSource:keys.length?(newer.length&&auth.length===newer.length?'GEMINI_API_KEYS_AUTH':newer.length?'GEMINI_API_KEYS':'GEMINI_API_KEY'):null,
-    eligibleCount:keys.length};
+  const {newer,old,extra,auth,out}=candidates(env);
+  return {hasGemini:out.length>0,newCount:newer.length,newAuthCount:auth.length,oldCount:old.length,
+    extraCount:extra.length,selectedSource:out[0]?.source||null,eligibleCount:out.length};
 }
