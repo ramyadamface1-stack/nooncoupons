@@ -44,7 +44,11 @@ export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume
   Number.isInteger(checkpoint.sectionIndex)&&checkpoint.sectionIndex>=0&&checkpoint.sectionIndex<5&&
   checkpoint.sections?.length===checkpoint.sectionIndex);
  if(state==='BLOCKED_REVIEW')
-  return (autoSafeSaudiRecovery&&safeSaudiDeterministicRecovery(checkpoint,topic))||
+  return (checkpoint.errorCategory==='PROVIDER_TEMPORARY'&&
+   [500,502,503,504].includes(Number(checkpoint.lastRequestStatus))&&
+   Number.isInteger(checkpoint.sectionIndex)&&checkpoint.sectionIndex>=0&&checkpoint.sectionIndex<5&&
+   checkpoint.sections?.length===checkpoint.sectionIndex)||
+   (autoSafeSaudiRecovery&&safeSaudiDeterministicRecovery(checkpoint,topic))||
    (manualIncompleteRetry&&manualGroqResume&&checkpoint.errorCategory==='INCOMPLETE_RESPONSE')||
    (savedOnly&&['WORD_WINDOW',...(nativeGateRepair?['NATIVE_QUALITY_BLOCKED']:[])].includes(checkpoint.errorCategory)&&checkpoint.sections?.length===checkpoint.sectionIndex&&checkpoint.sectionIndex===5);
  if(state==='UNKNOWN_REQUEST_OUTCOME')return false;
