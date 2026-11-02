@@ -83,6 +83,7 @@ jobs:
       - name: Verify baseline English pages live
         run: |
           set -euo pipefail
+          trap 'echo "ENGLISH_CANARY_BASELINE_FAILED path=${path:-unset} line=${LINENO} http=${code:-unset}"; if [ -f /tmp/page.h ]; then grep -Ei "^(HTTP/|content-language:|x-english-canary:|location:|content-type:)" /tmp/page.h || true; fi' ERR
           ORIGIN="https://noondealsnow.com"
           while IFS='|' read -r path country; do
             test -n "$path"
