@@ -190,12 +190,23 @@ async function run(){
     }
     if(!result.ok){
       const next=result.category==='QUOTA'?'PAUSED_QUOTA':'BLOCKED_REVIEW';
-      await saveCheckpoint(config,checkpointState(state,next,{errorCategory:result.category,lastRequestStatus:result.httpStatus,retryAfter:result.retryAfter||null}));
+      // A definitive 429 never consumed this section. Persist that known result
+      // BEFORE switching credentials; uncertain network outcomes stay quarantined.
+      state=await saveCheckpoint(config,checkpointState(state,next,{
+        errorCategory:result.category,lastRequestStatus:result.httpStatus,retryAfter:result.retryAfter||null
+      }));
       if(result.category==='QUOTA'){
         const pauseSec=quotaCooldownSeconds(result.retryAfter);
         try{await saveCheckpoint(config,{articleId:circuitId,state:'PAUSED_QUOTA',provider,createdAt:now(),
           resumeAt:new Date(Date.now()+pauseSec*1000).toISOString(),version:Number(circuit?.version||0)+1});}
         catch(e){report('BLOCKED','PROVIDER_QUOTA_CIRCUIT_WRITE_FAILED',{provider,articleId});return}
+        // The next pass reads per-key circuits. Groq 429 falls straight through
+        // to an available Gemini key (or another independent free Groq key).
+        // Keep the saved section index and the overall per-run call budget.
+        console.log('AI_V2_QUOTA_FAILOVER '+JSON.stringify({provider,keyRef,articleId,
+          nextPreference:provider==='groq'?'gemini':'next-healthy-free-key',
+          calls,sectionIndex:index,pauseSeconds:pauseSec}));
+        continue;
       }
       report('BLOCKED',next,{articleId,provider,keyRef,httpStatus:result.httpStatus,reason:result.category,calls});return;
     }
