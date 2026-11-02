@@ -21,3 +21,20 @@ test('one-minute dispatch skips redundant full CI and private R2 canary while ke
  assert.match(live,/node --check automation\/ai-v2\/run\.mjs/);
  assert.match(live,/node --check automation\/ai-v2\/r2-checkpoints\.mjs/);
 });
+
+test('provider section persists an ambiguous-request boundary then one verified completed response',()=>{
+ const runtime=readFileSync('automation/ai-v2/run.mjs','utf8');
+ assert.match(runtime,/checkpointState\(state,'REQUEST_SENT'/);
+ assert.doesNotMatch(runtime,/checkpointState\(state,'REQUEST_PENDING'/);
+ assert.doesNotMatch(runtime,/saveCheckpoint\(config,checkpointState\(state,'RESPONSE_RECEIVED'/);
+ assert.match(runtime,/checkpointState\(state,'DRAFT_SAVED'/);
+ assert.match(runtime,/if\(state\.state==='REQUEST_SENT'\)/);
+ assert.match(runtime,/UNKNOWN_REQUEST_OUTCOME/);
+ assert.match(runtime,/PREPARED_CHECKPOINT_INTEGRITY_FAILED/);
+ assert.match(runtime,/if\(state\.state==='PREPARED_FOR_NATIVE_AUDIT'\)/);
+ assert.doesNotMatch(runtime,/checkpointState\(state,'VALIDATING'/);
+ assert.match(runtime,/needsProvider=state\.sectionIndex<topic\.sections\.length/);
+ assert.match(runtime,/if\(needsProvider&&!savedOnly&&providerCircuitActive\(circuit\)\)/);
+ assert.match(runtime,/checkpointState\(state,'PUBLISH_REQUEST_SENT'/);
+ assert.match(runtime,/checkpointState\(state,'LIVE_VERIFIED'/);
+});
