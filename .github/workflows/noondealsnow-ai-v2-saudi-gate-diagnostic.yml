@@ -22,7 +22,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npx wrangler r2 object get nooncoupons-content-v2/_ops/ai-v2-checkpoints/eb741fe3fd42c1e30d15b677.json --remote --file /tmp/sa-gate.json > /tmp/wrangler-out.log
+          npx wrangler r2 object get nooncoupons-content-v2/_ops/ai-v2-checkpoints/58d9c926e6f695b559b0499d.json --remote --file /tmp/sa-gate.json > /tmp/wrangler-out.log
           jq '{state,errorCategory,sectionIndex,sectionCount:(.sections|length),nativeGateDiagnostics:{score:.nativeGateDiagnostics.score,words:.nativeGateDiagnostics.words,p0:.nativeGateDiagnostics.p0,failed:.nativeGateDiagnostics.failed,schemas:.nativeGateDiagnostics.schemas,duplicates:.nativeGateDiagnostics.duplicates,indexation:.nativeGateDiagnostics.indexation}}' /tmp/sa-gate.json
           node --input-type=module - <<'NODE'
           import {readFileSync} from 'node:fs';
