@@ -39,12 +39,35 @@ async function run(){
   const savedOnly=oneOffCanary&&process.env.AI_REPROCESS_SAVED_DRAFT==='true'&&process.env.AI_NO_PROVIDER_CALLS==='true';
   const blocked=mayCallProvider({config:runConfig,freeApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true',checkpointWritable:Boolean(process.env.CLOUDFLARE_API_TOKEN&&process.env.CLOUDFLARE_ACCOUNT_ID),topicReserved:true,hasAnyKey:Boolean(geminiKeys.hasGemini||groqKeys.hasGroq||savedOnly)});
   if(blocked){report('SKIPPED',blocked);return}
+  // Test production availability BEFORE any R2 checkpoint reads or writes.
+  // This protects GitHub runner minutes and free R2 operations during a 1027.
+  // The already-saved queue cursor remains unchanged while the site is down.
+  try{
+    const siteHealth=await fetch(config.domain+'/api/generator-health',{
+      headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(12000)
+    });
+    if(siteHealth.status===429){
+      const body=(await siteHealth.text()).slice(0,3000);
+      report('SKIPPED',/1027/.test(body)?'CLOUDFLARE_1027_DAILY_LIMIT':'SITE_RATE_LIMITED',
+        {http:429,providerCalls:0,checkpointReads:0,checkpointWrites:0,livePublished:false});
+      return;
+    }
+    if(!siteHealth.ok){
+      report('SKIPPED','SITE_HEALTH_UNAVAILABLE',{http:siteHealth.status,
+        providerCalls:0,checkpointReads:0,checkpointWrites:0,livePublished:false});
+      return;
+    }
+  }catch{
+    report('SKIPPED','SITE_HEALTH_NETWORK_UNKNOWN',{
+      providerCalls:0,checkpointReads:0,checkpointWrites:0,livePublished:false});
+    return;
+  }
   const safeSaudiCanary=oneOffCanary&&['NoonDealsNow AI V2 Saudi Quality Canary','NoonDealsNow AI V2 Saudi Quality Recovery Canary'].includes(process.env.GITHUB_WORKFLOW)&&process.env.AI_SA_ONE_OFF==='true';
   let selected;
   const explicitGroqResume=oneOffCanary&&process.env.AI_RESUME_PAUSED_QUOTA==='true'&&process.env.AI_PROVIDER_OVERRIDE==='groq';
   const cursorId=hash('noondealsnow|ai-v2|round-robin-cursor-v1').slice(0,24);
   // Keep historical one-off recovery semantics untouched. Production reads a
-  // maximum of eight article checkpoints per invocation, not the whole queue.
+  // maximum of 24 article checkpoints per invocation, not the whole queue.
   const oldCursor=oneOffCanary?null:await readCheckpoint(config,cursorId);
   const positions=oneOffCanary?topics.map((_,i)=>i):queueScanWindow(topics.length,oldCursor?.cursor);
   let checked=0,lastChecked=null;
@@ -76,27 +99,6 @@ async function run(){
     return;
   }
   const {topic,articleId}=selected;
-  // Do not consume free AI quota while Cloudflare's public Worker is unable
-  // to accept a publication. Error 1027 is account-wide until the UTC reset.
-  // The selected checkpoint and existing article slugs remain untouched.
-  try{
-    const siteHealth=await fetch(config.domain+'/api/generator-health',{
-      headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(12000)
-    });
-    if(siteHealth.status===429){
-      const body=(await siteHealth.text()).slice(0,3000);
-      report('SKIPPED',/1027/.test(body)?'CLOUDFLARE_1027_DAILY_LIMIT':'SITE_RATE_LIMITED',
-        {articleId,http:429,providerCalls:0,livePublished:false});
-      return;
-    }
-    if(!siteHealth.ok){
-      report('SKIPPED','SITE_HEALTH_UNAVAILABLE',{articleId,http:siteHealth.status,providerCalls:0,livePublished:false});
-      return;
-    }
-  }catch{
-    report('SKIPPED','SITE_HEALTH_NETWORK_UNKNOWN',{articleId,providerCalls:0,livePublished:false});
-    return;
-  }
   let state=selected.saved;
   const recoveredWithoutAI=!oneOffCanary&&safeSaudiDeterministicRecovery(state,topic);
   if(recoveredWithoutAI){
