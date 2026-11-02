@@ -10,7 +10,8 @@ import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow
 import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive} from './provider-circuit.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
-const report=(status,reason,data={})=>console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,...data}));
+const runStartedAt=Date.now();
+const report=(status,reason,data={})=>console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,elapsedMs:Date.now()-runStartedAt,...data}));
 const now=()=>new Date().toISOString();
 const hash=s=>createHash('sha256').update(s).digest('hex');
 validateConfig(config);
@@ -99,11 +100,15 @@ async function run(){
   const available={gemini:geminiKeys.hasGemini,groq:Boolean(process.env.GROQ_API_KEY)};
   // A completed saved draft needs NO credential and must not be blocked by
   // an unrelated provider quota circuit during zero-AI editorial repair.
-  const provider=savedOnly?'groq':(explicitGroqResume?'groq':priority.find(p=>available[p]));
-  if(!provider){report('SKIPPED','NO_FREE_PROVIDER_AVAILABLE',{articleId});return}
-  const model=config.models[provider];
-  const circuitId=providerCircuitId(provider,hash),circuit=savedOnly?null:readCheckpoint(config,circuitId);
-  if(!savedOnly&&providerCircuitActive(circuit)){report('SKIPPED','PROVIDER_QUOTA_COOLDOWN',{provider,resumeAt:circuit.resumeAt,articleId});return}
+  // A fully checkpointed article needs ZERO provider calls. A provider quota
+  // circuit must not prevent publishing an already prepared, verified draft.
+  const needsProvider=state.sectionIndex<topic.sections.length;
+  const provider=needsProvider?(savedOnly?'groq':(explicitGroqResume?'groq':priority.find(p=>available[p]))):null;
+  if(needsProvider&&!provider){report('SKIPPED','NO_FREE_PROVIDER_AVAILABLE',{articleId});return}
+  const model=provider?config.models[provider]:null;
+  const circuitId=needsProvider?providerCircuitId(provider,hash):null;
+  const circuit=needsProvider&&!savedOnly?readCheckpoint(config,circuitId):null;
+  if(needsProvider&&!savedOnly&&providerCircuitActive(circuit)){report('SKIPPED','PROVIDER_QUOTA_COOLDOWN',{provider,resumeAt:circuit.resumeAt,articleId});return}
   let calls=0;
   while(state.sectionIndex<topic.sections.length){
     if(calls>=config.limits.maxProviderCallsPerRun){report('CHECKPOINTED','CALL_BUDGET_LIMIT',{articleId,sectionIndex:state.sectionIndex});return}
@@ -115,7 +120,6 @@ async function run(){
     }
     const credential=provider==='gemini'?selectGeminiKey(process.env,index):{key:process.env.GROQ_API_KEY,keySlot:0,source:'GROQ_API_KEY'};
     if(!credential){report('SKIPPED','PROVIDER_KEY_UNAVAILABLE',{provider});return}
-    state=saveCheckpoint(config,checkpointState(state,'REQUEST_PENDING',{provider,model,pendingSection:index,keySource:credential.source,keySlot:credential.keySlot}));
     const prompt=[
       'Write an original, useful '+(topic.country==='SA'?'Saudi Arabic':'UAE English')+' consumer shopping article SECTION, valid HTML fragment only.',
       'Topic: '+topic.topic+'. Brand: '+topic.brand+'. Category: '+topic.category+'.',
@@ -149,23 +153,47 @@ async function run(){
       saveCheckpoint(config,checkpointState(state,'BLOCKED_REVIEW',{errorCategory:'UNSAFE_SECTION_HTML'}));
       report('BLOCKED','UNSAFE_SECTION',{articleId,index});return;
     }
-    state=saveCheckpoint(config,checkpointState(state,'RESPONSE_RECEIVED',{pendingResponse:html,requestId:result.requestId||null,lastRequestStatus:200,provider,model}));
-    state=saveCheckpoint(config,checkpointState(state,'DRAFT_SAVED',{sections:[...state.sections,{heading:topic.sections[index],html,hash:hash(html)}],sectionIndex:index+1,pendingResponse:null}));
+    // A single atomic, read-back-verified checkpoint contains the complete
+    // confirmed response and incremented section index. If interrupted before
+    // this write, REQUEST_SENT remains and forbids an unbilled blind retry.
+    state=saveCheckpoint(config,checkpointState(state,'DRAFT_SAVED',{
+      sections:[...state.sections,{heading:topic.sections[index],html,hash:hash(html)}],
+      sectionIndex:index+1,pendingResponse:null,requestId:result.requestId||null,
+      lastRequestStatus:200,provider,model}));
   }
-  // Build one full, SEO-reviewable document from already checkpointed AI
-  // sections. This deterministic step NEVER calls the provider.
-  let native;
-  try{native=topic.country==='SA'?buildSaudiAiV2Article(topic,state.sections):buildEnglishAiV2Article(topic,state.sections)}
-  catch(e){saveCheckpoint(config,checkpointState(state,'BLOCKED_REVIEW',{errorCategory:String(e?.message||e).slice(0,80)}));report('BLOCKED','NATIVE_RENDER_FAILED',{articleId});return}
+  // On a later tick, reuse exactly the previously audited draft. Waiting
+  // for the global DO publication slot must not rebuild or re-save its R2
+  // checkpoint, and must never spend another provider request.
+  let native,check;
+  if(state.state==='PREPARED_FOR_NATIVE_AUDIT'){
+    native={article:state.nativeArticle,topic:state.nativeTopic};
+    const savedHtml=native.article?.html;
+    if(typeof savedHtml!=='string'||state.contentHash!==hash(savedHtml)||
+       native.article?.slug!==topic.slug||native.article?.country!==topic.country||
+       native.topic?.slug!==topic.slug||native.topic?.country!==topic.country||
+       state.qualityPreview?.pass!==true){
+      report('BLOCKED','PREPARED_CHECKPOINT_INTEGRITY_FAILED',{articleId});return;
+    }
+    check=qualityPreflight({html:savedHtml,topic},config);
+    if(!check.pass){report('BLOCKED','PREPARED_CHECKPOINT_QUALITY_CHANGED',{articleId,violations:check.violations});return}
+  }else{
+    // Build one full SEO document from already checkpointed AI sections.
+    // This deterministic step never calls an AI provider.
+    try{native=topic.country==='SA'?buildSaudiAiV2Article(topic,state.sections):buildEnglishAiV2Article(topic,state.sections)}
+    catch(e){saveCheckpoint(config,checkpointState(state,'BLOCKED_REVIEW',{errorCategory:String(e?.message||e).slice(0,80)}));report('BLOCKED','NATIVE_RENDER_FAILED',{articleId});return}
+    const draftHtml=native.article.html;
+    check=qualityPreflight({html:draftHtml,topic},config);
+    if(!check.pass){
+      saveCheckpoint(config,checkpointState(state,'BLOCKED_REVIEW',{qualityPreview:check,errorCategory:check.violations.join(',')}));
+      report('DRAFT_SAVED','NATIVE_PREFLIGHT_FAILED',{articleId,words:check.wordCount,violations:check.violations,livePublished:false});return;
+    }
+    // One read-back-verified PREPARED checkpoint replaces the redundant
+    // VALIDATING and PREPARED writes; native Worker independently audits again.
+    state=saveCheckpoint(config,checkpointState(state,'PREPARED_FOR_NATIVE_AUDIT',{
+      nativeArticle:native.article,nativeTopic:native.topic,qualityPreview:check,
+      draftHtml:draftHtml,contentHash:hash(draftHtml),errorCategory:null}));
+  }
   const html=native.article.html;
-  state=saveCheckpoint(config,checkpointState(state,'VALIDATING',{draftHtml:html,contentHash:hash(html)}));
-  const check=qualityPreflight({html,topic},config);
-  if(!check.pass){
-    saveCheckpoint(config,checkpointState(state,'BLOCKED_REVIEW',{qualityPreview:check,errorCategory:check.violations.join(',')}));
-    report('DRAFT_SAVED','NATIVE_PREFLIGHT_FAILED',{articleId,words:check.wordCount,violations:check.violations,livePublished:false});return;
-  }
-  state=saveCheckpoint(config,checkpointState(state,'PREPARED_FOR_NATIVE_AUDIT',{
-    nativeArticle:native.article,nativeTopic:native.topic,qualityPreview:check,errorCategory:null}));
   const token=process.env.NOONDEALSNOW_AI_SITE_PUBLISH_TOKEN;
   if(!token){report('CHECKPOINTED','SITE_PUBLISH_TOKEN_MISSING',{articleId,words:check.wordCount,livePublished:false});return}
   // The native Worker re-runs full quality, schema, novelty and 60s DO gate.
