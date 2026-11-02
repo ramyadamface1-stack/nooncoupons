@@ -1,0 +1,146 @@
+name: New Cloudflare Cutover Readiness - READ ONLY
+on:
+  push:
+    branches: [audit/new-cloudflare-cutover-readiness-nov02]
+    paths:
+      - 'audit/new-account-readiness*'
+      - '.github/workflows/new-cloudflare-cutover-readiness.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+      AWS_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test strict cutover interpretation before inspection
+        run: node --test audit/new-account-readiness.test.mjs
+      - name: Install R2 read-only S3 client
+        run: python3 -m pip install --quiet boto3
+      - name: Inspect new account zone, hidden Worker and R2 manifests - NO WRITES
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.parse,urllib.error,re
+          from botocore.config import Config
+          from botocore.exceptions import ClientError
+          import boto3
+          account=os.environ['CLOUDFLARE_ACCOUNT_ID']
+          token=os.environ.get('CLOUDFLARE_API_TOKEN') or ''
+          result={'zoneStatus':'unknown','workerFound':False,'bucketFound':False,
+                  'baseline':{},'fresh':{},'dnsRecordsVerified':False,
+                  'publicStatus':None,'liveCutoverApplied':False,'notes':[]}
+          def cfget(endpoint):
+              import subprocess
+              if not token: raise RuntimeError('new_account_cf_token_missing')
+              api='https://api.cloudflare.com/client/v4/'+endpoint
+              response=subprocess.run(['curl','-sS','--connect-timeout','10','--max-time','25',
+                   '-H','Authorization: Bearer '+token,'-H','Accept: application/json',
+                   '-w','__CF_HTTP__%{http_code}',api],capture_output=True,text=True,timeout=30)
+              if response.returncode: raise RuntimeError('cf_curl_connection_failed')
+              raw,sep,http=response.stdout.rpartition('__CF_HTTP__')
+              result['notes'].append('cf_http_'+endpoint.split('?')[0]+':'+http)
+              if not http.isdigit() or int(http)!=200: raise RuntimeError('cf_http_not_200')
+              try:data=json.loads(raw)
+              except ValueError: raise RuntimeError('cf_non_json_http_200')
+              if not isinstance(data,dict) or data.get('success') is not True:
+                  raise RuntimeError('cloudflare_api_result_unavailable')
+              return data.get('result')
+          query=urllib.parse.urlencode({'name':'noondealsnow.com','account.id':account})
+          try:
+              zones=cfget('zones?'+query)
+              chosen=next((z for z in zones if isinstance(z,dict) and z.get('name')=='noondealsnow.com'),None)
+              if chosen:
+                  result['zoneStatus']=chosen.get('status','unknown')
+                  result['assignedNameservers']=chosen.get('name_servers',[])
+                  result['notes'].append('zone lookup succeeded')
+          except Exception as exc:
+              result['notes'].append('cloudflare_zone_read_unavailable:'+type(exc).__name__)
+          try:
+              workers=cfget('accounts/'+account+'/workers/scripts')
+              candidates=workers if isinstance(workers,list) else (workers.get('scripts',[]) if isinstance(workers,dict) else [])
+              result['workerFound']=any(isinstance(w,dict) and (
+                  w.get('id')=='noondealsnow-production-new' or w.get('name')=='noondealsnow-production-new') for w in candidates)
+          except Exception as exc:
+              result['notes'].append('cloudflare_worker_read_unavailable:'+type(exc).__name__)
+          raw=open('wrangler.jsonc',encoding='utf-8').read()
+          m=re.search(r'"DO_MIGRATION_EXPORT_TAG"\s*:\s*"([^"]+)"',raw)
+          fresh_tag=m.group(1) if m else 'NOT_SET'
+          result['latestExportTag']=fresh_tag
+          try:
+              session=boto3.client('s3',region_name='auto',
+                  endpoint_url='https://'+account+'.r2.cloudflarestorage.com',
+                  aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID') or '',
+                  aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY') or '',
+                  config=Config(connect_timeout=10,read_timeout=20,retries={'max_attempts':1}))
+              def get_object(key):
+                  try:
+                      o=session.get_object(Bucket='nooncoupons-content-v2',Key=key)
+                      return json.loads(o['Body'].read(2*1024*1024))
+                  except ClientError as exc:
+                      code=exc.response.get('Error',{}).get('Code','unknown')
+                      result['notes'].append('r2_object_check_'+key.split('/')[1]+'_'+key.split('/')[2]+':'+str(code)[:32])
+                      return None
+                  except ValueError:
+                      result['notes'].append('r2_object_invalid_json')
+                      return None
+              for stage,tag in [('baseline','20261017-baseline'),('fresh',fresh_tag)]:
+                  for kind in ('ControlPlane','GeneratorControl'):
+                      src=get_object('migration/do-state/'+tag+'/'+kind+'/manifest.json')
+                      dst=get_object('migration/restore-progress/'+tag+'/'+kind+'.json')
+                      if src is not None or dst is not None: result['bucketFound']=True
+                      result[stage][kind]={
+                          'manifestComplete':bool(src and src.get('complete') is True),
+                          'restoreComplete':bool(dst and dst.get('complete') is True),
+                          'exported':src.get('exported') if src else None,
+                          'restored':dst.get('keysRestored') if dst else None
+                      }
+          except Exception as exc:
+              result['notes'].append('r2_read_failed:'+type(exc).__name__)
+          os.makedirs('cutover-readiness',exist_ok=True)
+          with open('cutover-readiness/raw.json','w',encoding='utf-8') as f:
+              json.dump(result,f,ensure_ascii=False,indent=2)
+          print('NEW_ACCOUNT_READ_ONLY_INVENTORY='+json.dumps(result,ensure_ascii=False))
+          PY
+      - name: Evidence-based verdict (success means diagnosis ran, NOT that cutover is ready)
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import {assessCutover} from './audit/new-account-readiness.mjs';
+          const data=JSON.parse(fs.readFileSync('cutover-readiness/raw.json','utf8'));
+          const verdict=assessCutover(data);
+          const out={...data,verdict};
+          fs.writeFileSync('cutover-readiness/report.json',JSON.stringify(out,null,2));
+          console.log('CUTOVER_READY='+verdict.readyForOperatorCutover);
+          console.log('LIVE_ON_NEW_ACCOUNT_CONFIRMED='+verdict.liveOnNewAccount);
+          for(const item of verdict.blockers)console.log('CUTOVER_BLOCKER='+item.id+': '+item.reason);
+          const summary=['### New Cloudflare account cutover — READ ONLY',
+            'Diagnostic completed; this workflow never modifies DNS, routes, Cron, or production.',
+            'Ready for supervised cutover: **'+verdict.readyForOperatorCutover+'**',
+            'Confirmed public cutover: **'+verdict.liveOnNewAccount+'**',
+            'New zone status: **'+data.zoneStatus+'**',
+            'New Worker found: **'+data.workerFound+'**',
+            'Fresh backup tag: **'+data.latestExportTag+'**',
+            ...verdict.blockers.map(b=>'- Blocker: '+b.id+' — '+b.reason)].join('\n');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,summary+'\n');
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: new-cf-cutover-readiness-${{ github.run_id }}
+          path: cutover-readiness/
+          if-no-files-found: warn
+          retention-days: 7
