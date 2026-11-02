@@ -78,3 +78,14 @@ test('selected topic is retried on next minute before moving to the following pr
  const published={...slot,state:'LIVE_VERIFIED'};
  assert.equal(resumableCheckpoint(published),false);
 });
+
+test('new buying-topic queue interleaves UAE and Saudi markets without changing earlier cursor slots',()=>{
+ assert.equal(topics[31].slug,'uae-sandisk-portable-ssd-backup-speed-nov188-2026');
+ assert.equal(topics[32].slug,'uae-seagate-external-hdd-capacity-backup-nov188-2026');
+ assert.equal(topics[33].slug,'uae-kingston-laptop-ram-ddr-upgrade-nov188-2026');
+ for(let i=34;i<96;i+=2){
+  assert.equal(topics[i].country,'SA','expected SA at queue '+i);
+  assert.equal(topics[i+1].country,'AE','expected AE at queue '+(i+1));
+ }
+ assert.equal(new Set(topics.map(t=>t.slug)).size,topics.length);
+});
