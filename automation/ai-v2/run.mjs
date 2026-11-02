@@ -7,7 +7,7 @@ import {callProvider} from './providers.mjs';
 import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive} from './provider-circuit.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
@@ -57,7 +57,7 @@ async function run(){
     const articleId=assertTopic(topic,config),saved=await readCheckpoint(config,articleId);
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
-    if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly}))continue;
+    if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly,autoSafeSaudiRecovery:!oneOffCanary,topic}))continue;
     selected={topic,articleId,saved};break;
   }
   if(!oneOffCanary&&lastChecked!==null){
@@ -74,6 +74,12 @@ async function run(){
   }
   const {topic,articleId}=selected;
   let state=selected.saved;
+  const recoveredWithoutAI=!oneOffCanary&&safeSaudiDeterministicRecovery(state,topic);
+  if(recoveredWithoutAI){
+    // This stamp is persisted with the next PREPARED or BLOCKED checkpoint.
+    // A new quality failure will not be retried automatically every minute.
+    state={...state,deterministicRecoveryRevision:SA_SAFE_RECOVERY_REVISION};
+  }
   if(savedOnly&&(!state||state.sectionIndex!==topic.sections.length)){report('BLOCKED','SAVED_DRAFT_NOT_READY_FOR_NO_AI_REPROCESS',{articleId});return}
   // An uncertain publish is never automatically retried. Inspect only the
   // public URL; do not spend AI tokens or repeat potentially committed writes.
