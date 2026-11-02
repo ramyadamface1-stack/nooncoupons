@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {cadence,validateConfig,assertTopic,stableId,classifyFailure,normalizeDraft,qualityPreflight,mayCallProvider} from '../automation/ai-v2/guardrails.mjs';
 import {objectPath,checkpointState} from '../automation/ai-v2/r2-checkpoints.mjs';
+import {readCheckpointRest,saveCheckpointRest} from '../automation/ai-v2/r2-checkpoints-http.mjs';
 import {callProvider} from '../automation/ai-v2/providers.mjs';
 const config=JSON.parse(readFileSync(new URL('../automation/ai-v2/config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('../automation/ai-v2/topics.json',import.meta.url)));
@@ -103,4 +104,27 @@ test('Groq GPT-OSS uses low reasoning and completion-token budget for editorial 
  assert.equal(body.include_reasoning,false);
  assert.equal(body.max_completion_tokens,3200);
  assert.equal('max_tokens' in body,false);
+});
+
+test('REST checkpoint transport does not spend AI quota and verifies persisted bytes',async()=>{
+ const id='a'.repeat(24),opts={token:'test-token-value-not-real',accountId:'a'.repeat(32)};
+ let stored='',requests=[];
+ const fetchFn=async (url,init)=>{
+  requests.push({method:init.method,url});
+  assert.equal(init.headers.authorization,'Bearer '+opts.token);
+  assert.ok(url.endsWith('/r2/buckets/nooncoupons-content-v2/objects/_ops/ai-v2-checkpoints/'+id+'.json'));
+  if(init.method==='PUT'){stored=init.body;return new Response('{}',{status:200})}
+  return stored?new Response(stored,{status:200}):new Response('not found',{status:404});
+ };
+ assert.equal(await readCheckpointRest(config,id,{...opts,fetchFn}),null);
+ const saved=await saveCheckpointRest(config,{articleId:id,state:'DRAFT_SAVED',version:2,sections:[{html:'<p>Original editorial</p>'}]},{...opts,fetchFn});
+ assert.equal(saved.sectionIndex,undefined);
+ assert.equal(saved.sections[0].html,'<p>Original editorial</p>');
+ assert.equal(requests.filter(r=>r.method==='PUT').length,1);
+ assert.equal(requests.filter(r=>r.method==='GET').length,2);
+ await assert.rejects(saveCheckpointRest(config,{articleId:id,state:'DRAFT_SAVED',version:3},{...opts,fetchFn:async (url,init)=>{
+  if(init.method==='PUT')return new Response('{}',{status:200});
+  return new Response('{"articleId":"'+id+'","state":"TAMPERED"}',{status:200});
+ }}),/READBACK_HASH_MISMATCH/);
+ await assert.rejects(readCheckpointRest(config,id,{...opts,fetchFn:async()=>new Response('forbidden',{status:403})}),/R2_HTTP_GET_403/);
 });
