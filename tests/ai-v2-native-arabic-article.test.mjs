@@ -50,7 +50,7 @@ test('short Saudi drafts receive useful verification guidance without bypassing 
  }));
  const article=buildSaudiAiV2Article(sa,short).article;
  assert.ok(article.html.includes('buyer-fit-depth'));
- assert.ok(article.html.includes('مراجعة الإجمالي'));
+ assert.ok(article.html.includes('لا تعتبر الخصم محققًا'));
  assert.ok(article.html.includes('data-copy-code="NOV170"'));
  const quality=qualityPreflight({html:article.html,topic:sa},config);
  assert.equal(quality.fullNativeQualityAuditRequired,true);
