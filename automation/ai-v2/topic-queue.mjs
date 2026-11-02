@@ -1,3 +1,25 @@
+// Exactly one zero-provider editorial rescue for known repaired Saudi gates.
+// Fail closed on unrecognized native diagnostics or malformed checkpoints.
+export const SA_SAFE_RECOVERY_REVISION='sa-title-and-depth-v1';
+export function safeSaudiDeterministicRecovery(checkpoint,topic){
+ if(topic?.country!=='SA'||checkpoint?.state!=='BLOCKED_REVIEW'||
+    checkpoint?.deterministicRecoveryRevision===SA_SAFE_RECOVERY_REVISION||
+    checkpoint?.sectionIndex!==5||checkpoint?.sections?.length!==5||
+    !checkpoint.sections.every(x=>typeof x?.html==='string'&&x.html.length>0))return false;
+ if(checkpoint.errorCategory==='WORD_WINDOW'){
+   const preview=checkpoint.qualityPreview;
+   return Array.isArray(preview?.violations)&&preview.violations.length===1&&
+     preview.violations[0]==='WORD_WINDOW'&&Number(preview.wordCount)>=1300&&Number(preview.wordCount)<1500;
+ }
+ if(checkpoint.errorCategory!=='NATIVE_QUALITY_BLOCKED')return false;
+ const d=checkpoint.nativeGateDiagnostics;
+ return Array.isArray(d?.p0)&&d.p0.length===1&&d.p0[0]==='title_avoids_literal_coupon_code'&&
+   Array.isArray(d.failed)&&d.failed.length===1&&d.failed[0]==='title_avoids_literal_coupon_code'&&
+   Array.isArray(d.schemas)&&d.schemas.length===0&&
+   Array.isArray(d.duplicates)&&d.duplicates.length===0&&
+   Array.isArray(d.indexation)&&d.indexation.length===0;
+}
+
 // Fail closed on unfinished market rendering. Never create a paid provider
 // request for a country whose native publish-quality renderer is not ready.
 export const READY_NATIVE_RENDERERS=Object.freeze(['AE','SA']);
@@ -5,13 +27,14 @@ export function publicationReadyTopic(topic,markets=READY_NATIVE_RENDERERS){
  return Boolean(topic&&markets.includes(topic.country)&&Array.isArray(topic.sections)&&topic.sections.length===5&&
   typeof topic.slug==='string'&&/^[a-z0-9-]{16,120}$/.test(topic.slug));
 }
-export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume=false,manualIncompleteRetry=false,nativeGateRepair=false}={}){
+export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume=false,manualIncompleteRetry=false,nativeGateRepair=false,autoSafeSaudiRecovery=false,topic=null}={}){
  const state=checkpoint?.state;
  if(!checkpoint)return true;
  if(['LIVE_VERIFIED','QUALITY_PASSED','COMMITTED','FAILED_FINAL'].includes(state))return false;
  if(state==='PAUSED_QUOTA')return manualGroqResume;
  if(state==='BLOCKED_REVIEW')
-  return (manualIncompleteRetry&&manualGroqResume&&checkpoint.errorCategory==='INCOMPLETE_RESPONSE')||
+  return (autoSafeSaudiRecovery&&safeSaudiDeterministicRecovery(checkpoint,topic))||
+   (manualIncompleteRetry&&manualGroqResume&&checkpoint.errorCategory==='INCOMPLETE_RESPONSE')||
    (savedOnly&&['WORD_WINDOW',...(nativeGateRepair?['NATIVE_QUALITY_BLOCKED']:[])].includes(checkpoint.errorCategory)&&checkpoint.sections?.length===checkpoint.sectionIndex&&checkpoint.sectionIndex===5);
  if(state==='UNKNOWN_REQUEST_OUTCOME')return false;
  // Both ambiguous write and acknowledged stored states must be rechecked
