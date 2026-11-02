@@ -57,7 +57,7 @@ export function salesWeightedCoupon(seed=0,country='SA'){
 }
 
 export function replaceUnapprovedCouponTokens(text,fallback='NOV170'){
-  return String(text??'').replace(/\b(?:OPS\d+|NOV\d+)\b/gi,token=>normalizeApprovedCoupon(token,fallback));
+  return String(text??'').replace(/\b(?:OPS\d+|NOV\d+)\b/gi,token=>isApprovedCoupon(token)?token:normalizeApprovedCoupon(token,fallback));
 }
 
 export const COUPON_SALES_POLICY_INFO=Object.freeze({
