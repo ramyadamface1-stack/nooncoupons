@@ -8,9 +8,10 @@ export function quotaCooldownSeconds(value,atMs=Date.now()){
 }
 export function providerCircuitId(provider,sha,keyRef=null){
  if(!['groq','gemini'].includes(provider))throw Error('unsupported_provider');
- if(provider==='gemini'&&keyRef!==null&&!/^[a-f0-9]{12}$/.test(keyRef))throw Error('invalid_key_ref');
- // Preserve Groq's existing global cooldown; isolate Gemini quotas by key.
- const suffix=provider==='gemini'&&keyRef?'|'+keyRef:'';
+ if(keyRef!==null&&!/^[a-f0-9]{12}$/.test(keyRef))throw Error('invalid_key_ref');
+ // Retain the single-key legacy Groq circuit when no keyRef is supplied.
+ // New pools use isolated circuits to avoid globally blocking a distinct key.
+ const suffix=keyRef?'|'+keyRef:'';
  return sha('noondealsnow|ai-v2|provider-quota|'+provider+suffix).slice(0,24);
 }
 export function providerCircuitActive(state,atMs=Date.now()){

@@ -17,6 +17,8 @@ test('one verified live article cannot repeat and stored ambiguity is inspected,
  assert.equal(resumableCheckpoint({state:'LIVE_VERIFIED'}),false);
  assert.equal(resumableCheckpoint({state:'PAUSED_QUOTA'}),false);
  assert.equal(resumableCheckpoint({state:'PAUSED_QUOTA'},{manualGroqResume:true}),true);
+ assert.equal(resumableCheckpoint({state:'PAUSED_QUOTA',lastRequestStatus:429,errorCategory:'QUOTA',sectionIndex:2,sections:[{},{}]}),true);
+ assert.equal(resumableCheckpoint({state:'PAUSED_QUOTA',lastRequestStatus:429,errorCategory:'QUOTA',sectionIndex:2,sections:[{}]}),false);
  assert.equal(resumableCheckpoint({state:'UNKNOWN_REQUEST_OUTCOME'}),false);
  assert.equal(resumableCheckpoint({state:'UNKNOWN_PUBLICATION_OUTCOME'}),false);
  assert.equal(resumableCheckpoint({state:'UNKNOWN_PUBLICATION_OUTCOME'},{manualGroqResume:true,savedOnly:true}),false);

@@ -5,7 +5,7 @@ test('automatic workflow passes R2, free-only approval and native publish auth i
  const y=readFileSync('.github/workflows/noondealsnow-ai-v2.yml','utf8');
  const job=y.split('  preflight-or-generate:')[1];
  assert.ok(job,'automatic job must exist');
- for(const name of ['NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN','NOONDEALSNOW_AI_FREE_ONLY_APPROVED','CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1','GROQ_API_KEY'])assert.ok(job.includes('secrets.'+name),'missing job-level secret '+name);
+ for(const name of ['NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN','NOONDEALSNOW_AI_FREE_ONLY_APPROVED','CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1','GROQ_API_KEY','GROQ_API_KEYS'])assert.ok(job.includes('secrets.'+name),'missing job-level secret '+name);
  assert.match(job,/NOONDEALSNOW_AI_SITE_PUBLISH_TOKEN:\s*\$\{\{ secrets\.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 \}\}/);
  assert.match(y,/if: github\.event_name == 'workflow_dispatch'/);
  assert.match(job,/AI_PREFLIGHT_ONLY:/);
@@ -36,6 +36,7 @@ test('provider section persists an ambiguous-request boundary then one verified 
  assert.match(runtime,/needsProvider=state\.sectionIndex<topic\.sections\.length/);
  assert.match(runtime,/if\(providerCircuitActive\(circuit\)\)continue/);
  assert.match(runtime,/selectGeminiKey\(process\.env,index\+n\)/);
+ assert.match(runtime,/selectGroqKey\(process\.env,index\+n\)/);
  assert.match(runtime,/ALL_FREE_PROVIDERS_IN_COOLDOWN/);
  assert.match(runtime,/checkpointState\(state,'PUBLISH_REQUEST_SENT'/);
  assert.match(runtime,/checkpointState\(state,'LIVE_VERIFIED'/);

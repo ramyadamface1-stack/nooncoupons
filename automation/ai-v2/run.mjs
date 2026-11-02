@@ -5,6 +5,7 @@ import {checkpointState} from './r2-checkpoints.mjs';
 import {readCheckpointRest as readCheckpoint,saveCheckpointRest as saveCheckpoint} from './r2-checkpoints-http.mjs';
 import {callProvider} from './providers.mjs';
 import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
+import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
 import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
@@ -30,12 +31,13 @@ async function run(){
   const runConfig=(oneOffCanary||approvedCronDispatch)?{...config,enabled:true}:config;
   const due=cadence(runConfig,Number(process.env.AI_SCHEDULED_MS||Date.now()));
   const geminiKeys=geminiKeyInventory(process.env);
+  const groqKeys=groqKeyInventory(process.env);
   if(process.env.AI_PREFLIGHT_ONLY==='true'){
-    report('PREFLIGHT',due.reason,{enabled:config.enabled,targetPerHour:config.targetPerHour,mode:config.publicationMode,hasGemini:geminiKeys.hasGemini,geminiNewKeys:geminiKeys.newCount,geminiNewAuthKeys:geminiKeys.newAuthCount,geminiOldKeys:geminiKeys.oldCount,geminiSelectedSource:geminiKeys.selectedSource,hasGroq:Boolean(process.env.GROQ_API_KEY),hasPrivateStorageToken:Boolean(process.env.CLOUDFLARE_API_TOKEN),freeBudgetApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true'});return;
+    report('PREFLIGHT',due.reason,{enabled:config.enabled,targetPerHour:config.targetPerHour,mode:config.publicationMode,hasGemini:geminiKeys.hasGemini,geminiNewKeys:geminiKeys.newCount,geminiNewAuthKeys:geminiKeys.newAuthCount,geminiOldKeys:geminiKeys.oldCount,geminiSelectedSource:geminiKeys.selectedSource,hasGroq:groqKeys.hasGroq,groqNewKeys:groqKeys.newCount,groqEligibleKeys:groqKeys.eligibleCount,hasPrivateStorageToken:Boolean(process.env.CLOUDFLARE_API_TOKEN),freeBudgetApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true'});return;
   }
   if(!due.due){report('SKIPPED',due.reason);return}
   const savedOnly=oneOffCanary&&process.env.AI_REPROCESS_SAVED_DRAFT==='true'&&process.env.AI_NO_PROVIDER_CALLS==='true';
-  const blocked=mayCallProvider({config:runConfig,freeApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true',checkpointWritable:Boolean(process.env.CLOUDFLARE_API_TOKEN&&process.env.CLOUDFLARE_ACCOUNT_ID),topicReserved:true,hasAnyKey:Boolean(geminiKeys.hasGemini||process.env.GROQ_API_KEY||savedOnly)});
+  const blocked=mayCallProvider({config:runConfig,freeApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true',checkpointWritable:Boolean(process.env.CLOUDFLARE_API_TOKEN&&process.env.CLOUDFLARE_ACCOUNT_ID),topicReserved:true,hasAnyKey:Boolean(geminiKeys.hasGemini||groqKeys.hasGroq||savedOnly)});
   if(blocked){report('SKIPPED',blocked);return}
   const safeSaudiCanary=oneOffCanary&&['NoonDealsNow AI V2 Saudi Quality Canary','NoonDealsNow AI V2 Saudi Quality Recovery Canary'].includes(process.env.GITHUB_WORKFLOW)&&process.env.AI_SA_ONE_OFF==='true';
   let selected;
@@ -122,7 +124,7 @@ async function run(){
   // A confirmed Gemini 429 is NOT retried. An explicitly approved, isolated
   // one-time job may resume the exact saved section using a different provider.
   const priority=config.providerPriority||['gemini','groq'];
-  const available={gemini:geminiKeys.hasGemini,groq:Boolean(process.env.GROQ_API_KEY)};
+  const available={gemini:geminiKeys.hasGemini,groq:groqKeys.hasGroq};
   // Only request the NEXT missing section. Prefer Groq, but fall back to
   // Gemini when Groq is in quota cooldown, and rotate Gemini key cooldowns.
   // Completed drafts reach publication with no provider calls.
@@ -131,14 +133,17 @@ async function run(){
     const preferred=explicitGroqResume?['groq']:priority;
     for(const candidateProvider of preferred){
       if(!available[candidateProvider])continue;
-      const poolSize=candidateProvider==='gemini'?geminiKeys.eligibleCount:1;
+      const poolSize=candidateProvider==='gemini'?geminiKeys.eligibleCount:groqKeys.eligibleCount;
       for(let n=0;n<poolSize;n++){
         const credential=candidateProvider==='gemini'
           ?selectGeminiKey(process.env,index+n)
-          :{key:process.env.GROQ_API_KEY,keySlot:0,source:'GROQ_API_KEY'};
+          :selectGroqKey(process.env,index+n);
         if(!credential?.key)continue;
         const keyRef=hash(credential.key).slice(0,12); // never store the secret
-        const circuitId=providerCircuitId(candidateProvider,hash,candidateProvider==='gemini'?keyRef:null);
+        // The old single-Groq key still honors its existing global cooldown.
+        // A newly installed Groq pool has independent key fingerprints.
+        const usePerKey=candidateProvider==='gemini'||credential.source==='GROQ_API_KEYS';
+        const circuitId=providerCircuitId(candidateProvider,hash,usePerKey?keyRef:null);
         const circuit=await readCheckpoint(config,circuitId);
         if(providerCircuitActive(circuit))continue;
         return {provider:candidateProvider,credential,keyRef,circuitId,circuit};
