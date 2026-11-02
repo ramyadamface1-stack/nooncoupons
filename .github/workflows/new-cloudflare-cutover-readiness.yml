@@ -47,9 +47,9 @@ jobs:
               api='https://api.cloudflare.com/client/v4/'+endpoint
               response=subprocess.run(['curl','-sS','--connect-timeout','10','--max-time','25',
                    '-H','Authorization: Bearer '+token,'-H','Accept: application/json',
-                   '-w','\\n%{http_code}',api],capture_output=True,text=True,timeout=30)
+                   '-w','__CF_HTTP__%{http_code}',api],capture_output=True,text=True,timeout=30)
               if response.returncode: raise RuntimeError('cf_curl_connection_failed')
-              raw,sep,http=response.stdout.rpartition('\\n')
+              raw,sep,http=response.stdout.rpartition('__CF_HTTP__')
               result['notes'].append('cf_http_'+endpoint.split('?')[0]+':'+http)
               if not http.isdigit() or int(http)!=200: raise RuntimeError('cf_http_not_200')
               try:data=json.loads(raw)
