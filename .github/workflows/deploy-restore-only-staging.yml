@@ -8,6 +8,7 @@ on:
       - 'wrangler.migration-staging.jsonc'
       - 'do-migration-state.js'
       - 'brand-runtime.js'
+      - 'wrangler.new-account-production.jsonc'
   workflow_dispatch:
 
 permissions:
@@ -106,3 +107,76 @@ jobs:
             echo 'DESTINATION_DNS_ZONE_QUERY=NOT_AUTHORIZED_OR_UNAVAILABLE'
           fi
           echo 'DNS_CUTOVER_CHANGES=NONE'
+
+  deploy-hidden-production:
+    name: New account candidate - no DNS, no public route, no Cron
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+      DEST_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      DEST_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fail closed if new production candidate can publish before migration verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const c=JSON.parse(fs.readFileSync('wrangler.new-account-production.jsonc','utf8'));
+          const b=c.durable_objects?.bindings||[];
+          if(c.name!=='noondealsnow-production-new'||c.main!=='discovery-entry.js'||
+             c.workers_dev!==false||c.routes?.length||c.triggers?.crons?.length!==0||
+             c.r2_buckets?.length!==1||c.r2_buckets[0].binding!=='CONTENT_FINAL'||
+             c.r2_buckets[0].bucket_name!=='nooncoupons-content-v2'||
+             b.length!==2||b.some(x=>x.script_name!=='noondealsnow-migration-staging')||
+             c.ai||c.migrations||c.vars?.BULK_DAILY_TARGET!=='0'||
+             c.vars?.ENGLISH_DAILY_TARGET!=='0'||c.vars?.INDEXNOW_ENABLED!=='false'||
+             c.vars?.DO_MIGRATION_EXPORT_ENABLED!=='false'||
+             c.vars?.DO_MIGRATION_RESTORE_ENABLED!=='false')throw Error('UNSAFE_NEW_ACCOUNT_PRODUCTION_CANDIDATE');
+          console.log('NEW_ACCOUNT_CANDIDATE_ISOLATED=true');
+          console.log('NEW_ACCOUNT_CANDIDATE_R2_NATIVE=true');
+          console.log('NEW_ACCOUNT_CANDIDATE_DO_OWNER=noondealsnow-migration-staging');
+          NODE
+      - name: Verify restored baseline in existing new-account R2 before deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet boto3
+          python3 - <<'PY'
+          import boto3,json,os
+          from botocore.config import Config
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',aws_access_key_id=os.environ['DEST_ACCESS'].strip(),aws_secret_access_key=os.environ['DEST_SECRET'].strip(),config=Config(connect_timeout=10,read_timeout=25,retries={'max_attempts':2,'mode':'standard'}))
+          b='nooncoupons-content-v2'
+          for kind in ('ControlPlane','GeneratorControl'):
+            pre='migration/do-state/20261017-baseline/'+kind+'/manifest.json'
+            post='migration/restore-progress/20261017-baseline/'+kind+'.json'
+            src=json.loads(s.get_object(Bucket=b,Key=pre)['Body'].read())
+            dst=json.loads(s.get_object(Bucket=b,Key=post)['Body'].read())
+            if not(src.get('complete') is True and dst.get('complete') is True and dst.get('keysRestored')==src.get('exported') and dst.get('partsDone')==src.get('parts')):raise RuntimeError('unsafe_incomplete_baseline_restore_'+kind)
+            print('NEW_ACCOUNT_BASELINE_RESTORE='+json.dumps({'kind':kind,'keys':dst['keysRestored'],'complete':True}))
+          print('NEWER_BACKUP_AND_FRESH_CUTOVER_STILL_REQUIRE_INDEPENDENT_VERIFICATION=true')
+          PY
+      - run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Cloudflare new-account production candidate dry-run
+        run: npx wrangler deploy --dry-run --config wrangler.new-account-production.jsonc --outdir /tmp/new-prod-candidate
+      - name: Deploy inert new-account production candidate (no routes or Cron)
+        run: npx wrangler deploy --config wrangler.new-account-production.jsonc
+      - name: Read-only verify new-account candidate script exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          http=$(curl -sS -o /tmp/new-worker.json -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts")
+          test "$http" = 200
+          jq -e '.success==true and any(.result[]?; .id=="noondealsnow-production-new" or .name=="noondealsnow-production-new")' /tmp/new-worker.json >/dev/null
+          echo 'NEW_ACCOUNT_HIDDEN_PRODUCTION_WORKER=deployed'
+          echo 'DNS_CUTOVER=not_performed'
+          echo 'PUBLIC_ROUTES=none'
+          echo 'AUTOMATIC_PUBLISHING=disabled_until_verified_data_cutover'
