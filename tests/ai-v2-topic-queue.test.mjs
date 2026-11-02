@@ -58,3 +58,14 @@ test('product-specific buying topics are not duplicated and preserve market code
   assert.equal(t.sections.length,5);
  }
 });
+
+test('new editorial titles never end with a broken word or violate the 72-character SEO ceiling',()=>{
+ for(const t of topics.slice(20)){
+   const marker=t.country==='AE'?': matching ':' حسب ';
+   const focus=t.sections[0].split(marker)[1].replace(/ to the intended use$/,'');
+   const included=t.topic.split(': ')[1].split(t.country==='AE'?' | Noon UAE':' | نون السعودية')[0];
+   assert.ok(focus.startsWith(included),'broken focus: '+t.slug);
+   assert.ok(focus===included||focus.charAt(included.length)===' ','cut a word: '+t.slug);
+   assert.ok(t.topic.length<=72&&t.topic.length>=28);
+ }
+});
