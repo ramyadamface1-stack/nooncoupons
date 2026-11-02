@@ -41,9 +41,9 @@ jobs:
             && j.workers_dev===false
             && (!j.routes||j.routes.length===0)
             && j.triggers?.crons?.length===1
-            && j.triggers.crons[0]==='* * * * *'
+            && j.triggers.crons[0]==='*/3 * * * *'
             && vars.DO_MIGRATION_RESTORE_ENABLED==='true'
-            && vars.DO_MIGRATION_RESTORE_PARTS_PER_TICK==='20'
+            && vars.DO_MIGRATION_RESTORE_PARTS_PER_TICK==='1'
             && vars.DO_MIGRATION_EXPORT_ENABLED==='false'
             && vars.BULK_DAILY_TARGET==='0'
             && vars.ENGLISH_DAILY_TARGET==='0'
