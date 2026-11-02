@@ -14,7 +14,7 @@ permissions: {contents: read}
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 30
     env:
       DEST_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
       DEST_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
@@ -56,3 +56,6 @@ jobs:
           print('DISABLED_OLD_R2_READS=ZERO',flush=True)
           print('NO_NEW_RESOURCES_OR_DELETES=true')
           PY
+      - name: Compare existing old and new DO snapshots without writes
+        if: github.event_name == 'push'
+        run: python3 -u .github/scripts/compare-do-snapshots.py
