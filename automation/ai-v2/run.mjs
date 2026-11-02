@@ -133,24 +133,31 @@ async function run(){
     const preferred=explicitGroqResume?['groq']:priority;
     for(const candidateProvider of preferred){
       if(!available[candidateProvider])continue;
-      // A provider-wide definite 503 uses a short circuit so a failing
-      // service never burns through every free key or fills the draft queue.
+      // Legacy Groq quota is global, but Gemini service errors are scoped to
+      // one MODEL: fallback to the vetted free Flash-Lite model if 3.8 is down.
       const globalCircuitId=providerCircuitId(candidateProvider,hash);
       if(providerCircuitActive(await readCheckpoint(config,globalCircuitId)))continue;
-      const poolSize=candidateProvider==='gemini'?geminiKeys.eligibleCount:groqKeys.eligibleCount;
-      for(let n=0;n<poolSize;n++){
-        const credential=candidateProvider==='gemini'
-          ?selectGeminiKey(process.env,index+n)
-          :selectGroqKey(process.env,index+n);
-        if(!credential?.key)continue;
-        const keyRef=hash(credential.key).slice(0,12); // never store the secret
-        // The old single-Groq key still honors its existing global cooldown.
-        // A newly installed Groq pool has independent key fingerprints.
-        const usePerKey=candidateProvider==='gemini'||credential.source!=='GROQ_API_KEY';
-        const circuitId=providerCircuitId(candidateProvider,hash,usePerKey?keyRef:null);
-        const circuit=await readCheckpoint(config,circuitId);
-        if(providerCircuitActive(circuit))continue;
-        return {provider:candidateProvider,credential,keyRef,circuitId,circuit};
+      const models=candidateProvider==='gemini'
+        ?[config.models.gemini,config.models.geminiFallback].filter(Boolean)
+        :[config.models.groq];
+      for(const candidateModel of [...new Set(models)]){
+        const modelCircuitId=providerCircuitId(candidateProvider,hash,hash('model|'+candidateModel).slice(0,12));
+        const modelCircuit=await readCheckpoint(config,modelCircuitId);
+        if(providerCircuitActive(modelCircuit))continue;
+        const poolSize=candidateProvider==='gemini'?geminiKeys.eligibleCount:groqKeys.eligibleCount;
+        for(let n=0;n<poolSize;n++){
+          const credential=candidateProvider==='gemini'
+            ?selectGeminiKey(process.env,index+n)
+            :selectGroqKey(process.env,index+n);
+          if(!credential?.key)continue;
+          const keyRef=hash(credential.key).slice(0,12); // never store the secret
+          const usePerKey=candidateProvider==='gemini'||credential.source!=='GROQ_API_KEY';
+          const circuitId=providerCircuitId(candidateProvider,hash,usePerKey?keyRef:null);
+          const circuit=await readCheckpoint(config,circuitId);
+          if(providerCircuitActive(circuit))continue;
+          return {provider:candidateProvider,model:candidateModel,modelCircuitId,modelCircuit,
+            credential,keyRef,circuitId,circuit};
+        }
       }
     }
     return null;
@@ -172,8 +179,7 @@ async function run(){
       report('SKIPPED','ALL_FREE_PROVIDERS_IN_COOLDOWN',{articleId,enabledProviders:priority.filter(p=>available[p])});
       return;
     }
-    const {provider,credential,keyRef,circuitId,circuit}=chosen;
-    const model=config.models[provider];
+    const {provider,model,modelCircuitId,modelCircuit,credential,keyRef,circuitId,circuit}=chosen;
     lastProvider=provider;
     const prompt=[
       'Write an original, useful '+(topic.country==='SA'?'Saudi Arabic':'UAE English')+' consumer shopping article SECTION, valid HTML fragment only.',
@@ -203,8 +209,8 @@ async function run(){
       }));
       if(quota||temporary){
         const pauseSec=quota?quotaCooldownSeconds(result.retryAfter):300;
-        const pauseCircuitId=temporary?providerCircuitId(provider,hash):circuitId;
-        const oldPause=temporary?await readCheckpoint(config,pauseCircuitId):circuit;
+        const pauseCircuitId=temporary?modelCircuitId:circuitId;
+        const oldPause=temporary?modelCircuit:circuit;
         try{await saveCheckpoint(config,{articleId:pauseCircuitId,
           state:quota?'PAUSED_QUOTA':'PAUSED_PROVIDER',provider,createdAt:now(),
           resumeAt:new Date(Date.now()+pauseSec*1000).toISOString(),version:Number(oldPause?.version||0)+1});}
@@ -213,7 +219,7 @@ async function run(){
         // selector skips the paused provider/key and tries another free source
         // in the SAME GitHub run, subject to the strict 5-request maximum.
         console.log('AI_V2_PROVIDER_FAILOVER '+JSON.stringify({
-          provider,keyRef,articleId,httpStatus:result.httpStatus,
+          provider,model,keyRef,articleId,httpStatus:result.httpStatus,
           fallbackPreference:provider==='groq'?'gemini':'healthy-free-provider',
           calls,sectionIndex:index,pauseSeconds:pauseSec
         }));
