@@ -61,3 +61,14 @@ test('read-only model check reports 403 without rotating or logging key',async()
   assert.equal(result.httpStatus,403);assert.equal(result.checkedKeys,1);assert.equal(calls,1);
   assert.equal(JSON.stringify(result).includes(auth),false);
 });
+
+test('mixed AQ and AIza Gemini keys are all eligible in the bulk secret',()=>{
+  const a=newer('a'),old=older('o'),b=newer('b');
+  const env={GEMINI_API_KEYS:[a,old,b].join('\n'),GEMINI_API_KEY:older('fallback')};
+  const inventory=geminiKeyInventory(env);
+  assert.equal(inventory.newCount,3);
+  assert.equal(inventory.newAuthCount,2);
+  assert.equal(inventory.eligibleCount,3);
+  assert.equal(inventory.selectedSource,'GEMINI_API_KEYS');
+  assert.deepEqual([0,1,2,3].map(i=>selectGeminiKey(env,i).key),[a,old,b,a]);
+});

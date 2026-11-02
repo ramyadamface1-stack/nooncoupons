@@ -18,15 +18,19 @@ export function parseGeminiKeys(input){
 export function selectGeminiKey(env={},slot=0){
   const newer=parseGeminiKeys(env.GEMINI_API_KEYS);
   const old=parseGeminiKeys(env.GEMINI_API_KEY);
-  const auth=newer.filter(k=>k.startsWith('AQ.'));
-  const keys=auth.length?auth:newer.length?newer:old;
+  // All unique keys in the bulk secret are candidates, regardless of format.
+  // Keep the older single-key secret as a fallback for compatibility.
+  const keys=newer.length?newer:old;
   if(!keys.length)return null;
   const keySlot=Math.abs(Math.trunc(Number(slot)||0))%keys.length;
-  return {key:keys[keySlot],keySlot,source:auth.length?'GEMINI_API_KEYS_AUTH':newer.length?'GEMINI_API_KEYS':'GEMINI_API_KEY'};
+  const allAuth=newer.length>0&&newer.every(k=>k.startsWith('AQ.'));
+  return {key:keys[keySlot],keySlot,source:allAuth?'GEMINI_API_KEYS_AUTH':newer.length?'GEMINI_API_KEYS':'GEMINI_API_KEY'};
 }
 export function geminiKeyInventory(env={}){
   const newer=parseGeminiKeys(env.GEMINI_API_KEYS),old=parseGeminiKeys(env.GEMINI_API_KEY);
   const auth=newer.filter(k=>k.startsWith('AQ.'));
-  const keys=auth.length?auth:newer.length?newer:old;
-  return {hasGemini:keys.length>0,newCount:newer.length,newAuthCount:auth.length,oldCount:old.length,selectedSource:keys.length?(auth.length?'GEMINI_API_KEYS_AUTH':newer.length?'GEMINI_API_KEYS':'GEMINI_API_KEY'):null,eligibleCount:keys.length};
+  const keys=newer.length?newer:old;
+  return {hasGemini:keys.length>0,newCount:newer.length,newAuthCount:auth.length,oldCount:old.length,
+    selectedSource:keys.length?(newer.length&&auth.length===newer.length?'GEMINI_API_KEYS_AUTH':newer.length?'GEMINI_API_KEYS':'GEMINI_API_KEY'):null,
+    eligibleCount:keys.length};
 }
