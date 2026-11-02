@@ -9,6 +9,13 @@ on:
       - 'automation/ai-v2/**'
       - 'ai-scheduler-v2/**'
       - 'tests/ai-v2-*.mjs'
+      - 'wrangler.migration-staging.jsonc'
+      - 'wrangler.new-account-production.jsonc'
+      - '.github/workflows/deploy-restore-only-staging.yml'
+      - '.github/workflows/mirror-do-backups-new-account.yml'
+      - '.github/scripts/compare-do-snapshots.py'
+      - '.github/scripts/migrate-r2-article-delta.py'
+      - '.github/scripts/migrate-r2-resumable.py'
   workflow_dispatch:
 
 permissions:
