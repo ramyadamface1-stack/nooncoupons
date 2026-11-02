@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import os,json,urllib.request,urllib.parse,re
+          import os,json,urllib.request,urllib.parse,urllib.error,re
           from botocore.config import Config
           from botocore.exceptions import ClientError
           import boto3
@@ -44,23 +44,37 @@ jobs:
           def cfget(endpoint):
               if not token: raise RuntimeError('new_account_cf_token_missing')
               req=urllib.request.Request('https://api.cloudflare.com/client/v4/'+endpoint,
-                  headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
-              with urllib.request.urlopen(req,timeout=20) as response: data=json.load(response)
-              if not data.get('success'):raise RuntimeError('cloudflare_read_error')
+                  headers={'Authorization':'Bearer '+token,'Accept':'application/json',
+                           'User-Agent':'NoonDealsNow-ReadOnly-Cutover-Audit'})
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as response:
+                      raw=response.read(1024*1024)
+                      result['notes'].append('cf_http_'+endpoint.split('?')[0]+':'+str(response.status))
+                      try: data=json.loads(raw)
+                      except ValueError: raise RuntimeError('cf_non_json_response_'+str(response.status))
+              except urllib.error.HTTPError as exc:
+                  result['notes'].append('cf_http_'+endpoint.split('?')[0]+':'+str(exc.code))
+                  raise
+              if not isinstance(data,dict) or data.get('success') is not True:
+                  raise RuntimeError('cloudflare_api_result_unavailable')
               return data.get('result')
+          query=urllib.parse.urlencode({'name':'noondealsnow.com','account.id':account})
           try:
-              query=urllib.parse.urlencode({'name':'noondealsnow.com','account.id':account})
               zones=cfget('zones?'+query)
-              chosen=next((z for z in zones if z.get('name')=='noondealsnow.com'),None)
+              chosen=next((z for z in zones if isinstance(z,dict) and z.get('name')=='noondealsnow.com'),None)
               if chosen:
                   result['zoneStatus']=chosen.get('status','unknown')
                   result['assignedNameservers']=chosen.get('name_servers',[])
                   result['notes'].append('zone lookup succeeded')
-              workers=cfget('accounts/'+account+'/workers/scripts')
-              result['workerFound']=any(w.get('id')=='noondealsnow-production-new' or
-                                        w.get('name')=='noondealsnow-production-new' for w in workers)
           except Exception as exc:
-              result['notes'].append('cloudflare_api_read_failed:'+type(exc).__name__)
+              result['notes'].append('cloudflare_zone_read_unavailable:'+type(exc).__name__)
+          try:
+              workers=cfget('accounts/'+account+'/workers/scripts')
+              candidates=workers if isinstance(workers,list) else (workers.get('scripts',[]) if isinstance(workers,dict) else [])
+              result['workerFound']=any(isinstance(w,dict) and (
+                  w.get('id')=='noondealsnow-production-new' or w.get('name')=='noondealsnow-production-new') for w in candidates)
+          except Exception as exc:
+              result['notes'].append('cloudflare_worker_read_unavailable:'+type(exc).__name__)
           raw=open('wrangler.jsonc',encoding='utf-8').read()
           m=re.search(r'"DO_MIGRATION_EXPORT_TAG"\s*:\s*"([^"]+)"',raw)
           fresh_tag=m.group(1) if m else 'NOT_SET'
@@ -71,25 +85,28 @@ jobs:
                   aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID') or '',
                   aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY') or '',
                   config=Config(connect_timeout=10,read_timeout=20,retries={'max_attempts':1}))
-              buckets=[b['Name'] for b in session.list_buckets().get('Buckets',[])]
-              result['bucketFound']='nooncoupons-content-v2' in buckets
               def get_object(key):
                   try:
                       o=session.get_object(Bucket='nooncoupons-content-v2',Key=key)
                       return json.loads(o['Body'].read(2*1024*1024))
-                  except (ClientError,ValueError) as e:
+                  except ClientError as exc:
+                      code=exc.response.get('Error',{}).get('Code','unknown')
+                      result['notes'].append('r2_object_check_'+key.split('/')[1]+'_'+key.split('/')[2]+':'+str(code)[:32])
                       return None
-              if result['bucketFound']:
-                  for stage,tag in [('baseline','20261017-baseline'),('fresh',fresh_tag)]:
-                      for kind in ('ControlPlane','GeneratorControl'):
-                          src=get_object('migration/do-state/'+tag+'/'+kind+'/manifest.json')
-                          dst=get_object('migration/restore-progress/'+tag+'/'+kind+'.json')
-                          result[stage][kind]={
-                              'manifestComplete':bool(src and src.get('complete') is True),
-                              'restoreComplete':bool(dst and dst.get('complete') is True),
-                              'exported':src.get('exported') if src else None,
-                              'restored':dst.get('keysRestored') if dst else None
-                          }
+                  except ValueError:
+                      result['notes'].append('r2_object_invalid_json')
+                      return None
+              for stage,tag in [('baseline','20261017-baseline'),('fresh',fresh_tag)]:
+                  for kind in ('ControlPlane','GeneratorControl'):
+                      src=get_object('migration/do-state/'+tag+'/'+kind+'/manifest.json')
+                      dst=get_object('migration/restore-progress/'+tag+'/'+kind+'.json')
+                      if src is not None or dst is not None: result['bucketFound']=True
+                      result[stage][kind]={
+                          'manifestComplete':bool(src and src.get('complete') is True),
+                          'restoreComplete':bool(dst and dst.get('complete') is True),
+                          'exported':src.get('exported') if src else None,
+                          'restored':dst.get('keysRestored') if dst else None
+                      }
           except Exception as exc:
               result['notes'].append('r2_read_failed:'+type(exc).__name__)
           os.makedirs('cutover-readiness',exist_ok=True)
