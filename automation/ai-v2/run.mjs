@@ -50,6 +50,9 @@ async function run(){
     lastChecked=position;
     if(!publicationReadyTopic(topic))continue;
     if(oneOffCanary&&topic.country!==String(process.env.AI_CANARY_MARKET||'AE'))continue;
+    // An explicitly targeted zero-provider recovery must never select another
+    // draft from the queue or accidentally spend a different topic's quota.
+    if(oneOffCanary&&process.env.AI_CANARY_SLUG&&topic.slug!==process.env.AI_CANARY_SLUG)continue;
     checked++;
     const articleId=assertTopic(topic,config),saved=await readCheckpoint(config,articleId);
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
