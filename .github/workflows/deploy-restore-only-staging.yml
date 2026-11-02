@@ -88,3 +88,21 @@ jobs:
           echo "NEW_WORKER_PUBLIC_ROUTE=none"
           echo "NEW_WORKER_PUBLISHING=disabled"
           echo "NEW_WORKER_RESTORE=manifest-gated"
+      - name: Read-only check of destination DNS zone ownership
+        shell: bash
+        run: |
+          set -euo pipefail
+          http=$(curl -sS -o /tmp/zone.json -w '%{http_code}' -G \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            --data-urlencode 'name=noondealsnow.com' \
+            --data-urlencode "account.id=$CLOUDFLARE_ACCOUNT_ID" \
+            'https://api.cloudflare.com/client/v4/zones' || true)
+          echo "DESTINATION_DNS_ZONE_QUERY_HTTP=$http"
+          if [ "$http" = 200 ] && jq -e '.success==true' /tmp/zone.json >/dev/null; then
+            count=$(jq '[.result[]?|select(.name=="noondealsnow.com")]|length' /tmp/zone.json)
+            echo "DESTINATION_DNS_ZONE_COUNT=$count"
+            jq -rc '.result[]?|select(.name=="noondealsnow.com")|{name,status,paused,type,name_servers}' /tmp/zone.json | sed 's/^/DESTINATION_DNS_ZONE_STATUS=/'
+          else
+            echo 'DESTINATION_DNS_ZONE_QUERY=NOT_AUTHORIZED_OR_UNAVAILABLE'
+          fi
+          echo 'DNS_CUTOVER_CHANGES=NONE'
