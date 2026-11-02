@@ -31,7 +31,10 @@ export function publicationReadyTopic(topic,markets=READY_NATIVE_RENDERERS){
 export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume=false,manualIncompleteRetry=false,nativeGateRepair=false,autoSafeSaudiRecovery=false,topic=null}={}){
  const state=checkpoint?.state;
  if(!checkpoint)return true;
- if(['LIVE_VERIFIED','QUALITY_PASSED','COMMITTED','FAILED_FINAL'].includes(state))return false;
+ // An uncertain publish has already crossed the irreversible HTTP boundary.
+ // Quarantine it for independent reconciliation: never auto-publish it again
+ // and never let it monopolize the global queue cursor.
+ if(['LIVE_VERIFIED','QUALITY_PASSED','COMMITTED','FAILED_FINAL','UNKNOWN_PUBLICATION_OUTCOME'].includes(state))return false;
  if(state==='PAUSED_QUOTA')return manualGroqResume;
  if(state==='BLOCKED_REVIEW')
   return (autoSafeSaudiRecovery&&safeSaudiDeterministicRecovery(checkpoint,topic))||
