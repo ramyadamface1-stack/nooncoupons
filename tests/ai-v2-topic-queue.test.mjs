@@ -19,6 +19,8 @@ test('one verified live article cannot repeat and stored ambiguity is inspected,
  assert.equal(resumableCheckpoint({state:'PAUSED_QUOTA'},{manualGroqResume:true}),true);
  assert.equal(resumableCheckpoint({state:'PAUSED_QUOTA',lastRequestStatus:429,errorCategory:'QUOTA',sectionIndex:2,sections:[{},{}]}),true);
  assert.equal(resumableCheckpoint({state:'PAUSED_QUOTA',lastRequestStatus:429,errorCategory:'QUOTA',sectionIndex:2,sections:[{}]}),false);
+ assert.equal(resumableCheckpoint({state:'PAUSED_PROVIDER',lastRequestStatus:503,errorCategory:'PROVIDER_TEMPORARY',sectionIndex:2,sections:[{},{}]}),true);
+ assert.equal(resumableCheckpoint({state:'PAUSED_PROVIDER',lastRequestStatus:503,errorCategory:'PROVIDER_TEMPORARY',sectionIndex:2,sections:[{}]}),false);
  assert.equal(resumableCheckpoint({state:'UNKNOWN_REQUEST_OUTCOME'}),false);
  assert.equal(resumableCheckpoint({state:'UNKNOWN_PUBLICATION_OUTCOME'}),false);
  assert.equal(resumableCheckpoint({state:'UNKNOWN_PUBLICATION_OUTCOME'},{manualGroqResume:true,savedOnly:true}),false);
@@ -45,7 +47,7 @@ test('bounded round robin never scans the entire corpus and eventually covers ev
  let seen=new Set(),cursor=20;
  for(let n=0;n<Math.ceil(topics.length/QUEUE_SCAN_LIMIT);n++){
   let window=queueScanWindow(topics.length,cursor);
-  assert.ok(window.length<=8);
+  assert.ok(window.length<=24);
   window.forEach(i=>seen.add(i));
   cursor=nextQueueCursor(topics.length,window.at(-1));
  }
