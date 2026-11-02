@@ -63,3 +63,12 @@ test('Saudi coupon P0 gate ignores HDR10 product standard but still rejects wron
  assert.deepEqual(couponCodeCandidates('NOV170 NOV188 HDR10'),['NOV170','NOV188']);
  assert.deepEqual(couponCodeCandidates('NOV170 HDR10 NOV170'),['NOV170']);
 });
+
+test('Canon SELPHY CP1300 model is not a coupon only with trusted product context',()=>{
+ const canon={brand:'كانون'};
+ const unrelated={brand:'سامسونج'};
+ assert.deepEqual(couponCodeCandidates('نون السعودية NOV170 Canon SELPHY CP1300',canon),['NOV170']);
+ assert.deepEqual(couponCodeCandidates('نون السعودية NOV170 Canon SELPHY CP1300 NOV188',canon),['NOV170','NOV188']);
+ assert.deepEqual(couponCodeCandidates('نون السعودية NOV170 SELPHY CP1300',unrelated),['NOV170','CP1300']);
+ assert.deepEqual(couponCodeCandidates('نون السعودية NOV170 Canon CP1300',canon),['NOV170','CP1300']);
+});
