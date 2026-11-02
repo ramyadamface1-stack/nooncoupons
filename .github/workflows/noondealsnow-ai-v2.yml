@@ -140,9 +140,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install R2 checkpoint client only when real job is enabled
-        if: ${{ !inputs.preflight_only }}
-        run: npm install --no-audit --no-fund --ignore-scripts
+      # Scheduled path uses built-in Node fetch with verified R2 REST readback;
+      # do not spend ~5s reinstalling Wrangler every one-minute dispatch.
       - name: Safe preflight or checkpointed draft run
         shell: bash
         run: |
