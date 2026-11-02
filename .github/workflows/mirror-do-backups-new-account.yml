@@ -8,6 +8,7 @@ on:
     paths:
       - '.github/workflows/mirror-do-backups-new-account.yml'
       - '.github/scripts/compare-do-snapshots.py'
+      - '.github/scripts/audit-zone-dns-parity.py'
   workflow_dispatch:
   schedule:
     - cron: '17 * * * *'
@@ -20,6 +21,9 @@ jobs:
       DEST_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
       DEST_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
       AWS_EC2_METADATA_DISABLED: 'true'
+      NOON_NEW_CF_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
     steps:
       - uses: actions/checkout@v4
       - run: python3 -m pip install --quiet boto3
@@ -58,6 +62,11 @@ jobs:
           print('DISABLED_OLD_R2_READS=ZERO',flush=True)
           print('NO_NEW_RESOURCES_OR_DELETES=true')
           PY
+      - name: Compare DNS records across Cloudflare accounts read-only
+        if: github.event_name == 'push'
+        run: |
+          python3 -m py_compile .github/scripts/audit-zone-dns-parity.py
+          python3 -u .github/scripts/audit-zone-dns-parity.py
       - name: Compare existing old and new DO snapshots without writes
         if: github.event_name == 'push'
         run: |
