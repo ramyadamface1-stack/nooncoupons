@@ -11,6 +11,7 @@ test('confirmed Groq 429 pauses across topics with bounded cooldown',()=>{
  const until=new Date(Date.parse('2026-11-01T20:00:00Z')+3600000).toISOString();
  assert.equal(providerCircuitActive({state:'PAUSED_QUOTA',resumeAt:until},Date.parse('2026-11-01T20:30:00Z')),true);
  assert.equal(providerCircuitActive({state:'PAUSED_QUOTA',resumeAt:until},Date.parse('2026-11-01T21:01:00Z')),false);
+ assert.equal(providerCircuitActive({state:'PAUSED_PROVIDER',resumeAt:until},Date.parse('2026-11-01T20:30:00Z')),true);
 });
 test('separate provider circuit records never collide',()=>{
  assert.notEqual(providerCircuitId('groq',sha),providerCircuitId('gemini',sha));
