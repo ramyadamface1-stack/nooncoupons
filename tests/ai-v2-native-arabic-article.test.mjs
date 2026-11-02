@@ -43,3 +43,16 @@ test('Saudi product guide removes literal code from title without changing appro
  assert.ok(output.article.html.includes('https://www.noon.com/saudi-ar/'));
  assert.equal(output.article.html.includes('NOV188'),false);
 });
+
+test('short Saudi drafts receive useful verification guidance without bypassing native word or security checks',()=>{
+ const short=sections.map((s,i)=>({
+   html:'<h2>خطوة التحقق '+(i+1)+'</h2><p>'+text.repeat(3)+'</p>'
+ }));
+ const article=buildSaudiAiV2Article(sa,short).article;
+ assert.ok(article.html.includes('buyer-fit-depth'));
+ assert.ok(article.html.includes('مراجعة الإجمالي'));
+ assert.ok(article.html.includes('data-copy-code="NOV170"'));
+ const quality=qualityPreflight({html:article.html,topic:sa},config);
+ assert.equal(quality.fullNativeQualityAuditRequired,true);
+ assert.equal(quality.pass,quality.violations.length===0);
+});
