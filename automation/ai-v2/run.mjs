@@ -76,6 +76,27 @@ async function run(){
     return;
   }
   const {topic,articleId}=selected;
+  // Do not consume free AI quota while Cloudflare's public Worker is unable
+  // to accept a publication. Error 1027 is account-wide until the UTC reset.
+  // The selected checkpoint and existing article slugs remain untouched.
+  try{
+    const siteHealth=await fetch(config.domain+'/api/generator-health',{
+      headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(12000)
+    });
+    if(siteHealth.status===429){
+      const body=(await siteHealth.text()).slice(0,3000);
+      report('SKIPPED',/1027/.test(body)?'CLOUDFLARE_1027_DAILY_LIMIT':'SITE_RATE_LIMITED',
+        {articleId,http:429,providerCalls:0,livePublished:false});
+      return;
+    }
+    if(!siteHealth.ok){
+      report('SKIPPED','SITE_HEALTH_UNAVAILABLE',{articleId,http:siteHealth.status,providerCalls:0,livePublished:false});
+      return;
+    }
+  }catch{
+    report('SKIPPED','SITE_HEALTH_NETWORK_UNKNOWN',{articleId,providerCalls:0,livePublished:false});
+    return;
+  }
   let state=selected.saved;
   const recoveredWithoutAI=!oneOffCanary&&safeSaudiDeterministicRecovery(state,topic);
   if(recoveredWithoutAI){
@@ -288,14 +309,17 @@ async function run(){
       body:JSON.stringify({topic:native.topic,article:native.article,
         checkpoint:{articleId,state:'PREPARED_FOR_NATIVE_AUDIT',contentHash:hash(html),attribution}}),
       signal:AbortSignal.timeout(45000)});
-    payload=await response.json();
+    const responseBody=await response.text();
+    try{payload=JSON.parse(responseBody)}
+    catch{payload={ok:false,reason:response.status===429&&/1027/.test(responseBody)
+      ?'CLOUDFLARE_1027_DAILY_LIMIT':'NATIVE_PUBLISH_HTTP_'+response.status};}
   }catch{
     await saveCheckpoint(config,checkpointState(state,'UNKNOWN_PUBLICATION_OUTCOME',{errorCategory:'PUBLISH_HTTP_OUTCOME_UNKNOWN'}));
     report('BLOCKED','PUBLISH_HTTP_OUTCOME_UNKNOWN',{articleId,livePublished:false});return;
   }
   if(!response.ok||payload?.ok!==true){
     const reason=String(payload?.reason||'NATIVE_PUBLISH_DENIED');
-    const recoverable=['GLOBAL_PUBLICATION_SLOT_NOT_DUE','GLOBAL_PUBLICATION_SLOT_NOT_GRANTED'].includes(reason);
+    const recoverable=['GLOBAL_PUBLICATION_SLOT_NOT_DUE','GLOBAL_PUBLICATION_SLOT_NOT_GRANTED','CLOUDFLARE_1027_DAILY_LIMIT'].includes(reason);
     await saveCheckpoint(config,checkpointState(state,recoverable?'PREPARED_FOR_NATIVE_AUDIT':'BLOCKED_REVIEW',{
       errorCategory:reason,nativeGateDiagnostics:payload?.diagnostics||null}));
     report('BLOCKED',reason,{articleId,words:check.wordCount,quality:payload?.diagnostics?.score||null,http:response.status,livePublished:false});return;
