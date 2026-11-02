@@ -8,7 +8,9 @@ export async function callProvider({provider,model,key,prompt,fetchFn=fetch}){
     headers['x-goog-api-key']=key;
     // Gemini 3.8 Flash no longer accepts the old sampling temperature/top_p
     // migration knobs. Keep model-specific payloads minimal and supported.
-    const generationConfig=model.startsWith('gemini-3.8-')?{maxOutputTokens:2500}:{temperature:0.65,maxOutputTokens:2500};
+    const generationConfig=model.startsWith('gemini-3.')
+      ?{maxOutputTokens:4096,thinkingConfig:{thinkingLevel:'LOW'}}
+      :{temperature:0.65,maxOutputTokens:4096};
     payload={contents:[{parts:[{text:prompt}]}],generationConfig};
   }else if(provider==='groq'){
     url='https://api.groq.com/openai/v1/chat/completions';
