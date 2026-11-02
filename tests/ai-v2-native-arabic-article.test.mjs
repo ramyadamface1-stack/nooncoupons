@@ -72,3 +72,13 @@ test('Canon SELPHY CP1300 model is not a coupon only with trusted product contex
  assert.deepEqual(couponCodeCandidates('نون السعودية NOV170 SELPHY CP1300',unrelated),['NOV170','CP1300']);
  assert.deepEqual(couponCodeCandidates('نون السعودية NOV170 Canon CP1300',canon),['NOV170','CP1300']);
 });
+
+test('TP-Link AX90 model and WPA3 security standard do not impersonate coupon codes',()=>{
+ const tp={brand:'تي بي لينك'};
+ const other={brand:'كانون'};
+ const valid='نون السعودية راوتر TP-Link Archer AX90 يدعم WPA3. كود NOV170';
+ assert.deepEqual(couponCodeCandidates(valid,tp),['NOV170']);
+ assert.deepEqual(couponCodeCandidates(valid+' وكود NOV999',tp),['NOV170','NOV999']);
+ assert.deepEqual(couponCodeCandidates('راوتر Archer AX90 كود NOV170',other),['AX90','NOV170']);
+ assert.deepEqual(couponCodeCandidates('موديل AX90 NOV170',tp),['AX90','NOV170']);
+});
