@@ -15,5 +15,5 @@ export function providerCircuitId(provider,sha,keyRef=null){
  return sha('noondealsnow|ai-v2|provider-quota|'+provider+suffix).slice(0,24);
 }
 export function providerCircuitActive(state,atMs=Date.now()){
- return state?.state==='PAUSED_QUOTA'&&Number.isFinite(Date.parse(state?.resumeAt))&&Date.parse(state.resumeAt)>atMs;
+ return ['PAUSED_QUOTA','PAUSED_PROVIDER'].includes(state?.state)&&Number.isFinite(Date.parse(state?.resumeAt))&&Date.parse(state.resumeAt)>atMs;
 }
