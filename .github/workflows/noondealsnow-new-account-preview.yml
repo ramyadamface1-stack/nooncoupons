@@ -65,6 +65,17 @@ jobs:
                 return Response.json({ok:result.ok,policy:gate.policy,minSpacingMs:gate.minSpacingMs,
                   eligible:gate.eligible},{headers:{'x-robots-tag':'noindex, nofollow','cache-control':'no-store'}});
               }
+              if(new URL(request.url).pathname==='/__ndn_preview_publish_auth_probe'){
+                // An empty article payload is *always* rejected by native shape
+                // validation before any R2 write or publication permit claim.
+                const target=new URL(request.url);
+                target.pathname='/api/internal/ai-v2/publish';
+                const verification=await live.fetch(new Request(target,{method:'POST',
+                  headers:{authorization:request.headers.get('authorization')||'',
+                    'content-type':'application/json'},body:'{}'}),env,ctx);
+                return Response.json({authPassed:verification.status!==401,receivedHttp:verification.status},
+                  {headers:{'x-robots-tag':'noindex, nofollow','cache-control':'no-store'}});
+              }
               const response=await live.fetch(request,env,ctx);
               const headers=new Headers(response.headers);
               headers.set('x-robots-tag','noindex, nofollow');
@@ -133,5 +144,15 @@ jobs:
           get_preview '/' 'NOV170'
           get_preview '/blog' '<html'
           get_preview '/articles/uae-buyer-acer-gaming-laptop-ports-and-upgrades-nov188-2026' 'NOV188'
+          # Auth preflight posts INVALID {} to the native bridge; it can never
+          # write a draft, consume AI quota, or claim a publication slot.
+          auth_code=$(curl -sS -o /tmp/ndn-preview-auth.json -w '%{http_code}' --max-time 30 \
+            -H "x-ndn-preview-token: $TOKEN" \
+            -H "authorization: Bearer ${CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1}" \
+            "$ORIGIN/__ndn_preview_publish_auth_probe")
+          echo "PREVIEW_AUTH_PROBE_HTTP=$auth_code"
+          test "$auth_code" = 200
+          jq -e '.authPassed==true and .receivedHttp==409' /tmp/ndn-preview-auth.json >/dev/null
+          echo 'NEW_ACCOUNT_PUBLISH_AUTH_PREFLIGHT=PASS_NO_WRITE'
           echo 'PREVIEW_NEW_ACCOUNT_READS=PASS'
           echo 'PREVIEW_DNS_CHANGED=NO;PREVIEW_OLD_WORKER_CHANGED=NO;PREVIEW_NEW_R2_WRITES=NO'

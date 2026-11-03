@@ -14,7 +14,7 @@
   "vars": {
     "SITE_ORIGIN": "https://noondealsnow.com",
     "SITE_NAME": "كوبونات نون",
-    "GLOBAL_PUBLISH_MIN_INTERVAL_SECONDS": "36",
+    "GLOBAL_PUBLISH_MIN_INTERVAL_SECONDS": "30",
     "GLOBAL_PUBLISH_MAX_PER_MINUTE": "2",
     "DEFAULT_LANGUAGE": "ar",
     "DEFAULT_COUNTRY": "SA",
