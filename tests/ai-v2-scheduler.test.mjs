@@ -65,7 +65,7 @@ test('one real scheduled-minute diagnostic dispatch only, with no AI calls',asyn
  const result=await dispatchDue({config,scheduledTime:ms,actualTime:ms+1000,token:'fake',logger:()=>{},fetchFn:async (url,init)=>{
    calls.push({url,method:init.method||'GET',body:init.body||null});
    if(url.endsWith('/dispatches'))return new Response(null,{status:204});
-   if(url.includes('event=workflow_dispatch'))return new Response(JSON.stringify({workflow_runs:[]}),{status:200});
+   if(url.includes('event=workflow_dispatch')&&!url.includes('&status='))return new Response(JSON.stringify({workflow_runs:[]}),{status:200});
    return new Response(JSON.stringify({total_count:0}),{status:200});
  }});
  assert.equal(result.dispatched,true);
@@ -81,7 +81,7 @@ test('bounded diagnostic stops after one accepted GitHub workflow_dispatch',asyn
  let calls=[];
  const result=await dispatchDue({config,scheduledTime:ms,actualTime:ms+500,token:'fake',logger:()=>{},fetchFn:async (url,init)=>{
    calls.push(url);
-   if(url.includes('event=workflow_dispatch'))return new Response(JSON.stringify({workflow_runs:[{event:'workflow_dispatch',created_at:received}]}),{status:200});
+   if(url.includes('event=workflow_dispatch')&&!url.includes('&status='))return new Response(JSON.stringify({workflow_runs:[{event:'workflow_dispatch',created_at:received}]}),{status:200});
    if(url.endsWith('/dispatches'))throw Error('NO_REPEATED_DISPATCH');
    return new Response(JSON.stringify({total_count:0}),{status:200});
  }});
