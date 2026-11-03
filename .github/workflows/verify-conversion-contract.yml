@@ -17,7 +17,7 @@ jobs:
       - name: Verify source conversion contract
         run: |
           set -euo pipefail
-          node --test tests/ga4-single-dispatch.test.mjs
+          node --test tests/ga4-single-dispatch.test.mjs tests/r2-rescue-analytics.test.mjs
           node --check network-entry.js
           node --check approved-coupons.js
           grep -Fq "marketAwareConversionAnalytics:true" network-entry.js

@@ -9,7 +9,21 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const encode=s=>encodeURIComponent(String(s)).replace(/[!'()*]/g,c=>'%'+c.charCodeAt(0).toString(16).toUpperCase());
 const hex=b=>Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,'0')).join('');
 const bin=b=>typeof b==='string'?enc.encode(b):b;
-const htmlHeaders={'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=30,s-maxage=300,stale-while-revalidate=600','x-r2-rescue':'new-account-readonly-v1','x-content-type-options':'nosniff'};
+const htmlHeaders={
+  'content-type':'text/html; charset=utf-8',
+  'cache-control':'public,max-age=30,s-maxage=300,stale-while-revalidate=600',
+  'x-r2-rescue':'new-account-readonly-v1',
+  // Rescue pages bypass premium-entry/public-entry. Apply equivalent protections here.
+  'x-content-type-options':'nosniff',
+  'x-frame-options':'SAMEORIGIN',
+  'referrer-policy':'strict-origin-when-cross-origin',
+  'strict-transport-security':'max-age=31536000; includeSubDomains',
+  'permissions-policy':'camera=(), microphone=(), geolocation=()',
+  'cross-origin-opener-policy':'same-origin',
+  'x-permitted-cross-domain-policies':'none',
+  'content-security-policy':"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com; upgrade-insecure-requests",
+  'x-ga4-measurement':'G-1551Z7DJ2C'
+};
 const manifestCache=new Map();
 async function digest(s){return hex(await crypto.subtle.digest('SHA-256',bin(s)))}
 async function mac(key,msg){const k=await crypto.subtle.importKey('raw',bin(key),{name:'HMAC',hash:'SHA-256'},false,['sign']);return new Uint8Array(await crypto.subtle.sign('HMAC',k,bin(msg)))}

@@ -1,10 +1,10 @@
 name: Verify GA4 Production
 
+# Check only after the production deploy succeeds; a push-time check can race deployment.
 on:
-  push:
-    paths:
-      - 'public-entry.js'
-      - '.github/workflows/verify-ga4.yml'
+  workflow_run:
+    workflows: ["Deploy Live Worker"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -12,10 +12,11 @@ permissions:
 
 jobs:
   verify:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
-      - name: Verify GA4 on production pages
+      - name: Verify actual GA4 page and rescued-article contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -25,11 +26,17 @@ jobs:
 
           check_public() {
             local path="$1"
-            curl -fsSL --retry 4 --retry-delay 2 -D headers.txt "$ORIGIN$path" -o body.html
+            curl -fsSL --retry 4 --retry-delay 2 --max-time 30 -D headers.txt "$ORIGIN$path" -o body.html
             grep -Fq "googletagmanager.com/gtag/js?id=$MID" body.html
-            grep -Fq "gtag('config','$MID')" body.html
-            grep -Fq "'copy_code'" body.html
-            grep -Fq "'shop_click'" body.html
+            if ! grep -Fq "gtag('config','$MID')" body.html && ! grep -Fq "window.gtag(\"config\",\"$MID\")" body.html; then
+              echo "GA4_CONFIG_MISSING=$path"; exit 4
+            fi
+            if ! grep -Fq "'copy_code'" body.html && ! grep -Fq 'coupon_copy' body.html; then
+              echo "COUPON_TRACKING_MISSING=$path"; exit 4
+            fi
+            if ! grep -Fq "'shop_click'" body.html && ! grep -Fq 'noon_outbound' body.html; then
+              echo "OUTBOUND_TRACKING_MISSING=$path"; exit 4
+            fi
             grep -Fiq "x-ga4-measurement: $MID" headers.txt
             echo "GA4_PUBLIC_OK=$path"
           }
@@ -37,10 +44,14 @@ jobs:
           check_public '/'
           check_public "/articles/$ARTICLE"
 
-          ADMIN_CODE=$(curl -sS -o admin.html -w '%{http_code}' "$ORIGIN/admin")
+          # Rescued R2 pages must have the same baseline security as the public worker.
+          grep -Fiq 'strict-transport-security: max-age=31536000' headers.txt
+          grep -Fiq 'x-content-type-options: nosniff' headers.txt
+          grep -Fiq 'referrer-policy: strict-origin-when-cross-origin' headers.txt
+
+          ADMIN_CODE=$(curl -sS --max-time 20 -o admin.html -w '%{http_code}' "$ORIGIN/admin")
           if grep -Fq "$MID" admin.html; then
-            echo 'GA4_ADMIN_EXCLUSION=false'
-            exit 4
+            echo 'GA4_ADMIN_EXCLUSION=false'; exit 4
           fi
           echo "GA4_ADMIN_HTTP=$ADMIN_CODE"
           echo 'GA4_ADMIN_EXCLUSION=true'
