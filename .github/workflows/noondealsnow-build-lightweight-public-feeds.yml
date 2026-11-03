@@ -1,0 +1,106 @@
+name: NoonDealsNow Build Compact Public Listing Feeds in Existing R2 (No Article Changes)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-build-lightweight-public-feeds.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ndn-public-listing-feeds-compact-once
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Save safe read-only listing snapshots to NEW R2; never modify articles or source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import boto3,os,json,collections,datetime
+          from botocore.config import Config
+          client=boto3.client('s3',region_name='auto',
+            endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'].strip(),
+            aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'].strip(),
+            config=Config(connect_timeout=10,read_timeout=35,retries={'max_attempts':2,'mode':'standard'}))
+          bucket='nooncoupons-content-v2'
+          def read(key):
+            obj=client.get_object(Bucket=bucket,Key=key)
+            data=json.loads(obj['Body'].read())
+            return data,obj['ETag'].strip('"')
+          def save(key,data):
+            raw=json.dumps(data,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+            if len(raw)>380000:
+              raise RuntimeError('COMPACT_FEED_TOO_LARGE_'+key+'_'+str(len(raw)))
+            try:
+              old=client.head_object(Bucket=bucket,Key=key)
+              if int(old['ContentLength'])==len(raw):
+                print('FEED_EXISTS='+key+';BYTES='+str(len(raw)),flush=True)
+                return
+            except Exception:pass
+            client.put_object(Bucket=bucket,Key=key,Body=raw,
+              ContentType='application/json; charset=utf-8',CacheControl='public,max-age=120')
+            assert client.head_object(Bucket=bucket,Key=key)['ContentLength']==len(raw)
+            print('FEED_SAVED='+key+';BYTES='+str(len(raw)),flush=True)
+          # 1. Every legacy recent-list record stays accessible; keep only the
+          # fields consumed by article cards/category hubs, never article HTML.
+          src,etag=read('bulk/latest.json')
+          fields=['slug','country','title','primaryKeyword','metaDescription',
+            'coupon','status','indexable','quality','qualityFloor','wordCount',
+            'intent','categoryKey','brandKey','landingPath','publishedAt',
+            'updatedAt','createdAt','languageSource','urlPath','searchIntentFamily']
+          rows=[]
+          for row in (src.get('articles') or []):
+            if not isinstance(row,dict) or not row.get('slug'):continue
+            compact={k:row[k] for k in fields if k in row and row[k] is not None}
+            rows.append(compact)
+          print('LEGACY_SOURCE_ROWS='+str(len(src.get('articles') or []))+';COMPACT_ROWS='+str(len(rows)),flush=True)
+          save('bulk/public-compact-v1.json',{
+            'version':1,'source':'bulk/latest.json','sourceEtag':etag,
+            'updatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'articles':rows})
+          # 2. An English public view stays bounded for fast mobile UI.
+          # Historical archives and English XML sitemaps keep their OWN
+          # original complete index; this is only for storefront category hubs.
+          state,_=read('english-canary/state.json')
+          try:journal,_=read('english-canary/publish-journal-v1.json')
+          except Exception:journal={}
+          all_records={}
+          for r in [*(state.get('records') or []),*(journal.get('records') or [])]:
+            if isinstance(r,dict) and r.get('slug'):
+              all_records[r['slug']]=r
+          categories=collections.defaultdict(list)
+          for r in all_records.values():
+            if r.get('indexable') is False or r.get('status') in ('draft','scheduled'):continue
+            category=str(r.get('categoryKey') or r.get('profileKey') or 'other')
+            categories[category].append(r)
+          chosen={}
+          def add(row):
+            if len(chosen)<650:chosen[row['slug']]=row
+          for group in categories.values():
+            group.sort(key=lambda r:str(r.get('updatedAt') or r.get('createdAt') or ''),reverse=True)
+            for r in group[:15]:add(r)
+          recent=sorted(all_records.values(),key=lambda r:str(r.get('updatedAt') or r.get('createdAt') or ''),reverse=True)
+          for r in recent:
+            if len(chosen)>=650:break
+            if r.get('indexable') is not False and r.get('status') not in ('draft','scheduled'):add(r)
+          enfields=['slug','country','title','primaryKeyword','metaDescription',
+            'coupon','status','indexable','quality','qualityFloor','wordCount','intent',
+            'categoryKey','brandKey','landingPath','publishedAt','updatedAt',
+            'createdAt','languageSource','urlPath','searchIntentFamily','profileKey']
+          enrows=[{k:v for k,v in ((name,row[name]) for name in enfields if name in row) if v is not None} for row in chosen.values()]
+          print('ENGLISH_SOURCE_UNIQUE='+str(len(all_records))+';PUBLIC_RECENT='+str(len(enrows)),flush=True)
+          save('english-canary/public-recent-v1.json',{
+            'version':1,'source':'english-canary/state.json + publish-journal-v1.json',
+            'updatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'articles':enrows})
+          print('ORIGINAL_R2_OBJECTS_MODIFIED=ZERO;ARTICLE_BYTES_MODIFIED=ZERO;OLD_ACCOUNT_REQUESTS=ZERO',flush=True)
+          PY
