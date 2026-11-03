@@ -87,13 +87,25 @@ jobs:
           set -euo pipefail
           ORIGIN='https://noondealsnow-cutover-preview.ndn-e4c35f8a50.workers.dev'
           TOKEN=$(cat /tmp/ndn-preview-key)
-          unauth=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$ORIGIN/")
+          # A newly created workers.dev hostname can return 404 briefly before
+          # global routing propagates. Fail closed if it never becomes private.
+          unauth=000
+          for i in $(seq 1 15); do
+            unauth=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 12 "$ORIGIN/" || true)
+            [ "$unauth" = 403 ] && break
+            sleep 3
+          done
           echo "PREVIEW_UNAUTHORIZED_HTTP=$unauth"
           test "$unauth" = 403
           get_preview(){
             local path="$1" match="$2"
             local out=/tmp/ndn-preview-response.txt headers=/tmp/ndn-preview-headers.txt
-            code=$(curl -sS -D "$headers" -o "$out" -w '%{http_code}' --retry 1 --max-time 30 -H "x-ndn-preview-token: $TOKEN" "$ORIGIN$path")
+            local code=000
+            for i in $(seq 1 5); do
+              code=$(curl -sS -D "$headers" -o "$out" -w '%{http_code}' --max-time 30 -H "x-ndn-preview-token: $TOKEN" "$ORIGIN$path" || true)
+              [ "$code" = 200 ] && break
+              sleep 3
+            done
             echo "PREVIEW_PATH=$path;HTTP=$code;BYTES=$(wc -c < "$out")"
             test "$code" = 200
             grep -iq 'x-robots-tag: noindex, nofollow' "$headers"
