@@ -33,3 +33,8 @@ test('coupon-country XML edge cache uses a new revision after whitelist correcti
   assert.match(source,/market-coupon-canonical-v2/);
   assert.match(source,/sitemap-coupons-/);
 });
+
+test('public GA4 injection skips admin and API HTML entirely',()=>{
+  const source=load('brand-runtime.js');
+  assert.match(source,/if\(!u\.pathname\.startsWith\('\/admin'\)&&!u\.pathname\.startsWith\('\/api\/'\)\)html=ensureGa4Public\(html\)/);
+});

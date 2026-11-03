@@ -452,7 +452,8 @@ export default{
     let html=applySeoSettings(brandHead(visibleSanitized.html),settings,u.pathname,origin);
     html=injectSeoExtras(html,settings);
     const finalSchemaRepair=repairJsonLd(html,origin,settings);html=finalSchemaRepair.html;
-    html=ensureGa4Public(html);
+    // Public GA4 must never be added to admin/API HTML, even if an admin page renders markup.
+    if(!u.pathname.startsWith('/admin')&&!u.pathname.startsWith('/api/'))html=ensureGa4Public(html);
     html=cairoEnglishPublishTime(html,u.pathname);
     html=normalizeInternalOrigin(html,origin);
     html=ensureCanonicalLink(html,origin,u.pathname);
