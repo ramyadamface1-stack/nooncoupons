@@ -1,0 +1,79 @@
+name: NoonDealsNow Prestage Only New Cloudflare Zone Routes (Pending Zone)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-pending-zone-prestage-routes.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ndn-pending-new-zone-routing
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      NEW_CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Inspect exact destination zone, DNS proxies and Worker; add only safe pending routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          zone='c09077a581adc7aa11d6de0c121e179d'
+          account='e4c35f8a50a7b2e4cfb9d6c534962603'
+          worker='noondealsnow-production-new'
+          token=os.environ.get('NEW_CF_TOKEN','').strip()
+          if not token:raise RuntimeError('NEW_CF_TOKEN_MISSING')
+          def call(method,path,payload=None):
+            url='https://api.cloudflare.com/client/v4/'+path
+            body=json.dumps(payload).encode() if payload is not None else None
+            req=urllib.request.Request(url,data=body,method=method,headers={
+              'Authorization':'Bearer '+token,'Accept':'application/json',
+              'Content-Type':'application/json','User-Agent':'NoonDealsNow-Pending-Cutover-Route-Guard'})
+            try:
+              with urllib.request.urlopen(req,timeout=16) as resp:
+                return resp.status,json.load(resp)
+            except urllib.error.HTTPError as err:
+              try:obj=json.loads(err.read(4000))
+              except:obj={}
+              return err.code,obj
+          def expect(path):
+            code,data=call('GET',path)
+            if code!=200 or data.get('success') is not True:raise RuntimeError('READ_BLOCKED_'+path.split('/')[-1]+'_HTTP_'+str(code))
+            return data.get('result')
+          z=expect('zones/'+zone)
+          if z.get('name')!='noondealsnow.com' or z.get('account',{}).get('id')!=account:
+            raise RuntimeError('WRONG_ZONE_ACCOUNT')
+          print('DEST_ZONE_STATUS='+str(z.get('status')),flush=True)
+          if z.get('status')!='pending':
+            raise RuntimeError('SAFE_PRESTAGE_REQUIRES_PENDING_ZONE_NO_ACTIVE_TRAFFIC')
+          expect('accounts/'+account+'/workers/services/'+worker)
+          rows=expect('zones/'+zone+'/dns_records?per_page=100')
+          hosts=['noondealsnow.com','www.noondealsnow.com']
+          for h in hosts:
+            relevant=[{'name':r.get('name'),'type':r.get('type'),'proxied':r.get('proxied')} for r in rows if r.get('name')==h]
+            print('TARGET_HOST_DNS='+json.dumps({'hostname':h,'entries':relevant}),flush=True)
+            if not any(x.get('proxied') is True for x in relevant):
+              raise RuntimeError('PROXIED_DNS_MISSING_'+h)
+          existing=expect('zones/'+zone+'/workers/routes')
+          target=[h+'/*' for h in hosts]
+          for pattern in target:
+            conflicts=[r for r in existing if r.get('pattern')==pattern and r.get('script')!=worker]
+            if conflicts:raise RuntimeError('EXISTING_CONFLICTING_WORKER_ROUTE_'+pattern)
+          for pattern in target:
+            if any(r.get('pattern')==pattern and r.get('script')==worker for r in existing):
+              print('DEST_WORKER_ROUTE_ALREADY_PRESENT='+pattern,flush=True);continue
+            code,result=call('POST','zones/'+zone+'/workers/routes',{'pattern':pattern,'script':worker})
+            errors=[e.get('code') for e in result.get('errors',[]) if isinstance(e,dict)]
+            print('DEST_WORKER_ROUTE_CREATE='+json.dumps({'pattern':pattern,'http':code,'success':result.get('success') is True,'errorCodes':errors}),flush=True)
+            if code not in (200,201) or result.get('success') is not True:
+              raise RuntimeError('NEW_ZONE_ROUTE_CREATE_DENIED_'+str(code))
+          final=expect('zones/'+zone+'/workers/routes')
+          if any(not any(r.get('pattern')==p and r.get('script')==worker for r in final) for p in target):
+            raise RuntimeError('DESTINATION_WORKER_ROUTE_MISSING_AFTER_WRITE')
+          print('NEW_PENDING_ZONE_ROUTES_READY=true',flush=True)
+          print('OLD_CLOUDFLARE_ACCOUNT_WRITES=0;DNS_RECORD_WRITES=0;REGISTRAR_NAMESERVER_WRITES=0',flush=True)
+          PY
