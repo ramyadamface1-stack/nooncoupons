@@ -428,6 +428,21 @@ async function sitemapHealth(req,env,ctx,origin){
   const rows=[];
   for(const path of paths){
     try{
+      if(path==='/sitemap.xml'){
+        // Do NOT assemble the 100KB+ public sitemap index inside this
+        // diagnostic. With Free's CPU budget it intermittently triggers 1102.
+        // Verify durable authoritative source manifests instead. Actual HTTP
+        // reachability of the root remains a separate direct URL smoke test.
+        const [rescue,ai]=await Promise.all([
+          env.CONTENT_FINAL?.head('seo-rescue/index.json'),
+          env.CONTENT_FINAL?.head('_ops/ai-v2-publication-ledger-v1.json')
+        ]);
+        const checks={rescueIndexPresent:Boolean(rescue),aiV2LedgerPresent:Boolean(ai)};
+        rows.push({path,status:null,ok:Object.values(checks).every(Boolean),
+          verification:'durable-source-presence-only',
+          liveHttpChecked:false,sourceChecks:checks});
+        continue;
+      }
       let res;
       if(path==='/sitemap-core.xml')res=coreSitemap(origin);
       else if(path==='/sitemap-priority.xml')res=await prioritySitemap(env,origin);
