@@ -1,6 +1,7 @@
 import {classifyFailure} from './guardrails.mjs';
-export async function callProvider({provider,model,key,prompt,fetchFn=fetch}){
+export async function callProvider({provider,model,key,prompt,maxOutputTokens=null,fetchFn=fetch}){
   if(!key||!model)throw Error('PROVIDER_CREDENTIAL_MISSING');
+  const outputCap=Number.isInteger(maxOutputTokens)&&maxOutputTokens>=1024&&maxOutputTokens<=6000?maxOutputTokens:null;
   const headers={'content-type':'application/json'};
   let url,payload;
   if(provider==='gemini'){
@@ -9,13 +10,13 @@ export async function callProvider({provider,model,key,prompt,fetchFn=fetch}){
     // Gemini 3.8 Flash no longer accepts the old sampling temperature/top_p
     // migration knobs. Keep model-specific payloads minimal and supported.
     const generationConfig=model.startsWith('gemini-3.')
-      ?{maxOutputTokens:4096,thinkingConfig:{thinkingLevel:'LOW'}}
-      :{temperature:0.65,maxOutputTokens:4096};
+      ?{maxOutputTokens:outputCap||4096,thinkingConfig:{thinkingLevel:'LOW'}}
+      :{temperature:0.65,maxOutputTokens:outputCap||4096};
     payload={contents:[{parts:[{text:prompt}]}],generationConfig};
   }else if(provider==='groq'){
     url='https://api.groq.com/openai/v1/chat/completions';
     headers.authorization='Bearer '+key;
-    payload={model,temperature:0.65,reasoning_effort:'low',include_reasoning:false,max_completion_tokens:3200,messages:[{role:'system',content:'Return original editorial article section HTML only. No fake prices, claims or coupon guarantees.'},{role:'user',content:prompt}]};
+    payload={model,temperature:0.65,reasoning_effort:'low',include_reasoning:false,max_completion_tokens:outputCap||3200,messages:[{role:'system',content:'Return original editorial article section HTML only. No fake prices, claims or coupon guarantees.'},{role:'user',content:prompt}]};
   }else throw Error('UNSUPPORTED_PROVIDER');
   // No blind retry. A lost connection after sending may still consume quota.
   const response=await fetchFn(url,{method:'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(105000)});

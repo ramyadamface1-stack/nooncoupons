@@ -12,6 +12,7 @@ import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow
 import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
+import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
 const runStartedAt=Date.now();
@@ -218,7 +219,8 @@ async function run(){
     }
     const {provider,model,modelCircuitId,modelCircuit,credential,keyRef,circuitId,circuit}=chosen;
     lastProvider=provider;
-    const prompt=[
+    const batching=!oneOffCanary&&index===0&&state.sections.length===0;
+    const prompt=batching?batchArticlePrompt(topic):[
       'Write an original, useful '+(topic.country==='SA'?'Saudi Arabic':'UAE English')+' consumer shopping article SECTION, valid HTML fragment only.',
       'Topic: '+topic.topic+'. Brand: '+topic.brand+'. Category: '+topic.category+'.',
       'Country: '+topic.country+'. Coupon: '+topic.coupon+'.',
@@ -230,7 +232,7 @@ async function run(){
     // Persist the ambiguous billing boundary before sending the HTTP request.
     state=await saveCheckpoint(config,checkpointState(state,'REQUEST_SENT',{sentAt:now(),pendingSection:index,lastRequestStatus:'UNKNOWN',keySource:credential.source,keySlot:credential.keySlot}));calls++;
     let result;
-    try{result=await callProvider({provider,model,key:credential.key,prompt})}
+    try{result=await callProvider({provider,model,key:credential.key,prompt,maxOutputTokens:batching?5800:null})}
     catch{
       await saveCheckpoint(config,checkpointState(state,'UNKNOWN_REQUEST_OUTCOME',{errorCategory:'NETWORK_OR_TIMEOUT_AFTER_REQUEST_SENT'}));
       report('BLOCKED','UNKNOWN_REQUEST_OUTCOME',{articleId,sectionIndex:index,provider,calls});return;
@@ -268,6 +270,23 @@ async function run(){
     if(!html||html.includes(String.fromCharCode(96).repeat(3))||/<script\b|<iframe\b|<form\b/i.test(html)){
       await saveCheckpoint(config,checkpointState(state,'BLOCKED_REVIEW',{errorCategory:'UNSAFE_SECTION_HTML'}));
       report('BLOCKED','UNSAFE_SECTION',{articleId,index});return;
+    }
+    if(batching){
+      const parsed=parseArticleBatch(html);
+      if(!parsed.ok){
+        await saveCheckpoint(config,checkpointState(state,'BLOCKED_REVIEW',{
+          errorCategory:parsed.reason,lastRequestStatus:200,provider,model}));
+        report('BLOCKED','BATCH_CONTENT_INVALID',{articleId,reason:parsed.reason,provider,calls});return;
+      }
+      // Atomic immutable checkpoint: save received content from this one
+      // definitive provider HTTP response. A partial output resumes with the
+      // original single-section flow, without regenerating earlier sections.
+      state=await saveCheckpoint(config,checkpointState(state,'DRAFT_SAVED',{
+        sections:parsed.sections.map((fragment,i)=>({heading:topic.sections[i],html:fragment,hash:hash(fragment),provider,keyRef})),
+        sectionIndex:parsed.sections.length,pendingResponse:null,requestId:result.requestId||null,
+        lastRequestStatus:200,provider,model}));
+      console.log('AI_V2_BATCH_SECTIONS '+JSON.stringify({articleId,received:parsed.sections.length,calls}));
+      continue;
     }
     // A single atomic, read-back-verified checkpoint contains the complete
     // confirmed response and incremented section index. If interrupted before

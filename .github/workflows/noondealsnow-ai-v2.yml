@@ -76,6 +76,7 @@ jobs:
         run: |
           node --check automation/ai-v2/guardrails.mjs
           node --check automation/ai-v2/providers.mjs
+          node --check automation/ai-v2/article-batch.mjs
           node --check automation/ai-v2/gemini-key-pool.mjs
           node --check automation/ai-v2/groq-key-pool.mjs
           node --check automation/ai-v2/check-gemini-model.mjs
@@ -88,7 +89,7 @@ jobs:
           node --check automation/ai-v2/provider-circuit.mjs
           node --check automation/ai-v2/attribution.mjs
           node --check ai-scheduler-v2/worker.mjs
-          node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-scheduler.test.mjs tests/ai-v2-gemini-key-pool.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-topic-queue.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-provider-circuit.test.mjs tests/ai-v2-groq-key-pool.test.mjs tests/ai-v2-workflow-wiring.test.mjs tests/ai-v2-attribution.test.mjs tests/ai-v2-slot-retry.test.mjs
+          node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-article-batch.test.mjs tests/ai-v2-scheduler.test.mjs tests/ai-v2-gemini-key-pool.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-topic-queue.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-provider-circuit.test.mjs tests/ai-v2-groq-key-pool.test.mjs tests/ai-v2-workflow-wiring.test.mjs tests/ai-v2-attribution.test.mjs tests/ai-v2-slot-retry.test.mjs
       - name: Inspect Gemini secret pool types without exposing any key values
         env:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
