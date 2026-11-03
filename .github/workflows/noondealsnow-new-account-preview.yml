@@ -140,6 +140,8 @@ jobs:
             fi
           }
           get_preview '/api/revision' '"ok": true'
+          get_preview '/api/generator-health' 'ok'
+          get_preview '/api/generation-freshness' 'aiV2Windows'
           get_preview '/__ndn_preview_publication_gate' '"minSpacingMs":30000'
           get_preview '/' 'NOV170'
           get_preview '/blog' '<html'
