@@ -109,3 +109,24 @@ test('short Saudi Logitech webcam H1 preserves original topic, adds genuine prod
  assert.equal(index.indexable,true,JSON.stringify(index));
  assert.ok(index.score>=95,JSON.stringify(index));
 });
+
+test('expanded Saudi short queries gain factual seller-and-warranty terms to pass native indexation with saved AI sections',async()=>{
+ const {expandedEditorialTopics}=await import('../automation/ai-v2/topic-expansion.mjs');
+ const norm=s=>String(s).toLowerCase().replace(/[\\u064B-\\u065F\\u0670]/g,'').replace(/[إأآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[^a-z0-9\\u0600-\\u06ff]+/g,' ').trim();
+ const stop=new Set(['من','في','على','الى','إلى','عن','مع','نون','كود','خصم','السعوديه','الامارات','شراء','طريقه','دليل','استخدام']);
+ let adjusted=0;
+ for(const topic of expandedEditorialTopics.filter(x=>x.country==='SA')){
+  const old=topic.topic.replace(/\\b(?:NOV|OPS)\\d+\\b/gi,'').trim();
+  const specific=new Set(norm(old).split(/\\s+/).filter(x=>x.length>1&&!stop.has(x))).size;
+  if(specific>=6)continue;
+  const {article,nativeTopic}=buildSaudiAiV2Article(topic,sections);
+  assert.ok(article.title.length<=72,topic.slug);
+  assert.ok(!article.title.includes('NOV170'));
+  assert.ok(article.title.includes('البائع والضمان'),topic.slug);
+  const evaluation=evaluateIndexation(article,nativeTopic||topic,{globalGate:{pass:true},
+   contextualLinks:4,clusterSize:0,schemaGate:{pass:true},coupon:{publishAllowed:true}});
+  assert.ok(!evaluation.reasons.includes('indexation_value_below_threshold'),topic.slug+': '+evaluation.score+' '+evaluation.reasons.join(','));
+  adjusted++;
+ }
+ assert.ok(adjusted>=10,'must reproduce the real short-query regression');
+});
