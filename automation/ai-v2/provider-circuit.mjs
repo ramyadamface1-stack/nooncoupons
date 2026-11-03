@@ -23,7 +23,7 @@ export function temporaryCooldown(retryAfter='',previous=null,atMs=Date.now()){
  const streak=recent?Math.min(4,Math.max(0,Math.trunc(Number(previous?.temporaryFailStreak)||0))+1):1;
  const base=Math.min(300,45*2**(streak-1));
  const hint=String(retryAfter||'').trim();
- let hinted=/^\\d+$/.test(hint)?Number(hint):NaN;
+ let hinted=/^\d+$/.test(hint)?Number(hint):NaN;
  if(!Number.isFinite(hinted)&&hint){const parsed=Date.parse(hint);if(Number.isFinite(parsed))hinted=Math.ceil((parsed-atMs)/1000)}
  return {seconds:Math.max(45,Math.min(600,Math.max(base,Number.isFinite(hinted)?hinted:0))),streak};
 }
