@@ -8,9 +8,9 @@
   "publicationMode": "checkpoint_only",
   "intervalMinutes": 1,
   "cronHeartbeat": "* * * * *",
-  "targetPerHour": 60,
-  "targetPerDay": 1440,
-  "maxConcurrent": 1,
+  "targetPerHour": 100,
+  "targetPerDay": 2400,
+  "maxConcurrent": 2,
   "checkpoint": {
     "backend": "private-r2",
     "bucket": "nooncoupons-content-v2",

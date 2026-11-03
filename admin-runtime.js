@@ -1,4 +1,5 @@
 import {enableExistingDestinationR2} from './r2-remote-existing-bucket.js';
+import {GLOBAL_PUBLICATION_SPACING_MS,GLOBAL_PUBLICATION_MAX_PER_MINUTE,GLOBAL_PUBLICATION_POLICY} from './publication-rate-limit.js';
 import {readAiV2PublicationLedger} from './ai-v2-publication-ledger.js';
 import {GENERATOR_DEFAULTS,readState} from './generator-core-v2.js';
 import {snapshotDurableObjectKeys,restoreDurableObjectKeys} from './do-migration-state.js';
@@ -281,10 +282,10 @@ export class GeneratorControl{
     if(p==='/__migration/export'&&req.method==='POST')return snapshotDurableObjectKeys(this.ctx.storage,this.env,'GeneratorControl');
     if(p==='/__migration/restore'&&req.method==='POST')return restoreDurableObjectKeys(this.ctx.storage,this.env,'GeneratorControl');
     if(p==='/publication-slot'&&(req.method==='GET'||req.method==='POST')){
-      const spacingMs=60000,stamp=Date.now(),key='publication-rate-v1';
+      const spacingMs=GLOBAL_PUBLICATION_SPACING_MS,stamp=Date.now(),key='publication-rate-v1';
       const shape=(entry,ok)=>{
         const lastAtMs=Math.max(0,Number(entry?.lastAtMs||0)),waitMs=Math.max(0,lastAtMs+spacingMs-stamp);
-        return {ok,policy:'one-article-per-minute-global-v1',maxPerMinute:1,minSpacingMs:spacingMs,lastPublishedAt:lastAtMs?new Date(lastAtMs).toISOString():null,nextEligibleAt:lastAtMs?new Date(lastAtMs+spacingMs).toISOString():null,retryAfterMs:waitMs,source:entry?.source||null,market:entry?.market||null,throttled:!ok};
+        return {ok,policy:GLOBAL_PUBLICATION_POLICY,maxPerMinute:GLOBAL_PUBLICATION_MAX_PER_MINUTE,minSpacingMs:spacingMs,lastPublishedAt:lastAtMs?new Date(lastAtMs).toISOString():null,nextEligibleAt:lastAtMs?new Date(lastAtMs+spacingMs).toISOString():null,retryAfterMs:waitMs,source:entry?.source||null,market:entry?.market||null,throttled:!ok};
       };
       if(req.method==='GET'){const entry=await this.ctx.storage.get(key);return json({...shape(entry,true),eligible:Math.max(0,Number(entry?.lastAtMs||0)+spacingMs-stamp)===0})}
       const body=await req.json().catch(()=>({})),source=String(body.source||'unknown').slice(0,70),market=String(body.market||'SA').slice(0,8);

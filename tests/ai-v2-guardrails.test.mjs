@@ -9,8 +9,8 @@ const config=JSON.parse(readFileSync(new URL('../automation/ai-v2/config.json',i
 const topics=JSON.parse(readFileSync(new URL('../automation/ai-v2/topics.json',import.meta.url)));
 test('safe no-cost defaults, unified one-minute cadence and market policy',()=>{
  assert.equal(validateConfig(config),true);assert.equal(config.enabled,false);
- assert.equal(config.targetPerHour,60);assert.equal(config.targetPerDay,1440);
- assert.equal(config.publicationMode,'checkpoint_only');assert.equal(config.maxConcurrent,1);
+ assert.equal(config.targetPerHour,100);assert.equal(config.targetPerDay,2400);
+ assert.equal(config.publicationMode,'checkpoint_only');assert.equal(config.maxConcurrent,2);
  assert.equal(config.models.gemini,'gemini-3.5-flash-lite');
  assert.equal(config.models.geminiFallback,'gemini-3.8-flash');
  assert.equal(config.siteMarkets.SA.coupon,'NOV170');assert.equal(config.siteMarkets.AE.coupon,'NOV188');
@@ -24,7 +24,7 @@ test('one-minute due is not a publication; all configured cadences remain suppor
  assert.equal(cadence(active,base+300000).due,true);
  assert.equal(cadence(config,base).reason,'SCHEDULER_DISABLED');
  for(const i of [1,5,10,15,30,60]){
-  const c={...active,intervalMinutes:i,targetPerHour:60/i,targetPerDay:1440/i};
+  const c={...active,intervalMinutes:i,maxConcurrent:1,targetPerHour:60/i,targetPerDay:1440/i};
   assert.equal(validateConfig(c),true);
  }
 });
@@ -130,4 +130,13 @@ test('REST checkpoint transport does not spend AI quota and verifies persisted b
   return new Response('{"articleId":"'+id+'","state":"TAMPERED"}',{status:200});
  }}),/READBACK_HASH_MISMATCH/);
  await assert.rejects(readCheckpointRest(config,id,{...opts,fetchFn:async()=>new Response('forbidden',{status:403})}),/R2_HTTP_GET_403/);
+});
+
+test('100 articles/hour target needs isolated parallel market jobs, never unlocks unbounded concurrency',()=>{
+ const c={...config,enabled:true};
+ assert.equal(validateConfig(c),true);
+ assert.throws(()=>validateConfig({...c,maxConcurrent:1}),/CADENCE_TARGET_MISMATCH/);
+ assert.throws(()=>validateConfig({...c,maxConcurrent:3}),/UNSAFE_CONCURRENCY/);
+ assert.throws(()=>validateConfig({...c,targetPerHour:121,targetPerDay:2904}),/CADENCE_TARGET_MISMATCH/);
+ assert.throws(()=>validateConfig({...c,intervalMinutes:5,targetPerHour:12,targetPerDay:288}),/UNSAFE_CONCURRENCY/);
 });

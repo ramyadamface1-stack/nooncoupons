@@ -81,7 +81,7 @@ async function save(req,env){
   const previouslyPublished=(current.articles||[]).some(x=>x.slug===slug&&x.status==='published');
   if((b.status||'draft')==='published'&&!previouslyPublished){
     const permit=await claimPublicationSlot(env,a.country,'manual-publish');
-    if(!permit.ok)return json({error:'publication_rate_limit',policy:'one-article-per-minute-global-v1',nextEligibleAt:permit.nextEligibleAt||null},429);
+    if(!permit.ok)return json({error:'publication_rate_limit',policy:'one-article-every-36-seconds-global-v2',nextEligibleAt:permit.nextEligibleAt||null},429);
   }
   const rec={id:crypto.randomUUID(),slug,title:a.title||slug,metaDescription:a.metaDescription||'',country:a.country,coupon:a.coupon||'',status:b.status||'draft',scheduledAt:b.scheduledAt||null,createdAt:now(),updatedAt:now(),quality:audit.score,qualityCoverage:100,provider:a.provider||null,primaryKeyword:a.primaryKeyword||''};
   await env.CONTENT_FINAL.put('articles/'+slug+'.html',String(a.html||''),{httpMetadata:{contentType:'text/html; charset=utf-8'},customMetadata:{title:rec.title,country:rec.country,status:rec.status}});
@@ -259,7 +259,7 @@ export class ControlPlane{
         a.status='published';a.updatedAt=now();n++;break;
       }
       if(n)await this.ctx.storage.put('state',s);
-      return json({published:n,policy:'one-article-per-minute-global-v1',nextEligibleAt});
+      return json({published:n,policy:'one-article-every-36-seconds-global-v2',nextEligibleAt});
 
     }
     return json({error:'not_found'},404);

@@ -18,9 +18,12 @@ export function cadence(config,scheduledMs){
 export function validateConfig(config){
   if(config.siteId!=='noondealsnow'||config.repository!=='ramyadamface1-stack/nooncoupons'||config.domain!=='https://noondealsnow.com')throw Error('WRONG_PROJECT');
   if(config.publicationMode!=='checkpoint_only'&&config.publicationMode!=='live_verified')throw Error('INVALID_PUBLICATION_MODE');
-  const m=60/Number(config.intervalMinutes);
-  if(!Number.isInteger(m)||m!==Number(config.targetPerHour)||m*24!==Number(config.targetPerDay))throw Error('CADENCE_TARGET_MISMATCH');
-  if(Number(config.maxConcurrent)!==1)throw Error('UNSAFE_CONCURRENCY');
+  const m=60/Number(config.intervalMinutes),parallel=Number(config.maxConcurrent);
+  const target=Number(config.targetPerHour);
+  // Cron still ticks every minute; independent market jobs provide 2x capacity.
+  // The real native Durable Object remains the atomic 36s safety gate.
+  if(!Number.isInteger(m)||![1,2].includes(parallel)||(parallel===2&&Number(config.intervalMinutes)!==1))throw Error('UNSAFE_CONCURRENCY');
+  if(!Number.isInteger(target)||target<m||target>m*parallel||target*24!==Number(config.targetPerDay))throw Error('CADENCE_TARGET_MISMATCH');
   if(config.checkpoint?.backend!=='private-r2'||config.checkpoint?.verifyReadBack!==true)throw Error('CHECKPOINT_UNSAFE');
   if(config.limits?.freeOnly!==true||config.limits?.requiresFreeBudgetApproval!==true)throw Error('BUDGET_GUARD_DISABLED');
   if(!isApprovedMarketCoupon(config.siteMarkets?.SA?.coupon,'SA')||!isApprovedMarketCoupon(config.siteMarkets?.AE?.coupon,'AE'))throw Error('CROSS_MARKET_COUPON');
