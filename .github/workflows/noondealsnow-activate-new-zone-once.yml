@@ -1,0 +1,64 @@
+name: NoonDealsNow Verify Registrar Delegation and Trigger New Cloudflare Zone Activation Once
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-activate-new-zone-once.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ndn-once-check-new-zone-activation
+  cancel-in-progress: false
+jobs:
+  verify-and-activate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      NEW_CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Verify correct active registrar NS, pending destination zone, trigger official activation check once
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          zone='c09077a581adc7aa11d6de0c121e179d'
+          account='e4c35f8a50a7b2e4cfb9d6c534962603'
+          expected={'ada.ns.cloudflare.com','stanley.ns.cloudflare.com'}
+          token=os.environ.get('NEW_CF_TOKEN','').strip()
+          if not token:raise RuntimeError('NEW_CLOUDFLARE_TOKEN_MISSING')
+          def cf(method,path):
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4/'+path,
+              method=method,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+            try:
+              with urllib.request.urlopen(req,timeout=15) as response:return response.status,json.load(response)
+            except urllib.error.HTTPError as e:
+              try:d=json.load(e)
+              except:d={}
+              return e.code,d
+          code,data=cf('GET','zones/'+zone)
+          if code!=200 or not data.get('success'):raise RuntimeError('ZONE_NOT_READABLE')
+          z=data['result']
+          if z.get('account',{}).get('id')!=account or z.get('name')!='noondealsnow.com':
+            raise RuntimeError('ZONE_MISMATCH')
+          print('ZONE_BEFORE='+str(z.get('status')),flush=True)
+          if set(z.get('name_servers',[]))!=expected:raise RuntimeError('ASSIGNED_NAMESERVERS_MISMATCH')
+          req=urllib.request.Request('https://dns.google/resolve?name=noondealsnow.com&type=NS',
+            headers={'Accept':'application/json'})
+          with urllib.request.urlopen(req,timeout=15) as response:delegation=json.load(response)
+          records={x.get('data','').rstrip('.').lower() for x in delegation.get('Answer',[]) if x.get('type')==2}
+          print('PUBLISHED_NAMESERVERS='+','.join(sorted(records)),flush=True)
+          if records!=expected:raise RuntimeError('REGISTRAR_DELEGATION_NOT_COMPLETE')
+          if z.get('status')=='active':
+            print('ZONE_ALREADY_ACTIVE=true;ACTIVATION_CHECK_NOT_NEEDED=true',flush=True)
+          elif z.get('status')=='pending':
+            code,reply=cf('PUT','zones/'+zone+'/activation_check')
+            print('ACTIVATION_CHECK_HTTP='+str(code)+';SUCCESS='+str(reply.get('success') is True),flush=True)
+            if code!=200 or not reply.get('success'):
+              print('ACTIVATION_ERRORS='+json.dumps([{'code':x.get('code')} for x in reply.get('errors',[])],separators=(',',':')),flush=True)
+              raise RuntimeError('ACTIVATION_CHECK_UNAVAILABLE')
+          else:raise RuntimeError('ZONE_UNEXPECTED_STATUS_'+str(z.get('status')))
+          code,d=cf('GET','zones/'+zone)
+          print('ZONE_AFTER='+str(d.get('result',{}).get('status'))+';HTTP='+str(code),flush=True)
+          print('DNS_RECORD_WRITES=0;REGISTRAR_WRITES=0;R2_WRITES=0;WORKER_DEPLOYS=0',flush=True)
+          PY
