@@ -42,6 +42,7 @@ test('provider errors preserve quota, account, model and network categories',()=
  assert.equal(classifyFailure(403,'organization restricted').scope,'organization');
  assert.deepEqual(classifyFailure(429,'quota','300'),{category:'QUOTA',retry:false,retryAfter:'300'});
  assert.equal(classifyFailure(502).category,'PROVIDER_TEMPORARY');
+ assert.deepEqual(classifyFailure(503,'overloaded','75'),{category:'PROVIDER_TEMPORARY',retry:false,retryAfter:'75'});
  assert.equal(classifyFailure(400,'model not found').category,'INVALID_MODEL');
 });
 test('uncertain provider completion never regenerates saved sections automatically',()=>{

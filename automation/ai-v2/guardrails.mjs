@@ -32,7 +32,7 @@ export function classifyFailure(status,body='',retryAfter=''){
   if(code===403)return {category:'PROVIDER_PERMISSION',retry:false,scope:/organi[sz]ation/.test(b)?'organization':'account'};
   if(code===429)return {category:'QUOTA',retry:false,retryAfter:String(retryAfter||'')};
   if(code===400&&/model|not found|unsupported/.test(b))return {category:'INVALID_MODEL',retry:false};
-  if(code>=500)return {category:'PROVIDER_TEMPORARY',retry:false};
+  if(code>=500)return {category:'PROVIDER_TEMPORARY',retry:false,retryAfter:String(retryAfter||'')};
   return {category:'PROVIDER_ERROR',retry:false};
 }
 export function assertTopic(topic,config){

@@ -9,7 +9,7 @@ import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
 import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
-import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
+import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
@@ -165,6 +165,10 @@ async function run(){
   // Completed drafts reach publication with no provider calls.
   const needsProvider=state.sectionIndex<topic.sections.length;
   const providerCircuits=createProviderCircuitSnapshot(id=>readCheckpoint(config,id),state=>saveCheckpoint(config,state));
+  // On a definitive 5xx, try another free MODEL/provider during this run;
+  // another key for the failed model may be tested at the next cron minute.
+  // This bounds outage probes while keeping per-model+key cooldown isolated.
+  const temporarilyFailedModelsThisRun=new Set();
   const chooseCredential=async index=>{
     const preferred=explicitGroqResume?['groq']:priority;
     for(const candidateProvider of preferred){
@@ -177,6 +181,7 @@ async function run(){
         ?[config.models.gemini,config.models.geminiFallback].filter(Boolean)
         :[config.models.groq];
       for(const candidateModel of [...new Set(models)]){
+        if(temporarilyFailedModelsThisRun.has(candidateProvider+'|'+candidateModel))continue;
         const modelCircuitId=providerCircuitId(candidateProvider,hash,hash('model|'+candidateModel).slice(0,12));
         const modelCircuit=await providerCircuits.read(modelCircuitId);
         if(providerCircuitActive(modelCircuit))continue;
@@ -191,8 +196,11 @@ async function run(){
           const circuitId=providerCircuitId(candidateProvider,hash,usePerKey?keyRef:null);
           const circuit=await providerCircuits.read(circuitId);
           if(providerCircuitActive(circuit))continue;
+          const modelKeyCircuitId=providerModelKeyCircuitId(candidateProvider,candidateModel,keyRef,hash);
+          const modelKeyCircuit=await providerCircuits.read(modelKeyCircuitId);
+          if(providerCircuitActive(modelKeyCircuit))continue;
           return {provider:candidateProvider,model:candidateModel,modelCircuitId,modelCircuit,
-            credential,keyRef,circuitId,circuit};
+            modelKeyCircuitId,modelKeyCircuit,credential,keyRef,circuitId,circuit};
         }
       }
     }
@@ -217,7 +225,7 @@ async function run(){
       report('SKIPPED','ALL_FREE_PROVIDERS_IN_COOLDOWN',{articleId,enabledProviders:priority.filter(p=>available[p])});
       return;
     }
-    const {provider,model,modelCircuitId,modelCircuit,credential,keyRef,circuitId,circuit}=chosen;
+    const {provider,model,modelCircuitId,modelCircuit,modelKeyCircuitId,modelKeyCircuit,credential,keyRef,circuitId,circuit}=chosen;
     lastProvider=provider;
     const batching=!oneOffCanary&&index===0&&state.sections.length===0;
     const prompt=batching?batchArticlePrompt(topic):[
@@ -247,11 +255,14 @@ async function run(){
         errorCategory:result.category,lastRequestStatus:result.httpStatus,retryAfter:result.retryAfter||null
       }));
       if(quota||temporary){
-        const pauseSec=quota?quotaCooldownSeconds(result.retryAfter):300;
-        const pauseCircuitId=temporary?modelCircuitId:circuitId;
-        const oldPause=temporary?modelCircuit:circuit;
+        const backoff=temporary?temporaryCooldown(result.retryAfter,modelKeyCircuit):null;
+        const pauseSec=quota?quotaCooldownSeconds(result.retryAfter):backoff.seconds;
+        const pauseCircuitId=temporary?modelKeyCircuitId:circuitId;
+        const oldPause=temporary?modelKeyCircuit:circuit;
+        if(temporary)temporarilyFailedModelsThisRun.add(provider+'|'+model);
         try{await providerCircuits.write({articleId:pauseCircuitId,
           state:quota?'PAUSED_QUOTA':'PAUSED_PROVIDER',provider,createdAt:now(),
+          ...(temporary?{model,keyRef,temporaryFailStreak:backoff.streak,lastTemporaryAt:now()}:{}),
           resumeAt:new Date(Date.now()+pauseSec*1000).toISOString(),version:Number(oldPause?.version||0)+1});}
         catch(e){report('BLOCKED','PROVIDER_CIRCUIT_WRITE_FAILED',{provider,articleId});return}
         // No section is regenerated or discarded. On the next iteration the

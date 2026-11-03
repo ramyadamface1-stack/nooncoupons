@@ -14,6 +14,23 @@ export function providerCircuitId(provider,sha,keyRef=null){
  const suffix=keyRef?'|'+keyRef:'';
  return sha('noondealsnow|ai-v2|provider-quota|'+provider+suffix).slice(0,24);
 }
+// A confirmed HTTP 5xx is temporary availability, not a quota exhaustion.
+// Start at 45s, back off per model+key for repeated failures, and respect
+// explicit provider Retry-After. No retry of an uncertain/network outcome.
+export function temporaryCooldown(retryAfter='',previous=null,atMs=Date.now()){
+ const last=Date.parse(previous?.lastTemporaryAt||'');
+ const recent=Number.isFinite(last)&&last<=atMs&&atMs-last<=15*60000;
+ const streak=recent?Math.min(4,Math.max(0,Math.trunc(Number(previous?.temporaryFailStreak)||0))+1):1;
+ const base=Math.min(300,45*2**(streak-1));
+ const hint=String(retryAfter||'').trim();
+ let hinted=/^\\d+$/.test(hint)?Number(hint):NaN;
+ if(!Number.isFinite(hinted)&&hint){const parsed=Date.parse(hint);if(Number.isFinite(parsed))hinted=Math.ceil((parsed-atMs)/1000)}
+ return {seconds:Math.max(45,Math.min(600,Math.max(base,Number.isFinite(hinted)?hinted:0))),streak};
+}
+export function providerModelKeyCircuitId(provider,model,keyRef,sha){
+ if(typeof model!=='string'||!model.trim()||!/^[a-f0-9]{12}$/.test(keyRef))throw Error('INVALID_MODEL_KEY_CIRCUIT');
+ return providerCircuitId(provider,sha,sha('model-key|'+model+'|'+keyRef).slice(0,12));
+}
 export function providerCircuitActive(state,atMs=Date.now()){
  return ['PAUSED_QUOTA','PAUSED_PROVIDER'].includes(state?.state)&&Number.isFinite(Date.parse(state?.resumeAt))&&Date.parse(state.resumeAt)>atMs;
 }
