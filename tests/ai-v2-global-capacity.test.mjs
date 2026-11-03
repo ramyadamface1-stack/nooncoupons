@@ -14,7 +14,7 @@ test('100-per-hour theoretical capacity uses shared durable atomic 36s permit, n
  assert.equal(GLOBAL_PUBLICATION_MAX_PER_MINUTE,2);
  const worker=readFileSync('admin-runtime.js','utf8');
  assert.match(worker,/const spacingMs=GLOBAL_PUBLICATION_SPACING_MS/);
- assert.match(worker,/this\\.ctx\\.storage\\.transaction/);
+ assert.ok(worker.includes('this.ctx.storage.transaction('));
  const storage=new MemoryStorage();
  const doInstance=new GeneratorControl({storage},{});
  const post=()=>doInstance.fetch(new Request('https://generator.internal/publication-slot',{
