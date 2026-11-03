@@ -108,6 +108,8 @@ export default {
     const active=effectiveRuntimeConfig(config,env);
     return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:active.enabled,
       intervalMinutes:active.intervalMinutes,source:'config-plus-explicit-runtime-secret',
+      dispatchPolicy:'one-cron-tick-per-minute-with-serialized-market-jobs',
+      globalPublicationSpacingSeconds:36,
       legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:!active.enabled,
       publicationBridgeVerified:active.enabled,freeOnly:true,verifiedMarkets:['SA','AE'],
       diagnosticWindow:config.schedulerDiagnostic?{from:config.schedulerDiagnostic.fromUtc,until:config.schedulerDiagnostic.untilUtc}:null,
