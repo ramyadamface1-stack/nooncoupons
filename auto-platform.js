@@ -12,6 +12,7 @@ import {ensureRuntimeArticleQuality,normalizeRuntimeTitle,normalizeRuntimeMeta,R
 import {runEnglishScheduledTick} from './english-canary.js';
 import {getPublicationSlotStatus} from './publication-rate-limit.js';
 import {readAiV2PublicationLedger,combineGenerationFreshness,aiV2PublicationWindows} from './ai-v2-publication-ledger.js';
+import {readRecentPublicManifest} from './r2-public-manifest.js';
 import {awaitPublicationWindow} from './cron-publication-window.js';
 import {getCampaignWindow} from './campaign-calendar.js';
 
