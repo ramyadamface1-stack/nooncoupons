@@ -1,0 +1,87 @@
+name: NoonDealsNow Cloudflare Account Cutover Readiness (Read Only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-account-cutover-readiness.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      OLD_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NEW_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      NEW_R2_KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Check live Worker account/zone/control-plane without writing anything
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error
+          old='c82274152a942dea53044eae7153cfd7'
+          new='e4c35f8a50a7b2e4cfb9d6c534962603'
+          def get(token,path):
+            if not token:return 0,{}
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4/'+path,headers={
+              'Authorization':'Bearer '+token,'Accept':'application/json','User-Agent':'NoonDealsNow-Cutover-ReadOnly'})
+            try:
+              with urllib.request.urlopen(req,timeout=15) as r:
+                return r.status,json.loads(r.read(300000))
+            except urllib.error.HTTPError as e:return e.code,{}
+            except Exception:return 0,{}
+          def show(label,value):print(label+'='+json.dumps(value,separators=(',',':')),flush=True)
+          for name,account,token in [('OLD',old,os.environ.get('OLD_TOKEN','')),('NEW',new,os.environ.get('NEW_TOKEN',''))]:
+            code,data=get(token,'zones?name=noondealsnow.com&per_page=5')
+            z=[{'id':x.get('id'),'status':x.get('status'),'name_servers':x.get('name_servers',[])} for x in data.get('result',[]) if x.get('name')=='noondealsnow.com']
+            show(name+'_ZONE',{'http':code,'zones':z})
+            code,data=get(token,'accounts/'+account+'/workers/domains')
+            d=[{'hostname':x.get('hostname'),'service':x.get('service'),'zone_id':x.get('zone_id')} for x in data.get('result',[]) if 'noondealsnow.com' in str(x.get('hostname',''))]
+            show(name+'_WORKER_DOMAINS',{'http':code,'domains':d})
+            code,data=get(token,'accounts/'+account+'/workers/scripts')
+            scripts=[x.get('id') for x in data.get('result',[]) if 'noon' in x.get('id','').lower()]
+            show(name+'_WORKER_SCRIPTS',{'http':code,'scripts':scripts[:40]})
+            code,data=get(token,'accounts/'+account+'/workers/services/'+('nooncoupons' if name=='OLD' else 'noondealsnow-migration-staging'))
+            show(name+'_EXPECTED_WORKER',{'http':code,'exists':code==200 and data.get('success')==True})
+          for label,url in [('PUBLIC','https://noondealsnow.com/api/generator-health'),
+                            ('OLD_WORKERS_DEV','https://nooncoupons.ramychatgptgcoupons.workers.dev/api/generator-health'),
+                            ('NEW_SCHEDULER','https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health')]:
+            req=urllib.request.Request(url,headers={'User-Agent':'NoonDealsNow-Cutover-Read-Only'})
+            try:
+              with urllib.request.urlopen(req,timeout=12) as r:code=r.status
+            except urllib.error.HTTPError as e:code=e.code
+            except Exception:code=0
+            show(label+'_HTTP',code)
+          print('CF_MUTATIONS=0;DNS_MUTATIONS=0;R2_MUTATIONS=0',flush=True)
+          PY
+      - name: Check that new-account R2 actually contains publish data and article bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check boto3
+          python3 - <<'PY'
+          import os,json,datetime
+          import boto3
+          from botocore.config import Config
+          key=os.environ.get('NEW_R2_KEY','').strip()
+          secret=os.environ.get('NEW_R2_SECRET','').strip()
+          if not key or not secret:
+            print('NEW_R2_CHECK=MISSING_CREDENTIALS');raise SystemExit(0)
+          s=boto3.client('s3',region_name='auto',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            aws_access_key_id=key,aws_secret_access_key=secret,
+            config=Config(connect_timeout=8,read_timeout=15,retries={'max_attempts':1,'mode':'standard'}))
+          bucket='nooncoupons-content-v2'
+          keys=['bulk/latest.json','_ops/ai-v2-publication-ledger-v1.json',
+            'articles/uae-buyer-acer-gaming-laptop-ports-and-upgrades-nov188-2026.html']
+          for item in keys:
+            try:
+              h=s.head_object(Bucket=bucket,Key=item)
+              print('NEW_R2_SAMPLE='+json.dumps({'key':item,'present':True,'bytes':h['ContentLength'],'modifiedAt':h['LastModified'].isoformat()}),flush=True)
+            except Exception as e:
+              print('NEW_R2_SAMPLE='+json.dumps({'key':item,'present':False,'errorType':type(e).__name__}),flush=True)
+          print('R2_WRITES=0;PRODUCTION_ROUTE_CHANGES=0',flush=True)
+          PY
