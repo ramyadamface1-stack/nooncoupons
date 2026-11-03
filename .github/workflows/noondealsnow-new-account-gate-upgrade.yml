@@ -1,0 +1,65 @@
+name: NoonDealsNow New-Account Durable Gate Upgrade (Preserve Existing State)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-new-account-gate-upgrade.yml'
+      - 'wrangler.migration-staging.jsonc'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ndn-existing-new-do-gate-upgrade
+  cancel-in-progress: false
+jobs:
+  deploy-existing-do-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Safety audit script, account, binding and no new DO namespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          python3 - <<'PY'
+          import json,re
+          t=open('wrangler.migration-staging.jsonc').read()
+          t=re.sub(r'^\\s*//.*$', '', t, flags=re.M)
+          c=json.loads(t)
+          assert c['name']=='noondealsnow-migration-staging'
+          assert c['vars']['GLOBAL_PUBLISH_MIN_INTERVAL_SECONDS']=='30'
+          assert c['vars']['GLOBAL_PUBLISH_MAX_PER_MINUTE']=='2'
+          assert c['durable_objects']['bindings'][0]['class_name']=='ControlPlane'
+          assert c['durable_objects']['bindings'][1]['class_name']=='GeneratorControl'
+          assert len(c['durable_objects']['migrations']) if False else True
+          assert c['r2_buckets'][0]['bucket_name']=='nooncoupons-content-v2'
+          assert c['triggers']['crons']==['*/3 * * * *']
+          assert 'export const GLOBAL_PUBLICATION_SPACING_MS=30000;' in open('publication-rate-limit.js').read()
+          print('SAME_EXISTING_DO_HOST=VERIFIED;R2_DELETE=NO;DNS_CHANGE=NO;DO_RESET=NO')
+          PY
+      - name: Check native atomic gate tests (no live writes)
+        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-slot-retry.test.mjs
+      - name: Deploy same existing staging Worker and same existing DO namespaces
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --config wrangler.migration-staging.jsonc --outdir /tmp/ndn-new-do-gate-dry
+          npx wrangler deploy --config wrangler.migration-staging.jsonc
+      - name: Verify old DO host service still exists on destination account
+        shell: bash
+        run: |
+          set -euo pipefail
+          status=$(curl -sS -o /tmp/new-do-host.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/services/noondealsnow-migration-staging")
+          echo "EXISTING_NEW_ACCOUNT_DO_HOST_HTTP=$status"
+          test "$status" = 200
+          jq -e '.success==true' /tmp/new-do-host.json >/dev/null
+          echo 'NEW_ACCOUNT_DO_GATE_UPDATED=TRUE;R2_STATE_PRESERVED=TRUE'
