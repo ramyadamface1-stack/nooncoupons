@@ -40,6 +40,9 @@ async function run(){
     report('PREFLIGHT',due.reason,{enabled:config.enabled,targetPerHour:config.targetPerHour,mode:config.publicationMode,hasGemini:geminiKeys.hasGemini,geminiNewKeys:geminiKeys.newCount,geminiNewAuthKeys:geminiKeys.newAuthCount,geminiOldKeys:geminiKeys.oldCount,geminiSelectedSource:geminiKeys.selectedSource,hasGroq:groqKeys.hasGroq,groqNewKeys:groqKeys.newCount,groqExtraKeys:groqKeys.extraCount,groqEligibleKeys:groqKeys.eligibleCount,geminiExtraKeys:geminiKeys.extraCount,hasPrivateStorageToken:Boolean(process.env.CLOUDFLARE_API_TOKEN),freeBudgetApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true'});return;
   }
   if(!due.due){report('SKIPPED',due.reason);return}
+  const queueMarket=String(process.env.AI_QUEUE_MARKET||'').trim().toUpperCase();
+  if(queueMarket&&!['SA','AE'].includes(queueMarket))throw Error('INVALID_QUEUE_MARKET');
+  if(queueMarket&&oneOffCanary)throw Error('CANARY_MARKET_QUEUE_CONFLICT');
   const savedOnly=oneOffCanary&&process.env.AI_REPROCESS_SAVED_DRAFT==='true'&&process.env.AI_NO_PROVIDER_CALLS==='true';
   const blocked=mayCallProvider({config:runConfig,freeApproved:process.env.NOONDEALSNOW_AI_FREE_ONLY_APPROVED==='true',checkpointWritable:Boolean(process.env.CLOUDFLARE_API_TOKEN&&process.env.CLOUDFLARE_ACCOUNT_ID),topicReserved:true,hasAnyKey:Boolean(geminiKeys.hasGemini||groqKeys.hasGroq||savedOnly)});
   if(blocked){report('SKIPPED',blocked);return}
@@ -69,11 +72,15 @@ async function run(){
   const safeSaudiCanary=oneOffCanary&&['NoonDealsNow AI V2 Saudi Quality Canary','NoonDealsNow AI V2 Saudi Quality Recovery Canary'].includes(process.env.GITHUB_WORKFLOW)&&process.env.AI_SA_ONE_OFF==='true';
   let selected;
   const explicitGroqResume=oneOffCanary&&process.env.AI_RESUME_PAUSED_QUOTA==='true'&&process.env.AI_PROVIDER_OVERRIDE==='groq';
-  const cursorId=hash('noondealsnow|ai-v2|round-robin-cursor-v1').slice(0,24);
+  // Two market jobs in one workflow use disjoint, stable private R2 cursors.
+  // They cannot select the same topic; legacy cursor and checkpoint identities
+  // are unchanged, so old completed/uncertain drafts remain protected.
+  const cursorId=hash(queueMarket?'noondealsnow|ai-v2|market-queue-v1|'+queueMarket:'noondealsnow|ai-v2|round-robin-cursor-v1').slice(0,24);
   // Keep historical one-off recovery semantics untouched. Production reads a
   // maximum of 24 article checkpoints per invocation, not the whole queue.
   const oldCursor=oneOffCanary?null:await readCheckpoint(config,cursorId);
-  const firstWindow=oneOffCanary?topics.map((_,i)=>i):queueScanWindow(topics.length,oldCursor?.cursor);
+  const firstPosition=queueMarket&&oldCursor?.cursor==null?baseTopics.length+(queueMarket==='AE'?1:0):oldCursor?.cursor;
+  const firstWindow=oneOffCanary?topics.map((_,i)=>i):queueScanWindow(topics.length,firstPosition);
   const positions=[...firstWindow,...(oneOffCanary?[]:queueExpansionBridgeWindow(topics.length,baseTopics.length,firstWindow))];
   let checked=0,lastChecked=null;
   // If all free sources are cooling down, do not pin the global queue to an
@@ -89,6 +96,7 @@ async function run(){
   for(const position of positions){
     const topic=topics[position];
     lastChecked=position;
+    if(queueMarket&&topic.country!==queueMarket)continue;
     if(!publicationReadyTopic(topic))continue;
     if(oneOffCanary&&topic.country!==String(process.env.AI_CANARY_MARKET||'AE'))continue;
     // An explicitly targeted zero-provider recovery must never select another
@@ -161,7 +169,9 @@ async function run(){
   }
   // A confirmed Gemini 429 is NOT retried. An explicitly approved, isolated
   // one-time job may resume the exact saved section using a different provider.
-  const priority=config.providerPriority||['gemini','groq'];
+  // Split initial provider preference across market runners when both are
+  // healthy, reducing synchronized 429s from repeatedly probing one service.
+  const priority=queueMarket==='SA'?['gemini','groq']:(config.providerPriority||['gemini','groq']);
   const available={gemini:geminiKeys.hasGemini,groq:groqKeys.hasGroq};
   // Only request the NEXT missing section. Prefer Groq, but fall back to
   // Gemini when Groq is in quota cooldown, and rotate Gemini key cooldowns.

@@ -48,3 +48,16 @@ test('provider section persists an ambiguous-request boundary then one verified 
  assert.match(runtime,/checkpointState\(state,'PUBLISH_REQUEST_SENT'/);
  assert.match(runtime,/checkpointState\(state,'LIVE_VERIFIED'/);
 });
+
+test('one dispatch runs two disjoint market queues with separate private checkpoint cursors',()=>{
+ const y=readFileSync('.github/workflows/noondealsnow-ai-v2.yml','utf8');
+ const job=y.split('  preflight-or-generate:')[1];
+ assert.match(job,/market: \[SA, AE\]/);
+ assert.match(job,/AI_QUEUE_MARKET:\s*\$\{\{ matrix\.market \}\}/);
+ assert.match(job,/fail-fast:\s*false/);
+ const runtime=readFileSync('automation/ai-v2/run.mjs','utf8');
+ assert.match(runtime,/market-queue-v1\|'/);
+ assert.match(runtime,/topic\.country!==queueMarket/);
+ assert.match(runtime,/baseTopics\.length\+\(queueMarket==='AE'\?1:0\)/);
+ assert.match(runtime,/INVALID_QUEUE_MARKET/);
+});

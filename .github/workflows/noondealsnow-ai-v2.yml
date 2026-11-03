@@ -135,8 +135,14 @@ jobs:
   preflight-or-generate:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        market: [SA, AE]
+    name: preflight-or-generate (${{ matrix.market }})
     timeout-minutes: 20
     env:
+      AI_QUEUE_MARKET: ${{ matrix.market }}
       AI_PREFLIGHT_ONLY: ${{ inputs.preflight_only }}
       AI_SCHEDULED_MS: ${{ inputs.scheduled_ms }}
       GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
