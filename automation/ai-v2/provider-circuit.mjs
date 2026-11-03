@@ -17,3 +17,25 @@ export function providerCircuitId(provider,sha,keyRef=null){
 export function providerCircuitActive(state,atMs=Date.now()){
  return ['PAUSED_QUOTA','PAUSED_PROVIDER'].includes(state?.state)&&Number.isFinite(Date.parse(state?.resumeAt))&&Date.parse(state.resumeAt)>atMs;
 }
+
+// Cache only provider/model/key cooldown reads within ONE serialized GitHub run.
+// This removes repeated private R2 GETs for five section requests. A successful
+// cooldown write replaces the cached record immediately; failed writes never
+// poison the cache. A new invocation starts with a fresh snapshot.
+export function createProviderCircuitSnapshot(readPersisted,writePersisted){
+ const cache=new Map();
+ return {
+  async read(id){
+   if(cache.has(id))return cache.get(id);
+   const value=await readPersisted(id);
+   cache.set(id,value);
+   return value;
+  },
+  async write(value){
+   if(!value||typeof value.articleId!=='string')throw Error('CIRCUIT_ID_REQUIRED');
+   const saved=await writePersisted(value);
+   cache.set(value.articleId,saved);
+   return saved;
+  }
+ };
+}

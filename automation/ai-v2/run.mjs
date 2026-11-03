@@ -9,7 +9,7 @@ import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
 import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
-import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive} from './provider-circuit.mjs';
+import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
@@ -153,6 +153,7 @@ async function run(){
   // Gemini when Groq is in quota cooldown, and rotate Gemini key cooldowns.
   // Completed drafts reach publication with no provider calls.
   const needsProvider=state.sectionIndex<topic.sections.length;
+  const providerCircuits=createProviderCircuitSnapshot(id=>readCheckpoint(config,id),state=>saveCheckpoint(config,state));
   const chooseCredential=async index=>{
     const preferred=explicitGroqResume?['groq']:priority;
     for(const candidateProvider of preferred){
@@ -160,13 +161,13 @@ async function run(){
       // Legacy Groq quota is global, but Gemini service errors are scoped to
       // one MODEL: fallback to the vetted free Flash-Lite model if 3.8 is down.
       const globalCircuitId=providerCircuitId(candidateProvider,hash);
-      if(providerCircuitActive(await readCheckpoint(config,globalCircuitId)))continue;
+      if(providerCircuitActive(await providerCircuits.read(globalCircuitId)))continue;
       const models=candidateProvider==='gemini'
         ?[config.models.gemini,config.models.geminiFallback].filter(Boolean)
         :[config.models.groq];
       for(const candidateModel of [...new Set(models)]){
         const modelCircuitId=providerCircuitId(candidateProvider,hash,hash('model|'+candidateModel).slice(0,12));
-        const modelCircuit=await readCheckpoint(config,modelCircuitId);
+        const modelCircuit=await providerCircuits.read(modelCircuitId);
         if(providerCircuitActive(modelCircuit))continue;
         const poolSize=candidateProvider==='gemini'?geminiKeys.eligibleCount:groqKeys.eligibleCount;
         for(let n=0;n<poolSize;n++){
@@ -177,7 +178,7 @@ async function run(){
           const keyRef=hash(credential.key).slice(0,12); // never store the secret
           const usePerKey=candidateProvider==='gemini'||credential.source!=='GROQ_API_KEY';
           const circuitId=providerCircuitId(candidateProvider,hash,usePerKey?keyRef:null);
-          const circuit=await readCheckpoint(config,circuitId);
+          const circuit=await providerCircuits.read(circuitId);
           if(providerCircuitActive(circuit))continue;
           return {provider:candidateProvider,model:candidateModel,modelCircuitId,modelCircuit,
             credential,keyRef,circuitId,circuit};
@@ -235,7 +236,7 @@ async function run(){
         const pauseSec=quota?quotaCooldownSeconds(result.retryAfter):300;
         const pauseCircuitId=temporary?modelCircuitId:circuitId;
         const oldPause=temporary?modelCircuit:circuit;
-        try{await saveCheckpoint(config,{articleId:pauseCircuitId,
+        try{await providerCircuits.write({articleId:pauseCircuitId,
           state:quota?'PAUSED_QUOTA':'PAUSED_PROVIDER',provider,createdAt:now(),
           resumeAt:new Date(Date.now()+pauseSec*1000).toISOString(),version:Number(oldPause?.version||0)+1});}
         catch(e){report('BLOCKED','PROVIDER_CIRCUIT_WRITE_FAILED',{provider,articleId});return}
