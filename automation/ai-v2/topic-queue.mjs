@@ -83,6 +83,16 @@ export function queueInventory(topics){
 /** Durable cursor scan with bounded R2 reads per invocation. The first new
  * cycle starts after the previous 20 legacy topics, but wraps around safely. */
 export const QUEUE_SCAN_LIMIT=24;
+// Bridge a stale legacy-only scan to the start of an appended editorial bank.
+// Keep every original index stable and let the persisted cursor resume on the
+// exact newly selected topic; never rescan the whole R2 corpus in one tick.
+export function queueExpansionBridgeWindow(total,originalCount,firstWindow,limit=8){
+ if(!Number.isSafeInteger(total)||!Number.isSafeInteger(originalCount)||
+    originalCount<1||originalCount>=total||!Array.isArray(firstWindow)||!firstWindow.length||
+    firstWindow.some(i=>!Number.isSafeInteger(i)||i<0||i>=originalCount)||
+    !Number.isInteger(limit)||limit<1||limit>8)return [];
+ return Array.from({length:Math.min(limit,total-originalCount)},(_,i)=>originalCount+i);
+}
 export function queueScanWindow(total,cursor,limit=QUEUE_SCAN_LIMIT){
  if(!Number.isInteger(total)||total<1)return [];
  if(!Number.isInteger(limit)||limit<1||limit>24)throw Error('INVALID_QUEUE_SCAN_LIMIT');

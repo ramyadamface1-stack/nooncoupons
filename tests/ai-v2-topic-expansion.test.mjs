@@ -19,3 +19,12 @@ test('the durable original queue is unchanged and expansion is unique and market
   assert.ok(item.queryModifier&&item.brandKey&&item.modelKey&&item.comparisonKey);
  }
 });
+
+test('empty legacy scan bridges immediately to expanded bank without moving old positions',async()=>{
+ const {queueExpansionBridgeWindow,queueScanWindow}=await import('../automation/ai-v2/topic-queue.mjs');
+ const oldWindow=queueScanWindow(base.length,80);
+ assert.deepEqual(queueExpansionBridgeWindow(base.length+expandedEditorialTopics.length,base.length,oldWindow),Array.from({length:8},(_,i)=>base.length+i));
+ assert.deepEqual(queueExpansionBridgeWindow(base.length+expandedEditorialTopics.length,base.length,[base.length-5,base.length]),[]);
+ assert.deepEqual(queueExpansionBridgeWindow(base.length+expandedEditorialTopics.length,base.length,[base.length+4]),[]);
+ assert.deepEqual(queueExpansionBridgeWindow(base.length,base.length,oldWindow),[]);
+});

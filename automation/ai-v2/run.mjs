@@ -8,14 +8,15 @@ import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,queueExpansionBridgeWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
 import {expandedEditorialTopics} from './topic-expansion.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
-const topics=[...JSON.parse(readFileSync(new URL('./topics.json',import.meta.url))),...expandedEditorialTopics];
+const baseTopics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
+const topics=[...baseTopics,...expandedEditorialTopics];
 const runStartedAt=Date.now();
 const report=(status,reason,data={})=>console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,elapsedMs:Date.now()-runStartedAt,...data}));
 const now=()=>new Date().toISOString();
@@ -72,7 +73,8 @@ async function run(){
   // Keep historical one-off recovery semantics untouched. Production reads a
   // maximum of 24 article checkpoints per invocation, not the whole queue.
   const oldCursor=oneOffCanary?null:await readCheckpoint(config,cursorId);
-  const positions=oneOffCanary?topics.map((_,i)=>i):queueScanWindow(topics.length,oldCursor?.cursor);
+  const firstWindow=oneOffCanary?topics.map((_,i)=>i):queueScanWindow(topics.length,oldCursor?.cursor);
+  const positions=[...firstWindow,...(oneOffCanary?[]:queueExpansionBridgeWindow(topics.length,baseTopics.length,firstWindow))];
   let checked=0,lastChecked=null;
   // If all free sources are cooling down, do not pin the global queue to an
   // unfinished article. Its immutable R2 checkpoint survives; later cycles
