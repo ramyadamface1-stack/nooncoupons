@@ -11,6 +11,8 @@ test('safe no-cost defaults, unified one-minute cadence and market policy',()=>{
  assert.equal(validateConfig(config),true);assert.equal(config.enabled,false);
  assert.equal(config.targetPerHour,60);assert.equal(config.targetPerDay,1440);
  assert.equal(config.publicationMode,'checkpoint_only');assert.equal(config.maxConcurrent,1);
+ assert.equal(config.models.gemini,'gemini-3.5-flash-lite');
+ assert.equal(config.models.geminiFallback,'gemini-3.8-flash');
  assert.equal(config.siteMarkets.SA.coupon,'NOV170');assert.equal(config.siteMarkets.AE.coupon,'NOV188');
 });
 test('one-minute due is not a publication; all configured cadences remain supported',()=>{
