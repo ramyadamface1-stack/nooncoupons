@@ -1,3 +1,4 @@
+import {HOMEPAGE_COUPONS_BY_MARKET} from './approved-coupons.js';
 const ORIGIN='https://noondealsnow.com';
 const CODES=['NOV170','NOV188','NOV174','NOV157','NOV177','NOV186','NOV163','NOV153','NOV195','NOV161'];
 const TRUST=['/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer','/terms'];
@@ -12,8 +13,8 @@ if(path==='/sitemap-pages.xml')out=urls.filter(u=>!p(u).startsWith('/category/')
 if(path==='/sitemap-categories.xml')out=urls.filter(u=>p(u).startsWith('/category/'));
 if(path==='/sitemap-articles.xml')out=urls.filter(u=>p(u).startsWith('/articles/')||p(u).startsWith('/guide/'));
 if(path==='/sitemap-coupons.xml')out=urls.filter(u=>p(u).startsWith('/coupon/'));
-if(path==='/sitemap-coupons-saudi.xml')out=CODES.map(c=>`${ORIGIN}/saudi-arabia/coupon/${c.toLowerCase()}`);
-if(path==='/sitemap-coupons-uae.xml')out=CODES.map(c=>`${ORIGIN}/uae/coupon/${c.toLowerCase()}`);
+if(path==='/sitemap-coupons-saudi.xml')out=HOMEPAGE_COUPONS_BY_MARKET.SA.map(c=>`${ORIGIN}/saudi-arabia/coupon/${c.toLowerCase()}`);
+if(path==='/sitemap-coupons-uae.xml')out=HOMEPAGE_COUPONS_BY_MARKET.AE.map(c=>`${ORIGIN}/uae/coupon/${c.toLowerCase()}`);
 if(path==='/sitemap-stores.xml')out=[ORIGIN+'/store/noon'];
 return xml(urlset(out))}
 export function isSplitSitemap(path){return MAPS.includes(path)}
