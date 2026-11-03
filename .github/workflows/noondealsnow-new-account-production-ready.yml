@@ -6,6 +6,8 @@ on:
       - '.github/workflows/noondealsnow-new-account-production-ready.yml'
       - 'wrangler.new-account-production.jsonc'
       - 'auto-platform.js'
+      - 'commerce-pages-v2.js'
+      - 'tests/mobile-directory-no-heavy-manifest.test.mjs'
       - 'tests/ai-v2-blog-publication.test.mjs'
   workflow_dispatch:
 permissions: {contents: read}

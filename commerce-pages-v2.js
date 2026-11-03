@@ -11,6 +11,7 @@ import {
   CATEGORY_VISUALS,
 } from './commerce-taxonomy.js';
 import {englishCanaryRecords} from './english-canary.js';
+import {readRecentPublicManifest} from './r2-public-manifest.js';
 import {APPROVED_COUPON_CODES} from './approved-coupons.js';
 
 const CODES = APPROVED_COUPON_CODES;
@@ -47,13 +48,11 @@ function englishFooter(){
 }
 
 async function latestArticles(env) {
-  try {
-    const obj = await env.CONTENT_FINAL?.get('bulk/latest.json');
-    const data = obj ? await obj.json() : {articles: []};
-    return Array.isArray(data.articles) ? data.articles : [];
-  } catch {
-    return [];
-  }
+  // Reuse the bounded two-minute manifest snapshot across public renderers.
+  // Parsing bulk/latest.json afresh for every category visit can exhaust
+  // free-tier Worker CPU even if individual article/page URLs are cached.
+  const data=await readRecentPublicManifest(env);
+  return Array.isArray(data?.articles)?data.articles:[];
 }
 
 function codeFor(seed) {
@@ -388,12 +387,16 @@ async function cityPage(market,key,origin,env){
 async function directoryPage(market, origin, env) {
   const mk = MARKETS[market];
   if (!mk) return null;
-  const rows = marketRows(await latestArticles(env), market).slice(0,18);
+  // A directory of stable category links must not download/parse the full
+  // 1.4MB article manifest. Its separate live blog owns recent articles.
+  // This removes the Cloudflare CPU 1102 failure on cold mobile visits.
+  const rows = [];
+  const blogPath=market==='saudi'?'/blog/saudi':'/blog/uae';
   const path = `/${market}/categories`;
   const title = `أقسام ${mk.name}`;
   const desc = `دليل منظم لأقسام ${mk.name}: الجوالات والإلكترونيات والكمبيوتر والبيت والجمال والأحذية والحقائب وغيرها، مع ربط مباشر بالمقالات والكوبونات.`;
   const hero = `<header class="hero"><div class="w">${breadcrumbs(market)}<div class="market-switch"><a class="${market==='saudi'?'current':''}" href="/saudi/categories">🇸🇦 أقسام السعودية</a><a class="${market==='uae'?'current':''}" href="/uae/categories">🇦🇪 أقسام الإمارات</a></div><h1>${title}</h1><p>${desc}</p><div class="chips"><a href="/${market}/category/mobiles">الجوالات</a><a href="/${market}/category/electronics">الإلكترونيات</a><a href="/${market}/category/shoes">الأحذية</a><a href="/${market}/category/bags">الحقائب</a></div></div></header>`;
-  const main = `<section class="section"><div class="trust-row"><span>صفحات مستقلة لكل سوق</span><span>الأكواد من القائمة المعتمدة فقط</span><span>لا نسب خصم غير موثقة</span></div><h2>كل الأقسام</h2>${categoryGrid(market)}</section>${couponBox(market,'directory','أي قسم')}<section class="section"><h2>أحدث الأدلة</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">تظهر أحدث المقالات هنا تلقائيًا.</div>'}</section>`;
+  const main = `<section class="section"><div class="trust-row"><span>صفحات مستقلة لكل سوق</span><span>الأكواد من القائمة المعتمدة فقط</span><span>لا نسب خصم غير موثقة</span></div><h2>كل الأقسام</h2>${categoryGrid(market)}</section>${couponBox(market,'directory','أي قسم')}<section class="section"><h2>أحدث الأدلة</h2><p class="lead">تُعرض المقالات الجديدة وتواريخ نشرها في المدونة المخصصة لهذا السوق.</p><a class="cta" href="${blogPath}">تصفح أحدث مقالات ${esc(mk.name)}</a></section>`;
   return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market), 'directory');
 }
 
