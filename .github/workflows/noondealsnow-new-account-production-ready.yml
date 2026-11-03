@@ -79,3 +79,20 @@ jobs:
           jq -e '.success==true' /tmp/ndn-worker-ready.json >/dev/null
           echo 'NEW_PRODUCTION_WORKER_DEPLOYED=TRUE'
           echo 'DNS_CHANGED=FALSE;CUSTOM_DOMAIN_ATTACHED=FALSE;OLD_SITE_MODIFIED=FALSE'
+      - name: Smoke test public mobile-critical routes after deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE='https://noondealsnow.com'
+          for path in / /coupons /blog /blog/saudi /blog/uae /saudi/categories /uae/categories /saudi/brand/apple /uae/brand/samsung /en/uae/noon-coupon-code /sitemap-ai-v2.xml; do
+            ok=0
+            for attempt in 1 2 3; do
+              code=$(curl -sS --max-time 22 -o /tmp/ndn-smoke-body -w '%{http_code}' \
+                -H 'User-Agent: NoonDealsNow-post-deploy-mobile-smoke' "$BASE$path" || true)
+              if [ "$code" = 200 ] && [ -s /tmp/ndn-smoke-body ]; then ok=1;break;fi
+              sleep 2
+            done
+            echo "POST_DEPLOY_SMOKE_PATH=$path;HTTP=$code;PASS=$ok"
+            test "$ok" = 1
+          done
+          echo 'NEW_PRODUCTION_POST_DEPLOY_SMOKE=PASS'

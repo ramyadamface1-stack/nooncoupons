@@ -18,3 +18,10 @@ test('English public rendering uses bounded compact feed instead of full publica
  const r=await englishPublicRecentRecords(env);
  assert.equal(r.length,1);assert.equal(r[0].slug,'en-test-a');assert.equal(count,1);
 });
+
+test('blog uses explicitly imported compact public feed to prevent 1101 runtime failures',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const code=readFileSync(new URL('../auto-platform.js',import.meta.url),'utf8');
+ assert.match(code,/import\\s*\\{readRecentPublicManifest\\}\\s*from\\s*['"]\\.\\/r2-public-manifest\\.js['"]/);
+ assert.match(code,/readRecentPublicManifest\\(env\\)/);
+});
