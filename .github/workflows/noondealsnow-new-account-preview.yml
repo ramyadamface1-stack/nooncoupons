@@ -124,7 +124,7 @@ jobs:
             fi
             if ! grep -Fq "$match" "$out"; then
               echo "PREVIEW_EXPECTED_CONTENT=MISSING;PATH=$path"
-              if [ "$path" = '/api/revision' ]; then head -c 1000 "$out"; fi
+              if [ "$path" = '/api/revision' ] || [ "$path" = '/__ndn_preview_publication_gate' ]; then head -c 1000 "$out"; fi
               exit 52
             fi
           }
