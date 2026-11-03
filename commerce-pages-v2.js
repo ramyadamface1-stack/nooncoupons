@@ -10,7 +10,7 @@ import {
   CITIES,
   CATEGORY_VISUALS,
 } from './commerce-taxonomy.js';
-import {englishCanaryRecords} from './english-canary.js';
+import {englishPublicRecentRecords} from './english-canary.js';
 import {readRecentPublicManifest} from './r2-public-manifest.js';
 import {APPROVED_COUPON_CODES} from './approved-coupons.js';
 
@@ -72,7 +72,7 @@ function articleCard(a) {
 async function englishMarketRows(env, market) {
   const country = MARKETS[market]?.country;
   if (!country) return [];
-  return (await englishCanaryRecords(env)).filter((a) => a?.slug && a.indexable !== false && a.country === country && a.languageSource === 'native-intent-v6-canary');
+  return (await englishPublicRecentRecords(env)).filter((a) => a?.slug && a.indexable !== false && a.country === country && a.languageSource === 'native-intent-v6-canary');
 }
 
 function englishArticlePath(a){
@@ -300,7 +300,7 @@ async function englishProductHub(market,key,origin,env){
 }
 
 async function englishCouponsIndex(origin,env){
-  let rows=[];try{rows=await englishCanaryRecords(env)}catch{}
+  let rows=[];try{rows=await englishPublicRecentRecords(env)}catch{}
   rows=(rows||[]).filter(a=>a?.slug&&a.indexable!==false).slice(0,12);
   const path='/en/coupons',title='Noon Coupon Codes | Saudi Arabia & UAE',desc='A market selector for Noon coupon codes in Saudi Arabia and the UAE, with a checkout-first verification workflow and no unverified fixed-discount claims.';
   const cards=CODES.map(code=>`<article class="card"><small>Site-approved test code</small><h3><span class="code">${esc(code)}</span></h3><p>Use the code only after choosing the correct Noon market and keeping the cart unchanged. Checkout is the reference for eligibility and savings.</p></article>`).join('');

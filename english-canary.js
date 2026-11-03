@@ -405,6 +405,30 @@ export async function runEnglishScheduledTick(env,{maxPerTick=18,timeBudgetMs=12
   return {ok:payload.ok,batch,scheduler:payload};
 }
 export async function englishCanaryRecords(env){const s=await readState(env);return (s.records||[]).map(publicRecord)}
+// Public views use an existing R2 snapshot with the latest quality-gated
+// English entries. The full original state remains authoritative for
+// English sitemap, publishing, admin counts and complete archives.
+let publicRecentCache=null,publicRecentInFlight=null;
+export async function englishPublicRecentRecords(env){
+ if(publicRecentCache&&Date.now()-publicRecentCache.at<120000)return publicRecentCache.records;
+ if(publicRecentInFlight)return publicRecentInFlight;
+ publicRecentInFlight=(async()=>{
+   try{
+     const object=await env.CONTENT_FINAL?.get('english-canary/public-recent-v1.json');
+     if(object){
+       const data=await object.json();
+       if(data.version===1&&Array.isArray(data.articles)){
+         const records=data.articles.map(publicRecord);
+         publicRecentCache={at:Date.now(),records};
+         return records;
+       }
+     }
+   }catch{}
+   // Fall back only when the snapshot is missing or invalid.
+   return englishCanaryRecords(env);
+ })();
+ try{return await publicRecentInFlight}finally{publicRecentInFlight=null}
+}
 
 export async function englishCanaryHealth(env,{light=true}={}){
   const state=await readState(env),allRecords=(state.records||[]).map(publicRecord);

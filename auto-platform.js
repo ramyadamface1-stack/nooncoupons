@@ -182,7 +182,7 @@ export async function enrichNativeBlogCards(rows,storage){
 
 async function bulkBlogPage(req,env,ctx){
   const [latest,discovery,nativeRead]=await Promise.all([
-    r2json(env,'bulk/latest.json',{articles:[]}),
+    readRecentPublicManifest(env),
     r2json(env,AUDIT_DISCOVERY_CURRENT_KEY,null),
     readAiV2PublicationLedger(env)
   ]);

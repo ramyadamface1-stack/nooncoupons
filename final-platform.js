@@ -1,6 +1,6 @@
 import app from './visual-platform.js';
 import {APPROVED_COUPON_CODES} from './approved-coupons.js';
-import {englishCanaryRecords} from './english-canary.js';
+import {englishPublicRecentRecords} from './english-canary.js';
 import {readRecentPublicManifest} from './r2-public-manifest.js';
 export {ControlPlane} from './platform.js';
 
@@ -161,7 +161,7 @@ async function rss(origin,env){
   return `<?xml version="1.0" encoding="UTF-8"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>كوبونات نون — أحدث الأدلة</title><link>${esc(origin+'/blog')}</link><atom:link href="${esc(origin+'/feed.xml')}" rel="self" type="application/rss+xml"/><description>أحدث أدلة نون السعودية والإمارات التي اجتازت بوابة الجودة.</description><language>ar</language><lastBuildDate>${new Date().toUTCString()}</lastBuildDate>${items}</channel></rss>`;
 }
 async function rssEnglish(origin,env){
-  let rows=[];try{rows=await englishCanaryRecords(env)}catch{}
+  let rows=[];try{rows=await englishPublicRecentRecords(env)}catch{}
   rows=(rows||[]).filter(a=>feedEligible(a)&&a.languageSource==='native-intent-v6-canary').sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,50);
   const items=rows.map(a=>{
     const path=a.urlPath||('/en/articles/'+encodeURI(a.slug)),link=origin+path,date=new Date(a.updatedAt||a.createdAt||Date.now()).toUTCString();

@@ -5,7 +5,7 @@ import {nativeAiV2SitemapResponse} from './ai-v2-sitemap.js';
 import app from './brand-runtime.js';
 import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
 import {emergencyPublicR2Response,rescueSitemapIndexPaths,rescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
-import {runEnglishCanaryBatch,englishCanaryRecords} from './english-canary.js';
+import {runEnglishCanaryBatch,englishCanaryRecords,englishPublicRecentRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
 import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
@@ -219,7 +219,7 @@ async function injectDiscoveryLinks(req,env,res){
   if(html.includes('id="crawl-discovery-links"'))return res;
   const data=await latest(env);
   let english=[];
-  try{english=await englishCanaryRecords(env)}catch{}
+  try{english=await englishPublicRecentRecords(env)}catch{}
   const block=discoveryHtml(path,[...(data.articles||[]),...(english||[])]);
   if(!block)return new Response(html,{status:res.status,statusText:res.statusText,headers:res.headers});
   html=/<\/body>/i.test(html)?html.replace(/<\/body>/i,block+'</body>'):html+block;
