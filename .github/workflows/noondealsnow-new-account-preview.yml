@@ -121,7 +121,7 @@ jobs:
               exit 52
             fi
           }
-          get_preview '/api/revision' '"ok":true'
+          get_preview '/api/revision' '"ok": true'
           get_preview '/' 'NOV170'
           get_preview '/blog' '<html'
           get_preview '/articles/uae-buyer-acer-gaming-laptop-ports-and-upgrades-nov188-2026' 'NOV188'
