@@ -36,12 +36,11 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: noondealsnow-ai-v2-${{ github.event_name == 'workflow_dispatch' && 'publisher' || 'safety' }}
-  cancel-in-progress: false
-
 jobs:
   safety-tests:
+    concurrency:
+      group: noondealsnow-ai-v2-safety
+      cancel-in-progress: false
     # A push checks the complete safety suite once per release, not on every
     # minute tick; scheduled generation still performs fast syntax/secret guards.
     if: github.event_name == 'push'
@@ -140,6 +139,9 @@ jobs:
       matrix:
         market: [SA, AE]
     name: preflight-or-generate (${{ matrix.market }})
+    concurrency:
+      group: noondealsnow-ai-v2-publisher-${{ matrix.market }}
+      cancel-in-progress: false
     timeout-minutes: 20
     env:
       AI_QUEUE_MARKET: ${{ matrix.market }}

@@ -40,10 +40,13 @@ export async function dispatchDue({config:cfg=config,scheduledTime,actualTime=Da
     if(!decision.due)return {dispatched:false,reason};
     if(!token){reason='DISPATCH_TOKEN_MISSING';return {dispatched:false,reason}}
     const requestHeaders=headers(token);
-    // Check ONLY actual scheduled publisher jobs. Running push-time safety
-    // tests cannot publish; they must not suppress a real one-minute tick.
-    // GitHub publisher concurrency still serializes all dispatch requests.
-    for(const status of ['in_progress','queued']){
+    // Production dispatches every UTC minute, even while the preceding market
+    // runners finish. Each GitHub matrix market job now has its own serialized
+    // concurrency group; the native R2-backed 36s publication lease remains global.
+    // Keep the historical in-progress guard for disabled diagnostic preflights.
+    const activeMarketRunners=cfg.enabled===true&&cfg.publicationMode==='live_verified'&&
+      cfg.safety?.noAutomaticPublishUntilLiveBridgeVerified===false;
+    if(!activeMarketRunners)for(const status of ['in_progress','queued']){
       const response=await fetchFn(ROOT+'/runs?branch=main&event=workflow_dispatch&status='+status+'&per_page=1',{headers:requestHeaders});
       if(!response.ok){
         dispatchHttpStatus=response.status;reason=githubHttpStatus(response.status);

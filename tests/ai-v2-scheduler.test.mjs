@@ -115,8 +115,9 @@ test('scheduler only activates when the explicit Cloudflare secret is present; o
    return url.endsWith('/dispatches')?new Response(null,{status:204}):new Response(JSON.stringify({total_count:0}),{status:200});
   }});
  assert.equal(out.dispatched,true);
- assert.equal(JSON.parse(requests[2].body).inputs.preflight_only,'false');
- assert.equal(requests.length,3);
+ assert.equal(JSON.parse(requests[0].body).inputs.preflight_only,'false');
+ assert.equal(requests.length,1);
+ assert.ok(requests[0].url.endsWith('/dispatches'));
 });
 
 test('a push-time safety run cannot block one-minute dispatch or share publisher concurrency',async()=>{
@@ -135,6 +136,20 @@ test('a push-time safety run cannot block one-minute dispatch or share publisher
  });
  assert.equal(result.reason,'DISPATCH_ACCEPTED');
  assert.equal(result.dispatched,true);
- assert.equal(observed.length,3);
- assert.ok(observed.slice(0,2).every(u=>u.includes('event=workflow_dispatch&status=')));
+ assert.equal(observed.length,1);
+ assert.ok(observed[0].endsWith('/dispatches'));
+
+});
+
+test('production minute does not skip while prior SA/AE jobs are still finishing',async()=>{
+ const live=effectiveRuntimeConfig(config,{AI_V2_RUNTIME_ENABLED:'true'});
+ let calls=[],scheduled=start+60000;
+ const out=await dispatchDue({config:live,scheduledTime:scheduled,actualTime:scheduled+1000,
+  token:'fake',logger:()=>{},fetchFn:async(url,init)=>{
+   calls.push({url,method:init.method||'GET'});
+   if(!url.endsWith('/dispatches'))throw Error('RUN_GATING_WOULD_DROP_THIS_MINUTE');
+   return new Response(null,{status:204});
+  }});
+ assert.equal(out.dispatched,true);
+ assert.deepEqual(calls.map(x=>x.method),['POST']);
 });
