@@ -119,7 +119,7 @@ test('expanded Saudi short queries gain factual seller-and-warranty terms to pas
   const old=topic.topic.replace(/\\b(?:NOV|OPS)\\d+\\b/gi,'').trim();
   const specific=new Set(norm(old).split(/\\s+/).filter(x=>x.length>1&&!stop.has(x))).size;
   if(specific>=6)continue;
-  const {article,nativeTopic}=buildSaudiAiV2Article(topic,sections);
+  const {article,topic:nativeTopic}=buildSaudiAiV2Article(topic,sections);
   assert.ok(article.title.length<=72,topic.slug);
   assert.ok(!article.title.includes('NOV170'));
   assert.ok(article.title.includes('البائع والضمان'),topic.slug);

@@ -27,12 +27,14 @@ export function buildSaudiAiV2Article(topic,sections,{verifiedAt=new Date().toIS
  // This restores the strict indexation score without relaxing any gate or
  // regenerating completed AI sections. Existing/legacy titles are unchanged.
  const isExpandedEditorial=String(topic.comparisonKey||'').startsWith('editorial-');
- const editorialAddition=' — البائع والضمان';
- const editorialCandidate=baseTitle.includes(' | نون السعودية')
-  ?baseTitle.replace(' | نون السعودية',editorialAddition+' | نون السعودية')
-  :baseTitle+editorialAddition;
- const editorialTitle=isExpandedEditorial&&specificCount<6&&
-  editorialCandidate.length<=72?editorialCandidate:null;
+ const editorialAdditions=[' — البائع والضمان',' — فحص البائع',' — ضمان البائع'];
+ // Prefer fuller wording, then a two-keyword compact alternative for longer
+ // original brand names. Each adds a real verification step (no fabricated fact).
+ const editorialTitle=isExpandedEditorial&&specificCount<6
+  ?editorialAdditions.map(phrase=>baseTitle.includes(' | نون السعودية')
+    ?baseTitle.replace(' | نون السعودية',phrase+' | نون السعودية')
+    :baseTitle+phrase).find(candidate=>candidate.length<=72)||null
+  :null;
  const title=editorialTitle||(suffix?baseTitle+suffix:baseTitle);
  if(!/^[a-z0-9-]{16,120}$/.test(slug)||!title||!brand||!category)throw Error('INCOMPLETE_SAUDI_TOPIC');
  const code='NOV170',factor='الضمان',scenario='اختيار البائع قبل الشراء',useCase='المقارنة قبل الدفع';
