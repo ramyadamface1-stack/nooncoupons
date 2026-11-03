@@ -90,13 +90,16 @@ const topicLinks=(country='SA',english=false)=>{
   const market=country==='AE'?'uae':'saudi';
   const landing=country==='AE'?'/uae/noon-coupon-code':'/saudi-arabia/noon-coupon-code';
   const label=english?'Useful shopping links':'روابط ذات صلة';
-  return '<nav class="related" aria-label="'+esc(label)+'"><h2>'+esc(label)+'</h2><div class="related-links">'+[
+  return '<nav id="article-topic-path" class="related" aria-label="'+esc(label)+'"><h2>'+esc(label)+'</h2><div class="related-links">'+[
     [landing,english?'Noon coupon conditions':'كود خصم نون'],
     ['/'+market,english?'Country shopping hub':'تسوق نون حسب الدولة'],
     ['/'+market+'/categories',english?'Product categories':'أقسام المنتجات'],
     ['/blog',english?'Latest guides':'أحدث المقالات'],
     ['/blog/archive/all',english?'All archived guides':'أرشيف المقالات'],
-    [english?'/blog/archive/english/catalog':'/blog/archive/catalog',english?'Browse English guide directory':'فهرس المقالات القديمة']
+    [english?'/blog/archive/english/catalog':'/blog/archive/catalog',english?'Browse English guide directory':'فهرس المقالات القديمة'],
+    ['/topics/'+market,english?'More guides from this market':'مقالات هذا السوق'],
+    ['/topics/buying-guides',english?'Buying guides':'أدلة الشراء'],
+    ['/topics/coupon-help',english?'Coupon help':'مشاكل الكوبونات']
   ].map(([href,title])=>'<a href="'+esc(href)+'">'+esc(title)+'</a>').join('')+'</div></nav>';
 };
 function page(title,content,{lang='ar',dir='rtl',canonical='',description='',robots='noindex,follow',image=''}={}){
@@ -200,8 +203,17 @@ async function serveArticle(env,u,english){
   html=html.replace('</head>','<meta property="og:type" content="article"><meta property="og:title" content="'+esc(title)+'"><meta property="og:description" content="'+esc(description)+'"><meta property="og:image" content="'+esc(featured)+'"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="760"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(featured)+'"></head>');
   return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles','content-language':english?'en':'ar',...(originalEnglishBaseline?{'x-english-canary':'v1'}:{})}});
 }
+function rescueIntentGroup(intent){
+  if(['decision','smartbuy','budget','checklist'].includes(intent))return 'buying';
+  if(['trouble','eligibility','howto','question','timing','coupon'].includes(intent))return 'coupon';
+  if(['compare','finalprice','value','cart','multi'].includes(intent))return 'price';
+  if(['returns','warranty','seller'].includes(intent))return 'trust';
+  return 'other';
+}
 async function serveBlog(env,u){
-  const market=u.pathname.endsWith('/saudi')?'SA':u.pathname.endsWith('/uae')?'AE':null;
+  const countryParam=u.searchParams.get('market');
+  const market=u.pathname.endsWith('/saudi')?'SA':u.pathname.endsWith('/uae')?'AE':/^(SA|AE)$/.test(countryParam||'')?countryParam:null;
+  const topic=['buying','coupon','price','trust'].includes(u.searchParams.get('topic')||'')?u.searchParams.get('topic'):'';
   // The bulk/latest.json snapshot can be older than the latest legacy publisher.
   // The live ControlPlane publishes Arabic articles independently of bulk catalogs.
   // Merge its already-published, canonical articles without rewriting the R2 index.
@@ -225,7 +237,7 @@ async function serveBlog(env,u){
   ]);
   const seen=new Set(),rows=[];
   for(const item of [...(live?.articles||[]),...legacy,...(data?.articles||[])]){
-    if(!item?.slug||seen.has(item.slug)||item.status==='draft'||item.status==='scheduled'||item.indexable===false||item.slug.startsWith('en-')||market&&item.country!==market)continue;
+    if(!item?.slug||seen.has(item.slug)||item.status==='draft'||item.status==='scheduled'||item.indexable===false||item.slug.startsWith('en-')||market&&item.country!==market||topic&&rescueIntentGroup(item.intent)!==topic)continue;
     seen.add(item.slug);rows.push(item);
   }
   rows.sort((a,b)=>String(b.publishedAt||b.createdAt||b.updatedAt||'').localeCompare(String(a.publishedAt||a.createdAt||a.updatedAt||'')));
@@ -234,10 +246,17 @@ async function serveBlog(env,u){
   const path=market==='SA'?'/blog/saudi':market==='AE'?'/blog/uae':'/blog';
   const heading=market==='SA'?'مدونة نون السعودية':market==='AE'?'مدونة نون الإمارات':'مدونة كوبونات نون';
   const tabs='<nav class="related-links" aria-label="أقسام المدونة"><a href="/blog">كل المقالات</a><a href="/blog/saudi">السعودية</a><a href="/blog/uae">الإمارات</a><a href="/blog/archive/english">English UAE</a><a href="/blog/archive/english/catalog">English directory</a><a href="/blog/archive/all">الأرشيف الكامل</a><a href="/blog/archive/catalog">فهرس المقالات القديمة</a></nav>';
-  const hint='<h1>'+esc(heading)+'</h1><p>مقالات وأدلة شرائية مرتبطة بكوبونات نون، مع ضرورة مراجعة أهلية الكود والسعر النهائي داخل السلة.</p>'+tabs;
+  const filtersUrl=(m,t)=>{const q=new URLSearchParams();if(m)q.set('market',m);if(t)q.set('topic',t);return '/blog'+(q.toString()?'?'+q.toString():'')};
+  const filters='<section id="premium-blog-browser" aria-label="فلترة المدونة"><h2>اختر الدولة ونوع الدليل</h2><nav class="related-links" aria-label="تصفية حسب الدولة">'+[['','كل الدول'],['SA','السعودية'],['AE','الإمارات']].map(([m,label])=>'<a href="'+filtersUrl(m,topic)+'"'+((market||'')===m?' aria-current="page"':'')+'>'+label+'</a>').join('')+'</nav><nav class="related-links" aria-label="تصفية حسب موضوع المقال">'+[['','كل الأهداف'],['buying','أدلة شراء'],['coupon','مشاكل الكوبون'],['price','السعر والسلة'],['trust','الإرجاع والبائع']].map(([t,label])=>'<a href="'+filtersUrl(market,t)+'"'+(topic===t?' aria-current="page"':'')+'>'+label+'</a>').join('')+'</nav></section>';
+  const hint='<h1>'+esc(heading)+'</h1><p>مقالات وأدلة شرائية مرتبطة بكوبونات نون، مع ضرورة مراجعة أهلية الكود والسعر النهائي داخل السلة.</p>'+tabs+filters;
   const pageUrl='https://noondealsnow.com'+path+(pageNum>1?'?page='+pageNum:'');
   const schema='<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@graph':[{'@type':'CollectionPage',name:heading,url:pageUrl,inLanguage:'ar'},{'@type':'ItemList',itemListElement:visible.map((a,i)=>({'@type':'ListItem',position:i+1+(pageNum-1)*size,url:'https://noondealsnow.com'+link(a)}))}]}).replace(/</g,'\\u003c')+'</script>';
-  return response(heading,schema+hint+cards(visible)+nav(pageNum>1?path+'?page='+(pageNum-1):'',pageNum<pages?path+'?page='+(pageNum+1):'','صفحة '+pageNum+' من '+pages),{canonical:pageUrl,robots:'index,follow',image:visible[0]?'https://noondealsnow.com'+rescueImageUrl(visible[0].slug,marketOf(visible[0]),primaryCodeForMarket(marketOf(visible[0])),1):''});
+  const filtered=u.searchParams.has('market')||u.searchParams.has('topic');
+  const pageLink=n=>{const q=new URLSearchParams();if(u.searchParams.has('market')&&market)q.set('market',market);if(topic)q.set('topic',topic);if(n>1)q.set('page',String(n));return path+(q.toString()?'?'+q.toString():'')};
+  const result=response(heading,schema+hint+cards(visible)+(visible.length?'':'<p>لا توجد مقالات مطابقة لهذه الفلاتر في أحدث قائمة.</p>')+nav(pageNum>1?pageLink(pageNum-1):'',pageNum<pages?pageLink(pageNum+1):'','صفحة '+pageNum+' من '+pages),{canonical:filtered?'https://noondealsnow.com'+path:pageUrl,robots:filtered?'noindex,follow':'index,follow',image:visible[0]?'https://noondealsnow.com'+rescueImageUrl(visible[0].slug,marketOf(visible[0]),primaryCodeForMarket(marketOf(visible[0])),1):''});
+  if(!filtered)return result;
+  const headers=new Headers(result.headers);headers.set('x-robots-tag','noindex, follow');
+  return new Response(result.body,{status:result.status,headers});
 }
 async function serveEnglishArchive(env,u){
   // Use the already quality-checked 21k English UAE manifest; never HEAD each article.

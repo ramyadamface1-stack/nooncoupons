@@ -37,7 +37,9 @@ jobs:
             if ! grep -Fq "'shop_click'" body.html && ! grep -Fq 'noon_outbound' body.html; then
               echo "OUTBOUND_TRACKING_MISSING=$path"; exit 4
             fi
-            grep -Fiq "x-ga4-measurement: $MID" headers.txt
+            if ! grep -Fiq "x-ga4-measurement: $MID" headers.txt; then
+              echo "GA4_HEADER_MISSING=$path"; exit 4
+            fi
             echo "GA4_PUBLIC_OK=$path"
           }
 

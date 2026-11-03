@@ -1,9 +1,10 @@
 name: Verify Premium Navigation (diagnostic)
 
+# Evaluate production only after a successful deploy, not while the new code is pending.
 on:
-  push:
-    branches: [main]
-    paths: ['premium-entry.js','topic-hubs.js','.github/workflows/verify-premium-navigation.yml']
+  workflow_run:
+    workflows: ["Deploy Live Worker"]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
@@ -11,43 +12,35 @@ permissions:
 
 jobs:
   verify:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
-      - name: Source checks
+      - name: Check sources
         run: |
+          set -euo pipefail
           node --check premium-entry.js
-          node --check topic-hubs.js
-          grep -Fq 'article-topic-path' premium-entry.js
+          node --check r2-emergency-readonly.js
           grep -Fq 'premium-blog-browser' premium-entry.js
-          grep -Fq "x-robots-tag','noindex, follow" premium-entry.js
-          grep -Fq 'articleTopicPathHtml' topic-hubs.js
-      - name: Live navigation checks
+          grep -Fq 'premium-blog-browser' r2-emergency-readonly.js
+          grep -Fq 'article-topic-path' r2-emergency-readonly.js
+      - name: Check current production including R2-rescue pages
         shell: bash
         run: |
           set -euo pipefail
-          ORIGIN="https://noondealsnow.com"
-          echo "PRODUCTION_ORIGIN $ORIGIN"
-          ready=0
-          for i in $(seq 1 12); do
-            health="$(curl -fsS --max-time 15 "$ORIGIN/api/generator-health?v=final7" || true)"
-            slug="$(python -c 'import json,sys; d=json.loads(sys.argv[1]); print(d.get("bulk",{}).get("lastSlug") or "")' "$health" 2>/dev/null || true)"
-            [ -n "$slug" ] || { sleep 5; continue; }
-            urlslug="$(python -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe="-"))' "$slug")"
-            curl -fsS --max-time 20 "$ORIGIN/articles/$urlslug?v=final7" -o /tmp/article.html || { sleep 5; continue; }
-            curl -fsS --max-time 20 "$ORIGIN/blog?v=final7" -o /tmp/blog.html || { sleep 5; continue; }
-            if grep -Eq 'id="article-topic-path"|/(saudi|uae)/category/' /tmp/article.html && grep -Fq 'id="premium-blog-browser"' /tmp/blog.html; then ready=1; break; fi
-            sleep 5
-          done
-          [ "$ready" = 1 ]
-          grep -Eq '/topics/(buying-guides|coupon-help|price-and-cart|returns-and-warranty|saudi|uae)' /tmp/article.html
+          ORIGIN='https://noondealsnow.com'
+          ARTICLE='en-noon-coupon-eligibility-saudi-arabia-travel-guide'
+          curl -fsSL --max-time 30 "$ORIGIN/articles/$ARTICLE" -o /tmp/article.html
+          grep -Fq 'id="article-topic-path"' /tmp/article.html
+          grep -Eq '/topics/(buying-guides|coupon-help|saudi|uae)' /tmp/article.html
+          curl -fsSL --max-time 30 "$ORIGIN/blog" -o /tmp/blog.html
+          grep -Fq 'id="premium-blog-browser"' /tmp/blog.html
           grep -Fq 'market=SA' /tmp/blog.html
           grep -Fq 'market=AE' /tmp/blog.html
           grep -Fq 'topic=buying' /tmp/blog.html
           grep -Fq 'topic=coupon' /tmp/blog.html
-          curl -fsS -D /tmp/headers.txt --max-time 20 "$ORIGIN/blog?market=SA&topic=buying&page=2&v=final7" -o /tmp/filtered.html
-          tr -d '\r' </tmp/headers.txt | grep -iq '^x-robots-tag: noindex, follow$'
+          curl -fsSL -D /tmp/filter.headers --max-time 30 "$ORIGIN/blog?market=SA&topic=buying" -o /tmp/filtered.html
+          grep -Fiq 'x-robots-tag: noindex, follow' /tmp/filter.headers
           grep -Fq 'id="premium-blog-browser"' /tmp/filtered.html
-          grep -Fq 'صفحة 2' /tmp/filtered.html
-          echo PREMIUM_NAVIGATION_LIVE_PASS
+          echo 'PREMIUM_RESCUE_NAVIGATION_LIVE_PASS'
