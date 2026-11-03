@@ -57,6 +57,8 @@ test('AI V2 hourly publication counters are based on actual ledger entries by co
  assert.deepEqual({total:result.windows['2h'].total,SA:result.windows['2h'].SA,AE:result.windows['2h'].AE},{total:2,SA:1,AE:1});
  assert.deepEqual({total:result.windows['6h'].total,SA:result.windows['6h'].SA,AE:result.windows['6h'].AE},{total:2,SA:1,AE:1});
  assert.deepEqual({total:result.windows['24h'].total,SA:result.windows['24h'].SA,AE:result.windows['24h'].AE},{total:3,SA:1,AE:2});
+ assert.deepEqual({total:result.windows['10h'].total,SA:result.windows['10h'].SA,AE:result.windows['10h'].AE},{total:3,SA:1,AE:2});
+ assert.deepEqual({total:result.windows['12h'].total,SA:result.windows['12h'].SA,AE:result.windows['12h'].AE},{total:3,SA:1,AE:2});
  assert.deepEqual(result.windows['24h'].byProvider,{gemini:0,groq:0,unknown:3});
  assert.deepEqual(result.windows['24h'].byKey,{unknown:3});
  assert.equal(result.lastArticle.country,'SA');

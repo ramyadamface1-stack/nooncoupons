@@ -92,7 +92,7 @@ export function aiV2PublicationWindows(ledgerRead,atMs=Date.now()){
  if(!ledgerRead?.ok||!Array.isArray(ledgerRead.ledger?.articles))
   return {available:false,reason:ledgerRead?.reason||'LEDGER_UNAVAILABLE'};
  const data=ledgerRead.ledger.articles;
- const durations=[1,2,6,24],windows={};
+ const durations=[1,2,6,10,12,24],windows={};
  for(const h of durations){
   const byMarket={SA:0,AE:0};
   const byProvider={gemini:0,groq:0,unknown:0},byKey={};
