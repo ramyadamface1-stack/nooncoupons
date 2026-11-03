@@ -11,10 +11,10 @@ test('manifest cache coalesces simultaneous public layer reads, refreshes after 
   let reads=0;
   let fail=false;
   const env={CONTENT_FINAL:{get:async key=>{
-    assert.equal(key,'bulk/latest.json');
+    assert.equal(key,'bulk/public-compact-v1.json');
     reads++;
     if(fail)throw new Error('R2 unavailable');
-    return {json:async()=>({articles:[{slug:'a'+reads,status:'published'}]})};
+    return {json:async()=>({version:1,articles:[{slug:'a'+reads,status:'published'}]})};
   }}};
   try{
     const result=await Promise.all(Array.from({length:12},()=>readRecentPublicManifest(env)));
