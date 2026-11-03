@@ -440,7 +440,7 @@ async function sitemapHealth(req,env,ctx,origin){
       }
       if(path==='/sitemap.xml')res=await augmentRootSitemap(res,origin,env);
       const xml=await res.text(),type=(res.headers.get('content-type')||'').toLowerCase();
-      const root=/<(?:urlset|sitemapindex)\\b/i.test(xml),xmlDecl=/^\\s*<\\?xml\\b/i.test(xml);
+      const root=/<(?:urlset|sitemapindex)\b/i.test(xml),xmlDecl=/^\s*<\?xml\b/i.test(xml);
       const rescueCoverage=path==='/sitemap.xml'?{
         historicArabic:xml.includes(origin+'/sitemap-rescue-articles-'),
         historicEnglish:xml.includes(origin+'/sitemap-rescue-english-'),
