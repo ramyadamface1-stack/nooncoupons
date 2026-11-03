@@ -410,8 +410,21 @@ async function augmentRobots(res,origin){
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
+// A full 15-route XML self-crawl in ONE Worker invocation exceeded Cloudflare
+// Free CPU (1102). Split it into explicit 3-route read-only probe windows.
+// The default critical group checks the public root, core and native AI V2
+// manifests. A passing group is NOT described as a 15-route full audit.
+export const SITEMAP_HEALTH_PROBE_GROUPS=Object.freeze([
+ ['/sitemap.xml','/sitemap-core.xml','/sitemap-ai-v2.xml'],
+ ['/sitemap-pages.xml','/sitemap-guides.xml','/sitemap-coupons.xml'],
+ ['/sitemap-coupons-saudi.xml','/sitemap-coupons-uae.xml','/sitemap-priority.xml'],
+ ['/sitemap-en-articles.xml','/sitemap-hubs.xml','/sitemap-images.xml'],
+ ['/sitemap-commerce.xml','/sitemap-money.xml','/sitemap-topics.xml']
+]);
 async function sitemapHealth(req,env,ctx,origin){
-  const paths=['/sitemap.xml','/sitemap-core.xml','/sitemap-pages.xml','/sitemap-guides.xml','/sitemap-coupons.xml','/sitemap-coupons-saudi.xml','/sitemap-coupons-uae.xml','/sitemap-priority.xml','/sitemap-en-articles.xml','/sitemap-hubs.xml','/sitemap-images.xml','/sitemap-commerce.xml','/sitemap-money.xml','/sitemap-topics.xml','/sitemap-ai-v2.xml'];
+  const url=new URL(req.url),requested=url.searchParams.get('part')||'0';
+  const part=/^[0-4]$/.test(requested)?Number(requested):0;
+  const paths=SITEMAP_HEALTH_PROBE_GROUPS[part];
   const rows=[];
   for(const path of paths){
     try{
@@ -421,23 +434,35 @@ async function sitemapHealth(req,env,ctx,origin){
       else if(path==='/sitemap-hubs.xml')res=await hubSitemap(env,origin);
       else if(path==='/sitemap-images.xml')res=await imageSitemap(env,origin);
       else if(path==='/sitemap-ai-v2.xml')res=await nativeAiV2SitemapResponse(path,env,origin);
-      else{const u=new URL(req.url);u.pathname=path;u.search='';res=await app.fetch(new Request(u.toString(),{method:'GET',headers:{accept:'application/xml,text/xml,*/*'}}),env,ctx)}
-      // The external /sitemap.xml route appends the R2 rescue indexes AFTER
-      // app.fetch(). Measure the identical public response, not the incomplete
-      // base index, or a green self-audit can conceal absent historical shards.
+      else{
+        const u=new URL(req.url);u.pathname=path;u.search='';
+        res=await app.fetch(new Request(u.toString(),{method:'GET',headers:{accept:'application/xml,text/xml,*/*'}}),env,ctx);
+      }
       if(path==='/sitemap.xml')res=await augmentRootSitemap(res,origin,env);
-      const text=await res.text(),type=(res.headers.get('content-type')||'').toLowerCase(),root=/<(?:urlset|sitemapindex)\b/i.test(text),xmlDecl=/^\s*<\?xml\b/i.test(text),locs=(text.match(/<loc>/gi)||[]).length,httpLocs=(text.match(/<loc>http:\/\//gi)||[]).length,httpsLocs=(text.match(/<loc>https:\/\//gi)||[]).length;
+      const xml=await res.text(),type=(res.headers.get('content-type')||'').toLowerCase();
+      const root=/<(?:urlset|sitemapindex)\\b/i.test(xml),xmlDecl=/^\\s*<\\?xml\\b/i.test(xml);
       const rescueCoverage=path==='/sitemap.xml'?{
-        historicArabic:text.includes(origin+'/sitemap-rescue-articles-'),
-        historicEnglish:text.includes(origin+'/sitemap-rescue-english-'),
-        arabicCatalog:text.includes(origin+'/sitemap-rescue-catalog.xml'),
-        englishCatalog:text.includes(origin+'/sitemap-rescue-english-catalog.xml')
+        historicArabic:xml.includes(origin+'/sitemap-rescue-articles-'),
+        historicEnglish:xml.includes(origin+'/sitemap-rescue-english-'),
+        arabicCatalog:xml.includes(origin+'/sitemap-rescue-catalog.xml'),
+        englishCatalog:xml.includes(origin+'/sitemap-rescue-english-catalog.xml'),
+        nativeAI:xml.includes(origin+'/sitemap-ai-v2.xml')
       }:null;
-      const coverageOk=!rescueCoverage||Object.values(rescueCoverage).every(Boolean);
-      rows.push({path,status:res.status,ok:res.ok&&type.includes('xml')&&root&&coverageOk,contentType:type,xmlDeclaration:xmlDecl,rootDetected:root,locs,httpLocs,httpsLocs,bytes:text.length,...(rescueCoverage?{rescueCoverage}:{} )});
-    }catch(e){rows.push({path,status:0,ok:false,error:String(e?.message||e).slice(0,220)})}
+      const ok=res.ok&&type.includes('xml')&&root&&xmlDecl&&
+        (!rescueCoverage||Object.values(rescueCoverage).every(Boolean));
+      rows.push({path,status:res.status,ok,contentType:type,xmlDeclaration:xmlDecl,
+        rootDetected:root,locs:(xml.match(/<loc>/gi)||[]).length,
+        bytes:xml.length,...(rescueCoverage?{rescueCoverage}:{})});
+    }catch(e){rows.push({path,status:0,ok:false,error:String(e?.message||e).slice(0,120)})}
   }
-  return new Response(JSON.stringify({ok:rows.every(x=>x.ok),origin,checkedAt:new Date().toISOString(),rows},null,2),{headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-sitemap-self-audit':'v1'}});
+  const checkedAt=new Date().toISOString();
+  return new Response(JSON.stringify({ok:rows.every(x=>x.ok),origin,checkedAt,rows,
+    auditScope:'bounded-three-route-group',part,groups:SITEMAP_HEALTH_PROBE_GROUPS.length,
+    routesChecked:paths.length,routesInFullInventory:SITEMAP_HEALTH_PROBE_GROUPS.flat().length,
+    fullInventoryVerified:false,nextPart:part+1<SITEMAP_HEALTH_PROBE_GROUPS.length?part+1:null,
+    noHeavyFullSiteCrawl:true},null,2),{headers:{
+    'content-type':'application/json; charset=utf-8','cache-control':'no-store',
+    'x-sitemap-self-audit':'bounded-group-v2'}});
 }
 
 const EDGE_CACHE_POLICY_REVISION='r2-jsonld-dedupe-r16';

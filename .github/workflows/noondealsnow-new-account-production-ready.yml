@@ -11,6 +11,7 @@ on:
       - 'ai-v2-sitemap.js'
       - 'r2-emergency-readonly.js'
       - 'tests/ai-v2-sitemap.test.mjs'
+      - 'tests/sitemap-health-budget.test.mjs'
       - 'tests/mobile-directory-no-heavy-manifest.test.mjs'
       - 'tests/ai-v2-blog-publication.test.mjs'
   workflow_dispatch:
