@@ -1,0 +1,107 @@
+name: NoonDealsNow New-Account Read-only Preview (No DNS Cutover)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-new-account-preview.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ndn-readonly-cutover-preview
+  cancel-in-progress: false
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare isolated preview script (no cron, password protected, no DNS)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import re
+          s=open('wrangler.new-account-production.jsonc').read()
+          s=re.sub(r'^\\s*//.*$', '', s, flags=re.M)
+          cfg=json.loads(s)
+          assert cfg['triggers']['crons']==[]
+          assert cfg['r2_buckets'][0]['bucket_name']=='nooncoupons-content-v2'
+          assert all(b.get('script_name')=='noondealsnow-migration-staging' for b in cfg['durable_objects']['bindings'])
+          cfg['name']='noondealsnow-cutover-preview'
+          cfg['main']='.ndn-preview-entry.mjs'
+          cfg['workers_dev']=True
+          cfg['vars']['AI_PRIMARY_PROVIDER']='disabled'
+          cfg['vars']['WORKERS_AI_DAILY_CAP']='0'
+          cfg['vars']['WORKERS_AI_DAILY_CALL_CAP']='0'
+          cfg['vars']['BULK_DAILY_TARGET']='0'
+          cfg['vars']['ENGLISH_DAILY_TARGET']='0'
+          cfg['vars']['R2_RESCUE_READONLY_ENABLED']='false'
+          cfg['vars']['REMOTE_EXISTING_R2_ENABLED']='false'
+          cfg['vars']['GLOBAL_PUBLISH_MIN_INTERVAL_SECONDS']='30'
+          open('.ndn-preview-config.json','w').write(json.dumps(cfg))
+          PY
+          cat > .ndn-preview-entry.mjs <<'JS'
+          import live from './discovery-entry.js';
+          export default {
+            async fetch(request,env,ctx){
+              const supplied=request.headers.get('x-ndn-preview-token')||'';
+              if(!env.CUTOVER_PREVIEW_TOKEN||supplied!==env.CUTOVER_PREVIEW_TOKEN)
+                return new Response('Preview is private',{status:403,headers:{'x-robots-tag':'noindex, nofollow','cache-control':'no-store'}});
+              if(!['GET','HEAD'].includes(request.method))
+                return new Response('Preview is read-only',{status:405,headers:{'x-robots-tag':'noindex, nofollow'}});
+              const response=await live.fetch(request,env,ctx);
+              const headers=new Headers(response.headers);
+              headers.set('x-robots-tag','noindex, nofollow');
+              headers.set('cache-control','no-store');
+              return new Response(response.body,{status:response.status,headers});
+            }
+          };
+          JS
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          test "${CLOUDFLARE_ACCOUNT_ID}" = 'e4c35f8a50a7b2e4cfb9d6c534962603'
+          node --check .ndn-preview-entry.mjs
+      - name: Deploy private preview to destination Cloudflare account only
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --config .ndn-preview-config.json --outdir /tmp/ndn-dry-preview
+          npx wrangler deploy --config .ndn-preview-config.json
+      - name: Make preview credentials ephemeral and prevent search indexing
+        shell: bash
+        run: |
+          set -euo pipefail
+          openssl rand -hex 24 > /tmp/ndn-preview-key
+          token=$(cat /tmp/ndn-preview-key)
+          echo "::add-mask::$token"
+          printf '%s' "$token" | npx wrangler secret put CUTOVER_PREVIEW_TOKEN --config .ndn-preview-config.json
+      - name: Test old-site content from new R2 and new Durable Objects without altering production
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://noondealsnow-cutover-preview.ndn-e4c35f8a50.workers.dev'
+          TOKEN=$(cat /tmp/ndn-preview-key)
+          unauth=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$ORIGIN/")
+          echo "PREVIEW_UNAUTHORIZED_HTTP=$unauth"
+          test "$unauth" = 403
+          get_preview(){
+            local path="$1" match="$2"
+            local out=/tmp/ndn-preview-response.txt headers=/tmp/ndn-preview-headers.txt
+            code=$(curl -sS -D "$headers" -o "$out" -w '%{http_code}' --retry 1 --max-time 30 -H "x-ndn-preview-token: $TOKEN" "$ORIGIN$path")
+            echo "PREVIEW_PATH=$path;HTTP=$code;BYTES=$(wc -c < "$out")"
+            test "$code" = 200
+            grep -iq 'x-robots-tag: noindex, nofollow' "$headers"
+            grep -Fq "$match" "$out"
+          }
+          get_preview '/api/revision' '"ok":true'
+          get_preview '/' 'NOV170'
+          get_preview '/blog' '<html'
+          get_preview '/articles/uae-buyer-acer-gaming-laptop-ports-and-upgrades-nov188-2026' 'NOV188'
+          echo 'PREVIEW_NEW_ACCOUNT_READS=PASS'
+          echo 'PREVIEW_DNS_CHANGED=NO;PREVIEW_OLD_WORKER_CHANGED=NO;PREVIEW_NEW_R2_WRITES=NO'
