@@ -94,3 +94,18 @@ test('short Saudi product H1 carries genuine category and gets two buyer checkli
  const index=evaluateIndexation(built.article,built.topic,{globalGate:{pass:true},contextualLinks:built.article.contextualLinks.length,clusterSize:6,schemaGate:{pass:true},coupon:{publishAllowed:true}});
  assert.equal(index.indexable,true,JSON.stringify(index));
 });
+
+test('short Saudi Logitech webcam H1 preserves original topic, adds genuine product category and reaches native indexability',()=>{
+ const logitech=topics.find(t=>t.slug==='saudi-buyer-logitech-webcam-privacy-meetings-nov170-2026');
+ assert.ok(logitech);
+ const built=buildSaudiAiV2Article(logitech,sections);
+ assert.ok(built.article.title.includes(logitech.category));
+ assert.ok(built.article.title.length<=72);
+ assert.equal(built.article.title.includes('NOV170'),false);
+ assert.equal(built.article.slug,logitech.slug);
+ const index=evaluateIndexation(built.article,built.topic,{globalGate:{pass:true},
+  contextualLinks:built.article.contextualLinks.length,clusterSize:6,
+  schemaGate:{pass:true},coupon:{publishAllowed:true}});
+ assert.equal(index.indexable,true,JSON.stringify(index));
+ assert.ok(index.score>=95,JSON.stringify(index));
+});

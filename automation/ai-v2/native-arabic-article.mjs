@@ -15,8 +15,13 @@ export function buildSaudiAiV2Article(topic,sections,{verifiedAt=new Date().toIS
  const normTitle=baseTitle.toLowerCase().replace(/[\u064B-\u065F\u0670]/g,'').replace(/[إأآٱ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[^a-z0-9\u0600-\u06ff]+/g,' ').trim();
  const titleStops=new Set(['من','في','على','الى','عن','مع','نون','كود','خصم','السعوديه','الامارات','شراء','طريقه','دليل','استخدام']);
  const specificCount=new Set(normTitle.split(/\s+/).filter(x=>x.length>1&&!titleStops.has(x))).size;
- const suffix=' — '+category+' الضمان';
- const title=specificCount<6&&baseTitle.length+suffix.length<=72?baseTitle+suffix:baseTitle;
+ // Compact, useful category keywords prevent a short genuine H1 from
+ // missing the immutable indexation intent-specificity floor. No coupon
+ // token, fabricated claim, or extra provider request is introduced.
+ const suffixes=[' — '+category+' الضمان',' — '+category];
+ const suffix=specificCount<7&&!normTitle.includes(category.toLowerCase())
+  ?suffixes.find(s=>baseTitle.length+s.length<=72):null;
+ const title=suffix?baseTitle+suffix:baseTitle;
  if(!/^[a-z0-9-]{16,120}$/.test(slug)||!title||!brand||!category)throw Error('INCOMPLETE_SAUDI_TOPIC');
  const code='NOV170',factor='الضمان',scenario='اختيار البائع قبل الشراء',useCase='المقارنة قبل الدفع';
  const saved=sections.map(s=>trimAiSectionHtml(s.html,250));

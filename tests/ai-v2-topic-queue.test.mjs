@@ -166,3 +166,13 @@ test('saved Saudi draft with only noncritical list and index score problems is r
  assert.equal(safeSaudiDeterministicRecovery({...s,nativeGateDiagnostics:{...s.nativeGateDiagnostics,duplicates:['duplicate']}},t),false);
  assert.equal(safeSaudiDeterministicRecovery({...s,nativeGateDiagnostics:{...s.nativeGateDiagnostics,indexation:['insufficient_information_gain']}},t),false);
 });
+
+test('a Saudi completed draft blocked only by indexation score is eligible for one no-AI safe revision',()=>{
+ const topic=topics.find(t=>t.slug==='saudi-buyer-logitech-webcam-privacy-meetings-nov170-2026');
+ const state={state:'BLOCKED_REVIEW',sectionIndex:5,errorCategory:'NATIVE_QUALITY_BLOCKED',
+  sections:Array.from({length:5},()=>({html:'<h2>تقييم</h2><p>مقارنة الكاميرا والإضاءة</p>'})),
+  nativeGateDiagnostics:{score:100,p0:[],failed:[],schemas:[],duplicates:[],indexation:['indexation_value_below_threshold']}};
+ assert.equal(safeSaudiDeterministicRecovery(state,topic),true);
+ assert.equal(resumableCheckpoint(state,{autoSafeSaudiRecovery:true,topic}),true);
+ assert.equal(safeSaudiDeterministicRecovery({...state,deterministicRecoveryRevision:SA_SAFE_RECOVERY_REVISION},topic),false);
+});
