@@ -7,7 +7,7 @@ import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStat
 import {readState,pickTopic,pickRescueTopic,publishGenerated} from './generator-core-v2.js';
 import {generateWithWorkersAI,workersAiBudget,isWorkersAiFreeQuotaError} from './workers-ai-generator.js';
 import {BULK_ENGINE_INFO,BULK_RUNTIME_LIMITS,CAMPAIGN_CALENDAR_INFO} from './bulk-generator.js';
-import {APPROVED_COUPON_CODES,normalizeApprovedCoupon,replaceUnapprovedCouponTokens,normalizeMarketCoupon,replaceWrongMarketCouponTokens} from './approved-coupons.js';
+import {APPROVED_COUPON_CODES,HOMEPAGE_COUPONS_BY_MARKET,normalizeApprovedCoupon,replaceUnapprovedCouponTokens,normalizeMarketCoupon,replaceWrongMarketCouponTokens} from './approved-coupons.js';
 import {ensureRuntimeArticleQuality,normalizeRuntimeTitle,normalizeRuntimeMeta,RUNTIME_ARTICLE_QUALITY_INFO} from './article-quality-runtime.js';
 import {runEnglishScheduledTick} from './english-canary.js';
 import {getPublicationSlotStatus} from './publication-rate-limit.js';
@@ -22,8 +22,8 @@ const AUDIT_DISCOVERY_CURRENT_KEY='maintenance/article-discovery-v1/current.json
 const STATIC_PAGE_PATHS=['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide','/about','/contact','/privacy','/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer','/terms','/research','/glossary','/countries'];
 const STATIC_GUIDE_PATHS=['/guide/how-to-use-noon-coupon','/guide/coupon-not-working','/guide/saudi-noon-saving-guide','/guide/uae-noon-saving-guide','/guide/first-order-guide','/guide/payment-methods-and-coupons','/guide/coupon-vs-offer','/guide/smart-cart-checklist','/guide/noon-yellow-friday','/guide/noon-refund-credit','/guide/philips-lumea-warranty-safety'];
 const STATIC_MARKET_MONEY_PATHS={
-  'coupons-saudi':['/saudi-arabia/noon-coupon-code','/saudi-arabia/noon-coupon-code-today'],
-  'coupons-uae':['/uae/noon-coupon-code','/uae/noon-coupon-code-today']
+  'coupons-saudi':['/saudi-arabia/noon-coupon-code',...HOMEPAGE_COUPONS_BY_MARKET.SA.map(code=>'/saudi-arabia/coupon/'+code.toLowerCase())],
+  'coupons-uae':['/uae/noon-coupon-code',...HOMEPAGE_COUPONS_BY_MARKET.AE.map(code=>'/uae/coupon/'+code.toLowerCase())]
 };
 const now=()=>new Date().toISOString();
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
