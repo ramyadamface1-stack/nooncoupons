@@ -282,6 +282,9 @@ export class GeneratorControl{
     if(p==='/__migration/export'&&req.method==='POST')return snapshotDurableObjectKeys(this.ctx.storage,this.env,'GeneratorControl');
     if(p==='/__migration/restore'&&req.method==='POST')return restoreDurableObjectKeys(this.ctx.storage,this.env,'GeneratorControl');
     if(p==='/publication-slot'&&(req.method==='GET'||req.method==='POST')){
+      // Reuse the existing Durable Object key so a 60s->36s upgrade retains
+      // the last accepted publication timestamp. Never reset publication lock
+      // state or bypass the single atomic storage transaction.
       const spacingMs=GLOBAL_PUBLICATION_SPACING_MS,stamp=Date.now(),key='publication-rate-v1';
       const shape=(entry,ok)=>{
         const lastAtMs=Math.max(0,Number(entry?.lastAtMs||0)),waitMs=Math.max(0,lastAtMs+spacingMs-stamp);
