@@ -1,6 +1,6 @@
 // Exactly one zero-provider editorial rescue for known repaired Saudi gates.
 // Fail closed on unrecognized native diagnostics or malformed checkpoints.
-export const SA_SAFE_RECOVERY_REVISION='sa-title-and-index-checklist-v2';
+export const SA_SAFE_RECOVERY_REVISION='sa-title-and-index-checklist-v3';
 export const AE_SAFE_RECOVERY_REVISION='ae-depth-recovery-20261103-v1';
 export function safeEnglishDeterministicRecovery(checkpoint,topic){
  const preview=checkpoint?.qualityPreview;
