@@ -139,6 +139,7 @@ function conversionAnalyticsScript(){
  if(window.__ndnConversionAnalytics)return;window.__ndnConversionAnalytics=true;
  function market(){var p=location.pathname,l=(document.documentElement.lang||'').toUpperCase();if(/AE$/.test(l)||/^\\/uae(?:\\/|$)/.test(p)||/^\\/en\\/uae(?:\\/|$)/.test(p))return 'AE';return 'SA'}
  function emit(name,params){
+   if(window.__ndnConversionOwner==='brand-runtime-v3'&&(name==='coupon_copy'||name==='noon_outbound'))return;
    var article=document.querySelector('article[data-intent]'),payload=Object.assign({
      page_path:location.pathname,
      market:article&&article.getAttribute('data-market')||market(),
