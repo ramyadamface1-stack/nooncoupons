@@ -25,3 +25,11 @@ test('blog uses explicitly imported compact public feed to prevent 1101 runtime 
  assert.match(code,/import\\s*\\{readRecentPublicManifest\\}\\s*from\\s*['"]\\.\\/r2-public-manifest\\.js['"]/);
  assert.match(code,/readRecentPublicManifest\\(env\\)/);
 });
+
+test('blog renderer never fetches full legacy /api/state on public routes',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const code=readFileSync(new URL('../auto-platform.js',import.meta.url),'utf8');
+ const segment=code.split('async function bulkBlogPage(')[1].split('function staticSitemapPaths(')[0];
+ assert.doesNotMatch(segment,/app\\.fetch\\(/);
+ assert.match(segment,/mergeNativeBlogRows\\(nativeRead,\\[\\],latest\\.articles/);
+});

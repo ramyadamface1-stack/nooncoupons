@@ -182,17 +182,17 @@ export async function enrichNativeBlogCards(rows,storage){
 }
 
 async function bulkBlogPage(req,env,ctx){
-  const [latest,discovery,nativeRead]=await Promise.all([
+  // Rendering the public blog must NEVER dispatch /api/state: its full DO
+  // article state exceeds Worker Free CPU on cold mobile visitors (1102).
+  // The complete historical archive keeps its own separate index/URLs.
+  const [latest,nativeRead]=await Promise.all([
     readRecentPublicManifest(env),
-    r2json(env,AUDIT_DISCOVERY_CURRENT_KEY,null),
     readAiV2PublicationLedger(env)
   ]);
   if(!(latest.articles||[]).length&&!(nativeRead.ok&&nativeRead.count>0))return null;
-  let legacy=[];
-  try{const r=await app.fetch(new Request(new URL('/api/state',req.url),{headers:{accept:'application/json'}}),env,ctx);if(r.ok){const s=await r.json();legacy=(s.articles||[]).filter(a=>a.status==='published')}}catch{}
   const u=new URL(req.url),marketFilter=u.pathname==='/blog/saudi'?'SA':u.pathname==='/blog/uae'?'AE':'';
   const blogBase=marketFilter==='SA'?'/blog/saudi':marketFilter==='AE'?'/blog/uae':'/blog';
-  const all=mergeNativeBlogRows(nativeRead,legacy,latest.articles||[],marketFilter);
+  const all=mergeNativeBlogRows(nativeRead,[],latest.articles||[],marketFilter);
   const perPage=15,totalPages=Math.max(1,Math.ceil(all.length/perPage)),rawPage=u.searchParams.get('page'),requested=Math.max(1,Number.parseInt(rawPage||'1',10)||1),page=Math.min(requested,totalPages);
   if(rawPage==='1')return new Response(null,{status:301,headers:{location:blogBase,'cache-control':'public,max-age=3600'}});
   if(requested>totalPages)return new Response(null,{status:302,headers:{location:totalPages===1?blogBase:blogBase+'?page='+totalPages,'cache-control':'no-store'}});
