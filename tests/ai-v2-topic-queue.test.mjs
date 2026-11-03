@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 import topics from '../automation/ai-v2/topics.json' with {type:'json'};
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,QUEUE_SCAN_LIMIT,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from '../automation/ai-v2/topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,QUEUE_SCAN_LIMIT,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from '../automation/ai-v2/topic-queue.mjs';
 import {assertTopic} from '../automation/ai-v2/guardrails.mjs';
 test('curated queue has unique topic slugs, stable IDs, country and approved coupon',()=>{
  const ids=topics.map(t=>assertTopic(t,config));
@@ -141,4 +141,16 @@ test('English completed near-minimum draft is retried once using saved content, 
  assert.equal(safeEnglishDeterministicRecovery({...c,qualityPreview:{wordCount:1000,violations:['WORD_WINDOW']}},ae),false);
  assert.equal(safeEnglishDeterministicRecovery({...c,qualityPreview:{wordCount:1341,violations:['WORD_WINDOW','SCRIPT_NOT_ALLOWED']}},ae),false);
  assert.equal(resumableCheckpoint({...c,state:'UNKNOWN_PUBLICATION_OUTCOME'},{autoSafeEnglishRecovery:true,topic:ae}),false);
+});
+
+test('cooldown or exhausted free call budget yields an unfinished checkpoint without erasing it',()=>{
+ for(const why of ['ALL_FREE_PROVIDERS_IN_COOLDOWN','CALL_BUDGET_LIMIT','NO_FREE_PROVIDER_AVAILABLE']){
+  assert.equal(pausedProviderNextCursor(248,176,why),177);
+  assert.equal(pausedProviderNextCursor(248,247,why),0);
+ }
+ for(const unsafe of ['UNKNOWN_REQUEST_OUTCOME','NATIVE_QUALITY_BLOCKED','PUBLISH_OUTCOME_UNKNOWN']){
+  assert.throws(()=>pausedProviderNextCursor(248,176,unsafe),/UNSAFE_QUEUE_YIELD_REASON/);
+ }
+ assert.equal(resumableCheckpoint({state:'PAUSED_QUOTA',lastRequestStatus:429,errorCategory:'QUOTA',sectionIndex:2,sections:[{},{}]}),true);
+ assert.equal(resumableCheckpoint({state:'UNKNOWN_PUBLICATION_OUTCOME'}),false);
 });

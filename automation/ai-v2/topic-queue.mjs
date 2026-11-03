@@ -82,6 +82,11 @@ export function queueScanWindow(total,cursor,limit=QUEUE_SCAN_LIMIT){
  const start=Number.isSafeInteger(cursor)&&cursor>=0?cursor%total:Math.min(20,total-1);
  return Array.from({length:Math.min(total,limit)},(_,i)=>(start+i)%total);
 }
+export const PROVIDER_YIELD_REASONS=Object.freeze(['ALL_FREE_PROVIDERS_IN_COOLDOWN','CALL_BUDGET_LIMIT','NO_FREE_PROVIDER_AVAILABLE']);
+export function pausedProviderNextCursor(total,lastChecked,reason){
+ if(!PROVIDER_YIELD_REASONS.includes(reason))throw Error('UNSAFE_QUEUE_YIELD_REASON');
+ return nextQueueCursor(total,lastChecked);
+}
 export function nextQueueCursor(total,lastChecked){
  if(!Number.isInteger(total)||total<1||!Number.isSafeInteger(lastChecked)||lastChecked<0||lastChecked>=total)
   throw Error('INVALID_QUEUE_CURSOR');

@@ -8,7 +8,7 @@ import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
@@ -72,6 +72,16 @@ async function run(){
   const oldCursor=oneOffCanary?null:await readCheckpoint(config,cursorId);
   const positions=oneOffCanary?topics.map((_,i)=>i):queueScanWindow(topics.length,oldCursor?.cursor);
   let checked=0,lastChecked=null;
+  // If all free sources are cooling down, do not pin the global queue to an
+  // unfinished article. Its immutable R2 checkpoint survives; later cycles
+  // can find it again, while another ready draft may publish without AI.
+  const yieldProviderBlockedCursor=async reason=>{
+    if(oneOffCanary||lastChecked===null)return;
+    const cursor=pausedProviderNextCursor(topics.length,lastChecked,reason);
+    await saveCheckpoint(config,{articleId:cursorId,state:'QUEUE_CURSOR',cursor,
+      createdAt:oldCursor?.createdAt||now(),version:Number(oldCursor?.version||0)+2});
+    console.log('AI_V2_QUEUE_YIELD '+JSON.stringify({reason,from:lastChecked,nextCursor:cursor}));
+  };
   for(const position of positions){
     const topic=topics[position];
     lastChecked=position;
@@ -188,11 +198,12 @@ async function run(){
     return null;
   };
   if(needsProvider&&!Object.values(available).some(Boolean)){
+    await yieldProviderBlockedCursor('NO_FREE_PROVIDER_AVAILABLE');
     report('SKIPPED','NO_FREE_PROVIDER_AVAILABLE',{articleId});return;
   }
   let calls=0,lastProvider=null;
   while(state.sectionIndex<topic.sections.length){
-    if(calls>=config.limits.maxProviderCallsPerRun){report('CHECKPOINTED','CALL_BUDGET_LIMIT',{articleId,sectionIndex:state.sectionIndex});return}
+    if(calls>=config.limits.maxProviderCallsPerRun){await yieldProviderBlockedCursor('CALL_BUDGET_LIMIT');report('CHECKPOINTED','CALL_BUDGET_LIMIT',{articleId,sectionIndex:state.sectionIndex});return}
     const index=state.sectionIndex;
     if(state.state==='RESPONSE_RECEIVED'&&state.pendingResponse){
       const html=state.pendingResponse;
@@ -201,6 +212,7 @@ async function run(){
     }
     const chosen=await chooseCredential(index);
     if(!chosen){
+      await yieldProviderBlockedCursor('ALL_FREE_PROVIDERS_IN_COOLDOWN');
       report('SKIPPED','ALL_FREE_PROVIDERS_IN_COOLDOWN',{articleId,enabledProviders:priority.filter(p=>available[p])});
       return;
     }
