@@ -35,6 +35,14 @@ function upsertMetaProperty(html,name,value){
 function routeOverrideFor(settings,path){
   const all=settings?.routeOverrides||{};
   if(all[path])return all[path];
+  if(path==='/'){
+    // The month/year changes on a real request in Cairo, including across a long-lived Worker isolate.
+    // This is a discovery label, not a claim that every coupon was tested this month.
+    const monthYear=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',month:'long',year:'numeric'}).format(new Date());
+    const title='كود خصم نون السعودية والإمارات | '+monthYear+' | Noon Deals Now';
+    const description='استكشف أكواد وكوبونات نون السعودية والإمارات في '+monthYear+'، وانسخ الكود المناسب لسوقك ثم اختبر أهلية الخصم والسعر النهائي داخل سلة نون.';
+    return {...CORE_ROUTE_OVERRIDES['/'],title,description,ogTitle:title,ogDescription:description};
+  }
   if(CORE_ROUTE_OVERRIDES[path])return CORE_ROUTE_OVERRIDES[path];
   const patterns=Object.keys(all).filter(k=>k.includes(':')||k.includes('*')).sort((a,b)=>b.length-a.length);
   for(const pattern of patterns){
