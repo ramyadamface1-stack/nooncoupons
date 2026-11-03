@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/noondealsnow-new-account-production-ready.yml'
       - 'wrangler.new-account-production.jsonc'
+      - 'auto-platform.js'
+      - 'tests/ai-v2-blog-publication.test.mjs'
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
