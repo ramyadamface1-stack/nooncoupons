@@ -1,6 +1,17 @@
 // Exactly one zero-provider editorial rescue for known repaired Saudi gates.
 // Fail closed on unrecognized native diagnostics or malformed checkpoints.
 export const SA_SAFE_RECOVERY_REVISION='sa-title-and-depth-v1';
+export const AE_SAFE_RECOVERY_REVISION='ae-depth-recovery-20261103-v1';
+export function safeEnglishDeterministicRecovery(checkpoint,topic){
+ const preview=checkpoint?.qualityPreview;
+ return topic?.country==='AE'&&checkpoint?.state==='BLOCKED_REVIEW'&&
+  checkpoint?.deterministicRecoveryRevision!==AE_SAFE_RECOVERY_REVISION&&
+  checkpoint?.errorCategory==='WORD_WINDOW'&&checkpoint?.sectionIndex===5&&
+  checkpoint?.sections?.length===5&&checkpoint.sections.every(s=>typeof s?.html==='string'&&s.html.length>0)&&
+  Array.isArray(preview?.violations)&&preview.violations.length===1&&preview.violations[0]==='WORD_WINDOW'&&
+  Number(preview.wordCount)>=1200&&Number(preview.wordCount)<1500;
+}
+
 export function safeSaudiDeterministicRecovery(checkpoint,topic){
  if(topic?.country!=='SA'||checkpoint?.state!=='BLOCKED_REVIEW'||
     checkpoint?.deterministicRecoveryRevision===SA_SAFE_RECOVERY_REVISION||
@@ -28,7 +39,7 @@ export function publicationReadyTopic(topic,markets=READY_NATIVE_RENDERERS){
  return Boolean(topic&&markets.includes(topic.country)&&Array.isArray(topic.sections)&&topic.sections.length===5&&
   typeof topic.slug==='string'&&/^[a-z0-9-]{16,120}$/.test(topic.slug));
 }
-export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume=false,manualIncompleteRetry=false,nativeGateRepair=false,autoSafeSaudiRecovery=false,topic=null}={}){
+export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume=false,manualIncompleteRetry=false,nativeGateRepair=false,autoSafeSaudiRecovery=false,autoSafeEnglishRecovery=false,topic=null}={}){
  const state=checkpoint?.state;
  if(!checkpoint)return true;
  // An uncertain publish has already crossed the irreversible HTTP boundary.
@@ -49,6 +60,7 @@ export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume
    Number.isInteger(checkpoint.sectionIndex)&&checkpoint.sectionIndex>=0&&checkpoint.sectionIndex<5&&
    checkpoint.sections?.length===checkpoint.sectionIndex)||
    (autoSafeSaudiRecovery&&safeSaudiDeterministicRecovery(checkpoint,topic))||
+   (autoSafeEnglishRecovery&&safeEnglishDeterministicRecovery(checkpoint,topic))||
    (manualIncompleteRetry&&manualGroqResume&&checkpoint.errorCategory==='INCOMPLETE_RESPONSE')||
    (savedOnly&&['WORD_WINDOW',...(nativeGateRepair?['NATIVE_QUALITY_BLOCKED']:[])].includes(checkpoint.errorCategory)&&checkpoint.sections?.length===checkpoint.sectionIndex&&checkpoint.sectionIndex===5);
  if(state==='UNKNOWN_REQUEST_OUTCOME')return false;

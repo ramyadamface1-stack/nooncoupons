@@ -8,7 +8,7 @@ import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
@@ -84,7 +84,7 @@ async function run(){
     const articleId=assertTopic(topic,config),saved=await readCheckpoint(config,articleId);
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
-    if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly,autoSafeSaudiRecovery:!oneOffCanary,topic}))continue;
+    if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly,autoSafeSaudiRecovery:!oneOffCanary,autoSafeEnglishRecovery:!oneOffCanary,topic}))continue;
     selected={topic,articleId,saved};break;
   }
   if(!oneOffCanary&&lastChecked!==null){
@@ -101,11 +101,11 @@ async function run(){
   }
   const {topic,articleId}=selected;
   let state=selected.saved;
-  const recoveredWithoutAI=!oneOffCanary&&safeSaudiDeterministicRecovery(state,topic);
+  const recoveredWithoutAI=!oneOffCanary&&(safeSaudiDeterministicRecovery(state,topic)||safeEnglishDeterministicRecovery(state,topic));
   if(recoveredWithoutAI){
     // This stamp is persisted with the next PREPARED or BLOCKED checkpoint.
     // A new quality failure will not be retried automatically every minute.
-    state={...state,deterministicRecoveryRevision:SA_SAFE_RECOVERY_REVISION};
+    state={...state,deterministicRecoveryRevision:topic.country==='AE'?AE_SAFE_RECOVERY_REVISION:SA_SAFE_RECOVERY_REVISION};
   }
   if(savedOnly&&(!state||state.sectionIndex!==topic.sections.length)){report('BLOCKED','SAVED_DRAFT_NOT_READY_FOR_NO_AI_REPROCESS',{articleId});return}
   // An uncertain publish is never automatically retried. Inspect only the
@@ -349,7 +349,11 @@ async function run(){
     const recoverable=['GLOBAL_PUBLICATION_SLOT_NOT_DUE','GLOBAL_PUBLICATION_SLOT_NOT_GRANTED','CLOUDFLARE_1027_DAILY_LIMIT'].includes(reason);
     await saveCheckpoint(config,checkpointState(state,recoverable?'PREPARED_FOR_NATIVE_AUDIT':'BLOCKED_REVIEW',{
       errorCategory:reason,nativeGateDiagnostics:payload?.diagnostics||null}));
-    report('BLOCKED',reason,{articleId,words:check.wordCount,quality:payload?.diagnostics?.score||null,http:response.status,livePublished:false});return;
+    report('BLOCKED',reason,{articleId,words:check.wordCount,quality:payload?.diagnostics?.score||null,http:response.status,
+      qualityDiagnostics:reason==='NATIVE_QUALITY_BLOCKED'?{
+        p0:payload?.diagnostics?.p0||[],failed:payload?.diagnostics?.failed||[],
+        schemas:payload?.diagnostics?.schemas||[],duplicates:payload?.diagnostics?.duplicates||[],
+        indexation:payload?.diagnostics?.indexation||[]}:null,livePublished:false});return;
   }
   state=await saveCheckpoint(config,checkpointState(state,'DEPLOYING',{liveUrl:payload.url,storedAt:now(),nativeQuality:payload.quality}));
   let verified=false;

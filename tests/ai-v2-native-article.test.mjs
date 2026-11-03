@@ -39,3 +39,11 @@ test('short but useful AI sections receive substantive buying checks without ano
  assert.ok(wc>=1500&&wc<=1900,'word count '+wc);
  assert.ok(article.html.includes('Independent Ninja Air fryers decision checklist'));
 });
+
+test('English short saved sections get real topic-specific checks with the existing hard word gate',()=>{
+ const brief=Array.from({length:5},(_,i)=>({html:'<h2>Comparison '+i+'</h2><p>'+('Verify the exact model and seller, then compare shipping and final checkout terms. '.repeat(14))+'</p>'}));
+ const article=buildEnglishAiV2Article({...topic,topic:'Ninja blender: jar size and cleanup | Noon UAE NOV188'},brief).article;
+ const wc=article.html.replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<[^>]+>/g,' ').trim().split(/\s+/).filter(Boolean).length;
+ assert.ok(wc>=1500&&wc<=1900,'word count '+wc);
+ assert.match(article.html,/Start from this specific question/);
+});

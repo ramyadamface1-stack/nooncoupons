@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 import topics from '../automation/ai-v2/topics.json' with {type:'json'};
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,QUEUE_SCAN_LIMIT,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION} from '../automation/ai-v2/topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,QUEUE_SCAN_LIMIT,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from '../automation/ai-v2/topic-queue.mjs';
 import {assertTopic} from '../automation/ai-v2/guardrails.mjs';
 test('curated queue has unique topic slugs, stable IDs, country and approved coupon',()=>{
  const ids=topics.map(t=>assertTopic(t,config));
@@ -127,4 +127,18 @@ test('quarantined uncertain publication never blocks scheduled cursor forever',(
  assert.equal(resumableCheckpoint({...ambiguous,state:'DEPLOYING'}),true);
  assert.equal(queueCursorAfterScan(100,38,false),39);
  assert.equal(resumableCheckpoint({...ambiguous,state:'PREPARED_FOR_NATIVE_AUDIT'}),true);
+});
+
+test('English completed near-minimum draft is retried once using saved content, not a provider',()=>{
+ const ae=topics.find(t=>t.country==='AE'),sa=topics.find(t=>t.country==='SA');
+ const c={state:'BLOCKED_REVIEW',errorCategory:'WORD_WINDOW',sectionIndex:5,
+  sections:Array.from({length:5},()=>({html:'<h2>Useful guide</h2><p>Comparison advice.</p>'})),
+  qualityPreview:{wordCount:1341,violations:['WORD_WINDOW']}};
+ assert.equal(safeEnglishDeterministicRecovery(c,ae),true);
+ assert.equal(resumableCheckpoint(c,{autoSafeEnglishRecovery:true,topic:ae}),true);
+ assert.equal(resumableCheckpoint(c,{autoSafeEnglishRecovery:true,topic:sa}),false);
+ assert.equal(safeEnglishDeterministicRecovery({...c,deterministicRecoveryRevision:AE_SAFE_RECOVERY_REVISION},ae),false);
+ assert.equal(safeEnglishDeterministicRecovery({...c,qualityPreview:{wordCount:1000,violations:['WORD_WINDOW']}},ae),false);
+ assert.equal(safeEnglishDeterministicRecovery({...c,qualityPreview:{wordCount:1341,violations:['WORD_WINDOW','SCRIPT_NOT_ALLOWED']}},ae),false);
+ assert.equal(resumableCheckpoint({...c,state:'UNKNOWN_PUBLICATION_OUTCOME'},{autoSafeEnglishRecovery:true,topic:ae}),false);
 });
