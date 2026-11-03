@@ -5,6 +5,7 @@ import {buildSaudiAiV2Article} from '../automation/ai-v2/native-arabic-article.m
 import {validateAiV2NativePayload} from '../ai-v2-native-publish-bridge.js';
 import {couponCodeCandidates} from '../quality-audit.js';
 import {qualityPreflight} from '../automation/ai-v2/guardrails.mjs';
+import {evaluateIndexation} from '../indexation-gate.js';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 const sa=topics.find(t=>t.country==='SA');
 const text='قارن المواصفات مع شروط الضمان والبائع والشحن قبل الشراء. تأكد من الموديل والملحقات وتكلفة التوصيل والإرجاع داخل السعودية. ';
@@ -81,4 +82,15 @@ test('TP-Link AX90 model and WPA3 security standard do not impersonate coupon co
  assert.deepEqual(couponCodeCandidates(valid+' وكود NOV999',tp),['NOV170','NOV999']);
  assert.deepEqual(couponCodeCandidates('راوتر Archer AX90 كود NOV170',other),['AX90','NOV170']);
  assert.deepEqual(couponCodeCandidates('موديل AX90 NOV170',tp),['AX90','NOV170']);
+});
+
+test('short Saudi product H1 carries genuine category and gets two buyer checklists and indexability',()=>{
+ const ninja=topics.find(t=>t.slug==='saudi-buyer-ninja-blender-ice-smoothie-jug-nov170-2026');
+ assert.ok(ninja);
+ const built=buildSaudiAiV2Article(ninja,sections);
+ assert.ok(built.article.title.length<=72);
+ assert.ok(built.article.title.includes(ninja.category));
+ assert.ok((built.article.html.match(/<(?:ol|ul)\b/g)||[]).length>=2);
+ const index=evaluateIndexation(built.article,built.topic,{globalGate:{pass:true},contextualLinks:built.article.contextualLinks.length,clusterSize:6,schemaGate:{pass:true},coupon:{publishAllowed:true}});
+ assert.equal(index.indexable,true,JSON.stringify(index));
 });

@@ -154,3 +154,15 @@ test('cooldown or exhausted free call budget yields an unfinished checkpoint wit
  assert.equal(resumableCheckpoint({state:'PAUSED_QUOTA',lastRequestStatus:429,errorCategory:'QUOTA',sectionIndex:2,sections:[{},{}]}),true);
  assert.equal(resumableCheckpoint({state:'UNKNOWN_PUBLICATION_OUTCOME'}),false);
 });
+
+test('saved Saudi draft with only noncritical list and index score problems is re-audited once with zero AI requests',()=>{
+ const t=topics.find(x=>x.country==='SA');
+ const s={state:'BLOCKED_REVIEW',sectionIndex:5,errorCategory:'NATIVE_QUALITY_BLOCKED',
+  sections:Array.from({length:5},()=>({html:'<h2>مراجعة</h2><p>مقارنة البائع</p>'})),
+  nativeGateDiagnostics:{score:99.4,p0:[],failed:['lists'],schemas:[],duplicates:[],indexation:['indexation_value_below_threshold']}};
+ assert.equal(safeSaudiDeterministicRecovery(s,t),true);
+ assert.equal(resumableCheckpoint(s,{autoSafeSaudiRecovery:true,topic:t}),true);
+ assert.equal(safeSaudiDeterministicRecovery({...s,deterministicRecoveryRevision:SA_SAFE_RECOVERY_REVISION},t),false);
+ assert.equal(safeSaudiDeterministicRecovery({...s,nativeGateDiagnostics:{...s.nativeGateDiagnostics,duplicates:['duplicate']}},t),false);
+ assert.equal(safeSaudiDeterministicRecovery({...s,nativeGateDiagnostics:{...s.nativeGateDiagnostics,indexation:['insufficient_information_gain']}},t),false);
+});

@@ -1,6 +1,6 @@
 // Exactly one zero-provider editorial rescue for known repaired Saudi gates.
 // Fail closed on unrecognized native diagnostics or malformed checkpoints.
-export const SA_SAFE_RECOVERY_REVISION='sa-title-and-depth-v1';
+export const SA_SAFE_RECOVERY_REVISION='sa-title-and-index-checklist-v2';
 export const AE_SAFE_RECOVERY_REVISION='ae-depth-recovery-20261103-v1';
 export function safeEnglishDeterministicRecovery(checkpoint,topic){
  const preview=checkpoint?.qualityPreview;
@@ -24,6 +24,13 @@ export function safeSaudiDeterministicRecovery(checkpoint,topic){
  }
  if(checkpoint.errorCategory!=='NATIVE_QUALITY_BLOCKED')return false;
  const d=checkpoint.nativeGateDiagnostics;
+ const safeIndexRepair=Array.isArray(d?.p0)&&d.p0.length===0&&
+   Array.isArray(d?.failed)&&d.failed.every(x=>x==='lists')&&
+   Array.isArray(d?.schemas)&&d.schemas.length===0&&
+   Array.isArray(d?.duplicates)&&d.duplicates.length===0&&
+   Array.isArray(d?.indexation)&&d.indexation.length>0&&
+   d.indexation.every(x=>x==='indexation_value_below_threshold');
+ if(safeIndexRepair)return true;
  return Array.isArray(d?.p0)&&d.p0.length===1&&
    ['title_avoids_literal_coupon_code','coupon_lock'].includes(d.p0[0])&&
    Array.isArray(d.failed)&&d.failed.length===1&&d.failed[0]===d.p0[0]&&
