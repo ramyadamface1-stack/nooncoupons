@@ -58,6 +58,13 @@ jobs:
                 return new Response('Preview is private',{status:403,headers:{'x-robots-tag':'noindex, nofollow','cache-control':'no-store'}});
               if(!['GET','HEAD'].includes(request.method))
                 return new Response('Preview is read-only',{status:405,headers:{'x-robots-tag':'noindex, nofollow'}});
+              if(new URL(request.url).pathname==='/__ndn_preview_publication_gate'){
+                const id=env.GENERATOR_CONTROL.idFromName('primary');
+                const result=await env.GENERATOR_CONTROL.get(id).fetch('https://generator.internal/publication-slot',{method:'GET'});
+                const gate=await result.json();
+                return Response.json({ok:result.ok,policy:gate.policy,minSpacingMs:gate.minSpacingMs,
+                  eligible:gate.eligible},{headers:{'x-robots-tag':'noindex, nofollow','cache-control':'no-store'}});
+              }
               const response=await live.fetch(request,env,ctx);
               const headers=new Headers(response.headers);
               headers.set('x-robots-tag','noindex, nofollow');
@@ -122,6 +129,7 @@ jobs:
             fi
           }
           get_preview '/api/revision' '"ok": true'
+          get_preview '/__ndn_preview_publication_gate' '"minSpacingMs":30000'
           get_preview '/' 'NOV170'
           get_preview '/blog' '<html'
           get_preview '/articles/uae-buyer-acer-gaming-laptop-ports-and-upgrades-nov188-2026' 'NOV188'
