@@ -12,6 +12,8 @@ on:
       - 'r2-public-manifest.js'
       - 'commerce-pages-v2.js'
       - 'discovery-entry.js'
+      - 'seo-layer.js'
+      - 'tests/mobile-coupon-copy.test.mjs'
       - 'ai-v2-sitemap.js'
       - 'r2-emergency-readonly.js'
       - 'tests/ai-v2-sitemap.test.mjs'
