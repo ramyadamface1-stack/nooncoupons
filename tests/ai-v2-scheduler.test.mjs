@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {decideTick,dispatchDue,githubHttpStatus,effectiveRuntimeConfig} from '../ai-scheduler-v2/worker.mjs';
+import {decideTick,dispatchDue,githubHttpStatus,effectiveRuntimeConfig,probeProductionCapacity} from '../ai-scheduler-v2/worker.mjs';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 const start=Date.parse('2026-11-01T12:00:00.000Z');
 test('default disables dispatch',()=>{assert.equal(decideTick(config,start,start).reason,'SCHEDULER_DISABLED')});
@@ -152,4 +152,15 @@ test('production minute does not skip while prior SA/AE jobs are still finishing
   }});
  assert.equal(out.dispatched,true);
  assert.deepEqual(calls.map(x=>x.method),['POST']);
+});
+
+test('scheduler suppresses wasting GitHub Actions time when Cloudflare responds 1027',async()=>{
+ let calls=0;
+ const limited=await probeProductionCapacity(async()=>{calls++;return new Response('Error 1027: plan limits',{status:429})});
+ assert.deepEqual(limited,{allowed:false,reason:'CLOUDFLARE_1027_DAILY_LIMIT'});
+ assert.equal(calls,1);
+ const healthy=await probeProductionCapacity(async()=>new Response('{}',{status:200}));
+ assert.deepEqual(healthy,{allowed:true,verified:true});
+ const uncertain=await probeProductionCapacity(async()=>{throw Error('network')});
+ assert.deepEqual(uncertain,{allowed:true,verified:false});
 });

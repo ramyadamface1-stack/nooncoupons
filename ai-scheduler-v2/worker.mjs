@@ -95,8 +95,30 @@ export function effectiveRuntimeConfig(cfg,env){
   return {...cfg,enabled:true,publicationMode:'live_verified',
     safety:{...cfg.safety,noAutomaticPublishUntilLiveBridgeVerified:false}};
 }
+export async function probeProductionCapacity(fetchFn=fetch){
+  try{
+    const response=await fetchFn('https://noondealsnow.com/api/generator-health',{
+      headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(8000)
+    });
+    if(response.status===429){
+      const body=(await response.text()).slice(0,2000);
+      return {allowed:false,reason:/\b1027\b|plan limits|temporarily rate limited/i.test(body)
+        ?'CLOUDFLARE_1027_DAILY_LIMIT':'SITE_RATE_LIMITED'};
+    }
+    return {allowed:true,verified:response.ok};
+  }catch{return {allowed:true,verified:false}}
+}
 async function tick(event,env){
-  return dispatchDue({config:effectiveRuntimeConfig(config,env),
+  const active=effectiveRuntimeConfig(config,env);
+  if(active.enabled){
+    const capacity=await probeProductionCapacity();
+    if(!capacity.allowed){
+      console.log('AI_V2_SCHEDULER '+JSON.stringify({site:'noondealsnow',reason:capacity.reason,
+        scheduledTime:event?.scheduledTime,dispatched:false}));
+      return {dispatched:false,reason:capacity.reason};
+    }
+  }
+  return dispatchDue({config:active,
     scheduledTime:event?.scheduledTime,token:env.GITHUB_DISPATCH_TOKEN});
 }
 
@@ -109,7 +131,7 @@ export default {
     return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:active.enabled,
       intervalMinutes:active.intervalMinutes,source:'config-plus-explicit-runtime-secret',
       dispatchPolicy:'one-cron-tick-per-minute-with-serialized-market-jobs',
-      globalPublicationSpacingSeconds:36,
+      globalPublicationSpacingSeconds:30,
       legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:!active.enabled,
       publicationBridgeVerified:active.enabled,freeOnly:true,verifiedMarkets:['SA','AE'],
       diagnosticWindow:config.schedulerDiagnostic?{from:config.schedulerDiagnostic.fromUtc,until:config.schedulerDiagnostic.untilUtc}:null,

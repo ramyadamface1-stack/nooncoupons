@@ -21,7 +21,7 @@ export function validateConfig(config){
   const m=60/Number(config.intervalMinutes),parallel=Number(config.maxConcurrent);
   const target=Number(config.targetPerHour);
   // Cron still ticks every minute; independent market jobs provide 2x capacity.
-  // The real native Durable Object remains the atomic 36s safety gate.
+  // The real native Durable Object remains the atomic 30s safety gate.
   if(!Number.isInteger(m)||![1,2].includes(parallel)||(parallel===2&&Number(config.intervalMinutes)!==1))throw Error('UNSAFE_CONCURRENCY');
   if(!Number.isInteger(target)||target<m||target>m*parallel||target*24!==Number(config.targetPerDay))throw Error('CADENCE_TARGET_MISMATCH');
   if(config.checkpoint?.backend!=='private-r2'||config.checkpoint?.verifyReadBack!==true)throw Error('CHECKPOINT_UNSAFE');

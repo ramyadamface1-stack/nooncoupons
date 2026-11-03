@@ -1,4 +1,4 @@
-// Only retry a *confirmed* native HTTP 409 with an explicit 60-second
+// Only retry a *confirmed* native HTTP 409 with an explicit 30-second
 // publication permit timestamp. Other 409s, HTTP uncertainties and network
 // timeouts never authorize another publish POST.
 export function confirmedSlotRetryDelay({httpStatus,reason,nextEligibleAt}={},nowMs=Date.now()){

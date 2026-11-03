@@ -1,9 +1,9 @@
-// One global publication permit per 36-second rolling interval (100/hour capacity), shared by
+// One global publication permit per 30-second rolling interval (100/hour capacity), shared by
 // Arabic/English generation, cron, manual publishing and scheduled articles.
 // Fail closed if Durable Objects cannot confirm the allowance.
-export const GLOBAL_PUBLICATION_SPACING_MS=36000;
+export const GLOBAL_PUBLICATION_SPACING_MS=30000;
 export const GLOBAL_PUBLICATION_MAX_PER_MINUTE=2;
-export const GLOBAL_PUBLICATION_POLICY='one-article-every-36-seconds-global-v2';
+export const GLOBAL_PUBLICATION_POLICY='one-article-every-30-seconds-global-v3';
 async function callPublicationGate(env,method,source,market){
   if(!env?.GENERATOR_CONTROL)return {ok:false,error:'publication_control_missing',throttled:true};
   try{

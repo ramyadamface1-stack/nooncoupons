@@ -9,8 +9,8 @@ class MemoryStorage{
  async put(key,value){this.data.set(key,value)}
  async transaction(callback){return callback(this)}
 }
-test('100-per-hour theoretical capacity uses shared durable atomic 36s permit, not quality bypass',async()=>{
- assert.equal(GLOBAL_PUBLICATION_SPACING_MS,36_000);
+test('120-per-hour headroom uses shared durable atomic 30s permit, not quality bypass',async()=>{
+ assert.equal(GLOBAL_PUBLICATION_SPACING_MS,30_000);
  assert.equal(GLOBAL_PUBLICATION_MAX_PER_MINUTE,2);
  const worker=readFileSync('admin-runtime.js','utf8');
  assert.match(worker,/const spacingMs=GLOBAL_PUBLICATION_SPACING_MS/);
@@ -25,12 +25,12 @@ test('100-per-hour theoretical capacity uses shared durable atomic 36s permit, n
   Date.now=()=>base;
   const first=await post();assert.equal(first.status,200);
   assert.equal((await first.json()).policy,GLOBAL_PUBLICATION_POLICY);
-  Date.now=()=>base+35_999;
+  Date.now=()=>base+29_999;
   const forbidden=await post();assert.equal(forbidden.status,429);
-  Date.now=()=>base+36_000;
+  Date.now=()=>base+30_000;
   const second=await post();assert.equal(second.status,200);
-  Date.now=()=>base+72_000;
+  Date.now=()=>base+60_000;
   const third=await post();assert.equal(third.status,200);
-  assert.equal(storage.data.get('publication-rate-v1').lastAtMs,base+72_000);
+  assert.equal(storage.data.get('publication-rate-v1').lastAtMs,base+60_000);
  }finally{Date.now=originalNow}
 });

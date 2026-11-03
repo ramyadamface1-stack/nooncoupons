@@ -35,10 +35,13 @@ test('provider section persists an ambiguous-request boundary then one verified 
  assert.doesNotMatch(runtime,/checkpointState\(state,'VALIDATING'/);
  assert.match(runtime,/needsProvider=state\.sectionIndex<topic\.sections\.length/);
  assert.match(runtime,/if\(providerCircuitActive\(circuit\)\)continue/);
- assert.match(runtime,/selectGeminiKey\(process\.env,index\+n\)/);
- assert.match(runtime,/selectGroqKey\(process\.env,index\+n\)/);
+ assert.match(runtime,/selectGeminiKey\(process\.env,index\+n\+credentialOffset\)/);
+ assert.match(runtime,/selectGroqKey\(process\.env,index\+n\+credentialOffset\)/);
  assert.match(runtime,/ALL_FREE_PROVIDERS_IN_COOLDOWN/);
  assert.match(runtime,/AI_V2_PROVIDER_FAILOVER/);
+ assert.match(runtime,/jobBatchOrdinal=i/);
+ assert.match(runtime,/lastReportStatus!=='LIVE_VERIFIED'/);
+ assert.match(runtime,/const maximum=liveDispatch\?2:1/);
  assert.match(runtime,/Never write numerical savings percentages/);
  assert.match(runtime,/temporarilyFailedModelsThisRun\.add/);
  assert.match(runtime,/providerModelKeyCircuitId/);

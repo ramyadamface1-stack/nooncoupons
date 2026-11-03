@@ -17,8 +17,12 @@ import {expandedEditorialTopics} from './topic-expansion.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const baseTopics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
 const topics=[...baseTopics,...expandedEditorialTopics];
-const runStartedAt=Date.now();
-const report=(status,reason,data={})=>console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,elapsedMs:Date.now()-runStartedAt,...data}));
+let runStartedAt=Date.now();
+let lastReportStatus=null,jobBatchOrdinal=0;
+const report=(status,reason,data={})=>{
+  lastReportStatus=status;
+  console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,elapsedMs:Date.now()-runStartedAt,...data}));
+};
 const now=()=>new Date().toISOString();
 const hash=s=>createHash('sha256').update(s).digest('hex');
 validateConfig(config);
@@ -172,6 +176,10 @@ async function run(){
   // Split initial provider preference across market runners when both are
   // healthy, reducing synchronized 429s from repeatedly probing one service.
   const priority=queueMarket==='SA'?['gemini','groq']:(config.providerPriority||['gemini','groq']);
+  // Rotate approved keys over UTC minutes, isolated markets and the second
+  // article in one job; every key's durable quota/circuit pause still applies.
+  const credentialOffset=Math.floor(Number(process.env.AI_SCHEDULED_MS||Date.now())/60000)+
+    (queueMarket==='AE'?1:0)+jobBatchOrdinal;
   const available={gemini:geminiKeys.hasGemini,groq:groqKeys.hasGroq};
   // Only request the NEXT missing section. Prefer Groq, but fall back to
   // Gemini when Groq is in quota cooldown, and rotate Gemini key cooldowns.
@@ -201,8 +209,8 @@ async function run(){
         const poolSize=candidateProvider==='gemini'?geminiKeys.eligibleCount:groqKeys.eligibleCount;
         for(let n=0;n<poolSize;n++){
           const credential=candidateProvider==='gemini'
-            ?selectGeminiKey(process.env,index+n)
-            :selectGroqKey(process.env,index+n);
+            ?selectGeminiKey(process.env,index+n+credentialOffset)
+            :selectGroqKey(process.env,index+n+credentialOffset);
           if(!credential?.key)continue;
           const keyRef=hash(credential.key).slice(0,12); // never store the secret
           const usePerKey=candidateProvider==='gemini'||credential.source!=='GROQ_API_KEY';
@@ -422,4 +430,25 @@ async function run(){
   await saveCheckpoint(config,checkpointState(state,'LIVE_VERIFIED',{liveVerifiedAt:now(),liveUrl:payload.url}));
   report('LIVE_VERIFIED','NATIVE_QUALITY_AND_PUBLIC_URL_VERIFIED',{articleId,url:payload.url,quality:payload.quality,words:check.wordCount,provider:attribution?.provider||lastProvider,keyRef:attribution?.keyRef||null,providerMixed:attribution?.mixed||false,calls,livePublished:true});
 }
-run().catch(e=>{console.error('AI_V2_SAFE_FAILURE '+String(e?.message||e).slice(0,250));process.exitCode=1});
+async function runScheduledBatch(){
+  const liveDispatch=process.env.GITHUB_EVENT_NAME==='workflow_dispatch'&&
+    process.env.GITHUB_WORKFLOW==='NoonDealsNow AI V2 - Safe Checkpoints and Preflight'&&
+    process.env.AI_PREFLIGHT_ONLY==='false'&&['SA','AE'].includes(process.env.AI_QUEUE_MARKET);
+  // Two serial verified articles per market amortize runner startup; never
+  // multiply preflight or canary calls. Every article keeps its own verified
+  // R2 checkpoint, native quality audit and atomic global publication permit.
+  const maximum=liveDispatch?2:1,jobStarted=Date.now();
+  let published=0;
+  for(let i=0;i<maximum;i++){
+    if(i>0&&Date.now()-jobStarted>150000)break;
+    jobBatchOrdinal=i;
+    runStartedAt=Date.now();
+    lastReportStatus=null;
+    await run();
+    if(lastReportStatus!=='LIVE_VERIFIED')break;
+    published++;
+  }
+  console.log('AI_V2_JOB_BATCH '+JSON.stringify({market:process.env.AI_QUEUE_MARKET||null,
+    verifiedArticles:published,maxArticles:maximum,elapsedMs:Date.now()-jobStarted}));
+}
+runScheduledBatch().catch(e=>{console.error('AI_V2_SAFE_FAILURE '+String(e?.message||e).slice(0,250));process.exitCode=1});
