@@ -1,9 +1,10 @@
 import {enableExistingDestinationR2} from './r2-remote-existing-bucket.js';
 import {publishAiV2NativeArticle} from './ai-v2-native-publish-bridge.js';
 import {reconcileAiV2Publication} from './ai-v2-publication-ledger.js';
+import {nativeAiV2SitemapResponse} from './ai-v2-sitemap.js';
 import app from './brand-runtime.js';
 import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
-import {emergencyPublicR2Response,rescueSitemapIndexPaths,rescueManifestInventory} from './r2-emergency-readonly.js';
+import {emergencyPublicR2Response,rescueSitemapIndexPaths,rescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
 import {runEnglishCanaryBatch,englishCanaryRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
@@ -212,7 +213,7 @@ async function injectDiscoveryLinks(req,env,res){
   const type=(res.headers.get('content-type')||'').toLowerCase();
   if(!type.includes('text/html'))return res;
   const path=new URL(req.url).pathname.replace(/\/+$/,'')||'/';
-  const eligible=['/','/coupons','/blog','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide'].includes(path)||/^\/(?:saudi-arabia|uae)\/noon-coupon-code$/.test(path);
+  const eligible=['/','/coupons','/blog','/saudi','/uae','/saudi/shopping-guide','/uae/shopping-guide'].includes(path)||/^\/(?:saudi-arabia|uae)\/noon-coupon-code$/.test(path);
   if(!eligible)return res;
   let html=await res.text();
   if(html.includes('id="crawl-discovery-links"'))return res;
@@ -363,7 +364,8 @@ async function augmentRootSitemap(res,origin,env){
       ['priority',origin+'/sitemap-priority.xml'],
       ['english',origin+'/sitemap-en-articles.xml'],
       ['hubs',origin+'/sitemap-hubs.xml'],
-      ['images',origin+'/sitemap-images.xml']
+      ['images',origin+'/sitemap-images.xml'],
+      ['native',origin+'/sitemap-ai-v2.xml']
     ];
     // Static, quality-gated R2 segments stay fetchable while the old account R2 is suspended.
     // Avoid modifying original article URLs or listing draft/scheduled items.
@@ -396,18 +398,20 @@ async function augmentRobots(res,origin){
   const english=`Sitemap: ${origin}/sitemap-en-articles.xml`;
   const hubs=`Sitemap: ${origin}/sitemap-hubs.xml`;
   const images=`Sitemap: ${origin}/sitemap-images.xml`;
+  const native=`Sitemap: ${origin}/sitemap-ai-v2.xml`;
   if(!body.includes(root))body=(body.trimEnd()+`\n${root}\n`).replace(/^\n+/, '');
   if(!body.includes(core))body=(body.trimEnd()+`\n${core}\n`).replace(/^\n+/, '');
   if(!body.includes(priority))body=(body.trimEnd()+`\n${priority}\n`).replace(/^\n+/, '');
   if(!body.includes(english))body=(body.trimEnd()+`\n${english}\n`).replace(/^\n+/, '');
   if(!body.includes(hubs))body=(body.trimEnd()+`\n${hubs}\n`).replace(/^\n+/, '');
   if(!body.includes(images))body=(body.trimEnd()+`\n${images}\n`).replace(/^\n+/, '');
+  if(!body.includes(native))body=(body.trimEnd()+`\n${native}\n`).replace(/^\n+/, '');
   const h=new Headers(res.headers);h.delete('content-length');h.set('x-priority-sitemap-robots','v1');h.set('x-english-sitemap-robots','v1');h.set('x-hub-sitemap-robots','v1');
   return new Response(body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
 async function sitemapHealth(req,env,ctx,origin){
-  const paths=['/sitemap.xml','/sitemap-core.xml','/sitemap-pages.xml','/sitemap-guides.xml','/sitemap-coupons.xml','/sitemap-coupons-saudi.xml','/sitemap-coupons-uae.xml','/sitemap-priority.xml','/sitemap-en-articles.xml','/sitemap-hubs.xml','/sitemap-images.xml','/sitemap-commerce.xml','/sitemap-money.xml','/sitemap-topics.xml'];
+  const paths=['/sitemap.xml','/sitemap-core.xml','/sitemap-pages.xml','/sitemap-guides.xml','/sitemap-coupons.xml','/sitemap-coupons-saudi.xml','/sitemap-coupons-uae.xml','/sitemap-priority.xml','/sitemap-en-articles.xml','/sitemap-hubs.xml','/sitemap-images.xml','/sitemap-commerce.xml','/sitemap-money.xml','/sitemap-topics.xml','/sitemap-ai-v2.xml'];
   const rows=[];
   for(const path of paths){
     try{
@@ -416,6 +420,7 @@ async function sitemapHealth(req,env,ctx,origin){
       else if(path==='/sitemap-priority.xml')res=await prioritySitemap(env,origin);
       else if(path==='/sitemap-hubs.xml')res=await hubSitemap(env,origin);
       else if(path==='/sitemap-images.xml')res=await imageSitemap(env,origin);
+      else if(path==='/sitemap-ai-v2.xml')res=await nativeAiV2SitemapResponse(path,env,origin);
       else{const u=new URL(req.url);u.pathname=path;u.search='';res=await app.fetch(new Request(u.toString(),{method:'GET',headers:{accept:'application/xml,text/xml,*/*'}}),env,ctx)}
       // The external /sitemap.xml route appends the R2 rescue indexes AFTER
       // app.fetch(). Measure the identical public response, not the incomplete
@@ -471,6 +476,18 @@ export default{
     // Check canonical public Cloudflare Cache API BEFORE cross-account R2 GET.
     // Without this, every article visit and bot crawl incurs new-account R2 Class B reads.
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
+    if(req.method==='GET'){
+      const nativeSitemap=await nativeAiV2SitemapResponse(u.pathname,env,origin);
+      if(nativeSitemap)return edgePageCachePut(req,u,nativeSitemap,ctx);
+      if(u.pathname==='/sitemap-live-recent.xml'||u.pathname==='/sitemap-rescue-catalog.xml'||
+         u.pathname==='/sitemap-rescue-english-catalog.xml'||
+         /^\/sitemap-rescue-(?:articles|images|english|english-images)-\d{1,4}\.xml$/.test(u.pathname)){
+        try{
+          const historical=await rescueSitemapResponse(u.pathname,env);
+          if(historical)return edgePageCachePut(req,u,historical,ctx);
+        }catch(error){console.warn('new_account_rescue_sitemap_unavailable',String(error?.message||error).slice(0,90))}
+      }
+    }
     const rescued=await emergencyPublicR2Response(req,env);
     if(rescued)return edgePageCachePut(req,u,rescued,ctx);
     const directory=brandDirectoryResponse(req);

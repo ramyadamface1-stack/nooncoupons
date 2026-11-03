@@ -72,10 +72,21 @@ export async function rescueSignedReadBounded(env,key,params={}){
 async function getObject(env,key,cacheMs=0){
   const prev=cacheMs?manifestCache.get(key):null;
   if(prev&&prev.until>Date.now())return prev.value;
-  const r=await rescueSignedReadBounded(env,key);
-  if(r.status===404)return null;
-  if(!r.ok)throw new Error('rescue_r2_get_status_'+r.status);
-  const value={body:await r.text(),meta:Object.fromEntries([...r.headers].filter(([name])=>name.startsWith('x-amz-meta-')).map(([name,val])=>[name.slice('x-amz-meta-'.length),val])),modified:r.headers.get('last-modified')||'',contentType:r.headers.get('content-type')||''};
+  // After DNS cutover, destination R2 is natively bound to the Worker.
+  // Prefer it to historical cross-account signed fetches: no access secrets,
+  // no external subrequest, and no extra bandwidth or HMAC CPU overhead.
+  let value;
+  if(env.CONTENT_FINAL?.get){
+    const object=await env.CONTENT_FINAL.get(key);
+    if(!object)return null;
+    value={body:await object.text(),meta:object.customMetadata||{},
+      modified:object.uploaded?.toISOString?.()||'',contentType:object.httpMetadata?.contentType||''};
+  }else{
+    const r=await rescueSignedReadBounded(env,key);
+    if(r.status===404)return null;
+    if(!r.ok)throw new Error('rescue_r2_get_status_'+r.status);
+    value={body:await r.text(),meta:Object.fromEntries([...r.headers].filter(([name])=>name.startsWith('x-amz-meta-')).map(([name,val])=>[name.slice('x-amz-meta-'.length),val])),modified:r.headers.get('last-modified')||'',contentType:r.headers.get('content-type')||''};
+  }
   if(cacheMs){manifestCache.set(key,{value,until:Date.now()+cacheMs});if(manifestCache.size>5)manifestCache.delete(manifestCache.keys().next().value)}
   return value;
 }
