@@ -84,13 +84,13 @@ jobs:
             categories[category].append(r)
           chosen={}
           def add(row):
-            if len(chosen)<650:chosen[row['slug']]=row
+            if len(chosen)<350:chosen[row['slug']]=row
           for group in categories.values():
             group.sort(key=lambda r:str(r.get('updatedAt') or r.get('createdAt') or ''),reverse=True)
             for r in group[:15]:add(r)
           recent=sorted(all_records.values(),key=lambda r:str(r.get('updatedAt') or r.get('createdAt') or ''),reverse=True)
           for r in recent:
-            if len(chosen)>=650:break
+            if len(chosen)>=350:break
             if r.get('indexable') is not False and r.get('status') not in ('draft','scheduled'):add(r)
           enfields=['slug','country','title','primaryKeyword','metaDescription',
             'coupon','status','indexable','quality','qualityFloor','wordCount','intent',
