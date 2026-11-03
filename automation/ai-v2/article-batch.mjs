@@ -11,6 +11,7 @@ export function batchArticlePrompt(topic){
   'Write EXACTLY FIVE <h2> headings, in order. Each heading has 3-5 substantive <p> paragraphs. No other h2 elements, article wrapper, H1 or Markdown.',
   'Target 240-260 non-repetitive words under EACH of the five headings. Give practical model-comparison and purchase-checklist advice specific to each exact section.',
   'No invented live prices, tests, discount rates, current stock or seller promises. Official store checkout determines any coupon acceptance.',
+  'CRITICAL: Do NOT write any numerical percentage savings, fixed discount, guaranteed coupon, or a claim that this code will save a specific amount. The native trust audit rejects such claims, even when qualified as examples. Describe only how to compare the real checkout totals.',
   'Never claim a product has a particular specification without asking the reader to verify the exact listing. Avoid promotional filler and duplication.',
   'No links, scripts, event attributes, style, code fences or extra titles. End cleanly after fifth section.'
  ].join('\n');

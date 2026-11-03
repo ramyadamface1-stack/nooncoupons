@@ -39,6 +39,7 @@ test('provider section persists an ambiguous-request boundary then one verified 
  assert.match(runtime,/selectGroqKey\(process\.env,index\+n\)/);
  assert.match(runtime,/ALL_FREE_PROVIDERS_IN_COOLDOWN/);
  assert.match(runtime,/AI_V2_PROVIDER_FAILOVER/);
+ assert.match(runtime,/Never write numerical savings percentages/);
  assert.match(runtime,/temporarilyFailedModelsThisRun\.add/);
  assert.match(runtime,/providerModelKeyCircuitId/);
  assert.match(runtime,/temporaryCooldown\(result\.retryAfter,modelKeyCircuit\)/);

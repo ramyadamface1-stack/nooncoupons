@@ -235,6 +235,7 @@ async function run(){
       'Required section: '+topic.sections[index]+'.',
       'Provide 285-315 genuine words using h2 and p/list tags. Do not reproduce earlier sections.',
       'No fake discounts, dates, prices, testimonials, purchases, warranty promises or assumptions about coupon acceptance.',
+      'Never write numerical savings percentages, fixed discounts, a guaranteed discount, or a promised coupon result. Compare only the final actual cart totals.',
       'No HTML head, JS, CSS, whole-article H1 or markdown code fences.'
     ].join('\n');
     // Persist the ambiguous billing boundary before sending the HTTP request.

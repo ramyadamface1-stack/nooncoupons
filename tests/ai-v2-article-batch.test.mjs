@@ -21,3 +21,10 @@ test('unsafe, thin, prefaced and too-many-section responses are blocked',()=>{
  assert.equal(parseArticleBatch(Array.from({length:6},(_,i)=>section(i%5)).join('\n')).ok,false);
  assert.throws(()=>batchArticlePrompt({...topic,sections:[]}),/INVALID_BATCH_TOPIC/);
 });
+
+test('batch prompt expressly forbids unverifiable fixed discount and guarantee claims',()=>{
+ const prompt=batchArticlePrompt(topic);
+ assert.match(prompt,/Do NOT write any numerical percentage savings/);
+ assert.match(prompt,/guaranteed coupon/);
+ assert.match(prompt,/real checkout totals/);
+});
