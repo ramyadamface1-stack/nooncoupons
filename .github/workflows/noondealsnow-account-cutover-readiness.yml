@@ -26,25 +26,27 @@ jobs:
           old='c82274152a942dea53044eae7153cfd7'
           new='e4c35f8a50a7b2e4cfb9d6c534962603'
           def get(token,path):
-            if not token:return 0,{}
-            req=urllib.request.Request('https://api.cloudflare.com/client/v4/'+path,headers={
-              'Authorization':'Bearer '+token,'Accept':'application/json','User-Agent':'NoonDealsNow-Cutover-ReadOnly'})
+            token=str(token or '').strip()
+            if not token:return 0,{'readError':'NO_SECRET'}
             try:
+              req=urllib.request.Request('https://api.cloudflare.com/client/v4/'+path,headers={
+                'Authorization':'Bearer '+token,'Accept':'application/json','User-Agent':'NoonDealsNow-Cutover-ReadOnly'})
               with urllib.request.urlopen(req,timeout=15) as r:
                 return r.status,json.loads(r.read(300000))
-            except urllib.error.HTTPError as e:return e.code,{}
-            except Exception:return 0,{}
+            except urllib.error.HTTPError as e:return e.code,{'readError':'HTTP_ERROR'}
+            except Exception as e:return 0,{'readError':type(e).__name__}
           def show(label,value):print(label+'='+json.dumps(value,separators=(',',':')),flush=True)
           for name,account,token in [('OLD',old,os.environ.get('OLD_TOKEN','')),('NEW',new,os.environ.get('NEW_TOKEN',''))]:
+            show(name+'_TOKEN_SHAPE',{'present':bool(token),'length':len(token),'hasWhitespace':any(c.isspace() for c in token)})
             code,data=get(token,'zones?name=noondealsnow.com&per_page=5')
             z=[{'id':x.get('id'),'status':x.get('status'),'name_servers':x.get('name_servers',[])} for x in data.get('result',[]) if x.get('name')=='noondealsnow.com']
-            show(name+'_ZONE',{'http':code,'zones':z})
+            show(name+'_ZONE',{'http':code,'zones':z,'readError':data.get('readError')})
             code,data=get(token,'accounts/'+account+'/workers/domains')
             d=[{'hostname':x.get('hostname'),'service':x.get('service'),'zone_id':x.get('zone_id')} for x in data.get('result',[]) if 'noondealsnow.com' in str(x.get('hostname',''))]
             show(name+'_WORKER_DOMAINS',{'http':code,'domains':d})
             code,data=get(token,'accounts/'+account+'/workers/scripts')
             scripts=[x.get('id') for x in data.get('result',[]) if 'noon' in x.get('id','').lower()]
-            show(name+'_WORKER_SCRIPTS',{'http':code,'scripts':scripts[:40]})
+            show(name+'_WORKER_SCRIPTS',{'http':code,'scripts':scripts[:40],'readError':data.get('readError')})
             code,data=get(token,'accounts/'+account+'/workers/services/'+('nooncoupons' if name=='OLD' else 'noondealsnow-migration-staging'))
             show(name+'_EXPECTED_WORKER',{'http':code,'exists':code==200 and data.get('success')==True})
           for label,url in [('PUBLIC','https://noondealsnow.com/api/generator-health'),
