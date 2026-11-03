@@ -118,3 +118,23 @@ test('scheduler only activates when the explicit Cloudflare secret is present; o
  assert.equal(JSON.parse(requests[2].body).inputs.preflight_only,'false');
  assert.equal(requests.length,3);
 });
+
+test('a push-time safety run cannot block one-minute dispatch or share publisher concurrency',async()=>{
+ const observed=[];
+ const result=await dispatchDue({config:{...config,enabled:true,publicationMode:'live_verified',
+  safety:{...config.safety,noAutomaticPublishUntilLiveBridgeVerified:false}},
+  scheduledTime:start,actualTime:start,token:'test-nonsecret',logger:()=>{},
+  fetchFn:async(url)=>{
+   observed.push(url);
+   if(url.endsWith('/dispatches'))return new Response(null,{status:204});
+   // A current push safety run is not a workflow_dispatch event and must
+   // not appear in a provider response filtered by event=workflow_dispatch.
+   if(url.includes('event=workflow_dispatch&status='))return new Response(JSON.stringify({total_count:0,workflow_runs:[]}),{status:200});
+   throw Error('RUN_STATUS_QUERY_MISSING_DISPATCH_EVENT_FILTER');
+  }
+ });
+ assert.equal(result.reason,'DISPATCH_ACCEPTED');
+ assert.equal(result.dispatched,true);
+ assert.equal(observed.length,3);
+ assert.ok(observed.slice(0,2).every(u=>u.includes('event=workflow_dispatch&status=')));
+});

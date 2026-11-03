@@ -40,9 +40,11 @@ export async function dispatchDue({config:cfg=config,scheduledTime,actualTime=Da
     if(!decision.due)return {dispatched:false,reason};
     if(!token){reason='DISPATCH_TOKEN_MISSING';return {dispatched:false,reason}}
     const requestHeaders=headers(token);
-    // Explicitly serialize per-site Jobs in addition to GitHub concurrency.
+    // Check ONLY actual scheduled publisher jobs. Running push-time safety
+    // tests cannot publish; they must not suppress a real one-minute tick.
+    // GitHub publisher concurrency still serializes all dispatch requests.
     for(const status of ['in_progress','queued']){
-      const response=await fetchFn(ROOT+'/runs?branch=main&status='+status+'&per_page=1',{headers:requestHeaders});
+      const response=await fetchFn(ROOT+'/runs?branch=main&event=workflow_dispatch&status='+status+'&per_page=1',{headers:requestHeaders});
       if(!response.ok){
         dispatchHttpStatus=response.status;reason=githubHttpStatus(response.status);
         return {dispatched:false,reason,dispatchHttpStatus};

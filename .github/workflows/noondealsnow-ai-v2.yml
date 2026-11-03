@@ -37,7 +37,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: noondealsnow-ai-v2-single-site
+  group: noondealsnow-ai-v2-${{ github.event_name == 'workflow_dispatch' && 'publisher' || 'safety' }}
   cancel-in-progress: false
 
 jobs:
