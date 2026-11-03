@@ -66,9 +66,9 @@ test('production market jobs are serialized independently, not the entire workfl
  const y=readFileSync('.github/workflows/noondealsnow-ai-v2.yml','utf8');
  assert.doesNotMatch(y,/^concurrency:/m,'workflow-wide lock would suppress the next UTC minute');
  const publisher=y.split('  preflight-or-generate:')[1];
- assert.match(publisher,/group: noondealsnow-ai-v2-publisher-\\$\\{\\{ matrix\\.market \\}\\}/);
+ assert.match(publisher,/group: noondealsnow-ai-v2-publisher-\$\{\{ matrix\.market \}\}/);
  assert.match(publisher,/cancel-in-progress: false/);
  const schedule=readFileSync('ai-scheduler-v2/worker.mjs','utf8');
- assert.match(schedule,/if\\(!activeMarketRunners\\)for\\(const status of/);
- assert.match(schedule,/cfg\\.publicationMode==='live_verified'/);
+ assert.match(schedule,/if\(!activeMarketRunners\)for\(const status of/);
+ assert.match(schedule,/cfg\.publicationMode==='live_verified'/);
 });
