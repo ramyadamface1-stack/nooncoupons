@@ -13,8 +13,9 @@ import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKe
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
+import {expandedEditorialTopics} from './topic-expansion.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
-const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
+const topics=[...JSON.parse(readFileSync(new URL('./topics.json',import.meta.url))),...expandedEditorialTopics];
 const runStartedAt=Date.now();
 const report=(status,reason,data={})=>console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,elapsedMs:Date.now()-runStartedAt,...data}));
 const now=()=>new Date().toISOString();
