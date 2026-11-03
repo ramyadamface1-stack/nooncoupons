@@ -11,6 +11,7 @@ import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
 import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,providerCircuitId,providerCircuitActive} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
+import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const topics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
 const runStartedAt=Date.now();
@@ -304,17 +305,41 @@ async function run(){
   // The native Worker re-runs full quality, schema, novelty and 60s DO gate.
   // Save an ambiguous-HTTP boundary BEFORE the request; no blind retries.
   state=await saveCheckpoint(config,checkpointState(state,'PUBLISH_REQUEST_SENT',{publishRequestedAt:now()}));
-  let response,payload;
-  try{
-    response=await fetch(config.domain+'/api/internal/ai-v2/publish',{
+  // A confirmed HTTP 409 from the global minute permit means the Worker did
+  // not write the article. Wait once for the official next-eligible timestamp,
+  // without another model request or weakening the atomic 60-second DO gate.
+  const body=JSON.stringify({topic:native.topic,article:native.article,
+    checkpoint:{articleId,state:'PREPARED_FOR_NATIVE_AUDIT',contentHash:hash(html),attribution}});
+  async function requestPublish(){
+    const response=await fetch(config.domain+'/api/internal/ai-v2/publish',{
       method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},
-      body:JSON.stringify({topic:native.topic,article:native.article,
-        checkpoint:{articleId,state:'PREPARED_FOR_NATIVE_AUDIT',contentHash:hash(html),attribution}}),
-      signal:AbortSignal.timeout(45000)});
+      body,signal:AbortSignal.timeout(45000)});
     const responseBody=await response.text();
+    let payload;
     try{payload=JSON.parse(responseBody)}
     catch{payload={ok:false,reason:response.status===429&&/1027/.test(responseBody)
       ?'CLOUDFLARE_1027_DAILY_LIMIT':'NATIVE_PUBLISH_HTTP_'+response.status};}
+    return {response,payload};
+  }
+  let response,payload;
+  try{
+    ({response,payload}=await requestPublish());
+    const waitMs=confirmedSlotRetryDelay({
+      httpStatus:response.status,reason:payload?.reason,nextEligibleAt:payload?.nextEligibleAt
+    });
+    if(waitMs!==null){
+      // Acknowledged 409 is a definite no-write, so persist the safe resume
+      // point BEFORE waiting. A crash cannot trigger an unverified re-publish.
+      state=await saveCheckpoint(config,checkpointState(state,'PREPARED_FOR_NATIVE_AUDIT',{
+        errorCategory:'GLOBAL_PUBLICATION_SLOT_NOT_DUE',nextEligibleAt:payload.nextEligibleAt
+      }));
+      console.log('AI_V2_CONFIRMED_SLOT_WAIT '+JSON.stringify({articleId,waitMs}));
+      if(waitMs>0)await new Promise(resolve=>setTimeout(resolve,waitMs));
+      state=await saveCheckpoint(config,checkpointState(state,'PUBLISH_REQUEST_SENT',{
+        publishRequestedAt:now(),retryOf:'CONFIRMED_409_NO_WRITE'
+      }));
+      ({response,payload}=await requestPublish());
+    }
   }catch{
     await saveCheckpoint(config,checkpointState(state,'UNKNOWN_PUBLICATION_OUTCOME',{errorCategory:'PUBLISH_HTTP_OUTCOME_UNKNOWN'}));
     report('BLOCKED','PUBLISH_HTTP_OUTCOME_UNKNOWN',{articleId,livePublished:false});return;
