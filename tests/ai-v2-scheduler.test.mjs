@@ -164,3 +164,14 @@ test('scheduler suppresses wasting GitHub Actions time when Cloudflare responds 
  const uncertain=await probeProductionCapacity(async()=>{throw Error('network')});
  assert.deepEqual(uncertain,{allowed:true,verified:false});
 });
+
+test('live scheduler probes cheap public health instead of high-CPU generator status',async()=>{
+ let seen=[];
+ const result=await probeProductionCapacity(async (url)=>{
+  seen.push(url);
+  return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}});
+ });
+ assert.deepEqual(seen,['https://noondealsnow.com/api/health']);
+ assert.equal(result.allowed,true);
+ assert.equal(result.verified,true);
+});

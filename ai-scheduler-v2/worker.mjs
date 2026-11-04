@@ -42,7 +42,7 @@ export async function dispatchDue({config:cfg=config,scheduledTime,actualTime=Da
     const requestHeaders=headers(token);
     // Production dispatches every UTC minute, even while the preceding market
     // runners finish. Each GitHub matrix market job now has its own serialized
-    // concurrency group; the native R2-backed 36s publication lease remains global.
+    // concurrency group; the native R2-backed 30s publication lease remains global.
     // Keep the historical in-progress guard for disabled diagnostic preflights.
     const activeMarketRunners=cfg.enabled===true&&cfg.publicationMode==='live_verified'&&
       cfg.safety?.noAutomaticPublishUntilLiveBridgeVerified===false;
@@ -97,7 +97,7 @@ export function effectiveRuntimeConfig(cfg,env){
 }
 export async function probeProductionCapacity(fetchFn=fetch){
   try{
-    const response=await fetchFn('https://noondealsnow.com/api/generator-health',{
+    const response=await fetchFn('https://noondealsnow.com/api/health',{
       headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(8000)
     });
     if(response.status===429){
