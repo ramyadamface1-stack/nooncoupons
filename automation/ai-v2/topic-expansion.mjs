@@ -392,3 +392,6 @@ export const expandedEditorialTopics=Object.freeze(rows.flatMap(([family,enCateg
   return [topic];
  })));
 }));
+
+// Stable seed rows for an append-only second editorial wave; NEVER mutate the historical topic index.
+export const establishedEditorialFamilies=Object.freeze(rows.map(row=>Object.freeze([...row])));

@@ -14,9 +14,12 @@ import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
 import {expandedEditorialTopics} from './topic-expansion.mjs';
+import {newEditorialTopicWave} from './topic-refresh.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const baseTopics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
-const topics=[...baseTopics,...expandedEditorialTopics];
+const existingTopicCount=baseTopics.length+expandedEditorialTopics.length;
+// Only append; historical private checkpoint identities and cursor positions stay fixed.
+const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave];
 let runStartedAt=Date.now();
 let lastReportStatus=null,jobBatchOrdinal=0;
 const report=(status,reason,data={})=>{
@@ -54,7 +57,7 @@ async function run(){
   // This protects GitHub runner minutes and free R2 operations during a 1027.
   // The already-saved queue cursor remains unchanged while the site is down.
   try{
-    const siteHealth=await fetch(config.domain+'/api/generator-health',{
+    const siteHealth=await fetch(config.domain+'/api/health',{
       headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(12000)
     });
     if(siteHealth.status===429){
@@ -66,6 +69,11 @@ async function run(){
     if(!siteHealth.ok){
       report('SKIPPED','SITE_HEALTH_UNAVAILABLE',{http:siteHealth.status,
         providerCalls:0,checkpointReads:0,checkpointWrites:0,livePublished:false});
+      return;
+    }
+    const healthPayload=await siteHealth.json().catch(()=>null);
+    if(healthPayload?.ok!==true){
+      report('SKIPPED','SITE_HEALTH_INVALID_RESPONSE',{http:siteHealth.status,providerCalls:0,checkpointReads:0,checkpointWrites:0,livePublished:false});
       return;
     }
   }catch{
@@ -85,7 +93,7 @@ async function run(){
   const oldCursor=oneOffCanary?null:await readCheckpoint(config,cursorId);
   const firstPosition=queueMarket&&oldCursor?.cursor==null?baseTopics.length+(queueMarket==='AE'?1:0):oldCursor?.cursor;
   const firstWindow=oneOffCanary?topics.map((_,i)=>i):queueScanWindow(topics.length,firstPosition);
-  const positions=[...firstWindow,...(oneOffCanary?[]:queueExpansionBridgeWindow(topics.length,baseTopics.length,firstWindow))];
+  const positions=[...firstWindow,...(oneOffCanary?[]:queueExpansionBridgeWindow(topics.length,existingTopicCount,firstWindow))];
   let checked=0,lastChecked=null;
   // If all free sources are cooling down, do not pin the global queue to an
   // unfinished article. Its immutable R2 checkpoint survives; later cycles
