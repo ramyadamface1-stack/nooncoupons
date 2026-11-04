@@ -176,3 +176,22 @@ test('a Saudi completed draft blocked only by indexation score is eligible for o
  assert.equal(resumableCheckpoint(state,{autoSafeSaudiRecovery:true,topic}),true);
  assert.equal(safeSaudiDeterministicRecovery({...state,deterministicRecoveryRevision:SA_SAFE_RECOVERY_REVISION},topic),false);
 });
+
+test('a definitive invalid or unauthorized key preserves the partial draft for free-provider failover',()=>{
+ for(const [errorCategory,lastRequestStatus] of [['INVALID_KEY',401],['PROVIDER_PERMISSION',403]]){
+  assert.equal(resumableCheckpoint({state:'PAUSED_PROVIDER',errorCategory,lastRequestStatus,sectionIndex:0,sections:[]}),true);
+  assert.equal(resumableCheckpoint({state:'PAUSED_PROVIDER',errorCategory,lastRequestStatus,sectionIndex:2,sections:[{},{}]}),true);
+  assert.equal(resumableCheckpoint({state:'PAUSED_PROVIDER',errorCategory,lastRequestStatus,sectionIndex:2,sections:[{}]}),false);
+ }
+ assert.equal(resumableCheckpoint({state:'PAUSED_PROVIDER',errorCategory:'INVALID_KEY',lastRequestStatus:500,sectionIndex:0,sections:[]}),false);
+ assert.equal(resumableCheckpoint({state:'UNKNOWN_REQUEST_OUTCOME',errorCategory:'INVALID_KEY',sectionIndex:0,sections:[]}),false);
+});
+test('definitive provider 401 is key-scoped and can fail over without spending more on the rejected credential',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const source=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.match(source,/const invalidAuth=/);
+ assert.match(source,/pauseSec=invalidAuth\?86400/);
+ assert.match(source,/if\(quota\|\|temporary\|\|invalidAuth\)/);
+ assert.match(source,/state:quota\?'PAUSED_QUOTA':'PAUSED_PROVIDER'/);
+ assert.match(source,/AI_V2_PROVIDER_FAILOVER/);
+});

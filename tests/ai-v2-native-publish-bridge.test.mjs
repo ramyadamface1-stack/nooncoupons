@@ -16,3 +16,16 @@ test('rejects executable HTML, accepts only structural preview not live approval
  assert.equal(validateAiV2NativePayload(base).ok,true);
  assert.equal(validateAiV2NativePayload({...base,article:{...base.article,html:base.article.html+'<img onerror="alert(1)" src=x>'}}).reason,'UNSAFE_MARKUP');
 });
+
+test('publisher original full quality index retains signature and category but reuses its one-minute cold read',async()=>{
+ const {readFullNativeQualityFeed}=await import('../ai-v2-native-publish-bridge.js');
+ let reads=0;
+ const original=[{slug:'unique-test',primaryKeyword:'original wording',signature:'important-signature',category:'phones',country:'SA'}];
+ const env={CONTENT_FINAL:{get:async key=>{reads++;assert.equal(key,'bulk/latest.json');return {json:async()=>({articles:original})}}}};
+ const one=await readFullNativeQualityFeed(env);
+ const two=await readFullNativeQualityFeed(env);
+ assert.equal(reads,1);
+ assert.deepEqual(one,original);
+ assert.equal(two[0].signature,'important-signature');
+ assert.equal(two[0].category,'phones');
+});

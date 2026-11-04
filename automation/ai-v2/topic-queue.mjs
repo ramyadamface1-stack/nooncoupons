@@ -57,8 +57,11 @@ export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume
  // Ambiguous responses remain quarantined; never risk duplicate charges.
  if(state==='PAUSED_QUOTA'||state==='PAUSED_PROVIDER')return manualGroqResume||(
   ((checkpoint.errorCategory==='QUOTA'&&Number(checkpoint.lastRequestStatus)===429)||
-   (state==='PAUSED_PROVIDER'&&checkpoint.errorCategory==='PROVIDER_TEMPORARY'&&
-    [500,502,503,504].includes(Number(checkpoint.lastRequestStatus))))&&
+   (state==='PAUSED_PROVIDER'&&(
+    (checkpoint.errorCategory==='PROVIDER_TEMPORARY'&&[500,502,503,504].includes(Number(checkpoint.lastRequestStatus)))||
+    (checkpoint.errorCategory==='INVALID_KEY'&&Number(checkpoint.lastRequestStatus)===401)||
+    (checkpoint.errorCategory==='PROVIDER_PERMISSION'&&Number(checkpoint.lastRequestStatus)===403)
+   )))&&
   Number.isInteger(checkpoint.sectionIndex)&&checkpoint.sectionIndex>=0&&checkpoint.sectionIndex<5&&
   checkpoint.sections?.length===checkpoint.sectionIndex);
  if(state==='BLOCKED_REVIEW')

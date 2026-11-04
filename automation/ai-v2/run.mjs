@@ -278,21 +278,27 @@ async function run(){
     if(!result.ok){
       const quota=result.category==='QUOTA'&&result.httpStatus===429;
       const temporary=result.category==='PROVIDER_TEMPORARY'&&[500,502,503,504].includes(result.httpStatus);
-      const next=quota?'PAUSED_QUOTA':temporary?'PAUSED_PROVIDER':'BLOCKED_REVIEW';
+      // A definitive 401/403 is NOT an ambiguous charge. Quarantine ONLY
+      // the rejected credential for 24h, not the saved article or Gemini pool.
+      // Never retry that key; try a different approved free key/provider.
+      const invalidAuth=(result.category==='INVALID_KEY'&&result.httpStatus===401)||
+        (result.category==='PROVIDER_PERMISSION'&&result.httpStatus===403);
+      const next=quota?'PAUSED_QUOTA':(temporary||invalidAuth)?'PAUSED_PROVIDER':'BLOCKED_REVIEW';
       // Confirmed provider HTTP errors are checkpointed; network uncertainty
       // still stays quarantined above and must never be retried automatically.
       state=await saveCheckpoint(config,checkpointState(state,next,{
         errorCategory:result.category,lastRequestStatus:result.httpStatus,retryAfter:result.retryAfter||null
       }));
-      if(quota||temporary){
+      if(quota||temporary||invalidAuth){
         const backoff=temporary?temporaryCooldown(result.retryAfter,modelKeyCircuit):null;
-        const pauseSec=quota?quotaCooldownSeconds(result.retryAfter):backoff.seconds;
+        const pauseSec=invalidAuth?86400:quota?quotaCooldownSeconds(result.retryAfter):backoff.seconds;
         const pauseCircuitId=temporary?modelKeyCircuitId:circuitId;
         const oldPause=temporary?modelKeyCircuit:circuit;
         if(temporary)temporarilyFailedModelsThisRun.add(provider+'|'+model);
         try{await providerCircuits.write({articleId:pauseCircuitId,
           state:quota?'PAUSED_QUOTA':'PAUSED_PROVIDER',provider,createdAt:now(),
           ...(temporary?{model,keyRef,temporaryFailStreak:backoff.streak,lastTemporaryAt:now()}:{}),
+          ...(invalidAuth?{errorCategory:result.category,lastRequestStatus:result.httpStatus,keyRef}:{}),
           resumeAt:new Date(Date.now()+pauseSec*1000).toISOString(),version:Number(oldPause?.version||0)+1});}
         catch(e){report('BLOCKED','PROVIDER_CIRCUIT_WRITE_FAILED',{provider,articleId});return}
         // No section is regenerated or discarded. On the next iteration the

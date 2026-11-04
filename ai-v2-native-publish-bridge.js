@@ -14,6 +14,23 @@ import {normalizeAttribution} from './automation/ai-v2/attribution.mjs';
 const rules={SA:{code:'NOV170',lang:'ar-SA'},AE:{code:'NOV188',lang:'en-AE'}};
 const reject=(reason,extra={})=>({ok:false,reason,...extra});
 const hash=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))].map(v=>v.toString(16).padStart(2,'0')).join('');
+// Reuse the complete original quality dataset for 120s within one isolate.
+// This is NOT the smaller public listing: full signatures and category
+// metadata remain available for global/semantic uniqueness checks.
+let qualityFeedCache=null,qualityFeedLoading=null;
+export async function readFullNativeQualityFeed(env,atMs=Date.now()){
+ if(qualityFeedCache&&atMs-qualityFeedCache.at<120000)return qualityFeedCache.articles;
+ if(qualityFeedLoading)return qualityFeedLoading;
+ qualityFeedLoading=(async()=>{
+   const feed=await env.CONTENT_FINAL.get('bulk/latest.json');
+   if(!feed)throw Error('NATIVE_QUALITY_SOURCE_MISSING');
+   const payload=await feed.json();
+   if(!payload||!Array.isArray(payload.articles))throw Error('NATIVE_QUALITY_SOURCE_INVALID');
+   qualityFeedCache={at:Date.now(),articles:payload.articles};
+   return qualityFeedCache.articles;
+ })();
+ try{return await qualityFeedLoading}finally{qualityFeedLoading=null}
+}
 export function validateAiV2NativePayload(payload){
  const {article,topic,checkpoint}=payload||{},rule=rules[topic?.country];
  if(!rule||!article||!checkpoint)return reject('INCOMPLETE_OR_WRONG_MARKET');
@@ -40,10 +57,9 @@ export async function publishAiV2NativeArticle(env,payload){
  if(!/^[a-f0-9]{64}$/.test(expected)||expected!==digest)return reject('CHECKPOINT_HASH_MISMATCH');
  let recent,cluster;
  try{
-  const feed=await env.CONTENT_FINAL.get('bulk/latest.json');
-  const latest=feed?await feed.json():{articles:[]};
+  const originals=await readFullNativeQualityFeed(env);
   cluster=await loadCluster(env,topic,new Map());
-  recent=[...(Array.isArray(latest.articles)?latest.articles:[]),...(cluster.entries||[])];
+  recent=[...originals,...(cluster.entries||[])];
  }catch{return reject('QUALITY_INDEX_UNAVAILABLE')}
  const pre=preflightGlobalGate({...topic,kw:article.primaryKeyword},{entries:recent});
  if(!pre.pass)return reject('DUPLICATE_INTENT',{violations:pre.reasons});
