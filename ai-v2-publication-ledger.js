@@ -84,7 +84,10 @@ export function combineGenerationFreshness(snapshot,ledgerRead,atMs=Date.now()){
    withinOneHour:elapsed!=null&&elapsed<3600000,
    aiV2PublishedCount:nativeCount,
    aiV2LastPublishedAt:aiValid?new Date(aiMs).toISOString():null,
-   aiV2PublishedLast24Hours:ledgerRead?.ok?entries.filter(x=>Number.isFinite(Date.parse(x.publishedAt))&&atMs-Date.parse(x.publishedAt)>=0&&atMs-Date.parse(x.publishedAt)<86400000).length:null
+   aiV2PublishedLast24Hours:ledgerRead?.ok?entries.reduce((count,a)=>{
+    const published=Date.parse(a.publishedAt),age=atMs-published;
+    return count+(Number.isFinite(published)&&age>=0&&age<86400000?1:0);
+   },0):null
  };
 }
 
@@ -92,23 +95,28 @@ export function aiV2PublicationWindows(ledgerRead,atMs=Date.now()){
  if(!ledgerRead?.ok||!Array.isArray(ledgerRead.ledger?.articles))
   return {available:false,reason:ledgerRead?.reason||'LEDGER_UNAVAILABLE'};
  const data=ledgerRead.ledger.articles;
+ // A single Date.parse and provider normalization per item. The previous six
+ // independent scans and full-array sort frequently exceeded the 10ms Free
+ // Worker CPU budget once the publication ledger grew past 1,700 items.
  const durations=[1,2,6,10,12,24],windows={};
- for(const h of durations){
-  const byMarket={SA:0,AE:0};
-  const byProvider={gemini:0,groq:0,unknown:0},byKey={};
-  for(const a of data){
-   const timestamp=Date.parse(a.publishedAt),age=atMs-timestamp;
-   if(!(Number.isFinite(timestamp)&&age>=0&&age<h*3600000&&['SA','AE'].includes(a.country)))continue;
-   byMarket[a.country]++;
-   const provider=a.provider==='gemini'||a.provider==='groq'?a.provider:'unknown';
-   const key=provider!=='unknown'&&typeof a.keyRef==='string'&&/^[a-f0-9]{12}$/.test(a.keyRef)
-     ?provider+':'+a.keyRef:'unknown';
-   byProvider[provider]++;
-   byKey[key]=(byKey[key]||0)+1;
+ for(const h of durations)windows[h+'h']={total:0,SA:0,AE:0,
+  byProvider:{gemini:0,groq:0,unknown:0},byKey:{}};
+ let newest=null;
+ for(const a of data){
+  if(!a)continue;
+  if(!newest||String(a.publishedAt)>String(newest.publishedAt))newest=a;
+  const published=Date.parse(a.publishedAt),age=atMs-published;
+  if(!Number.isFinite(published)||age<0||age>=86400000||!['SA','AE'].includes(a.country))continue;
+  const provider=a.provider==='gemini'||a.provider==='groq'?a.provider:'unknown';
+  const key=provider!=='unknown'&&typeof a.keyRef==='string'&&/^[a-f0-9]{12}$/.test(a.keyRef)
+   ?provider+':'+a.keyRef:'unknown';
+  for(const h of durations){
+   if(age>=h*3600000)continue;
+   const bucket=windows[h+'h'];
+   bucket.total++;bucket[a.country]++;bucket.byProvider[provider]++;
+   bucket.byKey[key]=(bucket.byKey[key]||0)+1;
   }
-  windows[h+'h']={total:byMarket.SA+byMarket.AE,...byMarket,byProvider,byKey};
  }
- const newest=[...data].sort((a,b)=>String(b.publishedAt).localeCompare(String(a.publishedAt)))[0]||null;
  return {available:true,total:data.length,windows,lastArticle:newest?
   {slug:newest.slug,country:newest.country,publishedAt:newest.publishedAt}:null};
 }
