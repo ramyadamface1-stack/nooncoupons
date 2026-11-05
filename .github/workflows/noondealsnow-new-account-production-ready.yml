@@ -16,6 +16,8 @@ on:
       - 'tests/mobile-coupon-copy.test.mjs'
       - 'ai-v2-sitemap.js'
       - 'ai-v2-native-publish-bridge.js'
+      - 'ai-v2-publication-ledger.js'
+      - 'tests/ai-v2-publication-ledger.test.mjs'
       - 'tests/ai-v2-native-publish-bridge.test.mjs'
       - 'r2-emergency-readonly.js'
       - 'tests/ai-v2-sitemap.test.mjs'
@@ -63,7 +65,7 @@ jobs:
           print('NEW_ACCOUNT_WORKER=CONFIG_SAFE;NEW_BUCKET=BOUND;DO_STATE=EXISTING;CRON=DISABLED')
           PY
       - name: Check 30-second native gate regression
-        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs
+        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs
       - name: Deploy destination script ONLY, without hostname or DNS modification
         shell: bash
         run: |
