@@ -11,8 +11,10 @@ const specs=/^(?:HDR10|HDR10PLUS|IP\d{2}|DDR[23456]|USB[234]|HDMI[12]|WPA[23]|FA
  const canonSelphy=/(?:canon|كانون)/i.test(String(topic?.brand||''))&&/\bselphy\b|سيلفي/i.test(body);
  // TP-Link Archer AX90 is a genuine router model, not a discount code.
  const tpLinkRouter=/(?:tp[-\s]?link|تي\s*بي\s*لينك)/i.test(String(topic?.brand||''))&&/(?:archer|راوتر|router|آرتشر)/i.test(body);
+ // ASUS AX3000 is a Wi-Fi router class, not a promotional code.
+ const asusRouter=/(?:asus|أسوس)/i.test(String(topic?.brand||''))&&/(?:راوتر|router|wi.?fi|واي فاي)/i.test(String(topic?.category||''));
  return [...new Set((body.match(/\b[A-Z]{2,8}\d{1,6}\b/g)||[])
-   .map(x=>x.toUpperCase()).filter(x=>!specs.test(x)&&!(canonSelphy&&x==='CP1300')&&!(tpLinkRouter&&x==='AX90')))];
+   .map(x=>x.toUpperCase()).filter(x=>!specs.test(x)&&!(canonSelphy&&x==='CP1300')&&!(tpLinkRouter&&x==='AX90')&&!(asusRouter&&x==='AX3000')))];
 }
 
 import {QUALITY_CRITERIA,QUALITY_CRITERIA_COUNT} from './quality-criteria.js';
