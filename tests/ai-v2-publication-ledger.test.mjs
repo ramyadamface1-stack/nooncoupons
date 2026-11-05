@@ -64,3 +64,23 @@ test('AI V2 hourly publication counters are based on actual ledger entries by co
  assert.equal(result.lastArticle.country,'SA');
  assert.equal(aiV2PublicationWindows({ok:false,reason:'UNAVAILABLE'}).available,false);
 });
+
+test('large publication ledger keeps all 1h 10h 24h counts and provider attributes',()=>{
+ const at=Date.parse('2026-11-05T09:00:00Z');
+ const entries=Array.from({length:2200},(_,i)=>({
+  slug:'published-buyer-guide-'+i+'-2026',
+  country:i%2?'AE':'SA',
+  publishedAt:new Date(at-(i%30)*3600000-60000).toISOString(),
+  provider:i%3===0?'groq':'gemini',
+  keyRef:i%3===0?'aaaaaaaaaaaa':'bbbbbbbbbbbb'
+ }));
+ const result=aiV2PublicationWindows({ok:true,ledger:{articles:entries}},at);
+ for(const h of [1,2,6,10,12,24]){
+  const expected=entries.filter(x=>at-Date.parse(x.publishedAt)<h*3600000);
+  assert.equal(result.windows[h+'h'].total,expected.length);
+  assert.equal(result.windows[h+'h'].SA,expected.filter(x=>x.country==='SA').length);
+  assert.equal(result.windows[h+'h'].AE,expected.filter(x=>x.country==='AE').length);
+  assert.equal(result.windows[h+'h'].byProvider.groq,expected.filter(x=>x.provider==='groq').length);
+ }
+ assert.equal(result.lastArticle.publishedAt,new Date(at-60000).toISOString());
+});
