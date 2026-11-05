@@ -1,0 +1,76 @@
+name: NoonDealsNow Build Verified Native Quality Snapshot (Preserve Full Duplicate Checks)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-native-quality-compact.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ndn-native-quality-snapshot
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      R2_KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Create compact full-quality-index projection in existing new-account R2 only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import boto3,os,json,hashlib
+          from botocore.config import Config
+          account='e4c35f8a50a7b2e4cfb9d6c534962603'
+          source='bulk/latest.json';target='_ops/ai-v2-native-quality-index-v1.json'
+          bucket='nooncoupons-content-v2'
+          key=os.getenv('R2_KEY','').strip();secret=os.getenv('R2_SECRET','').strip()
+          if not key or not secret:raise RuntimeError('R2_SECRET_MISSING')
+          s=boto3.client('s3',region_name='auto',endpoint_url=f'https://{account}.r2.cloudflarestorage.com',
+            aws_access_key_id=key,aws_secret_access_key=secret,
+            config=Config(connect_timeout=10,read_timeout=25,retries={'max_attempts':2,'mode':'standard'}))
+          sourceObj=s.get_object(Bucket=bucket,Key=source)
+          original=sourceObj['Body'].read()
+          payload=json.loads(original)
+          if not isinstance(payload,dict) or not isinstance(payload.get('articles'),list):
+            raise RuntimeError('SOURCE_QUALITY_INDEX_INVALID')
+          # All properties read by native keyword/semantic originality gates.
+          # Keep source order, full signature/blueprint, owner-intent keys, and
+          # zero-filter article cardinality; no changes to any legacy source.
+          fields=('slug','title','primaryKeyword','signature','blueprint',
+            'country','category','intent','intentLabel','useCase','factor','scenario',
+            'queryModifier','catalogLevel','catalogTarget','brandKey','modelKey',
+            'comparisonKey','campaignId','campaignKind','campaignStartKnown',
+            'campaignEndKnown','intentKey','ownerIntentKey','createdAt','updatedAt')
+          slim=[{k:r[k] for k in fields if k in r} if isinstance(r,dict) else {}
+             for r in payload['articles']]
+          if len(slim)!=len(payload['articles']):raise RuntimeError('ROW_COUNT_CHANGED')
+          for orig,sub in zip(payload['articles'],slim):
+            if isinstance(orig,dict):
+              for k in fields:
+                if k in orig and sub.get(k)!=orig[k]:raise RuntimeError('QUALITY_FIELD_CHANGED')
+          sourceEtag=sourceObj['ETag'].strip('"')
+          out={'version':1,'sourceKey':source,'sourceEtag':sourceEtag,
+            'sourceCount':len(slim),'articles':slim}
+          raw=json.dumps(out,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+          print('SOURCE_QUALITY_ROWS='+str(len(slim))+';SOURCE_BYTES='+str(len(original))+
+             ';COMPACT_BYTES='+str(len(raw)),flush=True)
+          if len(raw)>=len(original):
+            raise RuntimeError('COMPACT_QUALITY_PROJECTION_NOT_SMALLER')
+          s.put_object(Bucket=bucket,Key=target,Body=raw,ContentType='application/json; charset=utf-8',
+            CacheControl='private,max-age=0')
+          stored=s.get_object(Bucket=bucket,Key=target)
+          after=stored['Body'].read()
+          if hashlib.sha256(raw).digest()!=hashlib.sha256(after).digest():
+            raise RuntimeError('COMPACT_QUALITY_CHECKSUM_MISMATCH')
+          verifying=json.loads(after)
+          if verifying['sourceEtag']!=sourceEtag or len(verifying['articles'])!=len(slim):
+            raise RuntimeError('COMPACT_QUALITY_VERIFY_FAILED')
+          print('NATIVE_QUALITY_PROJECTION_VERIFIED=true;FULL_SIGNATURE_FIELDS_RETAINED=true',flush=True)
+          print('ARTICLE_OBJECT_WRITES=0;OLD_ORIGINAL_INDEX_WRITES=0;DURABLE_OBJECT_CHANGES=0',flush=True)
+          PY
