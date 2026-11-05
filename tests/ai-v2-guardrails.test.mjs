@@ -13,6 +13,7 @@ test('safe no-cost defaults, unified one-minute cadence and market policy',()=>{
  assert.equal(config.publicationMode,'checkpoint_only');assert.equal(config.maxConcurrent,2);
  assert.equal(config.models.gemini,'gemini-3.5-flash-lite');
  assert.equal(config.models.geminiFallback,'gemini-3.8-flash');
+ assert.equal(config.models.geminiTertiary,'gemini-3.1-flash-lite');
  assert.equal(config.siteMarkets.SA.coupon,'NOV170');assert.equal(config.siteMarkets.AE.coupon,'NOV188');
 });
 test('one-minute due is not a publication; all configured cadences remain supported',()=>{
@@ -139,4 +140,13 @@ test('100 articles/hour target needs isolated parallel market jobs, never unlock
  assert.throws(()=>validateConfig({...c,maxConcurrent:3}),/UNSAFE_CONCURRENCY/);
  assert.throws(()=>validateConfig({...c,targetPerHour:121,targetPerDay:2904}),/CADENCE_TARGET_MISMATCH/);
  assert.throws(()=>validateConfig({...c,intervalMinutes:5,targetPerHour:12,targetPerDay:288}),/UNSAFE_CONCURRENCY/);
+});
+
+test('third free Gemini model is wired without relaxing publication quality or provider call limits',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const run=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.ok(run.includes('[config.models.gemini,config.models.geminiFallback,config.models.geminiTertiary]'));
+ assert.equal(config.limits.maxProviderCallsPerRun,5);
+ assert.equal(config.limits.qualityFloor,95);
+ assert.equal(new Set([config.models.gemini,config.models.geminiFallback,config.models.geminiTertiary]).size,3);
 });
