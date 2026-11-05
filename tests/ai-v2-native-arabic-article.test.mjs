@@ -131,3 +131,10 @@ test('expanded Saudi short queries gain factual seller-and-warranty terms to pas
  }
  assert.ok(adjusted>=10,'must reproduce the real short-query regression');
 });
+
+test('FAT32 and EXT4 SSD file systems never trigger the P0 coupon lock, while cross-market codes still fail',()=>{
+ const samsung={brand:'سامسونج',category:'أقراص SSD',country:'SA'};
+ assert.deepEqual(couponCodeCandidates('دليل أقراص SSD FAT32 EXT4 مع الكوبون NOV170',samsung),['NOV170']);
+ assert.deepEqual(couponCodeCandidates('FAT32 EXT4 و NOV170 و NOV188',samsung),['NOV170','NOV188']);
+ assert.deepEqual(couponCodeCandidates('NOV170 و SAVE999 و EXT4',samsung),['NOV170','SAVE999']);
+});
