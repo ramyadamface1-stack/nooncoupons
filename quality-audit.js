@@ -2,7 +2,9 @@
 // Preserve the P0 coupon lock for every actual voucher-like token.
 export function couponCodeCandidates(plain,topic={}){
  const body=String(plain||'');
- const specs=/^(?:HDR10|HDR10PLUS|IP\d{2}|DDR[23456]|USB[234]|HDMI[12]|WPA[23])$/i;
+ // FAT32 and EXT4 are file systems used by SSD buyers, not vouchers.
+// Keep every unknown coupon-like token subject to the strict P0 coupon gate.
+const specs=/^(?:HDR10|HDR10PLUS|IP\d{2}|DDR[23456]|USB[234]|HDMI[12]|WPA[23]|FAT32|EXT[234])$/i;
  // CP1300 is a genuine Canon SELPHY printer model, but ignore it ONLY in
  // matching Canon editorial context. Other unknown voucher-like tokens remain
  // a critical failure; never blanket-allow CP-number patterns.
