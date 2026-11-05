@@ -1,0 +1,42 @@
+name: NoonDealsNow Read-Only Native Coupon Lock Diagnosis
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/noondealsnow-diagnose-coupon-lock-readonly.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  readonly-inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Inspect persisted native rejection codes only; never output HTML or credentials
+        run: |
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {readCheckpointRest} from './automation/ai-v2/r2-checkpoints-http.mjs';
+          import {couponCodeCandidates} from './quality-audit.js';
+          const config=JSON.parse(readFileSync('automation/ai-v2/config.json','utf8'));
+          const ids=['e88fdde402061da91ba1f1a7','71eed30690afd5988deba197'];
+          for(const articleId of ids){
+            try{
+              const saved=await readCheckpointRest(config,articleId);
+              if(!saved){console.log('COUPON_LOCK_DIAG='+JSON.stringify({articleId,found:false}));continue}
+              const raw=String(saved.nativeArticle?.html||'');
+              const plain=raw.replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
+              const codes=couponCodeCandidates(plain,saved.nativeTopic||saved.topic||{});
+              const t=saved.nativeTopic||saved.topic||{};
+              console.log('COUPON_LOCK_DIAG='+JSON.stringify({articleId,found:true,state:saved.state,
+                brand:t.brand,category:t.category,country:t.country,expected:t.code||t.coupon,
+                codes,deterministicRecoveryRevision:saved.deterministicRecoveryRevision||null,
+                p0:saved.nativeGateDiagnostics?.p0||[],htmlPresent:raw.length>0}));
+            }catch(e){console.log('COUPON_LOCK_DIAG='+JSON.stringify({articleId,error:String(e?.message||e).slice(0,100)}))}
+          }
+          console.log('READ_ONLY=TRUE;PRIVATE_DRAFT_TEXT_PRINTED=FALSE;R2_WRITES=0');
+          NODE
