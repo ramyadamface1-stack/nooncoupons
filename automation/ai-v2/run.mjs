@@ -15,11 +15,12 @@ import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
 import {expandedEditorialTopics} from './topic-expansion.mjs';
 import {newEditorialTopicWave} from './topic-refresh.mjs';
+import {thirdEditorialTopicWave} from './topic-refresh-n3.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const baseTopics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
-const existingTopicCount=baseTopics.length+expandedEditorialTopics.length;
+const existingTopicCount=baseTopics.length+expandedEditorialTopics.length+newEditorialTopicWave.length;
 // Only append; historical private checkpoint identities and cursor positions stay fixed.
-const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave];
+const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave];
 let runStartedAt=Date.now();
 let lastReportStatus=null,jobBatchOrdinal=0;
 const report=(status,reason,data={})=>{

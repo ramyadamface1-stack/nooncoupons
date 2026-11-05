@@ -43,3 +43,29 @@ test('publisher checks lightweight public health and never its high-CPU generato
  assert.ok(!source.includes("config.domain+'/api/generator-health'"));
  assert.ok(source.includes('healthPayload?.ok!==true'));
 });
+
+import {thirdEditorialTopicWave} from '../automation/ai-v2/topic-refresh-n3.mjs';
+
+test('third wave appends unique commercial questions while preserving both older queues and all native safety rules',()=>{
+ const preceding=[...base,...expandedEditorialTopics,...newEditorialTopicWave];
+ const oldSlugs=new Set(preceding.map(x=>x.slug));
+ assert.ok(thirdEditorialTopicWave.length>=700,'insufficient fresh varied topics');
+ const distinct=new Set(thirdEditorialTopicWave.map(x=>x.slug));
+ assert.equal(distinct.size,thirdEditorialTopicWave.length);
+ for(const topic of thirdEditorialTopicWave){
+  assert.ok(!oldSlugs.has(topic.slug),topic.slug);
+  assertTopic(topic,config);
+  assert.ok(publicationReadyTopic(topic));
+  assert.ok(topic.topic.length>=28&&topic.topic.length<=72);
+  assert.ok(topic.topic.includes(topic.coupon));
+  assert.ok(topic.queryModifier&&topic.modelKey&&topic.comparisonKey);
+  assert.equal(topic.sections.length,5);
+  assert.ok(topic.slug.endsWith('-2026-n3'));
+ }
+ const all=[...preceding,...thirdEditorialTopicWave];
+ for(let i=0;i<preceding.length;i++)assert.equal(all[i],preceding[i]);
+ const bridged=queueExpansionBridgeWindow(all.length,preceding.length,queueScanWindow(all.length,preceding.length-50));
+ assert.deepEqual(bridged,Array.from({length:8},(_,i)=>preceding.length+i));
+ assert.equal(thirdEditorialTopicWave[0].country,'SA');
+ assert.equal(thirdEditorialTopicWave[1].country,'AE');
+});
