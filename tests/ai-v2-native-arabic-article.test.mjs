@@ -145,3 +145,11 @@ test('ASUS AX3000 is a router class not an offer code outside a coupon context',
  assert.deepEqual(couponCodeCandidates('ASUS AX3000 والرمز NOV188 وكوبون NOV170',router),['NOV188','NOV170']);
  assert.deepEqual(couponCodeCandidates('NOV170 AX3000',{brand:'سامسونج',category:'أقراص SSD'}),['NOV170','AX3000']);
 });
+
+test('CAT8 and RJ45 are connector specifications only in network and USB-dock context',()=>{
+ const usb={brand:'يوجرين',category:'موزعات USB',country:'SA'};
+ assert.deepEqual(couponCodeCandidates('USB Ethernet RJ45 cable CAT8 مع NOV170',usb),['NOV170']);
+ assert.deepEqual(couponCodeCandidates('RJ45 CAT8 NOV188 NOV170',usb),['NOV188','NOV170']);
+ assert.deepEqual(couponCodeCandidates('RJ45 CAT8 SAVE999 NOV170',usb),['SAVE999','NOV170']);
+ assert.deepEqual(couponCodeCandidates('RJ45 CAT8 NOV170',{brand:'أحذية',category:'أحذية رياضية'}),['RJ45','CAT8','NOV170']);
+});
