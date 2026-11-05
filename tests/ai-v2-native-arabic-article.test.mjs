@@ -138,3 +138,10 @@ test('FAT32 and EXT4 SSD file systems never trigger the P0 coupon lock, while cr
  assert.deepEqual(couponCodeCandidates('FAT32 EXT4 و NOV170 و NOV188',samsung),['NOV170','NOV188']);
  assert.deepEqual(couponCodeCandidates('NOV170 و SAVE999 و EXT4',samsung),['NOV170','SAVE999']);
 });
+
+test('ASUS AX3000 is a router class not an offer code outside a coupon context',()=>{
+ const router={brand:'أسوس',category:'راوتر واي فاي'};
+ assert.deepEqual(couponCodeCandidates('ASUS AX3000 يدعم شبكة منزلية؛ استخدم NOV170',router),['NOV170']);
+ assert.deepEqual(couponCodeCandidates('ASUS AX3000 والرمز NOV188 وكوبون NOV170',router),['NOV188','NOV170']);
+ assert.deepEqual(couponCodeCandidates('NOV170 AX3000',{brand:'سامسونج',category:'أقراص SSD'}),['NOV170','AX3000']);
+});
