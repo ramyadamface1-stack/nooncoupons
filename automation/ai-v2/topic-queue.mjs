@@ -1,3 +1,28 @@
+import {couponCodeCandidates} from '../../quality-audit.js';
+// One read-only rescue for existing saved Saudi SSD drafts that were wrongly
+// blocked when FAT32 and EXT4 filesystem names were treated as coupon codes.
+// No AI call and never accepts a genuine extra coupon such as NOV188.
+export const SA_FILESYSTEM_RECOVERY_REVISION='sa-ssd-filesystem-coupon-v1';
+export function safeSaudiFilesystemRecovery(checkpoint,topic){
+ if(topic?.country!=='SA'||checkpoint?.state!=='BLOCKED_REVIEW'||
+    checkpoint.errorCategory!=='NATIVE_QUALITY_BLOCKED'||
+    checkpoint.filesystemRecoveryRevision===SA_FILESYSTEM_RECOVERY_REVISION||
+    !/SSD|أقراص/i.test(String(topic?.category||''))||
+    checkpoint.sectionIndex!==5||checkpoint.sections?.length!==5||
+    !checkpoint.sections.every(s=>typeof s?.html==='string'&&s.html.length>0))return false;
+ const d=checkpoint.nativeGateDiagnostics;
+ if(!Array.isArray(d?.p0)||d.p0.length!==1||d.p0[0]!=='coupon_lock'||
+    !Array.isArray(d.failed)||d.failed.length!==1||d.failed[0]!=='coupon_lock'||
+    d.schemas?.length||d.duplicates?.length||d.indexation?.length)return false;
+ const html=String(checkpoint.nativeArticle?.html||'');
+ if(!html||!/\b(?:FAT32|EXT4)\b/.test(html))return false;
+ const plain=html.replace(/<script\b[\s\S]*?<\/script>/gi,' ')
+   .replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ')
+   .replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
+ const codes=couponCodeCandidates(plain,checkpoint.nativeTopic||topic);
+ return codes.length===1&&codes[0]==='NOV170';
+}
+
 // Exactly one zero-provider editorial rescue for known repaired Saudi gates.
 // Fail closed on unrecognized native diagnostics or malformed checkpoints.
 export const SA_SAFE_RECOVERY_REVISION='sa-title-and-index-checklist-v3';
@@ -46,7 +71,7 @@ export function publicationReadyTopic(topic,markets=READY_NATIVE_RENDERERS){
  return Boolean(topic&&markets.includes(topic.country)&&Array.isArray(topic.sections)&&topic.sections.length===5&&
   typeof topic.slug==='string'&&/^[a-z0-9-]{16,120}$/.test(topic.slug));
 }
-export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume=false,manualIncompleteRetry=false,nativeGateRepair=false,autoSafeSaudiRecovery=false,autoSafeEnglishRecovery=false,topic=null}={}){
+export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume=false,manualIncompleteRetry=false,nativeGateRepair=false,autoSafeSaudiRecovery=false,autoSafeSaudiFilesystemRecovery=false,autoSafeEnglishRecovery=false,topic=null}={}){
  const state=checkpoint?.state;
  if(!checkpoint)return true;
  // An uncertain publish has already crossed the irreversible HTTP boundary.
@@ -70,6 +95,7 @@ export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume
    Number.isInteger(checkpoint.sectionIndex)&&checkpoint.sectionIndex>=0&&checkpoint.sectionIndex<5&&
    checkpoint.sections?.length===checkpoint.sectionIndex)||
    (autoSafeSaudiRecovery&&safeSaudiDeterministicRecovery(checkpoint,topic))||
+   (autoSafeSaudiFilesystemRecovery&&safeSaudiFilesystemRecovery(checkpoint,topic))||
    (autoSafeEnglishRecovery&&safeEnglishDeterministicRecovery(checkpoint,topic))||
    (manualIncompleteRetry&&manualGroqResume&&checkpoint.errorCategory==='INCOMPLETE_RESPONSE')||
    (savedOnly&&['WORD_WINDOW',...(nativeGateRepair?['NATIVE_QUALITY_BLOCKED']:[])].includes(checkpoint.errorCategory)&&checkpoint.sections?.length===checkpoint.sectionIndex&&checkpoint.sectionIndex===5);
