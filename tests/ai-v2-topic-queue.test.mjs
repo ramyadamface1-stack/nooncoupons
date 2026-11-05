@@ -195,3 +195,20 @@ test('definitive provider 401 is key-scoped and can fail over without spending m
  assert.match(source,/state:quota\?'PAUSED_QUOTA':'PAUSED_PROVIDER'/);
  assert.match(source,/AI_V2_PROVIDER_FAILOVER/);
 });
+
+test('Saudi network accessory false coupon code can be re-audited once from existing saved sections',()=>{
+ const topic={country:'SA',category:'موزعات USB',brand:'يوجرين',coupon:'NOV170'};
+ const cp={state:'BLOCKED_REVIEW',errorCategory:'NATIVE_QUALITY_BLOCKED',
+  sectionIndex:5,sections:Array.from({length:5},()=>({html:'<h2>معلومات المنتج</h2>'})),
+  nativeTopic:{...topic,code:'NOV170'},
+  nativeArticle:{html:'<article>موصل RJ45 وكابل CAT8 وشروط الكوبون NOV170</article>'},
+  nativeGateDiagnostics:{p0:['coupon_lock'],failed:['coupon_lock'],schemas:[],duplicates:[],indexation:[]}
+ };
+ assert.equal(safeSaudiFilesystemRecovery(cp,topic),true);
+ assert.equal(resumableCheckpoint(cp,{autoSafeSaudiFilesystemRecovery:true,topic}),true);
+ assert.equal(safeSaudiFilesystemRecovery({...cp,filesystemRecoveryRevision:SA_FILESYSTEM_RECOVERY_REVISION},topic),false);
+ assert.equal(safeSaudiFilesystemRecovery({...cp,nativeArticle:{html:cp.nativeArticle.html+' NOV188'}},topic),false);
+ assert.equal(safeSaudiFilesystemRecovery({...cp,nativeGateDiagnostics:{p0:['coupon_lock','country_lock'],failed:['coupon_lock'],schemas:[],duplicates:[],indexation:[]}},topic),false);
+ assert.equal(safeSaudiFilesystemRecovery({...cp,nativeArticle:{html:'NOV170 فقط'}},topic),false);
+ assert.equal(safeSaudiFilesystemRecovery(cp,{...topic,country:'AE'}),false);
+});
