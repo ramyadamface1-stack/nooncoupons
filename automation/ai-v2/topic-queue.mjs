@@ -1,16 +1,17 @@
 import {couponCodeCandidates} from '../../quality-audit.js';
-// One read-only rescue for existing saved Saudi SSD drafts that were wrongly
-// blocked when FAT32 and EXT4 filesystem names were treated as coupon codes.
+// One zero-provider rescue for saved Saudi technical buyers' drafts falsely
+// blocked on FAT32, EXT4, AX3000, CAT8 or RJ45 hardware-spec tokens.
 // No AI call and never accepts a genuine extra coupon such as NOV188.
 export const SA_FILESYSTEM_RECOVERY_REVISION='sa-ssd-filesystem-coupon-v1';
 export function safeSaudiFilesystemRecovery(checkpoint,topic){
  const category=String(topic?.category||''),brand=String(topic?.brand||'');
  const isSsd=/SSD|أقراص/i.test(category);
  const asusRouter=/(?:asus|أسوس)/i.test(brand)&&/(?:راوتر|router|wi.?fi|واي فاي)/i.test(category);
+ const isUsbDock=/(?:USB|موزعات|dock)/i.test(category);
  if(topic?.country!=='SA'||checkpoint?.state!=='BLOCKED_REVIEW'||
     checkpoint.errorCategory!=='NATIVE_QUALITY_BLOCKED'||
     checkpoint.filesystemRecoveryRevision===SA_FILESYSTEM_RECOVERY_REVISION||
-    !(isSsd||asusRouter)||
+    !(isSsd||asusRouter||isUsbDock)||
     checkpoint.sectionIndex!==5||checkpoint.sections?.length!==5||
     !checkpoint.sections.every(s=>typeof s?.html==='string'&&s.html.length>0))return false;
  const d=checkpoint.nativeGateDiagnostics;
@@ -18,7 +19,7 @@ export function safeSaudiFilesystemRecovery(checkpoint,topic){
     !Array.isArray(d.failed)||d.failed.length!==1||d.failed[0]!=='coupon_lock'||
     d.schemas?.length||d.duplicates?.length||d.indexation?.length)return false;
  const html=String(checkpoint.nativeArticle?.html||'');
- if(!html||!((isSsd&&/\b(?:FAT32|EXT4)\b/.test(html))||(asusRouter&&/\bAX3000\b/.test(html))))return false;
+ if(!html||!((isSsd&&/\b(?:FAT32|EXT4)\b/.test(html))||(asusRouter&&/\bAX3000\b/.test(html))||(isUsbDock&&/\b(?:RJ45|CAT8)\b/.test(html))))return false;
  const plain=html.replace(/<script\b[\s\S]*?<\/script>/gi,' ')
    .replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ')
    .replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
