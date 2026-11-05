@@ -23,7 +23,7 @@ jobs:
           import {readCheckpointRest} from './automation/ai-v2/r2-checkpoints-http.mjs';
           import {couponCodeCandidates} from './quality-audit.js';
           const config=JSON.parse(readFileSync('automation/ai-v2/config.json','utf8'));
-          const ids=['2f276550c7c78aee41dc5cef'];
+          const ids=['da47167dfb32806e6ab5692e','6f4e845064e69cf005945f92'];
           for(const articleId of ids){
             try{
               const saved=await readCheckpointRest(config,articleId);
