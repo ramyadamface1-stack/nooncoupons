@@ -29,3 +29,38 @@ test('publisher original full quality index retains signature and category but r
  assert.equal(two[0].signature,'important-signature');
  assert.equal(two[0].category,'phones');
 });
+
+test('native publisher prefers the full-signature compact quality index only with an unchanged source ETag',async()=>{
+ const {readFullNativeQualityFeed}=await import('../ai-v2-native-publish-bridge.js');
+ let getKeys=[],headKeys=[];
+ const original=[{slug:'quality-unique-n3',signature:'full-fingerprint',category:'kitchen',country:'AE',blueprint:'test',primaryKeyword:'specific kitchen shopping'}];
+ const env={CONTENT_FINAL:{
+  head:async key=>{headKeys.push(key);return {etag:'source-unchanged-01'}},
+  get:async key=>{
+   getKeys.push(key);
+   if(key==='_ops/ai-v2-native-quality-index-v1.json')return {json:async()=>({version:1,sourceKey:'bulk/latest.json',sourceEtag:'source-unchanged-01',sourceCount:1,articles:original})};
+   throw Error('full original should not be parsed with valid ETag');
+  }
+ }};
+ const res=await readFullNativeQualityFeed(env,Date.now()+122000);
+ assert.deepEqual(res,original);
+ assert.deepEqual(headKeys,['bulk/latest.json']);
+ assert.deepEqual(getKeys,['_ops/ai-v2-native-quality-index-v1.json']);
+});
+test('native publisher falls back to unabridged quality set on changed source ETag',async()=>{
+ const {readFullNativeQualityFeed}=await import('../ai-v2-native-publish-bridge.js');
+ let getKeys=[];
+ const full=[{slug:'existing-full-quality-item',signature:'secure-sig',country:'SA',primaryKeyword:'unchanged'}];
+ const env={CONTENT_FINAL:{
+  head:async()=>({etag:'source-changed-now'}),
+  get:async key=>{
+    getKeys.push(key);
+    if(key==='_ops/ai-v2-native-quality-index-v1.json')return {json:async()=>({version:1,sourceKey:'bulk/latest.json',sourceEtag:'stale-source',sourceCount:1,articles:[]})};
+    assert.equal(key,'bulk/latest.json');
+    return {json:async()=>({articles:full})};
+  }
+ }};
+ const actual=await readFullNativeQualityFeed(env,Date.now()+244000);
+ assert.deepEqual(actual,full);
+ assert.deepEqual(getKeys,['_ops/ai-v2-native-quality-index-v1.json','bulk/latest.json']);
+});

@@ -75,3 +75,10 @@ test('production market jobs are serialized independently, not the entire workfl
  assert.match(schedule,/if\(!activeMarketRunners\)for\(const status of/);
  assert.match(schedule,/cfg\.publicationMode==='live_verified'/);
 });
+
+test('native Cloudflare 5xx cannot be blindly retried or permanently misreported as definitive failed publish',()=>{
+ const s=readFileSync('automation/ai-v2/run.mjs','utf8');
+ assert.match(s,/PUBLISH_5XX_OUTCOME_QUARANTINED/);
+ assert.match(s,/NATIVE_PUBLISH_EDGE_5XX_OUTCOME_UNKNOWN/);
+ assert.match(s,/checkpointState\(state,'UNKNOWN_PUBLICATION_OUTCOME'/);
+});

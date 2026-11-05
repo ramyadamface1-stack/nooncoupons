@@ -426,6 +426,26 @@ async function run(){
   }
   if(!response.ok||payload?.ok!==true){
     const reason=String(payload?.reason||'NATIVE_PUBLISH_DENIED');
+    const edge5xx=response.status>=500&&response.status<600&&/^NATIVE_PUBLISH_HTTP_/.test(reason);
+    if(edge5xx){
+      // An HTML 5xx has no durable "not written" acknowledgement. Check the
+      // exact existing public URL; never resend an ambiguous publish request.
+      const url=config.domain+'/articles/'+encodeURIComponent(topic.slug);
+      let live=false;
+      try{
+        const res=await fetch(url,{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(16000)});
+        live=res.status===200&&(await res.text()).includes(topic.coupon);
+      }catch{}
+      if(live){
+        await saveCheckpoint(config,checkpointState(state,'LIVE_VERIFIED',{liveVerifiedAt:now(),liveUrl:url}));
+        report('LIVE_VERIFIED','PUBLISH_5XX_BUT_ARTICLE_ALREADY_PUBLIC',{articleId,url,livePublished:true});return;
+      }
+      await saveCheckpoint(config,checkpointState(state,'UNKNOWN_PUBLICATION_OUTCOME',{
+        errorCategory:'NATIVE_PUBLISH_EDGE_5XX_OUTCOME_UNKNOWN',lastRequestStatus:response.status,
+        candidateLiveUrl:url,lastPublicVerificationAt:now(),reviewRequired:true
+      }));
+      report('BLOCKED','PUBLISH_5XX_OUTCOME_QUARANTINED',{articleId,http:response.status,livePublished:false});return;
+    }
     const recoverable=['GLOBAL_PUBLICATION_SLOT_NOT_DUE','GLOBAL_PUBLICATION_SLOT_NOT_GRANTED','CLOUDFLARE_1027_DAILY_LIMIT'].includes(reason);
     await saveCheckpoint(config,checkpointState(state,recoverable?'PREPARED_FOR_NATIVE_AUDIT':'BLOCKED_REVIEW',{
       errorCategory:reason,nativeGateDiagnostics:payload?.diagnostics||null}));

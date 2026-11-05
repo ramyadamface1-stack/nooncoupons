@@ -22,6 +22,26 @@ export async function readFullNativeQualityFeed(env,atMs=Date.now()){
  if(qualityFeedCache&&atMs-qualityFeedCache.at<120000)return qualityFeedCache.articles;
  if(qualityFeedLoading)return qualityFeedLoading;
  qualityFeedLoading=(async()=>{
+   // The verified new-account projection retains every uniqueness, signature,
+   // owner/intent, category, and blueprint field used by the native gates.
+   // A source ETag mismatch MUST fall back to the complete original dataset.
+   // This never silently weakens novelty checks when bulk/latest.json changes.
+   try{
+     const source=await env.CONTENT_FINAL.head?.('bulk/latest.json');
+     if(source?.etag){
+       const slim=await env.CONTENT_FINAL.get('_ops/ai-v2-native-quality-index-v1.json');
+       if(slim){
+         const data=await slim.json();
+         if(data?.version===1&&data.sourceKey==='bulk/latest.json'&&
+            data.sourceEtag===source.etag&&Number.isInteger(data.sourceCount)&&
+            Array.isArray(data.articles)&&data.sourceCount===data.articles.length){
+           qualityFeedCache={at:Date.now(),articles:data.articles};
+           return qualityFeedCache.articles;
+         }
+       }
+     }
+   }catch{}
+   // Fail closed on missing/stale projection: original full quality set wins.
    const feed=await env.CONTENT_FINAL.get('bulk/latest.json');
    if(!feed)throw Error('NATIVE_QUALITY_SOURCE_MISSING');
    const payload=await feed.json();

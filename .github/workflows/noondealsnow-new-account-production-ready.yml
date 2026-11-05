@@ -16,6 +16,7 @@ on:
       - 'tests/mobile-coupon-copy.test.mjs'
       - 'ai-v2-sitemap.js'
       - 'ai-v2-native-publish-bridge.js'
+      - 'tests/ai-v2-native-publish-bridge.test.mjs'
       - 'r2-emergency-readonly.js'
       - 'tests/ai-v2-sitemap.test.mjs'
       - 'tests/sitemap-health-budget.test.mjs'
