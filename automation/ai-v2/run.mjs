@@ -208,7 +208,7 @@ async function run(){
       const globalCircuitId=providerCircuitId(candidateProvider,hash);
       if(providerCircuitActive(await providerCircuits.read(globalCircuitId)))continue;
       const models=candidateProvider==='gemini'
-        ?[config.models.gemini,config.models.geminiFallback].filter(Boolean)
+        ?[config.models.gemini,config.models.geminiFallback,config.models.geminiTertiary].filter(Boolean)
         :[config.models.groq];
       for(const candidateModel of [...new Set(models)]){
         if(temporarilyFailedModelsThisRun.has(candidateProvider+'|'+candidateModel))continue;
