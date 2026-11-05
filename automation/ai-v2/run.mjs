@@ -8,7 +8,7 @@ import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,queueExpansionBridgeWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,queueExpansionBridgeWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
@@ -119,7 +119,7 @@ async function run(){
     const articleId=assertTopic(topic,config),saved=await readCheckpoint(config,articleId);
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
-    if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly,autoSafeSaudiRecovery:!oneOffCanary,autoSafeEnglishRecovery:!oneOffCanary,topic}))continue;
+    if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly,autoSafeSaudiRecovery:!oneOffCanary,autoSafeSaudiFilesystemRecovery:!oneOffCanary,autoSafeEnglishRecovery:!oneOffCanary,topic}))continue;
     selected={topic,articleId,saved};break;
   }
   if(!oneOffCanary&&lastChecked!==null){
@@ -136,11 +136,13 @@ async function run(){
   }
   const {topic,articleId}=selected;
   let state=selected.saved;
-  const recoveredWithoutAI=!oneOffCanary&&(safeSaudiDeterministicRecovery(state,topic)||safeEnglishDeterministicRecovery(state,topic));
+  const filesystemRescue=!oneOffCanary&&safeSaudiFilesystemRecovery(state,topic);
+  const recoveredWithoutAI=!oneOffCanary&&(safeSaudiDeterministicRecovery(state,topic)||safeEnglishDeterministicRecovery(state,topic)||filesystemRescue);
   if(recoveredWithoutAI){
     // This stamp is persisted with the next PREPARED or BLOCKED checkpoint.
     // A new quality failure will not be retried automatically every minute.
-    state={...state,deterministicRecoveryRevision:topic.country==='AE'?AE_SAFE_RECOVERY_REVISION:SA_SAFE_RECOVERY_REVISION};
+    state={...state,deterministicRecoveryRevision:topic.country==='AE'?AE_SAFE_RECOVERY_REVISION:SA_SAFE_RECOVERY_REVISION,
+      ...(filesystemRescue?{filesystemRecoveryRevision:SA_FILESYSTEM_RECOVERY_REVISION}:{})};
   }
   if(savedOnly&&(!state||state.sectionIndex!==topic.sections.length)){report('BLOCKED','SAVED_DRAFT_NOT_READY_FOR_NO_AI_REPROCESS',{articleId});return}
   // An uncertain publish is never automatically retried. Inspect only the
