@@ -101,6 +101,36 @@ jobs:
         run: |
           set -euo pipefail
           node --input-type=module -e "import {geminiKeyInventory} from './automation/ai-v2/gemini-key-pool.mjs'; console.log('AI_V2_GEMINI_POOL '+JSON.stringify(geminiKeyInventory(process.env)))"
+      - name: Count unique Gemini and Groq keys in memory without revealing secrets or calling providers
+        env:
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          GEMINI_API_KEYS_EXTRA: ${{ secrets.GEMINI_API_KEYS_EXTRA }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
+          GROQ_API_KEYS_EXTRA: ${{ secrets.GROQ_API_KEYS_EXTRA }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import {parseGeminiKeys,geminiKeyInventory} from './automation/ai-v2/gemini-key-pool.mjs';
+          import {groqKeyInventory} from './automation/ai-v2/groq-key-pool.mjs';
+          const e=process.env;
+          const configuredGemini=new Set([
+            ...parseGeminiKeys(e.GEMINI_API_KEY),
+            ...parseGeminiKeys(e.GEMINI_API_KEYS),
+            ...parseGeminiKeys(e.GEMINI_API_KEYS_EXTRA)
+          ]);
+          const eligibleGemini=geminiKeyInventory(e);
+          const eligibleGroq=groqKeyInventory(e);
+          console.log('AI_V2_GEMINI_CONFIGURED_UNIQUE_COUNT='+configuredGemini.size);
+          console.log('AI_V2_GEMINI_ELIGIBLE_COUNT='+eligibleGemini.eligibleCount);
+          console.log('AI_V2_GROQ_POOL '+JSON.stringify({
+            newCount:eligibleGroq.newCount,legacyCount:eligibleGroq.legacyCount,
+            extraCount:eligibleGroq.extraCount,eligibleCount:eligibleGroq.eligibleCount
+          }));
+          console.log('AI_V2_KEY_COUNT_AUDIT=no_network_no_provider_requests');
+          NODE
       - name: Read-only check of one new Gemini auth key against Google model metadata
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_gemini_metadata == true }}
         env:
