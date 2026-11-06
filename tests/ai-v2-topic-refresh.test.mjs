@@ -69,3 +69,30 @@ test('third wave appends unique commercial questions while preserving both older
  assert.equal(thirdEditorialTopicWave[0].country,'SA');
  assert.equal(thirdEditorialTopicWave[1].country,'AE');
 });
+
+import {fourthEditorialTopicWave} from '../automation/ai-v2/topic-refresh-n4.mjs';
+test('N4 queue refills exhausted 3002-topic corpus with unique, high-intent country and brand guides',()=>{
+ const historical=[...base,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave];
+ assert.ok(historical.length>=3000,'previous queue count changed');
+ assert.ok(fourthEditorialTopicWave.length>=1150,'fresh N4 queue too small');
+ const existing=new Set(historical.map(x=>x.slug));
+ const seen=new Set();
+ for(const t of fourthEditorialTopicWave){
+  assert.ok(!existing.has(t.slug),'collision with published historical slug '+t.slug);
+  assert.ok(!seen.has(t.slug),'new N4 slug duplicated '+t.slug);
+  seen.add(t.slug);
+  assertTopic(t,config);
+  assert.ok(publicationReadyTopic(t));
+  assert.ok(t.topic.includes(t.coupon));
+  assert.ok(t.queryModifier&&t.modelKey&&t.comparisonKey);
+  assert.equal(t.sections.length,5);
+  assert.ok(t.slug.endsWith('-2026-n4'));
+ }
+ const full=[...historical,...fourthEditorialTopicWave];
+ for(let i=0;i<historical.length;i++)assert.equal(full[i],historical[i],'historical position modified');
+ const oldWindow=queueScanWindow(full.length,0);
+ const bridge=queueExpansionBridgeWindow(full.length,historical.length,oldWindow);
+ assert.deepEqual(bridge,Array.from({length:8},(_,i)=>historical.length+i));
+ assert.equal(fourthEditorialTopicWave[0].country,'SA');
+ assert.equal(fourthEditorialTopicWave[1].country,'AE');
+});
