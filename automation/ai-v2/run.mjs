@@ -120,7 +120,7 @@ async function run(){
     const articleId=assertTopic(topic,config),saved=await readCheckpoint(config,articleId);
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
-    if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly,autoSafeSaudiRecovery:!oneOffCanary,autoSafeSaudiFilesystemRecovery:!oneOffCanary,autoSafeEnglishRecovery:!oneOffCanary,topic}))continue;
+    if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly,autoSafeSaudiRecovery:!oneOffCanary,autoSafeSaudiFilesystemRecovery:!oneOffCanary,autoSafeEnglishRecovery:!oneOffCanary,autoReadOnlyReconcile:!oneOffCanary,topic}))continue;
     selected={topic,articleId,saved};break;
   }
   if(!oneOffCanary&&lastChecked!==null){
@@ -166,6 +166,12 @@ async function run(){
         state=await saveCheckpoint(config,checkpointState(state,'UNKNOWN_PUBLICATION_OUTCOME',{
           errorCategory:'PUBLISH_PUBLIC_URL_NOT_VERIFIED',reviewRequired:true,
           lastPublicVerificationAt:now(),candidateLiveUrl:url
+        }));
+      }else{
+        // The delayed URL check was definitive: no second automatic attempt.
+        state=await saveCheckpoint(config,checkpointState(state,'UNKNOWN_PUBLICATION_OUTCOME',{
+          publicationReconciliationAttemptedAt:now(),lastPublicVerificationAt:now(),
+          reviewRequired:true,candidateLiveUrl:url
         }));
       }
       report('BLOCKED','PUBLISH_OUTCOME_QUARANTINED_FOR_REVIEW',{articleId,formerState:state.state,livePublished:false});

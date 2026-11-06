@@ -75,13 +75,17 @@ export function publicationReadyTopic(topic,markets=READY_NATIVE_RENDERERS){
  return Boolean(topic&&markets.includes(topic.country)&&Array.isArray(topic.sections)&&topic.sections.length===5&&
   typeof topic.slug==='string'&&/^[a-z0-9-]{16,120}$/.test(topic.slug));
 }
-export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume=false,manualIncompleteRetry=false,nativeGateRepair=false,autoSafeSaudiRecovery=false,autoSafeSaudiFilesystemRecovery=false,autoSafeEnglishRecovery=false,topic=null}={}){
+export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume=false,manualIncompleteRetry=false,nativeGateRepair=false,autoSafeSaudiRecovery=false,autoSafeSaudiFilesystemRecovery=false,autoSafeEnglishRecovery=false,autoReadOnlyReconcile=false,nowMs=Date.now(),topic=null}={}){
  const state=checkpoint?.state;
  if(!checkpoint)return true;
- // An uncertain publish has already crossed the irreversible HTTP boundary.
- // Quarantine it for independent reconciliation: never auto-publish it again
- // and never let it monopolize the global queue cursor.
- if(['LIVE_VERIFIED','QUALITY_PASSED','COMMITTED','FAILED_FINAL','UNKNOWN_PUBLICATION_OUTCOME'].includes(state))return false;
+ // The POST outcome may be uncertain. At most one delayed public-URL
+ // reconciliation is authorized; never retry the POST or regenerate AI text.
+ if(state==='UNKNOWN_PUBLICATION_OUTCOME'){
+  const last=Date.parse(String(checkpoint.lastPublicVerificationAt||checkpoint.updatedAt||''));
+  return autoReadOnlyReconcile===true&&!checkpoint.publicationReconciliationAttemptedAt&&
+   Number.isFinite(last)&&Number.isFinite(nowMs)&&nowMs-last>=15*60000;
+ }
+ if(['LIVE_VERIFIED','QUALITY_PASSED','COMMITTED','FAILED_FINAL'].includes(state))return false;
  // Resume only a definitive HTTP 429 with another healthy free key/provider.
  // Ambiguous responses remain quarantined; never risk duplicate charges.
  if(state==='PAUSED_QUOTA'||state==='PAUSED_PROVIDER')return manualGroqResume||(

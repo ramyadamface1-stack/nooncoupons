@@ -29,6 +29,18 @@ test('one verified live article cannot repeat and stored ambiguity is inspected,
  assert.equal(resumableCheckpoint({state:'BLOCKED_REVIEW',errorCategory:'WORD_WINDOW',sections:Array(5).fill({}),sectionIndex:5},{savedOnly:true}),true);
  assert.equal(resumableCheckpoint({state:'BLOCKED_REVIEW',errorCategory:'unsafe_section'}),false);
 });
+test('unknown publication only permits one delayed URL-only reconciliation, never provider retry',()=>{
+ const at=Date.parse('2026-11-06T14:00:00Z');
+ const x={state:'UNKNOWN_PUBLICATION_OUTCOME',articleId:'d'.repeat(24),
+  updatedAt:new Date(at).toISOString(),sectionIndex:5,sections:Array(5).fill({})};
+ assert.equal(resumableCheckpoint(x),false);
+ assert.equal(resumableCheckpoint(x,{autoReadOnlyReconcile:true,nowMs:at+14*60000}),false);
+ assert.equal(resumableCheckpoint(x,{autoReadOnlyReconcile:true,nowMs:at+15*60000}),true);
+ assert.equal(resumableCheckpoint({...x,publicationReconciliationAttemptedAt:new Date(at+15*60000).toISOString()},{autoReadOnlyReconcile:true,nowMs:at+24*3600000}),false);
+ assert.equal(resumableCheckpoint({...x,state:'UNKNOWN_REQUEST_OUTCOME'},{autoReadOnlyReconcile:true,nowMs:at+24*3600000}),false);
+ assert.equal(resumableCheckpoint({...x,updatedAt:'invalid-date'},{autoReadOnlyReconcile:true,nowMs:at+24*3600000}),false);
+});
+
 test('queue inventory explicitly distinguishes unready Arabic market',()=>{
  const info=queueInventory(topics);
  assert.equal(info.total,topics.length);
