@@ -46,6 +46,24 @@ export async function dispatchDue({config:cfg=config,scheduledTime,actualTime=Da
     // Keep the historical in-progress guard for disabled diagnostic preflights.
     const activeMarketRunners=cfg.enabled===true&&cfg.publicationMode==='live_verified'&&
       cfg.safety?.noAutomaticPublishUntilLiveBridgeVerified===false;
+    // Each GitHub concurrency group permits one running and only one pending
+    // job. Frequent dispatches can replace pending SA/AE jobs even when
+    // cancel-in-progress=false. Cron stays every minute, but dispatches only
+    // when the prior production workflow has finished.
+    if(activeMarketRunners){
+      const response=await fetchFn(ROOT+'/runs?branch=main&event=workflow_dispatch&per_page=12',{headers:requestHeaders});
+      if(!response.ok){
+        dispatchHttpStatus=response.status;reason=githubHttpStatus(response.status);
+        return {dispatched:false,reason,dispatchHttpStatus};
+      }
+      const data=await response.json();
+      if(!Array.isArray(data?.workflow_runs)){
+        reason='GITHUB_API_INVALID_RESPONSE';return {dispatched:false,reason};
+      }
+      if(data.workflow_runs.some(run=>['queued','pending','in_progress','waiting','requested'].includes(run?.status))){
+        reason='PUBLISHER_BUSY_SKIP_DISPATCH';return {dispatched:false,reason};
+      }
+    }
     if(!activeMarketRunners)for(const status of ['in_progress','queued']){
       const response=await fetchFn(ROOT+'/runs?branch=main&event=workflow_dispatch&status='+status+'&per_page=1',{headers:requestHeaders});
       if(!response.ok){

@@ -14,6 +14,14 @@ test('truncated completion preserves only valid fully received sections, never f
  const p=parseArticleBatch(Array.from({length:3},(_,i)=>section(i)).join('\n'));
  assert.equal(p.ok,true);assert.equal(p.sections.length,3);assert.equal(p.reason,'BATCH_PARTIAL');
 });
+test('a truncated final batch section reuses the complete paid prefix',()=>{
+ const p=parseArticleBatch(section(0)+section(1)+'<h2>Power</h2><p>truncated tail</p>');
+ assert.equal(p.ok,true);
+ assert.equal(p.reason,'BATCH_PARTIAL');
+ assert.equal(p.sections.length,2);
+ assert.ok(p.sections[0].includes('USB ports'));
+ assert.ok(p.sections[1].includes('Monitor output'));
+});
 test('unsafe, thin, prefaced and too-many-section responses are blocked',()=>{
  assert.equal(parseArticleBatch('<h2>Too short</h2><p>No</p>').ok,false);
  assert.equal(parseArticleBatch(section(0)+'<script>bad()</script>').ok,false);
@@ -27,4 +35,6 @@ test('batch prompt expressly forbids unverifiable fixed discount and guarantee c
  assert.match(prompt,/Do NOT write any numerical percentage savings/);
  assert.match(prompt,/guaranteed coupon/);
  assert.match(prompt,/real checkout totals/);
+ assert.match(prompt,/The ONLY coupon code allowed/);
+ assert.ok(prompt.includes(topic.coupon));
 });

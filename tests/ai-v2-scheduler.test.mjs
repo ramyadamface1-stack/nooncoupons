@@ -115,9 +115,10 @@ test('scheduler only activates when the explicit Cloudflare secret is present; o
    return url.endsWith('/dispatches')?new Response(null,{status:204}):new Response(JSON.stringify({total_count:0}),{status:200});
   }});
  assert.equal(out.dispatched,true);
- assert.equal(JSON.parse(requests[0].body).inputs.preflight_only,'false');
- assert.equal(requests.length,1);
- assert.ok(requests[0].url.endsWith('/dispatches'));
+ assert.equal(JSON.parse(requests[1].body).inputs.preflight_only,'false');
+ assert.equal(requests.length,2);
+ assert.ok(requests[0].url.includes('event=workflow_dispatch&per_page=12'));
+ assert.ok(requests[1].url.endsWith('/dispatches'));
 });
 
 test('a push-time safety run cannot block one-minute dispatch or share publisher concurrency',async()=>{
@@ -130,28 +131,44 @@ test('a push-time safety run cannot block one-minute dispatch or share publisher
    if(url.endsWith('/dispatches'))return new Response(null,{status:204});
    // A current push safety run is not a workflow_dispatch event and must
    // not appear in a provider response filtered by event=workflow_dispatch.
-   if(url.includes('event=workflow_dispatch&status='))return new Response(JSON.stringify({total_count:0,workflow_runs:[]}),{status:200});
-   throw Error('RUN_STATUS_QUERY_MISSING_DISPATCH_EVENT_FILTER');
+   if(url.includes('event=workflow_dispatch&per_page=12'))return new Response(JSON.stringify({workflow_runs:[]}),{status:200});
+   throw Error('RUN_QUERY_MISSING_DISPATCH_EVENT_FILTER');
   }
  });
  assert.equal(result.reason,'DISPATCH_ACCEPTED');
  assert.equal(result.dispatched,true);
- assert.equal(observed.length,1);
- assert.ok(observed[0].endsWith('/dispatches'));
+ assert.equal(observed.length,2);
+ assert.ok(observed[0].includes('event=workflow_dispatch&per_page=12'));
+ assert.ok(observed[1].endsWith('/dispatches'));
 
 });
 
-test('production minute does not skip while prior SA/AE jobs are still finishing',async()=>{
+test('live minute skips dispatch while an earlier SA/AE workflow is active',async()=>{
  const live=effectiveRuntimeConfig(config,{AI_V2_RUNTIME_ENABLED:'true'});
  let calls=[],scheduled=start+60000;
  const out=await dispatchDue({config:live,scheduledTime:scheduled,actualTime:scheduled+1000,
   token:'fake',logger:()=>{},fetchFn:async(url,init)=>{
    calls.push({url,method:init.method||'GET'});
-   if(!url.endsWith('/dispatches'))throw Error('RUN_GATING_WOULD_DROP_THIS_MINUTE');
-   return new Response(null,{status:204});
+   if(url.endsWith('/dispatches'))throw Error('BUSY_RUN_MUST_NOT_DISPATCH');
+   return new Response(JSON.stringify({workflow_runs:[{status:'in_progress',event:'workflow_dispatch'}]}),{status:200});
   }});
- assert.equal(out.dispatched,true);
- assert.deepEqual(calls.map(x=>x.method),['POST']);
+ assert.equal(out.dispatched,false);
+ assert.equal(out.reason,'PUBLISHER_BUSY_SKIP_DISPATCH');
+ assert.deepEqual(calls.map(x=>x.method),['GET']);
+});
+test('live scheduler does not enqueue behind a previous pending workflow',async()=>{
+ const live=effectiveRuntimeConfig(config,{AI_V2_RUNTIME_ENABLED:'true'});
+ const out=await dispatchDue({config:live,scheduledTime:start,actualTime:start,token:'fake',logger:()=>{},
+  fetchFn:async()=>new Response(JSON.stringify({workflow_runs:[{status:'queued'}]}),{status:200})});
+ assert.equal(out.reason,'PUBLISHER_BUSY_SKIP_DISPATCH');
+ assert.equal(out.dispatched,false);
+});
+test('unavailable GitHub run-status API fails closed without AI requests',async()=>{
+ const live=effectiveRuntimeConfig(config,{AI_V2_RUNTIME_ENABLED:'true'});
+ const out=await dispatchDue({config:live,scheduledTime:start,actualTime:start,token:'fake',logger:()=>{},
+  fetchFn:async()=>new Response('{}',{status:503})});
+ assert.equal(out.dispatched,false);
+ assert.equal(out.dispatchHttpStatus,503);
 });
 
 test('scheduler suppresses wasting GitHub Actions time when Cloudflare responds 1027',async()=>{
