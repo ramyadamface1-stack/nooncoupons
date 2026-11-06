@@ -133,6 +133,43 @@ test('REST checkpoint transport does not spend AI quota and verifies persisted b
  await assert.rejects(readCheckpointRest(config,id,{...opts,fetchFn:async()=>new Response('forbidden',{status:403})}),/R2_HTTP_GET_403/);
 });
 
+
+test('Cloudflare 502 after a committed checkpoint is reconciled without repeating the PUT or calling AI',async()=>{
+ const id='b'.repeat(24),opts={token:'test-token-value-not-real',accountId:'a'.repeat(32)};
+ let persisted='',puts=0,gets=0;
+ const fetchFn=async (_url,init)=>{
+  if(init.method==='PUT'){
+   puts++;persisted=init.body;
+   return new Response('edge 502 after commit',{status:502});
+  }
+  gets++;
+  return new Response(persisted,{status:200});
+ };
+ const result=await saveCheckpointRest(config,{articleId:id,state:'REQUEST_SENT',version:7,sectionIndex:2},{...opts,fetchFn});
+ assert.equal(result.state,'REQUEST_SENT');
+ assert.equal(result.version,7);
+ assert.equal(puts,1);
+ assert.equal(gets,1);
+});
+
+test('Cloudflare 503 does not blindly retry a checkpoint that is absent or changed',async()=>{
+ const id='c'.repeat(24),opts={token:'test-token-value-not-real',accountId:'a'.repeat(32)};
+ for(const saved of [null,{articleId:id,state:'LIVE_VERIFIED',version:999}]){
+  let puts=0,gets=0;
+  const fetchFn=async (_url,init)=>{
+   if(init.method==='PUT'){puts++;return new Response('uncertain',{status:503})}
+   gets++;
+   return saved?new Response(JSON.stringify(saved),{status:200}):new Response('',{status:404});
+  };
+  await assert.rejects(
+   saveCheckpointRest(config,{articleId:id,state:'DRAFT_SAVED',version:3},{...opts,fetchFn}),
+   /R2_HTTP_PUT_503_UNVERIFIED/
+  );
+  assert.equal(puts,1);
+  assert.equal(gets,1);
+ }
+});
+
 test('100 articles/hour target needs isolated parallel market jobs, never unlocks unbounded concurrency',()=>{
  const c={...config,enabled:true};
  assert.equal(validateConfig(c),true);

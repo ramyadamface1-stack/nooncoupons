@@ -36,7 +36,19 @@ export async function saveCheckpointRest(config,state,options={}){
  const body=JSON.stringify({...state,updatedAt:new Date().toISOString()});
  if(Buffer.byteLength(body,'utf8')>MAX_BODY_BYTES)throw Error('R2_HTTP_CHECKPOINT_TOO_LARGE');
  const response=await request(c.url,{method:'PUT',headers:{...c.headers,'content-type':'application/json; charset=utf-8'},body,signal:AbortSignal.timeout(30000)});
- if(!response.ok)throw Error('R2_HTTP_PUT_'+response.status);
+ if(!response.ok){
+  // Cloudflare 5xx may arrive AFTER an R2 object was committed. Never retry
+  // the write blindly: a duplicate PUT may overwrite a newer checkpoint or
+  // resurrect a completed provider request. Perform exactly one read-only
+  // reconciliation. Only an exact byte-equivalent saved checkpoint succeeds.
+  if([500,502,503,504].includes(response.status)){
+   let recovered=null;
+   try{recovered=await readCheckpointRest(config,id,{...options,missingOk:true})}catch{}
+   if(recovered&&sha(JSON.stringify(recovered))===sha(body))return recovered;
+   throw Error('R2_HTTP_PUT_'+response.status+'_UNVERIFIED');
+  }
+  throw Error('R2_HTTP_PUT_'+response.status);
+ }
  const persisted=await readCheckpointRest(config,id,{...options,missingOk:false});
  if(sha(JSON.stringify(persisted))!==sha(body))throw Error('R2_HTTP_CHECKPOINT_READBACK_HASH_MISMATCH');
  return persisted;
