@@ -9,6 +9,9 @@ on:
       - 'automation/ai-v2/**'
       - 'ai-scheduler-v2/**'
       - 'tests/ai-v2-*.mjs'
+      - '.github/workflows/noondealsnow-ai-v2.yml'
+      - '.github/workflows/noondealsnow-ai-v2-activate-verified-scheduler.yml'
+      - '.github/workflows/deploy-noondealsnow-ai-scheduler-v2.yml'
       - 'wrangler.migration-staging.jsonc'
       - 'wrangler.new-account-production.jsonc'
       - '.github/workflows/deploy-restore-only-staging.yml'
@@ -162,7 +165,11 @@ jobs:
           }
 
           get_ok '/api/revision' /tmp/revision.json /tmp/revision.h
-          jq -e '.ok==true and .layer=="discovery-entry" and .sitemapHealth==true and .imageSitemap==true and .noIdleGenerationGuard==true and .titleCannibalizationGate==true' /tmp/revision.json >/dev/null
+          if ! jq -e '.ok==true and .layer=="discovery-entry" and .sitemapHealth==true and .imageSitemap==true and .noIdleGenerationGuard==true and .titleCannibalizationGate==true' /tmp/revision.json >/dev/null; then
+            echo 'REVISION_CONTRACT_MISMATCH'
+            jq -c '{ok,layer,sitemapHealth,imageSitemap,noIdleGenerationGuard,titleCannibalizationGate}' /tmp/revision.json || true
+            exit 1
+          fi
           grep -Fqi 'x-runtime-revision:' /tmp/revision.h
 
           get_ok '/sitemap-core.xml' /tmp/core.xml /tmp/core.h
