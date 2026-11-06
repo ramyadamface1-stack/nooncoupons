@@ -472,10 +472,10 @@ async function runScheduledBatch(){
   const liveDispatch=process.env.GITHUB_EVENT_NAME==='workflow_dispatch'&&
     process.env.GITHUB_WORKFLOW==='NoonDealsNow AI V2 - Safe Checkpoints and Preflight'&&
     process.env.AI_PREFLIGHT_ONLY==='false'&&['SA','AE'].includes(process.env.AI_QUEUE_MARKET);
-  // Two serial verified articles per market amortize runner startup; never
+  // Up to three serial verified articles per healthy market amortize runner startup; never
   // multiply preflight or canary calls. Every article keeps its own verified
   // R2 checkpoint, native quality audit and atomic global publication permit.
-  const maximum=liveDispatch?2:1,jobStarted=Date.now();
+  const maximum=liveDispatch?3:1,jobStarted=Date.now();
   let published=0;
   for(let i=0;i<maximum;i++){
     if(i>0&&Date.now()-jobStarted>150000)break;

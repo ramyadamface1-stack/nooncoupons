@@ -41,7 +41,7 @@ test('provider section persists an ambiguous-request boundary then one verified 
  assert.match(runtime,/AI_V2_PROVIDER_FAILOVER/);
  assert.match(runtime,/jobBatchOrdinal=i/);
  assert.match(runtime,/lastReportStatus!=='LIVE_VERIFIED'/);
- assert.match(runtime,/const maximum=liveDispatch\?2:1/);
+ assert.match(runtime,/const maximum=liveDispatch\?3:1/);
  assert.match(runtime,/Never write numerical savings percentages/);
  assert.match(runtime,/temporarilyFailedModelsThisRun\.add/);
  assert.match(runtime,/providerModelKeyCircuitId/);
