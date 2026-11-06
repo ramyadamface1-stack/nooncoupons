@@ -1,4 +1,5 @@
 import config from '../automation/ai-v2/config.json' with {type:'json'};
+// Live activation remains controlled by the existing Cloudflare runtime secret.
 export function decideTick(config,scheduledTime,actualTime){
   const ms=Number(scheduledTime),now=Number(actualTime);
   if(!Number.isFinite(ms)||ms<0||!Number.isFinite(now)||Math.abs(now-ms)>180000)return {due:false,reason:'CLOCK_SKEW'};
