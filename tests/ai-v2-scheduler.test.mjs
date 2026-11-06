@@ -112,7 +112,7 @@ test('scheduler only activates when the explicit Cloudflare secret is present; o
  const out=await dispatchDue({config:active,scheduledTime:start+19812,actualTime:start+20000,token:'fake',logger:()=>{},
   fetchFn:async(url,init)=>{
    requests.push({url,method:init.method||'GET',body:init.body});
-   return url.endsWith('/dispatches')?new Response(null,{status:204}):new Response(JSON.stringify({total_count:0}),{status:200});
+   return url.endsWith('/dispatches')?new Response(null,{status:204}):new Response(JSON.stringify({total_count:0,workflow_runs:[]}),{status:200});
   }});
  assert.equal(out.dispatched,true);
  assert.equal(JSON.parse(requests[1].body).inputs.preflight_only,'false');
