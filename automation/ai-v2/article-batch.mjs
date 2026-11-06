@@ -14,6 +14,7 @@ export function batchArticlePrompt(topic){
   'The ONLY coupon code allowed in the article is '+topic.coupon+'. Do not mention other offer codes, invented alphanumeric promo tokens or unverifiable model numbers.',
   'CRITICAL: Do NOT write any numerical percentage savings, fixed discount, guaranteed coupon, or a claim that this code will save a specific amount. The native trust audit rejects such claims, even when qualified as examples. Describe only how to compare the real checkout totals.',
   'Never claim a product has a particular specification without asking the reader to verify the exact listing. Avoid promotional filler and duplication.',
+  'Each heading must address a DIFFERENT concrete buyer decision from its heading, with unique checks and actionable steps rather than a reusable generic coupon or seller paragraph. Avoid repeating the same wording across headings. Explain how to verify model numbers, dimensions or safety information only where relevant, without inventing the values.',
   'No links, scripts, event attributes, style, code fences or extra titles. End cleanly after fifth section.'
  ].join('\n');
 }

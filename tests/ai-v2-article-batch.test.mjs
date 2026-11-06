@@ -36,5 +36,7 @@ test('batch prompt expressly forbids unverifiable fixed discount and guarantee c
  assert.match(prompt,/guaranteed coupon/);
  assert.match(prompt,/real checkout totals/);
  assert.match(prompt,/The ONLY coupon code allowed/);
+ assert.match(prompt,/DIFFERENT concrete buyer decision/);
+ assert.match(prompt,/without inventing the values/);
  assert.ok(prompt.includes(topic.coupon));
 });
