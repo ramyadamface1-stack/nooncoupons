@@ -65,12 +65,13 @@ test('one dispatch runs two disjoint market queues with separate private checkpo
  assert.match(runtime,/INVALID_QUEUE_MARKET/);
 });
 
-test('production market jobs are serialized independently, not the entire workflow',()=>{
+test('markets execute sequentially within one dispatch while the global slot stays atomic',()=>{
  const y=readFileSync('.github/workflows/noondealsnow-ai-v2.yml','utf8');
  assert.doesNotMatch(y,/^concurrency:/m,'workflow-wide lock would suppress the next UTC minute');
  const publisher=y.split('  preflight-or-generate:')[1];
  assert.match(publisher,/group: noondealsnow-ai-v2-publisher-\$\{\{ matrix\.market \}\}/);
  assert.match(publisher,/cancel-in-progress: false/);
+ assert.match(publisher,/max-parallel:\s*1/);
  const schedule=readFileSync('ai-scheduler-v2/worker.mjs','utf8');
  assert.match(schedule,/if\(!activeMarketRunners\)for\(const status of/);
  assert.match(schedule,/cfg\.publicationMode==='live_verified'/);

@@ -138,6 +138,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # One global Durable Object admits an article every 30s across BOTH
+      # markets. Stagger market jobs to avoid costly quality/slot 409 races.
+      max-parallel: 1
       matrix:
         market: [SA, AE]
     name: preflight-or-generate (${{ matrix.market }})
