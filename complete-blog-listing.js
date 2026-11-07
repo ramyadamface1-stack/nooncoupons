@@ -22,7 +22,7 @@ export function fullBlogRowFromObject(o,market=null){
  if(!safeSlugKey(key))return null;
  const md=o.customMetadata||{};
  if(md.status&&md.status!=='published')return null;
- if(String(md.indexable||'').toLowerCase()==='false')return null;
+ // Published noindex articles are still browseable: listing visibility is not SEO indexing.
  const country=fullBlogMarketOf(o);
  if(market&&country!==market)return null;
  const slug=key.slice(9,-5),english=String(md.lang||md.language||'').toLowerCase().startsWith('en')||slug.startsWith('en-');
