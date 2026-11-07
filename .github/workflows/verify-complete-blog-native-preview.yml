@@ -126,6 +126,8 @@ jobs:
             code,body,headers=result
             assert code==200, (path,code,body[:180])
             cards=body.count('class="article-card"')
+            note=re.search(r'المعروض الآن:[^<]+',body)
+            print('PREVIEW_PAGE_SCAN='+json.dumps({'path':path,'cards':cards,'scanNote':note.group(0) if note else 'missing','hasNext':'المقالات التالية' in body},ensure_ascii=False))
             assert cards==15, (path,'WRONG_PAGE_SIZE',cards)
             assert '133746' in body or '١٣٣٬٧٤٦' in body, 'SNAPSHOT_COUNTER_MISSING'
             normalizedHeaders={k.lower():v for k,v in headers.items()}
