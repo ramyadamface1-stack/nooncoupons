@@ -1,0 +1,41 @@
+name: AI V2 Admin Control and Throughput Safety Tests
+on:
+  pull_request:
+    paths:
+      - 'automation/ai-v2/**'
+      - 'ai-scheduler-v2/**'
+      - 'admin-*.js'
+      - 'auto-platform.js'
+      - 'tests/ai-v2-*.test.mjs'
+      - '.github/workflows/ai-v2-control-pr-tests.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit-tests-no-secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax checks without provider calls
+        run: |
+          node --check admin-runtime.js
+          node --check admin-page.js
+          node --check auto-platform.js
+          node --check ai-scheduler-v2/worker.mjs
+          node --check automation/ai-v2/topic-queue.mjs
+          node --check automation/ai-v2/run.mjs
+          node --check automation/ai-v2/gemini-key-pool.mjs
+          node --check automation/ai-v2/groq-key-pool.mjs
+      - name: Credential-free throughput and control tests
+        run: |
+          node --test \
+            tests/ai-v2-gemini-key-pool.test.mjs \
+            tests/ai-v2-groq-key-pool.test.mjs \
+            tests/ai-v2-topic-queue.test.mjs \
+            tests/ai-v2-control-policy.test.mjs \
+            tests/ai-v2-scheduler.test.mjs \
+            tests/ai-v2-workflow-wiring.test.mjs
