@@ -22,7 +22,7 @@ function candidates(env={}){
  const recent=parseGroqKeys(env.GROQ_API_KEYS),legacy=parseGroqKeys(env.GROQ_API_KEY);
  const extra=parseGroqKeys(env.GROQ_API_KEYS_EXTRA);
  const out=[],seen=new Set();
- for(const [keys,source] of [[recent,recent.length?'GROQ_API_KEYS':'GROQ_API_KEY'],[extra,'GROQ_API_KEYS_EXTRA'],[legacy,'GROQ_API_KEY']]){
+ for(const [keys,source] of [[recent,recent.length?'GROQ_API_KEYS':'GROQ_API_KEY'],[legacy,'GROQ_API_KEY'],[extra,'GROQ_API_KEYS_EXTRA']]){
    for(const key of keys)if(!seen.has(key)){seen.add(key);out.push({key,source})}
  }
  return {recent,legacy,extra,out};
