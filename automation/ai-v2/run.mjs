@@ -8,7 +8,7 @@ import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,queueExpansionBridgeWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,queueExpansionBridgeWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
@@ -90,13 +90,13 @@ async function run(){
   // They cannot select the same topic; legacy cursor and checkpoint identities
   // are unchanged, so old completed/uncertain drafts remain protected.
   const cursorId=hash(queueMarket?'noondealsnow|ai-v2|market-queue-v1|'+queueMarket:'noondealsnow|ai-v2|round-robin-cursor-v1').slice(0,24);
-  // Keep historical one-off recovery semantics untouched. Production reads a
-  // maximum of 24 article checkpoints per invocation, not the whole queue.
+  // Keep historical one-off recovery semantics untouched. A normal market job
+  // reads at most 24 own-market checkpoints, not 12 mixed-market checkpoints.
   const oldCursor=oneOffCanary?null:await readCheckpoint(config,cursorId);
   const firstPosition=queueMarket&&oldCursor?.cursor==null?baseTopics.length+(queueMarket==='AE'?1:0):oldCursor?.cursor;
-  const firstWindow=oneOffCanary?topics.map((_,i)=>i):queueScanWindow(topics.length,firstPosition);
+  const firstWindow=oneOffCanary?topics.map((_,i)=>i):(queueMarket?marketQueueScanWindow(topics,queueMarket,firstPosition):queueScanWindow(topics.length,firstPosition));
   const positions=[...firstWindow,...(oneOffCanary?[]:queueExpansionBridgeWindow(topics.length,existingTopicCount,firstWindow))];
-  let checked=0,lastChecked=null;
+  let checked=0,lastChecked=null,checkpointStates={};
   // If all free sources are cooling down, do not pin the global queue to an
   // unfinished article. Its immutable R2 checkpoint survives; later cycles
   // can find it again, while another ready draft may publish without AI.
@@ -118,6 +118,8 @@ async function run(){
     if(oneOffCanary&&process.env.AI_CANARY_SLUG&&topic.slug!==process.env.AI_CANARY_SLUG)continue;
     checked++;
     const articleId=assertTopic(topic,config),saved=await readCheckpoint(config,articleId);
+    const checkpointStatus=String(saved?.state||'UNSTARTED');
+    checkpointStates[checkpointStatus]=(checkpointStates[checkpointStatus]||0)+1;
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
     if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly,autoSafeSaudiRecovery:!oneOffCanary,autoSafeSaudiFilesystemRecovery:!oneOffCanary,autoSafeEnglishRecovery:!oneOffCanary,autoReadOnlyReconcile:!oneOffCanary,topic}))continue;
@@ -132,7 +134,7 @@ async function run(){
   }
   if(!selected){
     report('SKIPPED',oneOffCanary?'NO_ELIGIBLE_TOPIC':'QUEUE_WINDOW_EMPTY',
-      {queue:queueInventory(topics),checked,scanLimit:positions.length,nextCursor:oneOffCanary?null:nextQueueCursor(topics.length,lastChecked)});
+      {queue:queueInventory(topics),checked,scanLimit:positions.length,checkpointStates,nextCursor:oneOffCanary?null:nextQueueCursor(topics.length,lastChecked)});
     return;
   }
   const {topic,articleId}=selected;
