@@ -3,7 +3,7 @@
 // R2 uses lexicographic key order; the newest-publication feed remains a separate
 // small, clearly labelled shortcut. A startAfter key prevents skipped records
 // when filtering or stopping midway through a listed R2 page.
-const SIZE=15,MAX_LIST_CALLS=6,MARKET_BATCH=80;
+const SIZE=15,MAX_LIST_CALLS=16,MARKET_BATCH=256;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>Number(n||0).toLocaleString('ar-EG');
 const safeResumeKey=k=>typeof k==='string'&&k.startsWith('articles/')&&k.length<=600&&
@@ -40,7 +40,7 @@ export async function listFullBlogPublished(env,{market=null,after='',pageSize=S
  if(!env?.CONTENT_FINAL?.list)throw Error('FULL_BLOG_R2_LIST_UNAVAILABLE');
  if(market!==null&&!['SA','AE'].includes(market))throw Error('FULL_BLOG_INVALID_MARKET');
  if(after&&!safeResumeKey(after))throw Error('FULL_BLOG_INVALID_CURSOR');
- if(!Number.isInteger(pageSize)||pageSize<1||pageSize>15||!Number.isInteger(maxCalls)||maxCalls<1||maxCalls>6)
+ if(!Number.isInteger(pageSize)||pageSize<1||pageSize>15||!Number.isInteger(maxCalls)||maxCalls<1||maxCalls>16)
    throw Error('FULL_BLOG_INVALID_LIMIT');
  const rows=[],seen=new Set();
  let pointer=after,more=false,calls=0,scanned=0,lastScanned=after,complete=false;
