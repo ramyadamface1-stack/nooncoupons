@@ -15,14 +15,14 @@ export function parseGeminiKeys(input){
   }
   return result;
 }
-// Extend current pools without replacing existing GitHub secrets.
+// Every distinct configured Gemini key participates. New/bulk keys take priority; legacy keys remain a final additive fallback (never logged).
 function candidates(env={}){
   const newer=parseGeminiKeys(env.GEMINI_API_KEYS),old=parseGeminiKeys(env.GEMINI_API_KEY);
   const extra=parseGeminiKeys(env.GEMINI_API_KEYS_EXTRA);
   const auth=newer.filter(k=>k.startsWith('AQ.'));
   const baseSource=newer.length&&auth.length===newer.length?'GEMINI_API_KEYS_AUTH':newer.length?'GEMINI_API_KEYS':'GEMINI_API_KEY';
   const out=[],seen=new Set();
-  for(const [keys,source] of [[newer.length?newer:old,baseSource],[extra,'GEMINI_API_KEYS_EXTRA']]){
+  for(const [keys,source] of [[newer,baseSource],[extra,'GEMINI_API_KEYS_EXTRA'],[old,'GEMINI_API_KEY']]){
     for(const key of keys)if(!seen.has(key)){seen.add(key);out.push({key,source})}
   }
   return {newer,old,extra,auth,out};
