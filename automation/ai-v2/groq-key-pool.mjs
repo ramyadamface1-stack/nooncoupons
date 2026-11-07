@@ -17,12 +17,12 @@ export function parseGroqKeys(value){
  }
  return keys;
 }
-// Extra pool is additive; original single/bulk secrets remain unchanged.
+// The single, bulk and extra secrets are all additive; do not silently drop a legacy pool.
 function candidates(env={}){
  const recent=parseGroqKeys(env.GROQ_API_KEYS),legacy=parseGroqKeys(env.GROQ_API_KEY);
  const extra=parseGroqKeys(env.GROQ_API_KEYS_EXTRA);
  const out=[],seen=new Set();
- for(const [keys,source] of [[recent.length?recent:legacy,recent.length?'GROQ_API_KEYS':'GROQ_API_KEY'],[extra,'GROQ_API_KEYS_EXTRA']]){
+ for(const [keys,source] of [[recent,recent.length?'GROQ_API_KEYS':'GROQ_API_KEY'],[extra,'GROQ_API_KEYS_EXTRA'],[legacy,'GROQ_API_KEY']]){
    for(const key of keys)if(!seen.has(key)){seen.add(key);out.push({key,source})}
  }
  return {recent,legacy,extra,out};
