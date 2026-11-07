@@ -81,18 +81,22 @@ test('country pages scan bounded windows and preserve all Saudi and UAE articles
   assert.ok(collected.every(u=>u.includes(country)));
   assert.equal(new Set(collected).size,collected.length);
  }
- assert.ok(env.calls.every(x=>x.limit<=80));
+ assert.ok(env.calls.every(x=>x.limit<=256));
 });
-test('if 6 bounded market scans cannot fill a page, a cursor still allows forward progress',async()=>{
- const entries=Array.from({length:800},(_,i)=>({key:key(i,i<700?'SA':'AE')}));
+test('bounded country scan never drops 4000 consecutive out-of-market objects',async()=>{
+ const entries=Array.from({length:5100},(_,i)=>({
+   key:'articles/'+String(i).padStart(5,'0')+'-'+(i<4600?'saudi':'uae')+'-article.html',
+   customMetadata:{status:'published'}
+ }));
  const env=mockEnv(entries);
  const result=await listFullBlogPublished(env,{market:'AE'});
- assert.equal(result.calls,6);
+ assert.equal(result.calls,16);
  assert.equal(result.rows.length,0);
  assert.equal(result.more,true);
- assert.equal(result.nextAfter,key(479,'SA'));
+ assert.equal(result.nextAfter,'articles/04095-saudi-article.html');
  const second=await listFullBlogPublished(env,{market:'AE',after:result.nextAfter});
  assert.equal(second.rows.length,15);
+ assert.ok(second.rows.every(r=>r.country==='AE'));
 });
 test('invalid cursor and broken listing fail safely without claiming no articles',async()=>{
  const env=mockEnv(rows(12));
