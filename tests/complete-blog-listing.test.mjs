@@ -149,3 +149,32 @@ test('published noindex page remains visible while unpublished drafts stay priva
  assert.match(html,/000-noindex-saudi/);
  assert.ok(!html.includes('001-draft-saudi'));
 });
+
+test('R2 directory survives non-HTML keys between published article files',async()=>{
+ const mixed=[...Array.from({length:97},(_,i)=>({key:'articles/'+String(i).padStart(3,'0')+'.json'})),
+   ...Array.from({length:18},(_,i)=>({key:'articles/'+String(i+200).padStart(3,'0')+'-saudi-article.html',customMetadata:{status:'published'}}))];
+ const env=mockEnv(mixed);
+ let url='/blog',found=[],emptyPages=0,tries=0;
+ while(url&&tries++<7){
+   const res=await go(env,url);
+   assert.equal(res.status,200);
+   const html=await res.text(),items=urls(html);
+   if(!items.length)emptyPages++;
+   found.push(...items);url=more(html);
+ }
+ assert.ok(emptyPages>=1);
+ assert.equal(found.length,18);
+ assert.equal(new Set(found).size,18);
+ assert.equal(url,null);
+});
+test('unpublished and case-variant published R2 metadata are handled consistently',async()=>{
+ const env=mockEnv([
+  {key:'articles/001-saudi-a.html',customMetadata:{status:'PUBLISHED'}},
+  {key:'articles/002-saudi-b.html',customMetadata:{status:'scheduled'}},
+  {key:'articles/003-saudi-c.html',customMetadata:{status:'draft'}}
+ ]);
+ const html=await (await go(env)).text();
+ assert.equal(urls(html).length,1);
+ assert.match(html,/001-saudi-a/);
+ assert.ok(!html.includes('002-saudi-b')&&!html.includes('003-saudi-c'));
+});
