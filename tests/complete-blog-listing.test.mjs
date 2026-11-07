@@ -138,3 +138,14 @@ test('actual emergency rescue route uses complete blog when R2 LIST exists',asyn
  assert.equal(old.status,200);
  assert.equal(old.headers.get('x-full-blog-r2'),null,'numeric legacy URLs keep their historical behavior');
 });
+
+test('published noindex page remains visible while unpublished drafts stay private',async()=>{
+ const e=mockEnv([
+   {key:'articles/000-noindex-saudi.html',customMetadata:{status:'published',indexable:'false'}},
+   {key:'articles/001-draft-saudi.html',customMetadata:{status:'draft'}}
+ ]);
+ const html=await (await go(e)).text();
+ assert.equal(urls(html).length,1);
+ assert.match(html,/000-noindex-saudi/);
+ assert.ok(!html.includes('001-draft-saudi'));
+});
