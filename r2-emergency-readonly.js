@@ -1,3 +1,4 @@
+import {completeBlogResponse} from './complete-blog-listing.js';
 import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
 // Temporary, READ-ONLY fallback for public pages when the old account's R2 is NotEntitled (10042).
 // Source of article bytes: existing mirrored R2 in destination Cloudflare account.
@@ -537,7 +538,15 @@ export async function emergencyPublicR2Response(req,env){
     if(isSitemap)return await rescueSitemapResponse(p,env);
     if(p.startsWith('/articles/'))return await serveArticle(env,u,false);
     if(p.startsWith('/en/articles/'))return await serveArticle(env,u,true);
-    if(p==='/blog'||p==='/blog/saudi'||p==='/blog/uae')return await serveBlog(env,u);
+    if(p==='/blog'||p==='/blog/saudi'||p==='/blog/uae'){
+      // Old ?page=N and intent filters preserve existing URLs. All default blog
+      // pages and ?after= keys use complete R2 listing, never the 4k recent cap.
+      if(req.method==='GET'&&(!u.searchParams.has('page')||u.searchParams.has('after'))&&!u.searchParams.has('topic')){
+        const complete=await completeBlogResponse(env,u);
+        if(complete)return complete;
+      }
+      return await serveBlog(env,u);
+    }
     if(p==='/blog/archive'||p==='/blog/archive/full')return await serveDays(env);
     if(p==='/blog/archive/all')return await serveAll(env,u);
     if(/^\/blog\/archive\/catalog(?:\/[1-9]\d{0,4})?$/.test(p))return await serveCatalog(env,u);

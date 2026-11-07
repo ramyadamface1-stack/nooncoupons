@@ -117,3 +117,23 @@ test('If-Match and date conditions are signed in the same atomic PUT as the cont
     );
   }finally{globalThis.fetch=original}
 });
+
+test('R2 start-after uses a signed allowlisted key and never skips the resume anchor',async()=>{
+ const original=globalThis.fetch,query=[];
+ globalThis.fetch=async (url,options)=>{
+   const u=new URL(url);query.push(u.searchParams);
+   assert.equal(options.method,'GET');
+   assert.match(options.headers.get('authorization'),/AWS4-HMAC-SHA256/);
+   return new Response('<?xml version="1.0"?><ListBucketResult><Contents><Key>articles%2Fnext.html</Key><Size>4</Size></Contents><IsTruncated>false</IsTruncated></ListBucketResult>',{status:200});
+ };
+ try{
+  const binding=existingDestinationR2Binding(f());
+  const result=await binding.list({prefix:'articles/',limit:16,startAfter:'articles/previous.html'});
+  assert.equal(result.objects[0].key,'articles/next.html');
+  assert.equal(query[0].get('start-after'),'articles/previous.html');
+  assert.equal(query[0].has('continuation-token'),false);
+  await assert.rejects(binding.list({prefix:'articles/',startAfter:'private/secret.json'}),/not_allowlisted/);
+  await assert.rejects(binding.list({prefix:'articles/',startAfter:'articles/a.html',cursor:'token'}),/conflict/);
+  assert.equal(query.length,1,'invalid token must fail before any HTTP call');
+ }finally{globalThis.fetch=original}
+});

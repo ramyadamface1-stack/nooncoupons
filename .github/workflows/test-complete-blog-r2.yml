@@ -1,0 +1,34 @@
+name: Complete Blog R2 Pagination — read-only regression
+on:
+  pull_request:
+    paths:
+      - 'complete-blog-listing.js'
+      - 'r2-emergency-readonly.js'
+      - 'premium-entry.js'
+      - 'r2-remote-existing-bucket.js'
+      - 'r2-public-cache-policy.js'
+      - 'tests/complete-blog-listing.test.mjs'
+      - 'tests/live-blog-merge.test.mjs'
+      - 'tests/remote-existing-r2-binding.test.mjs'
+      - '.github/workflows/test-complete-blog-r2.yml'
+permissions:
+  contents: read
+jobs:
+  safe-local-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax validation
+        run: |
+          node --check complete-blog-listing.js
+          node --check r2-emergency-readonly.js
+          node --check premium-entry.js
+          node --check r2-remote-existing-bucket.js
+          node --check r2-public-cache-policy.js
+      - name: Read-only blog regression tests (no Cloudflare, provider, or paid APIs)
+        run: |
+          node --test tests/complete-blog-listing.test.mjs tests/live-blog-merge.test.mjs tests/remote-existing-r2-binding.test.mjs tests/public-compact-feed.test.mjs
