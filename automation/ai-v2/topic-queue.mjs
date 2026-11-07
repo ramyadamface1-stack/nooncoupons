@@ -120,6 +120,21 @@ export function queueInventory(topics){
 /** Durable cursor scan with bounded R2 reads per invocation. The first new
  * cycle starts after the previous 20 legacy topics, but wraps around safely. */
 export const QUEUE_SCAN_LIMIT=24;
+// Use the same R2 read budget for *eligible market* topics instead of spending
+// half the window on the other market. Scanning local metadata costs no R2
+// requests; checkpoint reads remain capped at 24 per market invocation.
+export function marketQueueScanWindow(topics,market,cursor,limit=QUEUE_SCAN_LIMIT){
+ if(!Array.isArray(topics)||!['SA','AE'].includes(market))throw Error('INVALID_MARKET_QUEUE');
+ if(!Number.isInteger(limit)||limit<1||limit>QUEUE_SCAN_LIMIT)throw Error('INVALID_QUEUE_SCAN_LIMIT');
+ if(topics.length===0)return [];
+ const start=Number.isSafeInteger(cursor)&&cursor>=0?cursor%topics.length:Math.min(20,topics.length-1);
+ const positions=[];
+ for(let offset=0;offset<topics.length&&positions.length<limit;offset++){
+  const position=(start+offset)%topics.length;
+  if(topics[position]?.country===market)positions.push(position);
+ }
+ return positions;
+}
 // Bridge a stale legacy-only scan to the start of an appended editorial bank.
 // Keep every original index stable and let the persisted cursor resume on the
 // exact newly selected topic; never rescan the whole R2 corpus in one tick.
