@@ -110,3 +110,31 @@ test('no bucket/list uses legacy rescue, and empty real bucket has no next link'
  const res=await go(mockEnv([]));assert.equal(res.status,200);
  assert.equal(more(await res.text()),null);
 });
+
+test('unusual legacy punctuation remains reachable through HTML and next cursor safely',async()=>{
+ const env=mockEnv([
+  {key:"articles/000-abc'<tag>.html",customMetadata:{status:'published'}},
+  {key:"articles/001-abc&weird?#.html",customMetadata:{status:'published'}}
+ ]);
+ const html=await (await go(env)).text();
+ assert.equal(urls(html).length,2);
+ assert.match(html,/\/articles\/000-abc/);
+ assert.ok(!html.includes("<tag>.html"));
+ assert.ok(html.includes('%3Ctag%3E'),'HTML-sensitive filename must be encoded');
+ assert.ok(html.includes('%3F%23'),'query and fragment characters are encoded');
+});
+test('actual emergency rescue route uses complete blog when R2 LIST exists',async()=>{
+ const {emergencyPublicR2Response}=await import('../r2-emergency-readonly.js');
+ const e=mockEnv(rows(36));
+ const res=await emergencyPublicR2Response(new Request('https://noondealsnow.com/blog'),{
+  ...e,R2_RESCUE_READONLY_ENABLED:'true'
+ });
+ assert.equal(res.status,200);
+ assert.equal(res.headers.get('x-full-blog-r2'),'read-only-cursor-v1');
+ assert.equal(urls(await res.text()).length,15);
+ const old=await emergencyPublicR2Response(new Request('https://noondealsnow.com/blog?page=2'),{
+  ...e,R2_RESCUE_READONLY_ENABLED:'true'
+ });
+ assert.equal(old.status,200);
+ assert.equal(old.headers.get('x-full-blog-r2'),null,'numeric legacy URLs keep their historical behavior');
+});
