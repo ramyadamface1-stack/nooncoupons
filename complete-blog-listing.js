@@ -6,8 +6,8 @@
 const SIZE=15,MAX_LIST_CALLS=6,MARKET_BATCH=80;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>Number(n||0).toLocaleString('ar-EG');
-const safeSlugKey=k=>typeof k==='string'&&/^articles\\/[^/]{1,300}\\.html$/u.test(k)&&
-  !k.includes('..')&&!/[\\x00-\\x1f\\x7f]/.test(k);
+const safeSlugKey=k=>typeof k==='string'&&/^articles\/[^/]{1,300}\.html$/u.test(k)&&
+  !k.includes('..')&&!/[\x00-\x1f\x7f]/.test(k);
 const safeDate=x=>{try{const ms=Date.parse(String(x||''));return Number.isFinite(ms)?new Date(ms).toLocaleDateString('ar-EG',{timeZone:'Africa/Cairo'}):null}catch{return null}};
 export function fullBlogMarketOf(o){
  const md=o?.customMetadata||{},slug=String(o?.key||'').slice(9,-5);
