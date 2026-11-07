@@ -258,6 +258,16 @@ export async function bulkTick(env){
   }
 }
 
+// Non-secret publication scheduling policy. Gemini/Groq credentials must NEVER
+// be saved in this Durable Object or returned to the browser.
+export const AI_V2_INTERVALS=Object.freeze([1,5,10,15,30,60]);
+export async function getAiV2Control(env){
+ const response=await gctl(env,'/ai-v2-control',{method:'GET'});
+ if(!response.ok)throw Error('AI_V2_CONTROL_UNAVAILABLE');
+ const value=await response.json();
+ return {enabled:value.enabled===true,intervalMinutes:AI_V2_INTERVALS.includes(value.intervalMinutes)?value.intervalMinutes:1,updatedAt:value.updatedAt||null};
+}
+
 export class GeneratorControl{
   constructor(ctx,env){this.ctx=ctx;this.env=enableExistingDestinationR2(env)}
   async config(){
@@ -299,6 +309,20 @@ export class GeneratorControl{
         return shape({lastAtMs:stamp,market,source},true);
       });
       return json(result,result.ok?200:429);
+    }
+    if(p==='/ai-v2-control'&&req.method==='GET'){
+      return json((await this.ctx.storage.get('aiV2Control'))||{enabled:true,intervalMinutes:1,updatedAt:null});
+    }
+    if(p==='/ai-v2-control'&&req.method==='POST'){
+      const b=await req.json().catch(()=>({}));
+      if(('enabled' in b&&typeof b.enabled!=='boolean')||('intervalMinutes' in b&&!AI_V2_INTERVALS.includes(b.intervalMinutes)))
+        return json({ok:false,error:'invalid_ai_v2_control'},400);
+      const prior=(await this.ctx.storage.get('aiV2Control'))||{enabled:true,intervalMinutes:1};
+      const next={enabled:'enabled' in b?b.enabled:prior.enabled,
+        intervalMinutes:'intervalMinutes' in b?b.intervalMinutes:prior.intervalMinutes,
+        updatedAt:now()};
+      await this.ctx.storage.put('aiV2Control',next);
+      return json({ok:true,...next});
     }
     if(p==='/config'&&req.method==='GET')return json(await this.config());
     if(p==='/config'&&req.method==='POST'){
@@ -394,6 +418,20 @@ export async function isAdmin(req,env){
 export async function handleAdminApi(req,env){
   const u=new URL(req.url),p=u.pathname;
   if(!(await isAdmin(req,env)))return json({error:'unauthorized'},401);
+  if(p==='/api/admin/ai-v2-control'&&req.method==='GET'){
+    try{return json({ok:true,...await getAiV2Control(env)})}catch{return json({ok:false,error:'control_unavailable'},503)}
+  }
+  if(p==='/api/admin/ai-v2-control'&&req.method==='POST'){
+    // Session cookie is SameSite=Strict; reject cross-origin posts as defense in depth.
+    const origin=req.headers.get('origin');
+    if(origin&&origin!==u.origin)return json({ok:false,error:'invalid_origin'},403);
+    const b=await body(req);
+    if(('enabled' in b&&typeof b.enabled!=='boolean')||('intervalMinutes' in b&&!AI_V2_INTERVALS.includes(b.intervalMinutes))||
+      !('enabled' in b)&&!('intervalMinutes' in b))
+      return json({ok:false,error:'invalid_control_payload'},400);
+    try{return await gctl(env,'/ai-v2-control',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)})}
+    catch{return json({ok:false,error:'control_unavailable'},503)}
+  }
   if(p==='/api/admin/logout'&&req.method==='POST'){
     const raw=cookie(req,'nc_admin');if(raw)await gctl(env,'/session?hash='+await sha256(raw),{method:'DELETE'});
     return json({ok:true},200,{'set-cookie':'nc_admin=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict'});
