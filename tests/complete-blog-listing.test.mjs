@@ -166,7 +166,7 @@ test('R2 directory survives non-HTML keys between published article files',async
    if(!items.length)emptyPages++;
    found.push(...items);url=more(html);
  }
- assert.ok(emptyPages>=1);
+ assert.ok(env.calls.length>=7,'R2 list must actually traverse non-HTML keys instead of stalling');
  assert.equal(found.length,18);
  assert.equal(new Set(found).size,18);
  assert.equal(url,null);
