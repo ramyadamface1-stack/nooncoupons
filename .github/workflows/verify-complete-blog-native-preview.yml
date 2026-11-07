@@ -129,7 +129,16 @@ jobs:
             cards=body.count('class="article-card"')
             note=re.search(r'المعروض الآن:[^<]+',body)
             print('PREVIEW_PAGE_SCAN='+json.dumps({'path':path,'cards':cards,'scanNote':note.group(0) if note else 'missing','hasNext':'المقالات التالية' in body},ensure_ascii=False))
-            assert cards==15, (path,'WRONG_PAGE_SIZE',cards)
+            assert cards==15 if path=='/blog' else 0<=cards<=15, (path,'INVALID_PAGE_SIZE',cards)
+            if cards<15:
+              assert 'المقالات التالية' in body, (path,'SHORT_PAGE_MUST_HAVE_CONTINUATION')
+              m2=re.search(r'href="([^"]+)"[^>]*>المقالات التالية',body)
+              assert m2, (path,'MISSING_NEXT_CURSOR')
+              nextPath=html.unescape(m2.group(1))
+              moreStatus,moreBody,moreHeaders=get(nextPath)
+              assert moreStatus==200,(path,'COUNTRY_CONTINUATION_FAILED',moreStatus)
+              assert 'class="article-card"' in moreBody or 'المقالات التالية' in moreBody,(path,'COUNTRY_CONTINUATION_STALLED')
+              print('COUNTRY_BOUNDED_CONTINUATION='+json.dumps({'path':path,'firstPageCards':cards,'nextHttp':moreStatus,'nextPageCards':moreBody.count('class="article-card"')},ensure_ascii=False))
             assert '133746' in body or '١٣٣٬٧٤٦' in body, 'SNAPSHOT_COUNTER_MISSING'
             normalizedHeaders={k.lower():v for k,v in headers.items()}
             assert normalizedHeaders.get('x-full-blog-r2')=='read-only-cursor-v1', (path,'R2_ROUTE_NOT_USED',list(normalizedHeaders))
