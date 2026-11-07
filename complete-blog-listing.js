@@ -7,7 +7,7 @@ const SIZE=15,MAX_LIST_CALLS=6,MARKET_BATCH=80;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>Number(n||0).toLocaleString('ar-EG');
 const safeSlugKey=k=>typeof k==='string'&&/^articles\/[^/]{1,300}\.html$/u.test(k)&&
-  !k.includes('..')&&!/[\x00-\x1f\x7f]/.test(k);
+  !/[\x00-\x1f\x7f]/.test(k);
 const safeDate=x=>{try{const ms=Date.parse(String(x||''));return Number.isFinite(ms)?new Date(ms).toLocaleDateString('ar-EG',{timeZone:'Africa/Cairo'}):null}catch{return null}};
 export function fullBlogMarketOf(o){
  const md=o?.customMetadata||{},slug=String(o?.key||'').slice(9,-5);
@@ -104,7 +104,7 @@ export async function completeBlogResponse(env,url){
  const latest=Array.isArray(recent?.articles)?recent.articles.filter(a=>a?.status==='published'&&a?.slug&&a?.indexable!==false).slice(0,3):[];
  const quick=latest.length?'<aside class="latest"><h2>أحدث المقالات المنشورة</h2><div>'+latest.map(a=>{
    const slug=String(a.slug),english=slug.startsWith('en-')||String(a.language||'').startsWith('en');
-   const text=String(a.title||slug),href=(english?'/en/articles/':'/articles/')+encodeURI(slug);
+   const text=String(a.title||slug),href=(english?'/en/articles/':'/articles/')+encodeURIComponent(slug);
    return '<a href="'+esc(href)+'">'+esc(text)+'</a>';
  }).join('')+'</div></aside>':'';
  const next=page.nextAfter?'<a rel="next" href="'+esc(newLink(path,page.nextAfter))+'">المقالات التالية ←</a>':'';
