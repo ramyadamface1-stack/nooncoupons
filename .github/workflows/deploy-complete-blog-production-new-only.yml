@@ -1,0 +1,114 @@
+name: NoonDealsNow Full Blog — deploy EXISTING routed new-account Worker only
+on:
+  push:
+    branches:
+      - fix/noondealsnow-complete-blog-r2-pagination-20261107
+    paths:
+      - .github/workflows/deploy-complete-blog-production-new-only.yml
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ndn-complete-blog-live-new-account-only
+  cancel-in-progress: false
+jobs:
+  deploy-blog:
+    if: github.repository == 'ramyadamface1-stack/nooncoupons'
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fail-closed verify new account, active zone, exact live worker routes and no new resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          python3 - <<'PY'
+          import os,json,re,urllib.request
+          acct='e4c35f8a50a7b2e4cfb9d6c534962603'
+          zone='c09077a581adc7aa11d6de0c121e179d'
+          token=os.environ['CLOUDFLARE_API_TOKEN']
+          def fetch(path):
+            req=urllib.request.Request('https://api.cloudflare.com/client/v4/'+path,
+              headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+            with urllib.request.urlopen(req,timeout=20) as r:return json.load(r)
+          cfgText=re.sub(r'^\s*//.*$','',open('wrangler.new-account-production.jsonc').read(),flags=re.M)
+          cfg=json.loads(cfgText)
+          assert cfg['name']=='noondealsnow-production-new'
+          assert cfg['main']=='discovery-entry.js'
+          assert cfg['workers_dev'] is False and cfg['triggers']['crons']==[]
+          assert cfg['vars']['AI_PRIMARY_PROVIDER']=='disabled'
+          assert cfg['vars']['R2_RESCUE_READONLY_ENABLED']=='false'
+          assert cfg['vars']['REMOTE_EXISTING_R2_ENABLED']=='false'
+          assert cfg['vars']['DO_MIGRATION_RESTORE_ENABLED']=='false'
+          assert cfg['r2_buckets']==[{'binding':'CONTENT_FINAL','bucket_name':'nooncoupons-content-v2'}]
+          assert all(x.get('script_name')=='noondealsnow-migration-staging' for x in cfg['durable_objects']['bindings'])
+          info=fetch('zones/'+zone)
+          z=info.get('result') or {}
+          assert info.get('success') and z.get('status')=='active' and z.get('account',{}).get('id')==acct
+          expected={'ada.ns.cloudflare.com','stanley.ns.cloudflare.com'}
+          assert set(z.get('name_servers',[]))==expected
+          routes=fetch('zones/'+zone+'/workers/routes')
+          found={r.get('pattern'):r.get('script') for r in routes.get('result',[])}
+          assert found.get('noondealsnow.com/*')=='noondealsnow-production-new',found
+          assert found.get('www.noondealsnow.com/*')=='noondealsnow-production-new',found
+          service=fetch('accounts/'+acct+'/workers/services/noondealsnow-production-new')
+          assert service.get('success') is True
+          print('PUBLIC_WORKER_ROUTE=VERIFIED_NEW_ACCOUNT;WORKER_REUSED=TRUE;DO_BINDINGS=EXISTING;R2=EXISTING')
+          print('PUBLIC_ZONE_ACTIVE=TRUE;DNS_DELEGATION_UNCHANGED=TRUE;OLD_ACCOUNT_NOT_TOUCHED=TRUE')
+          PY
+          node --check complete-blog-listing.js
+          node --check premium-entry.js
+          node --check r2-emergency-readonly.js
+      - name: Strict regression test — read-only directory and no skipped keys
+        run: node --test tests/complete-blog-listing.test.mjs tests/remote-existing-r2-binding.test.mjs tests/live-blog-merge.test.mjs
+      - name: Deploy to existing routed Worker, no Cron, DNS, R2 or DO changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --config wrangler.new-account-production.jsonc --outdir /tmp/ndn-fullblog-live-dry
+          npx wrangler deploy --config wrangler.new-account-production.jsonc
+          echo 'EXISTING_NEW_WORKER_SCRIPT_DEPLOYED=TRUE;PUBLIC_DNS_WRITES=0;R2_WRITES=0;DO_RESTORES=0'
+      - name: Smoke-test exact live domain against fresh R2 listings and real article URLs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import urllib.request,urllib.error,html,re,time,json
+          origin='https://noondealsnow.com'
+          def fetch(path):
+            req=urllib.request.Request(origin+path,headers={'User-Agent':'NoonDealsNow-live-blog-release-smoke','cache-control':'no-cache'})
+            try:
+              with urllib.request.urlopen(req,timeout=26) as r:
+                return r.status,r.read().decode('utf-8','replace'),{k.lower():v for k,v in r.headers.items()}
+            except urllib.error.HTTPError as e:
+              return e.code,e.read().decode('utf-8','replace'),{k.lower():v for k,v in e.headers.items()}
+          paths=['/blog','/blog/saudi','/blog/uae']
+          for path in paths:
+            result=None
+            for attempt in range(6):
+              result=fetch(path+'?full_blog_release_smoke=1')
+              if result[0]==200 and result[2].get('x-full-blog-r2')=='read-only-cursor-v1':break
+              time.sleep(4)
+            code,body,h=result
+            assert code==200 and h.get('x-full-blog-r2')=='read-only-cursor-v1',(path,code,h.get('x-full-blog-r2'))
+            n=body.count('class="article-card"')
+            assert n==15 if path=='/blog' else 0<=n<=15,(path,n)
+            assert '133746' in body or '١٣٣٬٧٤٦' in body,(path,'historical count missing')
+            assert 'المقالات التالية' in body,(path,'no continuation')
+            print('LIVE_ALL_ARTICLES='+json.dumps({'path':path,'http':code,'visibleRows':n,'directory':'complete-R2'},ensure_ascii=False),flush=True)
+            if path=='/blog':
+              m=re.search(r'href="([^"]+)"[^>]*>المقالات التالية',body)
+              assert m
+              code2,body2,h2=fetch(html.unescape(m.group(1)))
+              assert code2==200 and body2.count('class="article-card"')==15
+              assert h2.get('x-full-blog-r2')=='read-only-cursor-v1'
+              print('LIVE_NEXT_PAGE='+json.dumps({'http':code2,'visibleRows':15,'cursor':True}))
+          print('LIVE_BLOG_COMPLETE_DIRECTORY=PASS;PUBLIC_DNS_WRITES=0;OLD_ACCOUNT_WRITES=0;R2_WRITES=0',flush=True)
+          PY
