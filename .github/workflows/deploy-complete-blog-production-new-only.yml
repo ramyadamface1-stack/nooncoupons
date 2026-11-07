@@ -32,7 +32,7 @@ jobs:
           import os,json,re,urllib.request
           acct='e4c35f8a50a7b2e4cfb9d6c534962603'
           zone='c09077a581adc7aa11d6de0c121e179d'
-          token=os.environ['CLOUDFLARE_API_TOKEN']
+          token=str(os.environ['CLOUDFLARE_API_TOKEN']).strip()
           def fetch(path):
             req=urllib.request.Request('https://api.cloudflare.com/client/v4/'+path,
               headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
