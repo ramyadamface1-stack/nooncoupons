@@ -48,12 +48,29 @@ jobs:
           delegatedMatch=bool(assigned) and assigned==delegated
           oldCode,old=request('https://api.cloudflare.com/client/v4/accounts/'+oldAccount+'/workers/services/nooncoupons',oldToken)
           newCode,new=request('https://api.cloudflare.com/client/v4/accounts/'+newAccount+'/workers/services/noondealsnow-production-new',newToken)
+          newDomainCode,newDomains=request('https://api.cloudflare.com/client/v4/accounts/'+newAccount+'/workers/domains',newToken)
+          oldDomainCode,oldDomains=request('https://api.cloudflare.com/client/v4/accounts/'+oldAccount+'/workers/domains',oldToken)
+          def ndnDomains(reply):
+            return [{'hostname':r.get('hostname'),'service':r.get('service'),'zone_id':r.get('zone_id')}
+              for r in reply.get('result',[]) if 'noondealsnow.com' in str(r.get('hostname','')).lower()]
+          newAttached=ndnDomains(newDomains)
+          oldAttached=ndnDomains(oldDomains)
+          routeCode,routes=request('https://api.cloudflare.com/client/v4/zones/'+zoneId+'/workers/routes',newToken)
+          ndnRoutes=[{'pattern':x.get('pattern'),'script':x.get('script')}
+            for x in routes.get('result',[]) if 'noondealsnow.com' in str(x.get('pattern','')).lower()]
+          dnsRecCode,dnsRecords=request('https://api.cloudflare.com/client/v4/zones/'+zoneId+'/dns_records?name=noondealsnow.com',newToken)
+          publicDns=[{'name':x.get('name'),'type':x.get('type'),'proxied':x.get('proxied')}
+            for x in dnsRecords.get('result',[]) if x.get('name')=='noondealsnow.com']
           gate={
             'checkedAt':'2026-11-07',
             'newZoneHTTP':code,'newZoneStatus':status,'assignedNS':assigned,
             'publicDNSHTTP':dnsCode,'delegatedNS':delegated,'delegatedNSMatch':delegatedMatch,
             'oldWorkerServiceHTTP':oldCode,'oldWorkerDeployAccessible':oldCode==200 and old.get('success') is True,
             'newProductionWorkerHTTP':newCode,'newProductionWorkerExists':newCode==200 and new.get('success') is True,
+            'newWorkerDomainsHTTP':newDomainCode,'newAttachedDomains':newAttached,
+            'oldWorkerDomainsHTTP':oldDomainCode,'oldAttachedDomains':oldAttached,
+            'newWorkerRoutesHTTP':routeCode,'newWorkerRoutes':ndnRoutes,
+            'newApexDnsHTTP':dnsRecCode,'newApexDns':publicDns,
             'doFreshRestorationParityProved':False,
             'safeToMovePublicDNS':False,
             'publicBlogMayBeRedeployedOnOld':oldCode==200 and old.get('success') is True
