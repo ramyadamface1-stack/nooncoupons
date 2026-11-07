@@ -6,8 +6,9 @@
 const SIZE=15,MAX_LIST_CALLS=6,MARKET_BATCH=80;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=n=>Number(n||0).toLocaleString('ar-EG');
-const safeSlugKey=k=>typeof k==='string'&&/^articles\/[^/]{1,300}\.html$/u.test(k)&&
-  !/[\x00-\x1f\x7f]/.test(k);
+const safeResumeKey=k=>typeof k==='string'&&k.startsWith('articles/')&&k.length<=600&&
+  !k.includes('..')&&!/[\x00-\x1f\x7f]/.test(k);
+const safeSlugKey=k=>safeResumeKey(k)&&/^articles\/[^/]{1,300}\.html$/u.test(k);
 const safeDate=x=>{try{const ms=Date.parse(String(x||''));return Number.isFinite(ms)?new Date(ms).toLocaleDateString('ar-EG',{timeZone:'Africa/Cairo'}):null}catch{return null}};
 export function fullBlogMarketOf(o){
  const md=o?.customMetadata||{},slug=String(o?.key||'').slice(9,-5);
@@ -21,7 +22,7 @@ export function fullBlogRowFromObject(o,market=null){
  const key=String(o?.key||'');
  if(!safeSlugKey(key))return null;
  const md=o.customMetadata||{};
- if(md.status&&md.status!=='published')return null;
+ if(md.status&&String(md.status).toLowerCase()!=='published')return null;
  // Published noindex articles are still browseable: listing visibility is not SEO indexing.
  const country=fullBlogMarketOf(o);
  if(market&&country!==market)return null;
@@ -38,7 +39,7 @@ export function fullBlogRowFromObject(o,market=null){
 export async function listFullBlogPublished(env,{market=null,after='',pageSize=SIZE,maxCalls=MAX_LIST_CALLS}={}){
  if(!env?.CONTENT_FINAL?.list)throw Error('FULL_BLOG_R2_LIST_UNAVAILABLE');
  if(market!==null&&!['SA','AE'].includes(market))throw Error('FULL_BLOG_INVALID_MARKET');
- if(after&&!safeSlugKey(after))throw Error('FULL_BLOG_INVALID_CURSOR');
+ if(after&&!safeResumeKey(after))throw Error('FULL_BLOG_INVALID_CURSOR');
  if(!Number.isInteger(pageSize)||pageSize<1||pageSize>15||!Number.isInteger(maxCalls)||maxCalls<1||maxCalls>6)
    throw Error('FULL_BLOG_INVALID_LIMIT');
  const rows=[],seen=new Set();
@@ -56,7 +57,7 @@ export async function listFullBlogPublished(env,{market=null,after='',pageSize=S
    let stopped=false;
    for(let i=0;i<objects.length;i++){
      const o=objects[i],key=String(o?.key||'');
-     if(!safeSlugKey(key))continue;
+     if(!safeResumeKey(key))continue;
      scanned++;lastScanned=key;
      const row=fullBlogRowFromObject(o,market);
      if(!row||seen.has(row.key))continue;
@@ -86,7 +87,7 @@ async function readJson(env,key){
 export async function completeBlogResponse(env,url){
  const market=url.pathname==='/blog/saudi'?'SA':url.pathname==='/blog/uae'?'AE':null;
  const after=String(url.searchParams.get('after')||'');
- if(after.length>1000||after&&!safeSlugKey(after))return new Response('Invalid article cursor',{status:400,headers:{'cache-control':'no-store'}});
+ if(after.length>1000||after&&!safeResumeKey(after))return new Response('Invalid article cursor',{status:400,headers:{'cache-control':'no-store'}});
  if(!env?.CONTENT_FINAL?.list)return null; // Existing emergency/legacy rescue remains available.
  let page;
  try{page=await listFullBlogPublished(env,{market,after})}
