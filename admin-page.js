@@ -169,7 +169,8 @@ async function refreshAiV2(){
     const p=await api('/api/admin/ai-v2-control');
     if(p.ok!==true)throw Error(p.error||'control_unavailable');
     $('aiV2Interval').value=String(p.intervalMinutes);
-    $('aiV2Status').textContent=JSON.stringify({schedulerDesired:p.enabled?'RUN':'PAUSE',intervalMinutes:p.intervalMinutes,updatedAt:p.updatedAt,warning:'Scheduler activation and live article publication must be verified in GitHub Actions / public site. This control does not bypass the native quality gate.'},null,2);
+    let ledger=null;try{ledger=await api('/api/generation-freshness')}catch{}
+    $('aiV2Status').textContent=JSON.stringify({schedulerDesired:p.enabled?'RUN':'PAUSE',intervalMinutes:p.intervalMinutes,updatedAt:p.updatedAt,actualVerified:{ledgerAvailable:ledger?.aiV2LedgerAvailable===true,lastHour:ledger?.aiV2Windows?.['1h']??null,last24Hours:ledger?.aiV2Windows?.['24h']??null,lastPublishedArticle:ledger?.aiV2LastVerified??null},warning:'Scheduler activation and live article publication must be verified in GitHub Actions / public site. This control does not bypass the native quality gate.'},null,2);
   }catch(e){$('aiV2Status').textContent='تعذر قراءة إعدادات المجدول: '+String(e.message||e)}
 }
 async function updateAiV2(payload){
