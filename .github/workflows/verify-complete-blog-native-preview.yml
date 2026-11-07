@@ -128,8 +128,9 @@ jobs:
             cards=body.count('class="article-card"')
             assert cards==15, (path,'WRONG_PAGE_SIZE',cards)
             assert '133746' in body or '١٣٣٬٧٤٦' in body, 'SNAPSHOT_COUNTER_MISSING'
-            assert headers.get('X-Full-Blog-R2')=='read-only-cursor-v1', (path,'R2_ROUTE_NOT_USED')
-            assert headers.get('X-Robots-Tag')=='noindex,nofollow', 'PREVIEW_MUST_NOT_BE_INDEXABLE'
+            normalizedHeaders={k.lower():v for k,v in headers.items()}
+            assert normalizedHeaders.get('x-full-blog-r2')=='read-only-cursor-v1', (path,'R2_ROUTE_NOT_USED',list(normalizedHeaders))
+            assert normalizedHeaders.get('x-robots-tag')=='noindex,nofollow', 'PREVIEW_MUST_NOT_BE_INDEXABLE'
             print('PREVIEW_R2_BLOG='+json.dumps({'path':path,'http':code,'articleCards':cards,'fromNativeR2':True},ensure_ascii=False))
             if path=='/blog':
               m=re.search(r'href="([^"]+)"[^>]*>المقالات التالية',body)
