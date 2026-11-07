@@ -5,6 +5,7 @@ on:
       - fix/noondealsnow-complete-blog-r2-pagination-20261107
     paths:
       - .github/workflows/verify-complete-blog-native-preview.yml
+      - complete-blog-listing.js
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
