@@ -259,6 +259,12 @@ export function existingDestinationR2Binding(env){
       if(!allowedPrefix(prefix))throw Error('remote_r2_list_prefix_not_allowlisted');
       const limit=Math.max(1,Math.min(1000,Math.trunc(Number(options.limit)||100)));
       const query={'list-type':'2','max-keys':String(limit),'encoding-type':'url',prefix};
+      if(options.cursor&&options.startAfter)throw Error('remote_r2_list_cursor_and_start_after_conflict');
+      if(options.startAfter){
+        const startAfter=String(options.startAfter);
+        if(!allowedKey(startAfter)||prefix&&!startAfter.startsWith(prefix))throw Error('remote_r2_list_start_after_not_allowlisted');
+        query['start-after']=startAfter;
+      }
       if(options.cursor)query['continuation-token']=String(options.cursor);
       if(options.delimiter)query.delimiter=String(options.delimiter);
       const res=await limitedSigned(env,'GET','',query);
