@@ -1,0 +1,79 @@
+name: NoonDealsNow Blog — real new R2 read-only pagination sample
+on:
+  push:
+    branches:
+      - 'fix/noondealsnow-complete-blog-r2-pagination-20261107'
+    paths:
+      - '.github/workflows/verify-complete-blog-new-r2-readonly.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  verify-read-only:
+    if: github.repository == 'ramyadamface1-stack/nooncoupons'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      NEW_R2_KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm this is a read-only operation with no production deployment
+        run: |
+          test "${{ github.ref_name }}" = 'fix/noondealsnow-complete-blog-r2-pagination-20261107'
+          test -n "${NEW_R2_KEY:-}"
+          test -n "${NEW_R2_SECRET:-}"
+          echo 'WORKER_DEPLOYS=0;DNS_CHANGES=0;R2_WRITES=0;AI_CALLS=0'
+      - name: Install read-only S3 client
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Verify actual R2 pagination from destination bucket (strictly read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,datetime
+          import boto3
+          from botocore.config import Config
+          client=boto3.client('s3',region_name='auto',
+            endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            aws_access_key_id=os.environ['NEW_R2_KEY'],
+            aws_secret_access_key=os.environ['NEW_R2_SECRET'],
+            config=Config(connect_timeout=10,read_timeout=15,retries={'max_attempts':1,'mode':'standard'}))
+          bucket='nooncoupons-content-v2'
+          opts=dict(Bucket=bucket,Prefix='articles/',MaxKeys=16,EncodingType='url')
+          first=client.list_objects_v2(**opts)
+          def keys(response):
+            from urllib.parse import unquote
+            return [unquote(x['Key']) for x in response.get('Contents',[])]
+          a=keys(first)
+          assert len(a)>=15, 'R2_FIRST_PAGE_UNDER_15'
+          assert all(k.startswith('articles/') for k in a)
+          anchor=a[14]
+          second=client.list_objects_v2(**opts,StartAfter=anchor)
+          b=keys(second)
+          assert b, 'R2_SECOND_PAGE_MISSING'
+          assert b[0]!=anchor and b[0]>anchor, 'R2_START_AFTER_DID_NOT_ADVANCE'
+          assert b[0]==a[15], 'R2_PAGE_2_SKIPS_OR_REPEATS'
+          print('DIRECT_R2_PAGINATION='+json.dumps({
+            'ok':True,'firstPageSize':15,'secondPageFirstMatches16th':True,
+            'firstListed':len(a),'secondListed':len(b),'listApi':'S3-ListObjectsV2-StartAfter',
+            'firstKey':a[0][:160],'secondStartKey':b[0][:160]
+          },ensure_ascii=False),flush=True)
+          try:
+            meta=client.head_object(Bucket=bucket,Key=a[0])
+            print('FIRST_R2_ARTICLE='+json.dumps({'exists':True,'bytes':meta.get('ContentLength'),
+              'hasStatusMetadata':'status' in meta.get('Metadata',{}),
+              'status':meta.get('Metadata',{}).get('status')},ensure_ascii=False),flush=True)
+          except Exception as e:
+            print('FIRST_R2_ARTICLE='+json.dumps({'exists':False,'reason':type(e).__name__}),flush=True)
+          try:
+            response=client.get_object(Bucket=bucket,Key='_ops/article-count.json')
+            snapshot=json.loads(response['Body'].read(8000))
+            print('LAST_R2_COUNT_SNAPSHOT='+json.dumps({
+              'count':snapshot.get('count'),'countedAt':snapshot.get('countedAt'),
+              'source':snapshot.get('source'),'completeAtTime':snapshot.get('complete')
+            },ensure_ascii=False),flush=True)
+          except Exception as e:
+            print('LAST_R2_COUNT_SNAPSHOT='+json.dumps({'available':False,'reason':type(e).__name__}),flush=True)
+          print('PRODUCTION_UNCHANGED=TRUE;R2_LIST_READS=2;R2_OBJECT_WRITES=0',flush=True)
+          PY
