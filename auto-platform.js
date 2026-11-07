@@ -482,8 +482,8 @@ export default{
     }
     if(u.pathname.startsWith('/api/admin/')){const r=await handleAdminApi(req,env);if(r)return r}
     if(u.pathname==='/api/generation-freshness'&&req.method==='GET'){
-      const [status,aiV2]=await Promise.all([getGeneratorStatus(env),readAiV2PublicationLedger(env)]),snapshot=combineGenerationFreshness(generationFreshnessSnapshot(status),aiV2);
-      return json({ok:true,...snapshot,aiV2Windows:aiV2PublicationWindows(aiV2).windows||null,cron:'* * * * *',bulkLastTickAt:status.bulkLastTickAt||null,bulkLastTickPublished:Number(status.bulkLastTickPublished||0),bulkLastError:status.bulkLastError||null,workersAiLastSuccess:status.lastSuccess||null,qualityThreshold:95,minArticleWords:1500});
+      const [status,aiV2]=await Promise.all([getGeneratorStatus(env),readAiV2PublicationLedger(env)]),snapshot=combineGenerationFreshness(generationFreshnessSnapshot(status),aiV2),aiV2Info=aiV2PublicationWindows(aiV2);
+      return json({ok:true,...snapshot,aiV2Windows:aiV2Info.windows||null,aiV2LedgerAvailable:aiV2Info.available===true,aiV2LastVerified:aiV2Info.lastArticle||null,cron:'* * * * *',bulkLastTickAt:status.bulkLastTickAt||null,bulkLastTickPublished:Number(status.bulkLastTickPublished||0),bulkLastError:status.bulkLastError||null,workersAiLastSuccess:status.lastSuccess||null,qualityThreshold:95,minArticleWords:1500});
     }
     if(u.pathname==='/api/generator-health'){
       const [cfg,status,aiV2]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env),readAiV2PublicationLedger(env)]);
