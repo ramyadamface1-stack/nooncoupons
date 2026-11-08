@@ -203,22 +203,159 @@ async function refreshArticles(){
   }).join('');
   document.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(b.dataset.edit));
 }
+const aiV2Legacy={
+  gemini:['GEMINI_API_KEY','GEMINI_API_KEYS','GEMINI_API_KEYS_EXTRA'],
+  groq:['GROQ_API_KEY','GROQ_API_KEYS','GROQ_API_KEYS_EXTRA']
+};
+let aiV2GithubMetadata=null;
+const aiV2IntervalValue=v=>[1,5,10,15,30,60].includes(v)?v:1;
+function aiV2Friendly(status){
+ const labels={'quota-wait':'ينتظر تجديد الحصة','provider-wait':'انتظار مؤقت للخدمة',
+  'eligible-unverified':'غير محظور — لم يُختبر الآن','unverified':'حالة غير معروفة'};
+ return labels[status]||'غير معروف';
+}
+function aiV2SecretNames(provider){
+ const prefix=provider==='gemini'?'NDN_GEMINI_POOL_':'NDN_GROQ_POOL_';
+ const names=aiV2Legacy[provider].slice();
+ for(let i=1;i<=12;i++)names.push(prefix+String(i).padStart(2,'0'));
+ return names;
+}
+function aiV2SetText(id,value){$(id).textContent=value==null?'—':String(value)}
+function aiV2RenderProvider(provider,monitor){
+ const target=$(provider==='gemini'?'aiV2GeminiKeys':'aiV2GroqKeys');
+ target.replaceChildren();
+ const groups=aiV2GithubMetadata?.groups?.[provider]||[];
+ const byName=new Map(groups.map(x=>[x.name,x]));
+ const entries=Array.isArray(monitor?.entries)?monitor.entries:[];
+ for(const name of aiV2SecretNames(provider)){
+   const box=document.createElement('div');
+   box.style.cssText='padding:9px 0;border-bottom:1px solid #e5e7eb;overflow-wrap:anywhere';
+   const heading=document.createElement('div');
+   heading.style.fontWeight='800';heading.style.direction='ltr';heading.style.textAlign='left';
+   const metadata=byName.get(name);
+   heading.textContent=name+'  ·  '+(!metadata?'وجود المفتاح غير محدد':metadata.configured?'موجود في GitHub':'غير موجود');
+   box.append(heading);
+   const matches=entries.filter(x=>x.source===name);
+   if(matches.length){
+     for(const item of matches.slice(0,20)){
+       const line=document.createElement('div');
+       line.className='sub';line.style.direction='ltr';line.style.textAlign='left';
+       line.textContent='#'+item.id+' · '+aiV2Friendly(item.status)+(item.resumeAt?' · '+new Date(item.resumeAt).toLocaleString('ar-EG'):'');
+       box.append(line);
+     }
+     if(matches.length>20){const more=document.createElement('small');more.textContent='معرّفات إضافية: '+(matches.length-20);box.append(more)}
+   }else{
+     const note=document.createElement('div');note.className='sub';
+     note.textContent=metadata?.configured?'موجود؛ العدد الدقيق في هذا الـSecret غير قابل للقراءة من GitHub':'لا توجد بيانات تشغيل مؤكدة لهذه الخانة';
+     box.append(note);
+   }
+   target.append(box);
+ }
+ if(monitor?.counts?.notInspected>0){
+   const note=document.createElement('p');note.className='sub';
+   note.textContent='مفاتيح أخرى لم تُفحص كوتتها في التقرير الحالي: '+monitor.counts.notInspected;
+   target.append(note);
+ }
+}
+function aiV2DescribeQuota(monitor){
+ if(!monitor)return 'لم يصل تقرير حالة المفاتيح بعد';
+ const c=monitor.counts||{};
+ return 'غير محظور: '+(c.eligibleUnverified??'؟')+
+   ' · انتظار كوتة: '+(c.quotaWait??'؟')+
+   ' · تعطل مؤقت: '+(c.providerWait??'؟')+
+   ' · غير محسوم: '+((c.unverified||0)+(c.notInspected||0));
+}
 async function refreshAiV2(){
-  try{
-    const p=await api('/api/admin/ai-v2-control');
-    if(p.ok!==true)throw Error(p.error||'control_unavailable');
-    $('aiV2Interval').value=String(p.intervalMinutes);
-    let ledger=null;try{ledger=await api('/api/generation-freshness')}catch{}
-    $('aiV2Status').textContent=JSON.stringify({schedulerDesired:p.enabled?'RUN':'PAUSE',intervalMinutes:p.intervalMinutes,updatedAt:p.updatedAt,actualVerified:{ledgerAvailable:ledger?.aiV2LedgerAvailable===true,lastHour:ledger?.aiV2Windows?.['1h']??null,last24Hours:ledger?.aiV2Windows?.['24h']??null,lastPublishedArticle:ledger?.aiV2LastVerified??null},warning:'Scheduler activation and live article publication must be verified in GitHub Actions / public site. This control does not bypass the native quality gate.'},null,2);
-  }catch(e){$('aiV2Status').textContent='تعذر قراءة إعدادات المجدول: '+String(e.message||e)}
+ try{
+  const [p,m]=await Promise.all([api('/api/admin/ai-v2-control'),api('/api/admin/ai-v2-monitor')]);
+  if(p.ok!==true||m.ok!==true)throw Error(p.error||m.error||'monitor_unavailable');
+  $('aiV2Interval').value=String(aiV2IntervalValue(p.intervalMinutes));
+  const scheduler=m.scheduler||{},verified=m.verified||{},s=m.status||'unknown';
+  let message='',kind='normal';
+  if(!p.enabled){message='متوقف بأمر الإدارة — لا ينبغي إرسال تشغيلات جديدة';kind='paused'}
+  else if(!scheduler.reachable){message='حالة المجدول غير متاحة — لا يمكن تأكيد أن التوليد يعمل';kind='warn'}
+  else if(!scheduler.enabled){message='التشغيل مطلوب، لكن مجدول Cloudflare غير مفعل فعليًا: '+(scheduler.controlStatus||'unknown');kind='warn'}
+  else if(s==='quota-wait'){message='انتظار تجديد حصة بعض مفاتيح الذكاء الاصطناعي';kind='warn'}
+  else if(s==='searching-topic'){message='المجدول يعمل، لكن آخر محاولة لم تجد موضوعًا جاهزًا للتوليد (QUEUE_WINDOW_EMPTY)';kind='warn'}
+  else if(s==='published-recently'){message='المجدول يعمل — تم توثيق مقال منشور حديثًا';kind='good'}
+  else{message='المجدول يعمل · لم يُؤكد نشر جديد في آخر تقرير';kind='normal'}
+  const bar=$('aiV2HealthBar');bar.textContent=message+' · الفاصل المطلوب '+p.intervalMinutes+' دقيقة';
+  bar.style.background=kind==='good'?'#ecfdf5':kind==='warn'?'#fffbeb':kind==='paused'?'#fef2f2':'#f1f5f9';
+  bar.style.borderColor=kind==='good'?'#86efac':kind==='warn'?'#fcd34d':kind==='paused'?'#fecaca':'#cbd5e1';
+  for(const provider of ['gemini','groq']){
+    const pm=m.providers?.[provider]||null;
+    aiV2SetText(provider==='gemini'?'aiV2GeminiCount':'aiV2GroqCount',pm?.total??'غير معروف');
+    aiV2SetText(provider==='gemini'?'aiV2GeminiQuota':'aiV2GroqQuota',aiV2DescribeQuota(pm));
+    aiV2RenderProvider(provider,pm);
+  }
+  aiV2SetText('aiV2VerifiedHour',verified?.lastHour?.total??'غير معلوم');
+  const chosen=m.latestSelected;
+  aiV2SetText('aiV2RecentKey',chosen?chosen.provider+' #'+chosen.id:'لم يسجل استخدام مفتاح');
+  aiV2SetText('aiV2LastChecked',m.lastReportAt?
+    'آخر رصد '+new Date(m.lastReportAt).toLocaleString('ar-EG',{timeZone:'Africa/Cairo'}):'لم يصل تقرير GitHub بعد');
+  $('aiV2Status').textContent=JSON.stringify({desired:p,actualScheduler:scheduler,state:s,
+    markets:m.markets,providers:m.providers,verified:verified,safety:m.safety},null,2);
+ }catch(e){
+   $('aiV2HealthBar').textContent='لا يمكن تحديد الحالة الفعلية: '+String(e.message||e);
+   $('aiV2HealthBar').style.background='#fef2f2';
+   $('aiV2Status').textContent='تعذر فحص مجدول AI V2: '+String(e.message||e);
+ }
 }
 async function updateAiV2(payload){
-  $('aiV2Status').textContent='جارٍ حفظ الإعدادات...';
-  try{
-    const p=await api('/api/admin/ai-v2-control',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
-    if(p.ok!==true)throw Error(p.error||'control_update_failed');
-    await refreshAiV2();
-  }catch(e){$('aiV2Status').textContent='فشل الحفظ: '+String(e.message||e)}
+ $('aiV2ActionMessage').textContent='جارٍ حفظ الطلب...';
+ try{
+   const result=await api('/api/admin/ai-v2-control',{method:'POST',
+     headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+   if(result.ok!==true)throw Error(result.error||'control_update_failed');
+   $('aiV2ActionMessage').textContent='تم حفظ طلب التشغيل. سيُفحص المجدول الفعلي عند التحديث.';
+   await refreshAiV2();
+ }catch(e){$('aiV2ActionMessage').textContent='فشل: '+String(e.message||e)}
+}
+async function aiV2LoadSecrets(){
+ $('aiV2ActionMessage').textContent='جارٍ قراءة أسماء الخانات فقط من GitHub...';
+ try{
+   const r=await api('/api/admin/ai-v2-keys',{method:'POST',
+     headers:{'content-type':'application/json'},body:JSON.stringify({githubToken:$('aiV2GithubToken').value})});
+   if(r.ok!==true)throw Error(r.error||'github_secrets_access_failed');
+   aiV2GithubMetadata=r;
+   $('aiV2ActionMessage').textContent='تمت قراءة أسماء خانات GitHub. قيم المفاتيح مخفية بطبيعتها.';
+   await refreshAiV2();
+ }catch(e){$('aiV2ActionMessage').textContent='تعذر قراءة GitHub: '+String(e.message||e)}
+}
+async function aiV2Import(){
+ const keys=$('aiV2BulkKeys').value;
+ if(!keys.trim()){$('aiV2ActionMessage').textContent='أدخل مفتاحًا واحدًا أو مفاتيح متعددة';return}
+ if(!confirm('سيتم رفع المفاتيح إلى GitHub Actions Secrets مشفرة، دون استبدال الخانات القديمة. هل تريد المتابعة؟'))return;
+ $('aiV2ActionMessage').textContent='جارٍ الحفظ المشفر...';
+ try{
+  const payload={provider:$('aiV2Provider').value,keys,githubToken:$('aiV2GithubToken').value};
+  const r=await api('/api/admin/ai-v2-key-import',{method:'POST',
+    headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+  if(r.ok!==true)throw Error(r.error||'github_import_failed');
+  $('aiV2BulkKeys').value='';$('aiV2KeyFile').value='';
+  $('aiV2ActionMessage').textContent='حُفظ '+r.addedCount+' مفتاح مشفر في '+r.secretName+
+    ' · سيظهر في تشغيل GitHub التالي. صلاحية الكوتة لم تُختبر بعد.';
+  await aiV2LoadSecrets();
+ }catch(e){$('aiV2ActionMessage').textContent='فشل إضافة المفاتيح: '+String(e.message||e)}
+}
+async function aiV2ManualRun(){
+ if(!confirm('بدء محاولة توليد واحدة على GitHub؟ قد تستهلك حصة Gemini/Groq المجانية إن توفر موضوع جاهز.'))return;
+ $('aiV2ActionMessage').textContent='جارٍ تقديم طلب إعادة تشغيل...';
+ try{
+   const state=await api('/api/admin/ai-v2-control');
+   if(state.enabled!==true)await updateAiV2({enabled:true});
+   const result=await api('/api/admin/ai-v2-run-now',{method:'POST',
+     headers:{'content-type':'application/json'},body:JSON.stringify({githubToken:$('aiV2GithubToken').value})});
+   if(result.ok!==true)throw Error(result.error||'dispatch_failed');
+   $('aiV2ActionMessage').textContent='GitHub قبل طلب التشغيل، لكن هذا لا يعني أنه نشر مقالًا؛ راجع حالة التقرير.';
+   await refreshAiV2();
+ }catch(e){$('aiV2ActionMessage').textContent='تعذر إعادة التشغيل: '+String(e.message||e)}
+}
+async function aiV2OpenFile(file){
+ if(!file)return;
+ if(file.size>22000){$('aiV2ActionMessage').textContent='الملف كبير جدًا (الحد 22KB)';return}
+ try{$('aiV2BulkKeys').value=await file.text();$('aiV2ActionMessage').textContent='تم تحميل الملف محليًا. اضغط الحفظ المشفر لإضافته إلى GitHub.'}
+ catch{$('aiV2ActionMessage').textContent='تعذر قراءة الملف'}
 }
 async function refresh(){await Promise.all([refreshMetrics(false),refreshArticles(),refreshSeo(),loadSeoSettings(),refreshGscDrops(),refreshConversionEvents(),refreshAiV2()])}
 async function setGenerator(enabled){await api('/api/admin/generator',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({enabled})});await refreshMetrics(false)}
@@ -227,7 +364,7 @@ async function saveConfig(){await api('/api/admin/generator',{method:'POST',head
 async function edit(slug){const d=await api('/api/admin/article?slug='+slug);$('editSlug').value=d.record.slug;$('editTitle').value=d.record.title;$('editMeta').value=d.record.metaDescription||'';$('editKeyword').value=d.record.primaryKeyword||'';$('editStatus').value=d.record.status;$('editHtml').value=d.html||'';$('editorPanel').hidden=false;$('editorPanel').scrollIntoView({behavior:'smooth'})}
 async function saveArticle(){await api('/api/admin/article',{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({slug:$('editSlug').value,title:$('editTitle').value,metaDescription:$('editMeta').value,primaryKeyword:$('editKeyword').value,status:$('editStatus').value,html:$('editHtml').value})});alert('تم الحفظ');await Promise.all([refreshMetrics(true),refreshArticles()])}
 async function logout(){await api('/api/admin/logout',{method:'POST'});location='/admin'}
-$('aiV2StartBtn').onclick=()=>updateAiV2({enabled:true});$('aiV2StopBtn').onclick=()=>updateAiV2({enabled:false});$('aiV2SaveIntervalBtn').onclick=()=>updateAiV2({intervalMinutes:Number($('aiV2Interval').value)});$('aiV2RefreshBtn').onclick=refreshAiV2;$('refreshSeoBtn').onclick=refreshSeo;$('refreshGscBtn').onclick=refreshGscDrops;$('refreshEventsBtn').onclick=refreshConversionEvents;$('saveSeoSettingsBtn').onclick=saveSeoSettings;$('reloadSeoSettingsBtn').onclick=loadSeoSettings;$('exportSeoSettingsBtn').onclick=exportSeoSettings;$('importSeoSettingsBtn').onclick=()=>$('importSeoSettingsFile').click();$('importSeoSettingsFile').onchange=e=>importSeoSettingsFile(e.target.files?.[0]);$('previewJsonLdBtn').onclick=previewJsonLd;$('copyJsonLdBtn').onclick=copyJsonLd;$('previewRobotsBtn').onclick=previewRobots;$('copyRobotsBtn').onclick=copyRobots;$('downloadRobotsBtn').onclick=downloadRobots;$('resumeBtn').onclick=()=>setGenerator(true);$('pauseBtn').onclick=()=>{};$('generateBtn').onclick=generateNow;$('refreshCountBtn').onclick=()=>refreshMetrics(true);$('saveConfigBtn').onclick=saveConfig;$('saveArticleBtn').onclick=saveArticle;$('logoutBtn').onclick=logout;refresh();setInterval(()=>refreshMetrics(false).catch(()=>{}),60000);
+$('aiV2StartBtn').onclick=()=>updateAiV2({enabled:true});$('aiV2StopBtn').onclick=()=>updateAiV2({enabled:false});$('aiV2SaveIntervalBtn').onclick=()=>updateAiV2({intervalMinutes:Number($('aiV2Interval').value)});$('aiV2RefreshBtn').onclick=refreshAiV2;$('aiV2RunNowBtn').onclick=aiV2ManualRun;$('aiV2ImportBtn').onclick=aiV2Import;$('aiV2LoadSecretsBtn').onclick=aiV2LoadSecrets;$('aiV2ClearTokenBtn').onclick=()=>{$('aiV2GithubToken').value='';$('aiV2ActionMessage').textContent='تم مسح الرمز من الصفحة'};$('aiV2KeyFile').onchange=e=>aiV2OpenFile(e.target.files?.[0]);$('refreshSeoBtn').onclick=refreshSeo;$('refreshGscBtn').onclick=refreshGscDrops;$('refreshEventsBtn').onclick=refreshConversionEvents;$('saveSeoSettingsBtn').onclick=saveSeoSettings;$('reloadSeoSettingsBtn').onclick=loadSeoSettings;$('exportSeoSettingsBtn').onclick=exportSeoSettings;$('importSeoSettingsBtn').onclick=()=>$('importSeoSettingsFile').click();$('importSeoSettingsFile').onchange=e=>importSeoSettingsFile(e.target.files?.[0]);$('previewJsonLdBtn').onclick=previewJsonLd;$('copyJsonLdBtn').onclick=copyJsonLd;$('previewRobotsBtn').onclick=previewRobots;$('copyRobotsBtn').onclick=copyRobots;$('downloadRobotsBtn').onclick=downloadRobots;$('resumeBtn').onclick=()=>setGenerator(true);$('pauseBtn').onclick=()=>{};$('generateBtn').onclick=generateNow;$('refreshCountBtn').onclick=()=>refreshMetrics(true);$('saveConfigBtn').onclick=saveConfig;$('saveArticleBtn').onclick=saveArticle;$('logoutBtn').onclick=logout;refresh();setInterval(()=>{refreshMetrics(false).catch(()=>{});refreshAiV2().catch(()=>{})},60000);
 </script></body></html>`}
 
 export async function renderAdmin(req,env){return (await isAdmin(req,env))?html(dashboard()):html(login())}
