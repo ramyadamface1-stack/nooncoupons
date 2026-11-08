@@ -501,7 +501,8 @@ export async function handleAdminApi(req,env){
             headers:{'cache-control':'no-store'},signal:AbortSignal.timeout(6000)});
           const response=env.AI_V2_SCHEDULER?.fetch
             ?await env.AI_V2_SCHEDULER.fetch(schedulerRequest)
-            :await fetch(schedulerRequest);
+            :await fetch(schedulerHealthUrl,{headers:{'cache-control':'no-store'},
+              signal:AbortSignal.timeout(6000)});
           if(response.ok)liveScheduler=await response.json();
         }catch{}
         if(!liveScheduler||liveScheduler.schedulerEnabled!==true||
