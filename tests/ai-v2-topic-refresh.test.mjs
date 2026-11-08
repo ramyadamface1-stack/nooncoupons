@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import base from '../automation/ai-v2/topics.json' with {type:'json'};
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 import {expandedEditorialTopics,establishedEditorialFamilies} from '../automation/ai-v2/topic-expansion.mjs';
