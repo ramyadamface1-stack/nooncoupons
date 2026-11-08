@@ -113,7 +113,8 @@ export async function publishAiV2NativeArticle(env,payload){
   if(!saved)return reject('ARTICLE_ALREADY_EXISTS_AFTER_PERMIT');
  }catch{return reject('ARTICLE_WRITE_OUTCOME_UNKNOWN',{articleId:checkpoint.articleId})}
  let ledgerResult;
- try{ledgerResult=await recordAiV2Publication(env,{slug:article.slug,country:topic.country,publishedAt:at,attribution})}
+ try{ledgerResult=await recordAiV2Publication(env,{slug:article.slug,country:topic.country,publishedAt:at,attribution,
+  title:article.title,metaDescription:article.metaDescription,quality:audit.score,wordCount:audit.wordCount})}
  catch{ledgerResult={ok:false,reason:'LEDGER_UNAVAILABLE'}}
  // A durable acknowledgement is not proof that the public URL renders.
  return {ok:true,stored:true,state:'STORED_AWAITING_LIVE_VERIFICATION',articleId:checkpoint.articleId,slug:article.slug,

@@ -30,6 +30,11 @@ concurrency:
 
 jobs:
   deploy:
+    # Old account is no longer authoritative for noondealsnow.com (new zone active
+    # and public routes target noondealsnow-production-new as of 2026-11-07).
+    # Keep old account deploy available for explicit recovery only. Never
+    # deploy old account automatically on a main push.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

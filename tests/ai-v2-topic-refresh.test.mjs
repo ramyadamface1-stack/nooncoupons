@@ -96,3 +96,26 @@ test('N4 queue refills exhausted 3002-topic corpus with unique, high-intent coun
  assert.equal(fourthEditorialTopicWave[0].country,'SA');
  assert.equal(fourthEditorialTopicWave[1].country,'AE');
 });
+
+import {fifthEditorialTopicWave} from '../automation/ai-v2/topic-refresh-n5.mjs';
+test('fifth append-only reserve keeps old checkpoints stable and adds distinct source-conscious buying questions',()=>{
+ const prior=[...base,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave];
+ assert.ok(fifthEditorialTopicWave.length>=180,'N5 must contain a useful fresh reserve');
+ const existing=new Set(prior.map(x=>x.slug)),unique=new Set();
+ for(const t of fifthEditorialTopicWave){
+  assert.ok(!existing.has(t.slug),'Already used editorial slug '+t.slug);
+  assert.ok(!unique.has(t.slug),'N5 slug repeated '+t.slug);unique.add(t.slug);
+  assertTopic(t,config);assert.ok(publicationReadyTopic(t));
+  assert.ok(t.topic.length>=28&&t.topic.length<=72);
+  assert.ok(t.topic.includes(t.coupon));
+  assert.ok(t.topic.includes(t.country==='AE'?'Noon UAE':'نون السعودية'));
+  assert.ok(t.slug.endsWith('-2026-n5'));
+  assert.equal(t.sections.length,5);
+ }
+ const all=[...prior,...fifthEditorialTopicWave];
+ for(let i=0;i<prior.length;i++)assert.equal(all[i],prior[i],'Historic R2 checkpoint index changed');
+ const bridge=queueExpansionBridgeWindow(all.length,prior.length,queueScanWindow(all.length,prior.length-60));
+ assert.deepEqual(bridge,Array.from({length:8},(_,i)=>prior.length+i));
+ assert.equal(fifthEditorialTopicWave[0].country,'SA');
+ assert.equal(fifthEditorialTopicWave[1].country,'AE');
+});

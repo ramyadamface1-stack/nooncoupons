@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {AI_V2_LEDGER_KEY,inspectAiV2Ledger,readAiV2PublicationLedger,recordAiV2Publication,reconcileAiV2Publication,combineGenerationFreshness,aiV2PublicationWindows} from '../ai-v2-publication-ledger.js';
+import {AI_V2_LEDGER_KEY,inspectAiV2Ledger,readAiV2PublicationLedger,recordAiV2Publication,appendApprovedAiV2ToPublicBlog,reconcileAiV2Publication,combineGenerationFreshness,aiV2PublicationWindows} from '../ai-v2-publication-ledger.js';
 const slug='uae-ninja-airfryer-capacity-warranty-checklist-2026';
 function mock(){
  let doc=null,etag=null,rev=0;
@@ -83,4 +83,36 @@ test('large publication ledger keeps all 1h 10h 24h counts and provider attribut
   assert.equal(result.windows[h+'h'].byProvider.groq,expected.filter(x=>x.provider==='groq').length);
  }
  assert.equal(result.lastArticle.publishedAt,new Date(at-60000).toISOString());
+});
+
+test('native published article updates chronological blog without dropping prior articles or skipping QA',async()=>{
+ const state=new Map(),versions=new Map();let revision=0;
+ const get=async key=>{
+  if(!state.has(key))return null;
+  return {etag:versions.get(key),json:async()=>JSON.parse(state.get(key))};
+ };
+ const put=async(key,body,opts={})=>{
+  const current=versions.get(key)||null;
+  if(opts.onlyIf?.etagDoesNotMatch==='*'&&current)return null;
+  if(opts.onlyIf?.etagMatches&&opts.onlyIf.etagMatches!==current)return null;
+  state.set(key,body);versions.set(key,'v'+(++revision));return {etag:versions.get(key)};
+ };
+ const env={CONTENT_FINAL:{get,put}};
+ const old={version:1,articles:[{slug:'historic-noon-guide-preserved-2026',country:'SA',
+  status:'published',title:'Historical article',publishedAt:'2026-11-07T09:00:00Z'}]};
+ await put('blog/latest-live-v1.json',JSON.stringify(old));
+ const entry={slug:'saudi-buyer-samsung-tablet-new-intent-nov170-2026-n5',country:'SA',
+  publishedAt:'2026-11-08T06:00:00Z',title:'Samsung tablet Noon Saudi buying guide with NOV170',
+  metaDescription:'A long product-focused purchasing guide that checks seller warranty and coupon at checkout.',
+  quality:100,wordCount:1775};
+ const created=await appendApprovedAiV2ToPublicBlog(env,entry);
+ assert.equal(created.ok,true);
+ assert.equal((await appendApprovedAiV2ToPublicBlog(env,entry)).alreadyPresent,true);
+ const rows=(await get('blog/latest-live-v1.json')).json();
+ const data=await rows;
+ assert.equal(data.articles[0].slug,entry.slug);
+ assert.equal(data.articles[0].coupon,'NOV170');
+ assert.ok(data.articles.some(x=>x.slug===old.articles[0].slug));
+ assert.equal(data.articles.filter(x=>x.slug===entry.slug).length,1);
+ assert.equal((await appendApprovedAiV2ToPublicBlog(env,{...entry,quality:92})).ok,false);
 });

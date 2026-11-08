@@ -39,7 +39,7 @@ export function publicEdgePolicyRevision(path,baseRevision='r2-jsonld-dedupe-r16
   if(kind==='article')return 'r2-rescue-security-ga4-topic-links-v20';
   // Ensure old market sitemaps are replaced immediately after the canonical market fix.
   if(/^\/sitemap-coupons-(?:saudi|uae)\.xml$/.test(String(path||'')))return 'market-coupon-canonical-v2';
-  if(['/blog','/blog/saudi','/blog/uae'].includes(String(path||'').replace(/\/+$/,'')))return 'r2-blog-rescue-topic-filters-v18';
+  if(['/blog','/blog/saudi','/blog/uae'].includes(String(path||'').replace(/\/+$/,'')))return 'r2-complete-blog-r2-cursor-v19';
   return baseRevision;
 }
 

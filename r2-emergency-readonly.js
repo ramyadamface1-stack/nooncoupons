@@ -1,3 +1,4 @@
+import {completeBlogResponse} from './complete-blog-listing.js';
 import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
 // Temporary, READ-ONLY fallback for public pages when the old account's R2 is NotEntitled (10042).
 // Source of article bytes: existing mirrored R2 in destination Cloudflare account.
@@ -177,12 +178,48 @@ export function removeRedundantSourceArticleJsonLd(content){
     return '<script '+attrs+'>'+JSON.stringify(filtered).replace(/</g,'\\u003c')+'</script>';
   });
 }
+// CPU-bounded read path for the exact articles already approved and written by
+// the native Gemini/Groq publisher. It never modifies R2, coupon or approval.
+// Legacy articles still use the full (slower) conversion pipeline below.
+export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
+ const md=obj?.meta||{},country=english?'AE':String(md.c||'').toUpperCase()==='AE'?'AE':'SA';
+ const code=country==='AE'?'NOV188':'NOV170';
+ const source=String(obj?.body||'');
+ if(md.p!=='ai-v2-native'||md.status!=='published'||md.c!==country||
+    md.cp!==code||Number(md.q)<95||Number(md.w)<1500||
+    source.length<4000||source.length>240000||!source.includes(code)||
+    !/<article\\b/i.test(source)||!/<h1\\b/i.test(source))return null;
+ const fromMeta=value=>{try{return decodeURIComponent(String(value||''))}catch{return String(value||'')}};
+ // Publisher stores title and description as URL-encoded R2 custom metadata.
+ // Avoid running multiple full-document HTML regex passes on each public hit.
+ const title=fromMeta(md.t).slice(0,180);
+ const description=fromMeta(md.m).slice(0,170);
+ if(title.length<8||description.length<20)return null;
+ const canonical='https://noondealsnow.com'+u.pathname;
+ const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1);
+ const figure='<figure class="featured">'+imgTag(slug,country,code,1,title)+'</figure>';
+ const contents=figure+'<article class="rescue-article" data-market="'+country+'">'+
+   renderCouponAction(country,english,'top')+source+
+   renderCouponAction(country,english,'bottom')+'</article>'+
+   topicLinks(country,english)+rescueCopyScript;
+ let html=page(title,contents,{lang:english?'en-AE':country==='AE'?'ar-AE':'ar-SA',
+   dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
+ html=html.replace('</head>',rescueArticleStyles+'</head>');
+ html=html.replace('</head>','<meta property="og:type" content="article"><meta property="og:title" content="'+
+  esc(title)+'"><meta property="og:description" content="'+esc(description)+'"><meta property="og:image" content="'+
+  esc(featured)+'"><meta name="twitter:card" content="summary_large_image"></head>');
+ if(english)html=html.replace('</head>','<link rel="alternate" hreflang="en-AE" href="'+esc(canonical)+'"></head>');
+ return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles',
+  'x-native-article-renderer':'approved-fast-v1','content-language':english?'en':'ar'}});
+}
 async function serveArticle(env,u,english){
   const slug=decodeURIComponent(u.pathname.split('/').filter(Boolean).pop()||'');
   if(!slug||slug.length>280||slug.includes('/')||slug.includes('..'))return new Response('Not Found',{status:404});
   const obj=await getObject(env,'articles/'+slug+'.html');
   if(!obj)return new Response('Not Found',{status:404,headers:{'cache-control':'public,max-age=60'}});
   if(obj.meta.status&&obj.meta.status!=='published')return new Response('Not Found',{status:404});
+  const fast=renderApprovedNativeAiV2Fast(obj,slug,u,english);
+  if(fast)return fast;
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
   const body=repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country),country),country),country,english);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
@@ -537,7 +574,15 @@ export async function emergencyPublicR2Response(req,env){
     if(isSitemap)return await rescueSitemapResponse(p,env);
     if(p.startsWith('/articles/'))return await serveArticle(env,u,false);
     if(p.startsWith('/en/articles/'))return await serveArticle(env,u,true);
-    if(p==='/blog'||p==='/blog/saudi'||p==='/blog/uae')return await serveBlog(env,u);
+    if(p==='/blog'||p==='/blog/saudi'||p==='/blog/uae'){
+      // Old ?page=N and intent filters preserve existing URLs. All default blog
+      // pages and ?after= keys use complete R2 listing, never the 4k recent cap.
+      if(req.method==='GET'&&(!u.searchParams.has('page')||u.searchParams.has('after'))&&!u.searchParams.has('topic')){
+        const complete=await completeBlogResponse(env,u);
+        if(complete)return complete;
+      }
+      return await serveBlog(env,u);
+    }
     if(p==='/blog/archive'||p==='/blog/archive/full')return await serveDays(env);
     if(p==='/blog/archive/all')return await serveAll(env,u);
     if(/^\/blog\/archive\/catalog(?:\/[1-9]\d{0,4})?$/.test(p))return await serveCatalog(env,u);
