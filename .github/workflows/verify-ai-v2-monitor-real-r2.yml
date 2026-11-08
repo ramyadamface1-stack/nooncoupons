@@ -30,7 +30,7 @@ jobs:
               if(request.method!=='GET'||new URL(request.url).pathname!=='/status')
                 return new Response('Not found',{status:404});
               try{
-                const response=await aiV2AdminMonitor(env);
+                const response=await aiV2AdminMonitor(env,(url,init)=>env.AI_V2_SCHEDULER.fetch(url,init));
                 return Response.json(response,{headers:{'cache-control':'no-store','x-robots-tag':'noindex,nofollow'}});
               }catch{
                 return Response.json({ok:false,error:'monitor_unavailable'},{status:503});
@@ -41,7 +41,8 @@ jobs:
           cat > .ndn-monitor-private-probe.json <<'JSON'
           {"name":"ndn-ai-v2-monitor-private-probe","main":".ndn-monitor-private-probe.mjs",
           "compatibility_date":"2026-11-08","compatibility_flags":["nodejs_compat"],"minify":true,"workers_dev":true,
-          "r2_buckets":[{"binding":"CONTENT_FINAL","bucket_name":"nooncoupons-content-v2"}]}
+          "r2_buckets":[{"binding":"CONTENT_FINAL","bucket_name":"nooncoupons-content-v2"}],
+          "services":[{"binding":"AI_V2_SCHEDULER","service":"noondealsnow-ai-scheduler-v2"}]}
           JSON
           node --check .ndn-monitor-private-probe.mjs
           openssl rand -hex 24 > /tmp/ndn-monitor-probe-token
