@@ -4,7 +4,7 @@ import {reconcileAiV2Publication} from './ai-v2-publication-ledger.js';
 import {nativeAiV2SitemapResponse} from './ai-v2-sitemap.js';
 import app from './brand-runtime.js';
 import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
-import {emergencyPublicR2Response,rescueSitemapIndexPaths,rescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
+import {emergencyPublicR2Response,nativeBoundAiV2ArticleFastResponse,rescueSitemapIndexPaths,rescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
 import {runEnglishCanaryBatch,englishCanaryRecords,englishPublicRecentRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
@@ -516,6 +516,11 @@ export default{
     // Check canonical public Cloudflare Cache API BEFORE cross-account R2 GET.
     // Without this, every article visit and bot crawl incurs new-account R2 Class B reads.
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
+    // Direct destination R2 binding: bypass CPU-intensive legacy HTML layers
+    // ONLY for the same native QA-approved N5-N9 articles; old URLs, R2
+    // writes, crawler directives and authenticated routes are unaffected.
+    const boundFast=await nativeBoundAiV2ArticleFastResponse(req,env);
+    if(boundFast)return edgePageCachePut(req,u,boundFast,ctx);
     if(req.method==='GET'){
       const nativeSitemap=await nativeAiV2SitemapResponse(u.pathname,env,origin);
       if(nativeSitemap)return edgePageCachePut(req,u,nativeSitemap,ctx);
