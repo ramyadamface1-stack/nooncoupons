@@ -136,6 +136,27 @@ export function queueScanWindow(total,cursor,limit=QUEUE_SCAN_LIMIT){
  const start=Number.isSafeInteger(cursor)&&cursor>=0?cursor%total:Math.min(20,total-1);
  return Array.from({length:Math.min(total,limit)},(_,i)=>(start+i)%total);
 }
+/** Scan only locally eligible topics in the requested market, with the
+ * same 24 R2-read cap. Skipping opposite-market topics in memory doubles
+ * productive checkpoint coverage per SA/AE dispatch without extra API calls.
+ * Stable topic indices, hashes, durable cursor identities and gates remain.
+ */
+export function queueMarketScanWindow(topics,cursor,market,limit=QUEUE_SCAN_LIMIT){
+ if(!Array.isArray(topics)||!['SA','AE'].includes(market))
+  throw Error('INVALID_MARKET_QUEUE');
+ if(!Number.isInteger(limit)||limit<1||limit>QUEUE_SCAN_LIMIT)
+  throw Error('INVALID_QUEUE_SCAN_LIMIT');
+ const total=topics.length;
+ if(!total)return [];
+ const start=Number.isSafeInteger(cursor)&&cursor>=0?cursor%total:Math.min(20,total-1);
+ const matched=[];
+ for(let scanned=0;scanned<total&&matched.length<limit;scanned++){
+  const index=(start+scanned)%total;
+  if(topics[index]?.country===market&&publicationReadyTopic(topics[index]))
+   matched.push(index);
+ }
+ return matched;
+}
 export const PROVIDER_YIELD_REASONS=Object.freeze(['ALL_FREE_PROVIDERS_IN_COOLDOWN','CALL_BUDGET_LIMIT','NO_FREE_PROVIDER_AVAILABLE']);
 export function pausedProviderNextCursor(total,lastChecked,reason){
  if(!PROVIDER_YIELD_REASONS.includes(reason))throw Error('UNSAFE_QUEUE_YIELD_REASON');
