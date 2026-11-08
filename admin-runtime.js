@@ -442,8 +442,13 @@ export async function handleAdminApi(req,env){
   // Dedicated private AI V2 operator endpoints. Fail closed and never reflect
   // GitHub PAT or secret contents into responses, logs or Durable Objects.
   if(p==='/api/admin/ai-v2-monitor'&&req.method==='GET'){
-    const {aiV2AdminMonitor}=await import('./ai-v2-admin-monitor.js');
-    return json(await aiV2AdminMonitor(env));
+    try{
+      const {aiV2AdminMonitor}=await import('./ai-v2-admin-monitor.js');
+      return json(await aiV2AdminMonitor(env));
+    }catch{
+      // Do not leak private Worker errors, metadata or credential details.
+      return json({ok:false,error:'monitor_temporarily_unavailable'},503);
+    }
   }
   const aiV2SecretEndpoint=['/api/admin/ai-v2-keys','/api/admin/ai-v2-key-import','/api/admin/ai-v2-run-now'].includes(p);
   if(aiV2SecretEndpoint&&req.method==='POST'){
