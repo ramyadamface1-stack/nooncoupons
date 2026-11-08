@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {Script} from 'node:vm';
 import {renderAdmin} from '../admin-page.js';
 import {handleAdminApi} from '../admin-runtime.js';
 
@@ -50,4 +51,12 @@ test('admin GitHub operations require explicit scoped secret credential',async()
  assert.equal(res.status,409);
  const json=await res.json();
  assert.equal(json.error,'github_token_required');
+});
+
+test('served admin dashboard JavaScript parses successfully in browser syntax',async()=>{
+ const r=await renderAdmin(new Request(origin+'/admin',{headers:{cookie:'nc_admin=fake-valid-cookie'}}),env());
+ const html=await r.text();
+ const scripts=[...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)];
+ assert.ok(scripts.length>=1);
+ for(const script of scripts)assert.doesNotThrow(()=>new Script(script[1]),'admin interactive JS must parse');
 });
