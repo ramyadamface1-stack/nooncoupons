@@ -145,7 +145,7 @@ async function loadSeoSettings(){
   $('seoOrgName').value=s.organizationName||'Noon Deals Now';
   $('seoOrgAlt').value=s.organizationAlternateName||'كوبونات نون';
   $('seoOrgLogo').value=s.organizationLogo||'/favicon.svg';
-  $('seoOrgSameAs').value=(s.organizationSameAs||[]).join('\n');
+  $('seoOrgSameAs').value=(s.organizationSameAs||[]).join('\\n');
   $('seoGlobalJsonLd').value=s.globalJsonLd?JSON.stringify(s.globalJsonLd,null,2):'';
   $('seoCustomHead').value=s.customHeadHtml||'';
   $('seoRobotsExtra').value=s.robotsExtraRules||'';
@@ -170,7 +170,7 @@ function applyImportedSeoSettings(s){
   $('seoSiteName').value=s.siteName||'Noon Deals Now';$('seoDefaultOg').value=s.defaultOgImage||'/favicon.svg';$('seoTwitterSite').value=s.twitterSite||'';$('seoFacebookAppId').value=s.facebookAppId||'';
   $('seoGoogleVerification').value=s.googleVerification||'';$('seoBingVerification').value=s.bingVerification||'';$('seoYandexVerification').value=s.yandexVerification||'';$('seoPinterestVerification').value=s.pinterestVerification||'';
   $('seoAnalyticsEnabled').checked=Boolean(s.analyticsEnabled);$('seoRespectDnt').checked=s.respectDoNotTrack!==false;$('seoGa4').value=s.ga4MeasurementId||'';$('seoGtm').value=s.gtmContainerId||'';$('seoMetaPixel').value=s.metaPixelId||'';$('seoClarity').value=s.clarityProjectId||'';$('seoHotjar').value=s.hotjarSiteId||'';$('seoTiktok').value=s.tiktokPixelId||'';
-  $('seoOrgName').value=s.organizationName||'Noon Deals Now';$('seoOrgAlt').value=s.organizationAlternateName||'كوبونات نون';$('seoOrgLogo').value=s.organizationLogo||'/favicon.svg';$('seoOrgSameAs').value=(s.organizationSameAs||[]).join('\n');$('seoGlobalJsonLd').value=s.globalJsonLd?JSON.stringify(s.globalJsonLd,null,2):'';$('seoCustomHead').value=s.customHeadHtml||'';$('seoRobotsExtra').value=s.robotsExtraRules||'';
+  $('seoOrgName').value=s.organizationName||'Noon Deals Now';$('seoOrgAlt').value=s.organizationAlternateName||'كوبونات نون';$('seoOrgLogo').value=s.organizationLogo||'/favicon.svg';$('seoOrgSameAs').value=(s.organizationSameAs||[]).join('\\n');$('seoGlobalJsonLd').value=s.globalJsonLd?JSON.stringify(s.globalJsonLd,null,2):'';$('seoCustomHead').value=s.customHeadHtml||'';$('seoRobotsExtra').value=s.robotsExtraRules||'';
   $('seoRouteOverrides').value=JSON.stringify(s.routeOverrides||{},null,2);$('seoRedirects').value=JSON.stringify(s.redirects||{},null,2);$('seoSettingsStatus').textContent='تم تحميل JSON للمعاينة — اضغط حفظ لتطبيقه.';
 }
 async function importSeoSettingsFile(file){
