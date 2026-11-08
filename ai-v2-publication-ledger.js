@@ -25,6 +25,47 @@ export async function readAiV2PublicationLedger(env){
   return {ok:true,count:validation.count,ledger,etag:obj.etag};
  }catch(e){return {ok:false,reason:'LEDGER_READ_UNAVAILABLE',count:null}}
 }
+// The new-account native R2 binding bypasses the legacy remote-adapter
+// journal updater. Keep the existing public blog's small chronological journal
+// in sync with quality-approved AI V2 native publications. A failed journal
+// update must not roll back already-verified article bytes or double publish.
+export async function appendApprovedAiV2ToPublicBlog(env,entry){
+ const slug=fmt(entry?.slug),country=entry?.country;
+ const title=String(entry?.title||'').trim(),description=String(entry?.metaDescription||'').trim();
+ const quality=Number(entry?.quality),words=Number(entry?.wordCount);
+ if(!slugOk(slug)||!['SA','AE'].includes(country)||title.length<10||
+    description.length<20||quality<95||words<1500)
+  return {ok:false,reason:'UNVERIFIED_PUBLIC_BLOG_ENTRY'};
+ if(!env?.CONTENT_FINAL?.get||!env?.CONTENT_FINAL?.put)
+  return {ok:false,reason:'R2_NOT_CONFIGURED'};
+ const key='blog/latest-live-v1.json';
+ const at=fmt(entry.publishedAt)||new Date().toISOString();
+ const row={slug,country,status:'published',createdAt:at,publishedAt:at,
+  title:title.slice(0,180),metaDescription:description.slice(0,170),
+  coupon:country==='SA'?'NOV170':'NOV188',quality,wordCount:words,indexable:true};
+ for(let n=0;n<3;n++){
+  try{
+   const old=await env.CONTENT_FINAL.get(key);
+   const payload=old?await old.json():{version:1,articles:[]};
+   if(payload?.version!==1||!Array.isArray(payload.articles)||payload.articles.length>450)
+    return {ok:false,reason:'INVALID_JOURNAL_SCHEMA'};
+   if(payload.articles.some(x=>x.slug===slug))return {ok:true,alreadyPresent:true};
+   const seen=new Set(),merged=[];
+   for(const candidate of [row,...payload.articles]){
+    if(!candidate?.slug||candidate.status!=='published'||seen.has(candidate.slug))continue;
+    seen.add(candidate.slug);merged.push(candidate);
+   }
+   merged.sort((a,b)=>String(b.publishedAt||b.createdAt||'').localeCompare(String(a.publishedAt||a.createdAt||'')));
+   const result=await env.CONTENT_FINAL.put(key,JSON.stringify({version:1,updatedAt:new Date().toISOString(),
+     articles:merged.slice(0,300)}),{onlyIf:old?.etag?{etagMatches:old.etag}:{etagDoesNotMatch:'*'},
+     httpMetadata:{contentType:'application/json; charset=utf-8'}});
+   if(result)return {ok:true,recorded:true};
+  }catch(error){
+   return {ok:false,reason:'PUBLIC_JOURNAL_WRITE_UNAVAILABLE'};
+  }
+ }
+ return {ok:false,reason:'PUBLIC_JOURNAL_CAS_CONTENDED'};
+}
 export async function recordAiV2Publication(env,entry){
  if(!slugOk(entry?.slug)||!['SA','AE'].includes(entry?.country))return {ok:false,reason:'INVALID_PUBLICATION_RECORD'};
  const attribution=entry.attribution==null?null:normalizeAttribution(entry.attribution);
@@ -40,7 +81,11 @@ export async function recordAiV2Publication(env,entry){
   const options={onlyIf:old.etag?{etagMatches:old.etag}:{etagDoesNotMatch:'*'},httpMetadata:{contentType:'application/json; charset=utf-8'}};
   try{
    const saved=await env.CONTENT_FINAL.put(AI_V2_LEDGER_KEY,JSON.stringify(ledger),options);
-   if(saved)return {ok:true,recorded:true,count:ledger.articles.length};
+   if(saved){
+    const publicBlog=await appendApprovedAiV2ToPublicBlog(env,{...entry,publishedAt:article.publishedAt});
+    return {ok:true,recorded:true,count:ledger.articles.length,publicBlogRecorded:publicBlog.ok,
+      publicBlogReason:publicBlog.ok?null:publicBlog.reason};
+   }
   }catch(e){return {ok:false,reason:'LEDGER_WRITE_UNAVAILABLE',count:null}}
  }
  return {ok:false,reason:'LEDGER_CAS_CONTENTION',count:null};
