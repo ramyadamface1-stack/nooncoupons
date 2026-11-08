@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 import topics from '../automation/ai-v2/topics.json' with {type:'json'};
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,QUEUE_SCAN_LIMIT,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from '../automation/ai-v2/topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,queueMarketScanWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,QUEUE_SCAN_LIMIT,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from '../automation/ai-v2/topic-queue.mjs';
 import {assertTopic} from '../automation/ai-v2/guardrails.mjs';
 test('curated queue has unique topic slugs, stable IDs, country and approved coupon',()=>{
  const ids=topics.map(t=>assertTopic(t,config));
@@ -67,6 +67,25 @@ test('bounded round robin never scans the entire corpus and eventually covers ev
  assert.equal(queueScanWindow(20,undefined)[0],19);
  assert.deepEqual(queueScanWindow(10,9,3),[9,0,1]);
  assert.equal(nextQueueCursor(10,9),0);
+});
+test('market-aware bounded scan covers 24 own-market topics without extra checkpoint reads',()=>{
+ for(const market of ['SA','AE']){
+  const window=queueMarketScanWindow(topics,20,market);
+  assert.equal(window.length,Math.min(QUEUE_SCAN_LIMIT,topics.filter(x=>x.country===market).length));
+  assert(window.every(i=>topics[i].country===market&&publicationReadyTopic(topics[i])));
+  const seen=new Set();
+  let cursor=20;
+  for(let tick=0;tick<Math.ceil(topics.length/QUEUE_SCAN_LIMIT)+2;tick++){
+   const items=queueMarketScanWindow(topics,cursor,market);
+   if(!items.length)break;
+   items.forEach(x=>seen.add(x));
+   cursor=nextQueueCursor(topics.length,items.at(-1));
+  }
+  assert.equal(seen.size,topics.filter(t=>t.country===market&&publicationReadyTopic(t)).length,
+    'Market '+market+' must not be starved or lose original topic indices');
+ }
+ assert.deepEqual(queueMarketScanWindow([],0,'SA'),[]);
+ assert.throws(()=>queueMarketScanWindow(topics,20,'EG'),/INVALID_MARKET_QUEUE/);
 });
 test('product-specific buying topics are not duplicated and preserve market codes in titles',()=>{
  assert.ok(topics.length>=85);
