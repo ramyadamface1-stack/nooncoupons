@@ -1,5 +1,8 @@
 name: AI V2 Admin Control and Throughput Safety Tests
 on:
+  push:
+    branches:
+      - 'feature/ai-v2-throughput-queue-key-pool-20261107'
   pull_request:
     paths:
       - 'automation/ai-v2/**'
