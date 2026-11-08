@@ -56,6 +56,6 @@ test('private admin status never infers working provider from unavailable R2 or 
  assert.equal(result.status,'scheduler-unreachable');
  assert.equal(result.scheduler.reachable,false);
  assert.equal(result.providers.gemini,null);
- assert.equal(result.verified.ledgerAvailable,false);
+ assert.equal(result.verified.lastHour?.total??0,0,'empty verified ledger cannot imply articles published');
  assert.equal(result.safety.configuredDoesNotMeanValidated,true);
 });
