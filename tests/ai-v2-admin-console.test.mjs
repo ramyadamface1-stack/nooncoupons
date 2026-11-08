@@ -58,5 +58,5 @@ test('served admin dashboard JavaScript parses successfully in browser syntax',a
  const html=await r.text();
  const scripts=[...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/gi)];
  assert.ok(scripts.length>=1);
- for(const script of scripts)assert.doesNotThrow(()=>new Script(script[1]),'admin interactive JS must parse');
+ for(const script of scripts){try{new Script(script[1],{filename:'rendered-admin-inline.js'})}catch(e){throw Error('Admin inline JS syntax: '+String(e.stack||e).split('\n').slice(0,7).join('\n'))}}
 });
