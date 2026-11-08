@@ -8,6 +8,8 @@ on:
       - 'automation/ai-v2/**'
       - 'ai-scheduler-v2/**'
       - 'admin-*.js'
+      - 'secure-admin-auth.js'
+      - 'tests/admin-login-credentials.test.mjs'
       - 'ai-v2-*.js'
       - 'package.json'
       - 'auto-platform.js'
@@ -53,7 +55,8 @@ jobs:
             tests/ai-v2-workflow-wiring.test.mjs \
             tests/ai-v2-github-secrets.test.mjs \
             tests/ai-v2-runtime-telemetry.test.mjs \
-            tests/ai-v2-admin-console.test.mjs
+            tests/ai-v2-admin-console.test.mjs \
+            tests/admin-login-credentials.test.mjs
 
       - name: Compile destination Cloudflare Worker with sealed-box dependencies (NO deployment)
         run: npx wrangler deploy --dry-run --config wrangler.new-account-production.jsonc --outdir /tmp/noondealsnow-ai-v2-admin-dry
