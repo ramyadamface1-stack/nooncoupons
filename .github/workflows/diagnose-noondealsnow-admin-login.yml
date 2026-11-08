@@ -1,5 +1,5 @@
 name: NoonDealsNow — Diagnose admin login HTTP status (no private credentials)
-# Live WebCrypto runtime exception-class check after catch deployment.
+# Live Node crypto PBKDF2 runtime exception-class check after fallback deploy.
 on:
   push:
     branches: [main]
