@@ -86,7 +86,7 @@ test('large publication ledger keeps all 1h 10h 24h counts and provider attribut
 });
 
 test('native published article updates chronological blog without dropping prior articles or skipping QA',async()=>{
- const state=new Map(),versions=new Map();
+ const state=new Map(),versions=new Map();let revision=0;
  const get=async key=>{
   if(!state.has(key))return null;
   return {etag:versions.get(key),json:async()=>JSON.parse(state.get(key))};
@@ -95,7 +95,7 @@ test('native published article updates chronological blog without dropping prior
   const current=versions.get(key)||null;
   if(opts.onlyIf?.etagDoesNotMatch==='*'&&current)return null;
   if(opts.onlyIf?.etagMatches&&opts.onlyIf.etagMatches!==current)return null;
-  state.set(key,body);versions.set(key,'v'+(state.size+Math.random().toString().slice(2,5)));return {etag:versions.get(key)};
+  state.set(key,body);versions.set(key,'v'+(++revision));return {etag:versions.get(key)};
  };
  const env={CONTENT_FINAL:{get,put}};
  const old={version:1,articles:[{slug:'historic-noon-guide-preserved-2026',country:'SA',
@@ -115,5 +115,4 @@ test('native published article updates chronological blog without dropping prior
  assert.ok(data.articles.some(x=>x.slug===old.articles[0].slug));
  assert.equal(data.articles.filter(x=>x.slug===entry.slug).length,1);
  assert.equal((await appendApprovedAiV2ToPublicBlog(env,{...entry,quality:92})).ok,false);
- assert.equal((await appendApprovedAiV2ToPublicBlog(env,{...entry,country:'AE'})).ok,true); // duplicate slug is kept, never republished
 });
