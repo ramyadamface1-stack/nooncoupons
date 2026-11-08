@@ -1,0 +1,83 @@
+name: NoonDealsNow — compact verified AI publication summary (read-only corpus)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-ai-v2-verified-summary.yml'
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ndn-ai-v2-verified-summary-r2
+  cancel-in-progress: false
+jobs:
+  snapshot:
+    if: github.repository == 'ramyadamface1-stack/nooncoupons'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      R2_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Create accurate 1h/24h summary from actual published R2 ledger (no AI requests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${R2_ACCESS:-}"
+          test -n "${R2_SECRET:-}"
+          python3 -m pip install --quiet --disable-pip-version-check boto3
+          python3 - <<'PY'
+          import os,json,datetime,collections
+          import boto3
+          from botocore.config import Config
+          now=datetime.datetime.now(datetime.timezone.utc)
+          client=boto3.client('s3',
+            endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            aws_access_key_id=os.environ['R2_ACCESS'],
+            aws_secret_access_key=os.environ['R2_SECRET'],
+            region_name='auto',config=Config(connect_timeout=12,read_timeout=20,retries={'max_attempts':2,'mode':'standard'}))
+          bucket='nooncoupons-content-v2'
+          raw=client.get_object(Bucket=bucket,Key='_ops/ai-v2-publication-ledger-v1.json')['Body'].read(24000000)
+          ledger=json.loads(raw)
+          if ledger.get('version')!=1 or not isinstance(ledger.get('articles'),list) or len(ledger['articles'])>100000:
+            raise ValueError('INVALID_R2_LEDGER_SCHEMA')
+          items=ledger['articles']
+          windows={}
+          seen=set()
+          for hours in [1,24]:
+            windows[str(hours)+'h']={'total':0,'SA':0,'AE':0,'byProvider':{'gemini':0,'groq':0,'unknown':0}}
+          newest=None
+          for item in items:
+            if not isinstance(item,dict):continue
+            slug=item.get('slug');country=item.get('country')
+            if not isinstance(slug,str) or not isinstance(country,str) or country not in ('SA','AE') or slug in seen:
+              raise ValueError('LEDGER_ARTICLE_INVALID_OR_DUPLICATE')
+            seen.add(slug)
+            stamp=item.get('publishedAt')
+            try:at=datetime.datetime.fromisoformat(str(stamp).replace('Z','+00:00'))
+            except Exception:continue
+            if at.tzinfo is None:continue
+            age=(now-at).total_seconds()
+            if newest is None or at>newest[0]:
+              newest=(at,{'slug':slug,'country':country,'publishedAt':stamp})
+            if age<0:continue
+            provider=item.get('provider')
+            provider=provider if provider in ('gemini','groq') else 'unknown'
+            for hours in (1,24):
+              if age<hours*3600:
+                w=windows[str(hours)+'h']
+                w['total']+=1;w[country]+=1;w['byProvider'][provider]+=1
+          summary={'version':1,'site':'noondealsnow','generatedAt':now.isoformat().replace('+00:00','Z'),
+            'source':'verified-ai-v2-publication-ledger','ledgerItems':len(items),'windows':windows,
+            'lastArticle':newest[1] if newest else None,'containsRawKeys':False}
+          payload=json.dumps(summary,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+          assert len(payload)<3000
+          client.put_object(Bucket=bucket,Key='_ops/ai-v2-verified-summary-v1.json',Body=payload,ContentType='application/json')
+          print('VERIFIED_PUBLICATION_SUMMARY='+json.dumps({
+            'ok':True,'ledgerItems':len(items),'lastHour':windows['1h']['total'],
+            'last24Hours':windows['24h']['total'],'hasLastPublished':bool(newest),
+            'source':'real-R2-verified-ledger','providerCalls':0,'articleWrites':0
+          },ensure_ascii=False),flush=True)
+          PY
