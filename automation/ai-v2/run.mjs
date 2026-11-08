@@ -8,7 +8,7 @@ import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,queueExpansionBridgeWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,queueMarketScanWindow,queueExpansionBridgeWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
@@ -95,7 +95,7 @@ async function run(){
   // maximum of 24 article checkpoints per invocation, not the whole queue.
   const oldCursor=oneOffCanary?null:await readCheckpoint(config,cursorId);
   const firstPosition=queueMarket&&oldCursor?.cursor==null?baseTopics.length+(queueMarket==='AE'?1:0):oldCursor?.cursor;
-  const firstWindow=oneOffCanary?topics.map((_,i)=>i):queueScanWindow(topics.length,firstPosition);
+  const firstWindow=oneOffCanary?topics.map((_,i)=>i):queueMarket?queueMarketScanWindow(topics,firstPosition,queueMarket):queueScanWindow(topics.length,firstPosition);
   const positions=[...firstWindow,...(oneOffCanary?[]:queueExpansionBridgeWindow(topics.length,existingTopicCount,firstWindow))];
   let checked=0,lastChecked=null;
   // If all free sources are cooling down, do not pin the global queue to an
