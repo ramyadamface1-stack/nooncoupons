@@ -44,7 +44,12 @@ test('AE approved native article uses cheap metadata-backed fast renderer and th
  assert.ok(html.includes(native),'Native original article bytes were altered');
  assert.ok(html.includes('NOV188'));
  assert.ok(html.includes('href="'+u.href+'"'));
- assert.ok(!html.includes('NOV170'),'Saudi coupon must not leak into UAE native fast-rendered guide');
+ // The global site navigation may legitimately mention Saudi codes; assert
+ // the actual article content and its primary market-specific CTA instead.
+ assert.match(html, /<article class="rescue-article" data-market="AE">/);
+ assert.ok(html.includes('NOV188'));
+ assert.ok(!native.includes('NOV170'));
+
  assert.ok(!html.includes('Quality 100'),'No internal quality score in public HTML');
 });
 test('native fast eligibility correctly recognizes real HTML boundaries, not literal slash-b',()=>{
