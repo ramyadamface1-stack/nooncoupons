@@ -145,6 +145,22 @@ export function queueExpansionBridgeWindow(total,originalCount,firstWindow,limit
     !Number.isInteger(limit)||limit<1||limit>8)return [];
  return Array.from({length:Math.min(limit,total-originalCount)},(_,i)=>originalCount+i);
 }
+// When previous append-only waves are already checkpointed, reserve a small
+// rotating read window for the latest reviewed wave, WITHOUT resetting the
+// historic per-market cursor or re-requesting any provider responses.
+// The rotation is derived from the persisted legacy cursor's first position:
+// no additional R2 cursor write is needed. Never scans >limit extra checkpoints.
+export function queueRotatingFreshWaveWindow(total,freshStart,firstWindow,limit=4){
+ if(!Number.isSafeInteger(total)||total<2||
+    !Number.isSafeInteger(freshStart)||freshStart<1||freshStart>=total||
+    !Array.isArray(firstWindow)||!firstWindow.length||
+    firstWindow.some(x=>!Number.isSafeInteger(x)||x<0||x>=total)||
+    !Number.isInteger(limit)||limit<1||limit>4)return [];
+ if(firstWindow[0]>=freshStart)return []; // Already scanning this wave normally.
+ const remaining=total-freshStart,seed=Math.floor(firstWindow[0]/QUEUE_SCAN_LIMIT);
+ return Array.from({length:Math.min(limit,remaining)},(_,i)=>freshStart+(seed+i)%remaining);
+}
+
 export function queueScanWindow(total,cursor,limit=QUEUE_SCAN_LIMIT){
  if(!Number.isInteger(total)||total<1)return [];
  if(!Number.isInteger(limit)||limit<1||limit>24)throw Error('INVALID_QUEUE_SCAN_LIMIT');
