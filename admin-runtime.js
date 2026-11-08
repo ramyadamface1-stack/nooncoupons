@@ -310,6 +310,27 @@ export class GeneratorControl{
       });
       return json(result,result.ok?200:429);
     }
+    if(p==='/ai-v2-key-import-lease'&&req.method==='POST'){
+      const nowMs=Date.now(),key='aiV2KeyImportLease';
+      const result=await this.ctx.storage.transaction(async txn=>{
+        const old=await txn.get(key);
+        if(old&&Number(old.expiresAtMs)>nowMs)return {ok:false,error:'import_in_progress'};
+        const ticket=crypto.randomUUID();
+        await txn.put(key,{ticket,expiresAtMs:nowMs+120000});
+        return {ok:true,ticket};
+      });
+      return json(result,result.ok?200:409);
+    }
+    if(p==='/ai-v2-key-import-lease'&&req.method==='DELETE'){
+      const value=await req.json().catch(()=>({}));
+      const key='aiV2KeyImportLease';
+      const deleted=await this.ctx.storage.transaction(async txn=>{
+        const old=await txn.get(key);
+        if(!old||typeof value.ticket!=='string'||old.ticket!==value.ticket)return false;
+        await txn.delete(key);return true;
+      });
+      return json({ok:deleted},deleted?200:409);
+    }
     if(p==='/ai-v2-control'&&req.method==='GET'){
       return json((await this.ctx.storage.get('aiV2Control'))||{enabled:true,intervalMinutes:1,updatedAt:null});
     }
@@ -447,9 +468,21 @@ export async function handleAdminApi(req,env){
         return json(await listGithubKeySecrets(token));
       }
       if(p==='/api/admin/ai-v2-key-import'){
-        const {importGithubKeySecret}=await import('./ai-v2-github-secrets.js');
-        const result=await importGithubKeySecret({provider:payload.provider,input:payload.keys,token});
-        return json(result,201);
+        // One request may append to the GitHub pool at a time. GitHub Secrets
+        // PUT overwrites by default, so a Durable Object lease is mandatory.
+        const leaseResponse=await gctl(env,'/ai-v2-key-import-lease',{method:'POST'});
+        if(leaseResponse.status===409)return json({ok:false,error:'key_import_in_progress'},409);
+        if(!leaseResponse.ok)return json({ok:false,error:'key_import_lock_unavailable'},503);
+        const lease=await leaseResponse.json();
+        if(!lease?.ok||typeof lease.ticket!=='string')return json({ok:false,error:'key_import_lock_unavailable'},503);
+        try{
+          const {importGithubKeySecret}=await import('./ai-v2-github-secrets.js');
+          const result=await importGithubKeySecret({provider:payload.provider,input:payload.keys,token});
+          return json(result,201);
+        }finally{
+          try{await gctl(env,'/ai-v2-key-import-lease',{method:'DELETE',
+            headers:{'content-type':'application/json'},body:JSON.stringify({ticket:lease.ticket})})}catch{}
+        }
       }
       if(p==='/api/admin/ai-v2-run-now'){
         const cfg=await getAiV2Control(env);
