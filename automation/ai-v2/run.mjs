@@ -9,7 +9,7 @@ import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,queueExpansionBridgeWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,queueExpansionBridgeWindow,queueRotatingFreshWaveWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
@@ -18,11 +18,13 @@ import {expandedEditorialTopics} from './topic-expansion.mjs';
 import {newEditorialTopicWave} from './topic-refresh.mjs';
 import {thirdEditorialTopicWave} from './topic-refresh-n3.mjs';
 import {fourthEditorialTopicWave} from './topic-refresh-n4.mjs';
+import {fifthEditorialTopicWave} from './topic-refresh-n5.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const baseTopics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
 const existingTopicCount=baseTopics.length+expandedEditorialTopics.length+newEditorialTopicWave.length+thirdEditorialTopicWave.length;
 // Only append; historical private checkpoint identities and cursor positions stay fixed.
-const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave];
+const fifthWaveStart=baseTopics.length+expandedEditorialTopics.length+newEditorialTopicWave.length+thirdEditorialTopicWave.length+fourthEditorialTopicWave.length;
+const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave];
 let runStartedAt=Date.now();
 let lastReportStatus=null,lastSafeReport=null,lastSelectedCredential=null,jobBatchOrdinal=0;
 const report=(status,reason,data={})=>{
@@ -97,7 +99,13 @@ async function run(){
   const oldCursor=oneOffCanary?null:await readCheckpoint(config,cursorId);
   const firstPosition=queueMarket&&oldCursor?.cursor==null?baseTopics.length+(queueMarket==='AE'?1:0):oldCursor?.cursor;
   const firstWindow=oneOffCanary?topics.map((_,i)=>i):(queueMarket?marketQueueScanWindow(topics,queueMarket,firstPosition):queueScanWindow(topics.length,firstPosition));
-  const positions=[...firstWindow,...(oneOffCanary?[]:queueExpansionBridgeWindow(topics.length,existingTopicCount,firstWindow))];
+  // Old window: up to 24 checkpoint reads. Two 4-entry append-only bridges
+  // preserve the previous 8-entry reserve budget; fresh N5 opportunities
+  // rotate as the durable cursor progresses. Existing topic IDs never change.
+  const positions=[...firstWindow,...(oneOffCanary?[]:[
+    ...queueExpansionBridgeWindow(topics.length,existingTopicCount,firstWindow,4),
+    ...queueRotatingFreshWaveWindow(topics.length,fifthWaveStart,firstWindow,4)
+  ])];
   let checked=0,lastChecked=null,checkpointStates={};
   // If all free sources are cooling down, do not pin the global queue to an
   // unfinished article. Its immutable R2 checkpoint survives; later cycles
