@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {scrypt} from 'node:crypto';
 import {secureLogin} from '../secure-admin-auth.js';
 import {renderAdmin} from '../admin-page.js';
 
@@ -42,12 +43,11 @@ test('login response creates secure session with independently derived synthetic
   const source=readFileSync(new URL('../secure-admin-auth.js',import.meta.url),'utf8');
   const fixture='unit-test-password-never-used-in-production';
   const salt='00112233445566778899aabbccddeeff';
-  const passwordKey=await crypto.subtle.importKey('raw',new TextEncoder().encode(fixture),'PBKDF2',false,['deriveBits']);
-  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',
-    salt:Uint8Array.from(salt.match(/../g),x=>parseInt(x,16)),iterations:310000},passwordKey,256);
-  const hash=[...new Uint8Array(bits)].map(x=>x.toString(16).padStart(2,'0')).join('');
-  const modified=source.replace(/(PBKDF2_SALT_HEX=')[0-9a-f]+(')/,"$1"+salt+"$2")
-    .replace(/(PBKDF2_EXPECTED_HEX=')[0-9a-f]+(')/,"$1"+hash+"$2");
+  const hash=await new Promise((resolve,reject)=>scrypt(fixture,Buffer.from(salt,'hex'),32,
+    {N:16384,r:8,p:1,maxmem:64*1024*1024},
+    (err,derived)=>err?reject(err):resolve(derived.toString('hex'))));
+  const modified=source.replace(/(SCRYPT_SALT_HEX=')[0-9a-f]+(')/,"$1"+salt+"$2")
+    .replace(/(SCRYPT_EXPECTED_HEX=')[0-9a-f]+(')/,"$1"+hash+"$2");
   assert.notEqual(modified,source);
   const module=await import('data:text/javascript,'+encodeURIComponent(modified));
   const okEnv=fakeEnv();
