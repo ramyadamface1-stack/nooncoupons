@@ -41,7 +41,7 @@ test('all source slots are additive and duplicated keys are not counted twice',(
  assert.equal(groq.dynamicCount,2);
 });
 test('GitHub list returns only secret names, never values',async()=>{
- const fetchFn=async(url)=>{assert.equal(url,api+'?per_page=100');return Response.json({total_count:2,secrets:[
+ const fetchFn=async(url)=>{assert.equal(url,api+'?per_page=100&page=1');return Response.json({total_count:2,secrets:[
    {name:'GEMINI_API_KEY',updated_at:'2026-11-08T00:00:00Z'},
    {name:'NDN_GROQ_POOL_01',updated_at:'2026-11-08T00:00:00Z'}
  ]})};
@@ -55,7 +55,7 @@ test('bulk upload uses next available *new* secret, with sealed ciphertext only'
  const recipient=nacl.box.keyPair(),calls=[];
  const fetchFn=async(url,options={})=>{
    calls.push({url,method:options.method||'GET',body:options.body||null});
-   if(url===api+'?per_page=100')return Response.json({total_count:2,secrets:[
+   if(url===api+'?per_page=100&page=1')return Response.json({total_count:2,secrets:[
      {name:'GEMINI_API_KEY'},{name:'NDN_GEMINI_POOL_01'}
    ]});
    if(url===api+'/public-key')return Response.json({key_id:'key_id_test',key:btoa(String.fromCharCode(...recipient.publicKey))});
@@ -83,4 +83,32 @@ test('refuses to overwrite when all provider slots are occupied',async()=>{
  const fetchFn=async()=>Response.json({total_count:names.length,secrets:names});
  await assert.rejects(importGithubKeySecret({provider:'groq',input:q1,
     token:'github_pat_1234567890123456789',fetchFn}),/GITHUB_POOL_SLOTS_FULL/);
+});
+
+test('GitHub secret pagination preserves occupied slots that appear on page two',async()=>{
+ const secrets=Array.from({length:99},(_,i)=>({name:'OTHER_SECRET_'+i}));
+ secrets.push({name:'GEMINI_API_KEY'});
+ const second=[{name:'NDN_GEMINI_POOL_01'},{name:'NDN_GEMINI_POOL_02'}];
+ const recipient=nacl.box.keyPair();
+ const calls=[];
+ const fetchFn=async url=>{
+   calls.push(url);
+   if(url===api+'?per_page=100&page=1')return Response.json({total_count:102,secrets});
+   if(url===api+'?per_page=100&page=2')return Response.json({total_count:102,secrets:second});
+   if(url===api+'/public-key')return Response.json({key_id:'test',key:btoa(String.fromCharCode(...recipient.publicKey))});
+   if(url===api+'/NDN_GEMINI_POOL_03')return new Response(null,{status:201});
+   throw Error('unexpected '+url);
+ };
+ const result=await importGithubKeySecret({provider:'gemini',input:g3,token:'github_pat_1234567890123456789',fetchFn});
+ assert.equal(result.secretName,'NDN_GEMINI_POOL_03');
+ assert.equal(calls.filter(x=>x.includes('?per_page')).length,2);
+});
+test('GitHub truncated secret pages reject import without writing or replacing keys',async()=>{
+ const fetchFn=async url=>{
+   if(url===api+'?per_page=100&page=1')return Response.json({total_count:101,secrets:[{name:'NDN_GROQ_POOL_01'}]});
+   throw Error('unexpected write/read '+url);
+ };
+ await assert.rejects(importGithubKeySecret({
+   provider:'groq',input:q2,token:'github_pat_1234567890123456789',fetchFn
+ }),/GITHUB_SECRET_PAGINATION_INCOMPLETE/);
 });
