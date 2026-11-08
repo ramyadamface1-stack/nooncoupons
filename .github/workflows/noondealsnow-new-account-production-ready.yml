@@ -7,6 +7,8 @@ on:
       - 'wrangler.new-account-production.jsonc'
       - 'auto-platform.js'
       - 'admin-page.js'
+      - 'secure-admin-auth.js'
+      - 'tests/admin-login-credentials.test.mjs'
       - 'admin-runtime.js'
       - 'ai-v2-github-secrets.js'
       - 'ai-v2-admin-monitor.js'
@@ -86,7 +88,7 @@ jobs:
       - name: Install dependencies for approved source and test suite
         run: npm install --no-audit --no-fund --ignore-scripts
       - name: Check native gate and authenticated secret manager regressions
-        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs
+        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs
       - name: Deploy destination script ONLY, without hostname or DNS modification
         shell: bash
         run: |
