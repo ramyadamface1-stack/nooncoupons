@@ -49,7 +49,7 @@ test('the signing cache stays bounded and never short circuits credential checks
   const source=readFileSync(new URL('../r2-remote-existing-bucket.js',import.meta.url),'utf8');
   assert.match(source,/let signingKeyCache=null/);
   assert.match(source,/signingKeyCache\.secret===secret/);
-  assert.match(source,/signingKeyCache\.day===day/);
+  assert.match(source,/signingKeyCache\?\.day===day/);
   assert.match(source,/const hash=body===null\?EMPTY_SHA256:await sha\(raw\)/);
   assert.match(source,/async delete\(\)\{throw Error\('remote_r2_delete_disabled_to_preserve_articles'\)\}/);
   assert.doesNotMatch(source,/console\.log\([^\n]*(?:signingKey|secret)/);
