@@ -74,9 +74,20 @@ async function readGithubJson(url,token,request){
 }
 export async function listGithubKeySecrets(token,fetchFn=fetch){
  if(typeof token!=='string'||token.trim().length<20)throw Error('GITHUB_SECRETS_TOKEN_REQUIRED');
- const data=await readGithubJson(API+'?per_page=100',token.trim(),fetchFn);
- if(!Array.isArray(data.secrets))throw Error('GITHUB_SECRETS_NOT_LISTED');
- const byName=new Map(data.secrets.filter(x=>x&&typeof x.name==='string').map(x=>[x.name,x]));
+ const byName=new Map();
+ let total=0,loaded=0,complete=false;
+ for(let page=1;page<=10;page++){
+   const data=await readGithubJson(API+'?per_page=100&page='+page,token.trim(),fetchFn);
+   if(!Array.isArray(data.secrets)||!Number.isSafeInteger(data.total_count)||data.total_count<0)
+     throw Error('GITHUB_SECRETS_NOT_LISTED');
+   if(page===1)total=data.total_count;
+   else if(data.total_count!==total)throw Error('GITHUB_SECRETS_CHANGED_DURING_READ');
+   loaded+=data.secrets.length;
+   for(const x of data.secrets)if(x&&typeof x.name==='string')byName.set(x.name,x);
+   if(loaded>=total){complete=true;break}
+   if(data.secrets.length!==100)throw Error('GITHUB_SECRET_PAGINATION_INCOMPLETE');
+ }
+ if(!complete||loaded!==total||byName.size!==total)throw Error('GITHUB_SECRET_PAGINATION_INCOMPLETE');
  const groups={};
  for(const provider of ['gemini','groq']){
    const names=[...LEGACY_SECRET_NAMES[provider],...PROVIDER_SLOTS[provider]];
@@ -88,7 +99,7 @@ export async function listGithubKeySecrets(token,fetchFn=fetch){
    }));
  }
  return {ok:true,source:'github-repository-secrets-metadata',queriedAt:new Date().toISOString(),
-   totalNamedSecrets:data.total_count??data.secrets.length,groups,
+   totalNamedSecrets:total,groups,
    note:'GitHub never exposes existing secret values or per-secret key counts.'};
 }
 export async function importGithubKeySecret({provider,input,token,fetchFn=fetch}){
