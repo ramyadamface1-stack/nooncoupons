@@ -26,7 +26,7 @@ jobs:
 
       - name: Verify daily SigV4 signing cache against independent AWS HMAC reference
         run: |
-          node --test tests/remote-existing-r2-binding.test.mjs tests/remote-r2-signature-cache.test.mjs tests/r2-rescue-retry.test.mjs tests/native-article-rescue-fast.test.mjs
+          node --test tests/remote-existing-r2-binding.test.mjs tests/remote-r2-signature-cache.test.mjs tests/r2-rescue-retry.test.mjs tests/native-article-rescue-fast.test.mjs tests/native-bound-ai-v2-fast.test.mjs
 
       - name: Syntax-check runtime
         shell: bash

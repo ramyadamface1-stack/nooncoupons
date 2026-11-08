@@ -198,20 +198,52 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  const canonical='https://noondealsnow.com'+u.pathname;
  const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1);
  const figure='<figure class="featured">'+imgTag(slug,country,code,1,title)+'</figure>';
- const contents=figure+'<article class="rescue-article" data-market="'+country+'">'+
+ const published=dateIso(md.at);
+ const timeLabel=published?(english?new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Cairo',dateStyle:'medium',timeStyle:'short'}).format(new Date(published)):dateLabel(published)):'';
+ const publishTime=published?'<p class="article-published"><time datetime="'+esc(published)+'">'+esc(timeLabel)+' · Cairo time</time></p>':'';
+ const contents=figure+publishTime+'<article class="rescue-article" data-market="'+country+'">'+
    renderCouponAction(country,english,'top')+source+
    renderCouponAction(country,english,'bottom')+'</article>'+
    topicLinks(country,english)+rescueCopyScript;
  let html=page(title,contents,{lang:english?'en-AE':country==='AE'?'ar-AE':'ar-SA',
    dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
- html=html.replace('</head>',rescueArticleStyles+'</head>');
- html=html.replace('</head>','<meta property="og:type" content="article"><meta property="og:title" content="'+
+ const extras=rescueArticleStyles+'<meta property="og:type" content="article"><meta property="og:title" content="'+
   esc(title)+'"><meta property="og:description" content="'+esc(description)+'"><meta property="og:image" content="'+
-  esc(featured)+'"><meta name="twitter:card" content="summary_large_image"></head>');
- if(english)html=html.replace('</head>','<link rel="alternate" hreflang="en-AE" href="'+esc(canonical)+'"></head>');
+  esc(featured)+'"><meta name="twitter:card" content="summary_large_image">'+
+  (published?'<meta property="article:published_time" content="'+esc(published)+'">':'')+
+  (english?'<link rel="alternate" hreflang="en-AE" href="'+esc(canonical)+'">':'');
+ html=html.replace('</head>',extras+'</head>');
  return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles',
   'x-native-article-renderer':'approved-fast-v1','content-language':english?'en':'ar'}});
 }
+// New-account production already binds the exact same R2 bucket natively and
+// deliberately DISABLES the old rescue router. Only approved native AI V2
+// articles use this read-only fast path; legacy pages stay on their current
+// rendering contract, untouched. Never enumerate R2 or alter its objects.
+export async function nativeBoundAiV2ArticleFastResponse(req,env){
+ if(req.method!=='GET'||String(env?.R2_RESCUE_READONLY_ENABLED||'')!=='false'||
+    typeof env?.CONTENT_FINAL?.get!=='function')return null;
+ const u=new URL(req.url),p=u.pathname.replace(/\/+$/,'');
+ const hit=p.match(/^\/articles\/((saudi|uae)-buyer-[a-z0-9-]+-(nov170|nov188)-2026-n[5-9])$/);
+ if(!hit)return null;
+ const slug=hit[1],market=hit[2],coupon=hit[3].toUpperCase();
+ if((market==='saudi'&&coupon!=='NOV170')||(market==='uae'&&coupon!=='NOV188'))return null;
+ try{
+   const article=await env.CONTENT_FINAL.get('articles/'+slug+'.html');
+   if(!article||article.customMetadata?.p!=='ai-v2-native'||
+      article.customMetadata?.status!=='published')return null;
+   // One native R2 get, no remote S3 signing, list(), or generated AI call.
+   const body=await article.text();
+   const output=renderApprovedNativeAiV2Fast({body,meta:article.customMetadata},
+     slug,u,market==='uae');
+   return output||null;
+ }catch(error){
+   console.warn('native_r2_article_fast_read_deferred',
+     String(error?.message||error).slice(0,70));
+   return null; // Keep the original live legacy route as safe fallback.
+ }
+}
+
 async function serveArticle(env,u,english){
   const slug=decodeURIComponent(u.pathname.split('/').filter(Boolean).pop()||'');
   if(!slug||slug.length>280||slug.includes('/')||slug.includes('..'))return new Response('Not Found',{status:404});
