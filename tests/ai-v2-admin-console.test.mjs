@@ -96,3 +96,14 @@ test('AI V2 manual restart is read-only when job is already active',async()=>{
   assert.ok(!visited.some(x=>x.method==='POST'));
  }finally{globalThis.fetch=previous}
 });
+
+test('old generator button visibly routes to Gemini/Groq and never triggers legacy generation',async()=>{
+ const response=await renderAdmin(new Request(origin+'/admin',{headers:{cookie:'nc_admin=fake-valid-cookie'}}),env());
+ const html=await response.text();
+ assert.match(html,/id="generatorPanel"><h2>نظام Workers AI القديم/);
+ assert.match(html,/id="generateBtn" type="button">افتح مولد Gemini \/ Groq/);
+ assert.match(html,/id="aiV2Markets"/);
+ assert.match(html,/QUEUE_WINDOW_EMPTY/);
+ assert.ok(!html.includes("$('generateBtn').onclick=generateNow"),'legacy generate button must not issue generation');
+ assert.match(html,/لا يوجد توليد أو نشر مؤكد/);
+});
