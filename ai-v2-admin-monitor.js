@@ -39,8 +39,16 @@ export async function aiV2AdminMonitor(env,fetchFn=fetch){
    const chosen=values.sort((x,y)=>Date.parse(y.generatedAt)-Date.parse(x.generatedAt))[0]||null;
    providerGroups[name]=chosen?.providers?.[name]||null;
  }
+ const providerValues=Object.values(providerGroups).filter(Boolean);
+ const totals=providerValues.reduce((n,x)=>n+Math.max(0,Number(x.total||0)),0);
+ const quotaWaiting=providerValues.reduce((n,x)=>n+Math.max(0,Number(x.counts?.quotaWait||0)),0);
+ const otherWaiting=providerValues.reduce((n,x)=>n+Math.max(0,Number(x.counts?.providerWait||0)),0);
+ const unknown=providerValues.reduce((n,x)=>n+Math.max(0,Number(x.counts?.unverified||0))+
+   Math.max(0,Number(x.counts?.notInspected||0))+Math.max(0,Number(x.counts?.eligibleUnverified||0)),0);
+ const allWaitingQuota=totals>0&&quotaWaiting===totals&&unknown===0&&otherWaiting===0;
  const status=scheduler.reachable===false?'scheduler-unreachable':
    scheduler.enabled===false?'paused':
+   allWaitingQuota?'quota-wait':
    !freshest?'running-unverified':
    ['PAUSED_QUOTA','QUOTA_EXHAUSTED'].includes(freshest?.lastOutcome?.reason)?'quota-wait':
    freshest?.lastOutcome?.status==='LIVE_VERIFIED'?'published-recently':
