@@ -1,0 +1,70 @@
+name: AI V2 Admin Control and Throughput Safety Tests
+on:
+  push:
+    branches:
+      - 'feature/ai-v2-throughput-queue-key-pool-20261107'
+  pull_request:
+    paths:
+      - 'automation/ai-v2/**'
+      - 'ai-scheduler-v2/**'
+      - 'admin-*.js'
+      - 'ai-v2-*.js'
+      - 'package.json'
+      - 'auto-platform.js'
+      - 'tests/ai-v2-*.test.mjs'
+      - '.github/workflows/ai-v2-control-pr-tests.yml'
+      - '.github/workflows/noondealsnow-ai-v2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit-tests-no-secrets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install local test cryptographic libraries (never call provider APIs)
+        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Syntax checks without provider calls
+        run: |
+          node --check admin-runtime.js
+          node --check admin-page.js
+          node --check ai-v2-github-secrets.js
+          node --check ai-v2-admin-monitor.js
+          node --check automation/ai-v2/runtime-telemetry.mjs
+          node --check automation/ai-v2/key-pool-slots.mjs
+          node --check auto-platform.js
+          node --check ai-scheduler-v2/worker.mjs
+          node --check automation/ai-v2/topic-queue.mjs
+          node --check automation/ai-v2/run.mjs
+          node --check automation/ai-v2/gemini-key-pool.mjs
+          node --check automation/ai-v2/groq-key-pool.mjs
+      - name: Credential-free throughput and control tests
+        run: |
+          node --test \
+            tests/ai-v2-gemini-key-pool.test.mjs \
+            tests/ai-v2-groq-key-pool.test.mjs \
+            tests/ai-v2-topic-queue.test.mjs \
+            tests/ai-v2-control-policy.test.mjs \
+            tests/ai-v2-scheduler.test.mjs \
+            tests/ai-v2-workflow-wiring.test.mjs \
+            tests/ai-v2-github-secrets.test.mjs \
+            tests/ai-v2-runtime-telemetry.test.mjs \
+            tests/ai-v2-admin-console.test.mjs
+
+      - name: Compile destination Cloudflare Worker with sealed-box dependencies (NO deployment)
+        run: npx wrangler deploy --dry-run --config wrangler.new-account-production.jsonc --outdir /tmp/noondealsnow-ai-v2-admin-dry
+      - name: Read current independent AI scheduler public health without changing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS --max-time 18 -o /tmp/ndn-scheduler-health.json -w '%{http_code}' \
+            'https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health' || true)
+          echo "CURRENT_SCHEDULER_HEALTH_HTTP=$code"
+          if [ "$code" = 200 ]; then
+            jq -c '{schedulerEnabled,intervalMinutes,controlStatus,source,noActiveDispatchUntilEnabled}' /tmp/ndn-scheduler-health.json || true
+          fi
+          echo 'READ_ONLY=TRUE;PROVIDER_CALLS=0;R2_WRITES=0'

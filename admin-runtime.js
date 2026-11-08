@@ -258,6 +258,16 @@ export async function bulkTick(env){
   }
 }
 
+// Non-secret publication scheduling policy. Gemini/Groq credentials must NEVER
+// be saved in this Durable Object or returned to the browser.
+export const AI_V2_INTERVALS=Object.freeze([1,5,10,15,30,60]);
+export async function getAiV2Control(env){
+ const response=await gctl(env,'/ai-v2-control',{method:'GET'});
+ if(!response.ok)throw Error('AI_V2_CONTROL_UNAVAILABLE');
+ const value=await response.json();
+ return {enabled:value.enabled===true,intervalMinutes:AI_V2_INTERVALS.includes(value.intervalMinutes)?value.intervalMinutes:1,updatedAt:value.updatedAt||null};
+}
+
 export class GeneratorControl{
   constructor(ctx,env){this.ctx=ctx;this.env=enableExistingDestinationR2(env)}
   async config(){
@@ -299,6 +309,41 @@ export class GeneratorControl{
         return shape({lastAtMs:stamp,market,source},true);
       });
       return json(result,result.ok?200:429);
+    }
+    if(p==='/ai-v2-key-import-lease'&&req.method==='POST'){
+      const nowMs=Date.now(),key='aiV2KeyImportLease';
+      const result=await this.ctx.storage.transaction(async txn=>{
+        const old=await txn.get(key);
+        if(old&&Number(old.expiresAtMs)>nowMs)return {ok:false,error:'import_in_progress'};
+        const ticket=crypto.randomUUID();
+        await txn.put(key,{ticket,expiresAtMs:nowMs+120000});
+        return {ok:true,ticket};
+      });
+      return json(result,result.ok?200:409);
+    }
+    if(p==='/ai-v2-key-import-lease'&&req.method==='DELETE'){
+      const value=await req.json().catch(()=>({}));
+      const key='aiV2KeyImportLease';
+      const deleted=await this.ctx.storage.transaction(async txn=>{
+        const old=await txn.get(key);
+        if(!old||typeof value.ticket!=='string'||old.ticket!==value.ticket)return false;
+        await txn.delete(key);return true;
+      });
+      return json({ok:deleted},deleted?200:409);
+    }
+    if(p==='/ai-v2-control'&&req.method==='GET'){
+      return json((await this.ctx.storage.get('aiV2Control'))||{enabled:true,intervalMinutes:1,updatedAt:null});
+    }
+    if(p==='/ai-v2-control'&&req.method==='POST'){
+      const b=await req.json().catch(()=>({}));
+      if(('enabled' in b&&typeof b.enabled!=='boolean')||('intervalMinutes' in b&&!AI_V2_INTERVALS.includes(b.intervalMinutes)))
+        return json({ok:false,error:'invalid_ai_v2_control'},400);
+      const prior=(await this.ctx.storage.get('aiV2Control'))||{enabled:true,intervalMinutes:1};
+      const next={enabled:'enabled' in b?b.enabled:prior.enabled,
+        intervalMinutes:'intervalMinutes' in b?b.intervalMinutes:prior.intervalMinutes,
+        updatedAt:now()};
+      await this.ctx.storage.put('aiV2Control',next);
+      return json({ok:true,...next});
     }
     if(p==='/config'&&req.method==='GET')return json(await this.config());
     if(p==='/config'&&req.method==='POST'){
@@ -394,6 +439,105 @@ export async function isAdmin(req,env){
 export async function handleAdminApi(req,env){
   const u=new URL(req.url),p=u.pathname;
   if(!(await isAdmin(req,env)))return json({error:'unauthorized'},401);
+  // Dedicated private AI V2 operator endpoints. Fail closed and never reflect
+  // GitHub PAT or secret contents into responses, logs or Durable Objects.
+  if(p==='/api/admin/ai-v2-monitor'&&req.method==='GET'){
+    const {aiV2AdminMonitor}=await import('./ai-v2-admin-monitor.js');
+    return json(await aiV2AdminMonitor(env));
+  }
+  const aiV2SecretEndpoint=['/api/admin/ai-v2-keys','/api/admin/ai-v2-key-import','/api/admin/ai-v2-run-now'].includes(p);
+  if(aiV2SecretEndpoint&&req.method==='POST'){
+    const origin=req.headers.get('origin');
+    if(origin&&origin!==u.origin)return json({ok:false,error:'invalid_origin'},403);
+    if(req.headers.get('sec-fetch-site')==='cross-site')return json({ok:false,error:'cross_site_forbidden'},403);
+    const contentType=req.headers.get('content-type')||'';
+    if(!contentType.includes('application/json'))return json({ok:false,error:'json_only'},415);
+    const len=Number(req.headers.get('content-length')||0);
+    if(len>25000)return json({ok:false,error:'request_too_large'},413);
+    const raw=await req.text();
+    if(raw.length>25000)return json({ok:false,error:'request_too_large'},413);
+    let payload;
+    try{payload=JSON.parse(raw)}catch{return json({ok:false,error:'invalid_json'},400)}
+    if(!payload||typeof payload!=='object'||Array.isArray(payload))return json({ok:false,error:'invalid_payload'},400);
+    const token=String(env.NOON_GITHUB_SECRETS_ADMIN_TOKEN||payload.githubToken||'').trim();
+    if(!token)return json({ok:false,error:'github_token_required',
+      hint:'Use a fine-grained GitHub PAT with Secrets read/write; Actions read/write for manual dispatch.'},409);
+    try{
+      if(p==='/api/admin/ai-v2-keys'){
+        const {listGithubKeySecrets}=await import('./ai-v2-github-secrets.js');
+        return json(await listGithubKeySecrets(token));
+      }
+      if(p==='/api/admin/ai-v2-key-import'){
+        // One request may append to the GitHub pool at a time. GitHub Secrets
+        // PUT overwrites by default, so a Durable Object lease is mandatory.
+        const leaseResponse=await gctl(env,'/ai-v2-key-import-lease',{method:'POST'});
+        if(leaseResponse.status===409)return json({ok:false,error:'key_import_in_progress'},409);
+        if(!leaseResponse.ok)return json({ok:false,error:'key_import_lock_unavailable'},503);
+        const lease=await leaseResponse.json();
+        if(!lease?.ok||typeof lease.ticket!=='string')return json({ok:false,error:'key_import_lock_unavailable'},503);
+        try{
+          const {importGithubKeySecret}=await import('./ai-v2-github-secrets.js');
+          const result=await importGithubKeySecret({provider:payload.provider,input:payload.keys,token});
+          return json(result,201);
+        }finally{
+          try{await gctl(env,'/ai-v2-key-import-lease',{method:'DELETE',
+            headers:{'content-type':'application/json'},body:JSON.stringify({ticket:lease.ticket})})}catch{}
+        }
+      }
+      if(p==='/api/admin/ai-v2-run-now'){
+        const cfg=await getAiV2Control(env);
+        if(!cfg.enabled)return json({ok:false,error:'scheduler_paused',hint:'Resume AI V2 before running now.'},409);
+        // Respect the separate runtime-activation and site control policy. A
+        // direct GitHub dispatch otherwise bypasses the Cloudflare stop switch.
+        let liveScheduler;
+        try{
+          const response=await fetch('https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health',{
+            headers:{'cache-control':'no-store'},signal:AbortSignal.timeout(6000)});
+          if(response.ok)liveScheduler=await response.json();
+        }catch{}
+        if(!liveScheduler||liveScheduler.schedulerEnabled!==true||
+            liveScheduler.controlStatus!=='POLICY_VERIFIED'||liveScheduler.intervalMinutes!==cfg.intervalMinutes)
+          return json({ok:false,error:'scheduler_not_verified',
+            hint:'Scheduler runtime must confirm enabled, effective interval and verified admin policy.'},409);
+        const root='https://api.github.com/repos/ramyadamface1-stack/nooncoupons/actions/workflows/noondealsnow-ai-v2.yml';
+        const headers={'authorization':'Bearer '+token,'accept':'application/vnd.github+json',
+          'x-github-api-version':'2022-11-28','user-agent':'NoonDealsNow-Admin-Manual-Dispatch'};
+        const active=await fetch(root+'/runs?event=workflow_dispatch&branch=main&per_page=10',{
+          headers,signal:AbortSignal.timeout(12000)});
+        if(!active.ok)return json({ok:false,error:'github_runs_http_'+active.status},502);
+        const runs=await active.json();
+        if((runs.workflow_runs||[]).some(x=>['queued','pending','in_progress','waiting','requested'].includes(x.status)))
+          return json({ok:false,error:'generation_already_running',dispatched:false},409);
+        const dispatched=await fetch(root+'/dispatches',{method:'POST',
+          headers:{...headers,'content-type':'application/json'},
+          body:JSON.stringify({ref:'main',inputs:{preflight_only:'false',
+            verify_gemini_metadata:'false',scheduled_ms:String(Date.now())}}),
+          signal:AbortSignal.timeout(12000)});
+        if(dispatched.status!==204)return json({ok:false,error:'github_dispatch_http_'+dispatched.status,dispatched:false},502);
+        return json({ok:true,dispatched:true,published:false,
+          message:'GitHub accepted the run. This is not an article-publication confirmation.'},202);
+      }
+    }catch(e){
+      const code=String(e?.message||'unknown');
+      const permitted=/^(GITHUB_[A-Z0-9_]+|INVALID_[A-Z0-9_]+|EMPTY_IMPORT|IMPORT_TOO_LARGE|UNSUPPORTED_KEY_PROVIDER)$/;
+      return json({ok:false,error:permitted.test(code)?code:'secure_operation_failed'},502);
+    }
+  }
+
+  if(p==='/api/admin/ai-v2-control'&&req.method==='GET'){
+    try{return json({ok:true,...await getAiV2Control(env)})}catch{return json({ok:false,error:'control_unavailable'},503)}
+  }
+  if(p==='/api/admin/ai-v2-control'&&req.method==='POST'){
+    // Session cookie is SameSite=Strict; reject cross-origin posts as defense in depth.
+    const origin=req.headers.get('origin');
+    if(origin&&origin!==u.origin)return json({ok:false,error:'invalid_origin'},403);
+    const b=await body(req);
+    if(('enabled' in b&&typeof b.enabled!=='boolean')||('intervalMinutes' in b&&!AI_V2_INTERVALS.includes(b.intervalMinutes))||
+      !('enabled' in b)&&!('intervalMinutes' in b))
+      return json({ok:false,error:'invalid_control_payload'},400);
+    try{return await gctl(env,'/ai-v2-control',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)})}
+    catch{return json({ok:false,error:'control_unavailable'},503)}
+  }
   if(p==='/api/admin/logout'&&req.method==='POST'){
     const raw=cookie(req,'nc_admin');if(raw)await gctl(env,'/session?hash='+await sha256(raw),{method:'DELETE'});
     return json({ok:true},200,{'set-cookie':'nc_admin=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Strict'});

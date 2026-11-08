@@ -17,7 +17,7 @@ test('rejects duplicates, empty entries and malformed JSON without exposing inpu
   assert.deepEqual(parseGeminiKeys('[bad'),[]);
   assert.deepEqual(parseGeminiKeys(''),[]);
 });
-test('prefers AQ auth secrets over legacy single-key format without blind fallback',()=>{
+test('prefers AQ auth secrets but retains a distinct legacy key as an additive fallback',()=>{
   const a=newer('a'),b=newer('b'),old=older('o');
   const env={GEMINI_API_KEYS:a+'\n'+b,GEMINI_API_KEY:old};
   const inventory=geminiKeyInventory(env);
@@ -26,7 +26,9 @@ test('prefers AQ auth secrets over legacy single-key format without blind fallba
   assert.equal(inventory.selectedSource,'GEMINI_API_KEYS_AUTH');
   assert.equal(selectGeminiKey(env,0).key,a);
   assert.equal(selectGeminiKey(env,1).key,b);
-  assert.equal(selectGeminiKey(env,2).key,a);
+  assert.equal(selectGeminiKey(env,2).key,old);
+  assert.equal(selectGeminiKey(env,3).key,a);
+  assert.equal(inventory.eligibleCount,3);
   assert.equal(JSON.stringify(inventory).includes(a),false);
   assert.equal(JSON.stringify(inventory).includes(old),false);
   assert.equal(selectGeminiKey({GEMINI_API_KEY:old},0).key,old);
@@ -68,9 +70,9 @@ test('mixed AQ and AIza Gemini keys are all eligible in the bulk secret',()=>{
   const inventory=geminiKeyInventory(env);
   assert.equal(inventory.newCount,3);
   assert.equal(inventory.newAuthCount,2);
-  assert.equal(inventory.eligibleCount,3);
+  assert.equal(inventory.eligibleCount,4);
   assert.equal(inventory.selectedSource,'GEMINI_API_KEYS');
-  assert.deepEqual([0,1,2,3].map(i=>selectGeminiKey(env,i).key),[a,old,b,a]);
+  assert.deepEqual([0,1,2,3].map(i=>selectGeminiKey(env,i).key),[a,old,b,older('fallback')]);
 });
 
 test('Gemini extra secret adds keys without replacing existing bulk keys',()=>{

@@ -120,6 +120,21 @@ export function queueInventory(topics){
 /** Durable cursor scan with bounded R2 reads per invocation. The first new
  * cycle starts after the previous 20 legacy topics, but wraps around safely. */
 export const QUEUE_SCAN_LIMIT=24;
+// Use the same R2 read budget for *eligible market* topics instead of spending
+// half the window on the other market. Scanning local metadata costs no R2
+// requests; checkpoint reads remain capped at 24 per market invocation.
+export function marketQueueScanWindow(topics,market,cursor,limit=QUEUE_SCAN_LIMIT){
+ if(!Array.isArray(topics)||!['SA','AE'].includes(market))throw Error('INVALID_MARKET_QUEUE');
+ if(!Number.isInteger(limit)||limit<1||limit>QUEUE_SCAN_LIMIT)throw Error('INVALID_QUEUE_SCAN_LIMIT');
+ if(topics.length===0)return [];
+ const start=Number.isSafeInteger(cursor)&&cursor>=0?cursor%topics.length:Math.min(20,topics.length-1);
+ const positions=[];
+ for(let offset=0;offset<topics.length&&positions.length<limit;offset++){
+  const position=(start+offset)%topics.length;
+  if(topics[position]?.country===market)positions.push(position);
+ }
+ return positions;
+}
 // Bridge a stale legacy-only scan to the start of an appended editorial bank.
 // Keep every original index stable and let the persisted cursor resume on the
 // exact newly selected topic; never rescan the whole R2 corpus in one tick.
@@ -135,27 +150,6 @@ export function queueScanWindow(total,cursor,limit=QUEUE_SCAN_LIMIT){
  if(!Number.isInteger(limit)||limit<1||limit>24)throw Error('INVALID_QUEUE_SCAN_LIMIT');
  const start=Number.isSafeInteger(cursor)&&cursor>=0?cursor%total:Math.min(20,total-1);
  return Array.from({length:Math.min(total,limit)},(_,i)=>(start+i)%total);
-}
-/** Scan only locally eligible topics in the requested market, with the
- * same 24 R2-read cap. Skipping opposite-market topics in memory doubles
- * productive checkpoint coverage per SA/AE dispatch without extra API calls.
- * Stable topic indices, hashes, durable cursor identities and gates remain.
- */
-export function queueMarketScanWindow(topics,cursor,market,limit=QUEUE_SCAN_LIMIT){
- if(!Array.isArray(topics)||!['SA','AE'].includes(market))
-  throw Error('INVALID_MARKET_QUEUE');
- if(!Number.isInteger(limit)||limit<1||limit>QUEUE_SCAN_LIMIT)
-  throw Error('INVALID_QUEUE_SCAN_LIMIT');
- const total=topics.length;
- if(!total)return [];
- const start=Number.isSafeInteger(cursor)&&cursor>=0?cursor%total:Math.min(20,total-1);
- const matched=[];
- for(let scanned=0;scanned<total&&matched.length<limit;scanned++){
-  const index=(start+scanned)%total;
-  if(topics[index]?.country===market&&publicationReadyTopic(topics[index]))
-   matched.push(index);
- }
- return matched;
 }
 export const PROVIDER_YIELD_REASONS=Object.freeze(['ALL_FREE_PROVIDERS_IN_COOLDOWN','CALL_BUDGET_LIMIT','NO_FREE_PROVIDER_AVAILABLE']);
 export function pausedProviderNextCursor(total,lastChecked,reason){

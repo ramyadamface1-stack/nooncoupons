@@ -6,6 +6,17 @@ on:
       - '.github/workflows/noondealsnow-new-account-production-ready.yml'
       - 'wrangler.new-account-production.jsonc'
       - 'auto-platform.js'
+      - 'admin-page.js'
+      - 'admin-runtime.js'
+      - 'ai-v2-github-secrets.js'
+      - 'ai-v2-admin-monitor.js'
+      - 'automation/ai-v2/key-pool-slots.mjs'
+      - 'automation/ai-v2/gemini-key-pool.mjs'
+      - 'automation/ai-v2/groq-key-pool.mjs'
+      - 'tests/ai-v2-github-secrets.test.mjs'
+      - 'tests/ai-v2-runtime-telemetry.test.mjs'
+      - 'tests/ai-v2-admin-console.test.mjs'
+      - 'package.json'
       - 'tests/public-compact-feed.test.mjs'
       - 'final-platform.js'
       - 'english-canary.js'
@@ -22,12 +33,12 @@ on:
       - 'tests/ai-v2-publication-ledger.test.mjs'
       - 'tests/ai-v2-native-publish-bridge.test.mjs'
       - 'r2-emergency-readonly.js'
-      - 'complete-blog-listing.js'
-      - 'r2-remote-existing-bucket.js'
-      - 'premium-entry.js'
-      - 'r2-public-cache-policy.js'
-      - 'tests/complete-blog-listing.test.mjs'
       - 'tests/remote-existing-r2-binding.test.mjs'
+      - 'tests/complete-blog-listing.test.mjs'
+      - 'r2-public-cache-policy.js'
+      - 'premium-entry.js'
+      - 'r2-remote-existing-bucket.js'
+      - 'complete-blog-listing.js'
       - 'tests/ai-v2-sitemap.test.mjs'
       - 'tests/sitemap-health-budget.test.mjs'
       - 'tests/mobile-directory-no-heavy-manifest.test.mjs'
@@ -72,13 +83,14 @@ jobs:
           assert sorted(x.get('name') for x in c['durable_objects']['bindings'])==['CONTROL','GENERATOR_CONTROL']
           print('NEW_ACCOUNT_WORKER=CONFIG_SAFE;NEW_BUCKET=BOUND;DO_STATE=EXISTING;CRON=DISABLED')
           PY
-      - name: Check 30-second native gate regression
-        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs
+      - name: Install dependencies for approved source and test suite
+        run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Check native gate and authenticated secret manager regressions
+        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs
       - name: Deploy destination script ONLY, without hostname or DNS modification
         shell: bash
         run: |
           set -euo pipefail
-          npm install --no-audit --no-fund --ignore-scripts
           npx wrangler deploy --dry-run --config wrangler.new-account-production.jsonc --outdir /tmp/ndn-production-new-dry
           npx wrangler deploy --config wrangler.new-account-production.jsonc
       - name: Verify destination Worker service exists

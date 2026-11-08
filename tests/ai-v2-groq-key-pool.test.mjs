@@ -10,11 +10,12 @@ test('multi-Groq keys work from multiline, comma/semicolon, and JSON, with no se
  assert.deepEqual(parseGroqKeys('[bad'),[]);
  const env={GROQ_API_KEYS:a+'\n'+b,GROQ_API_KEY:key('old')};
  const report=groqKeyInventory(env);
- assert.equal(report.eligibleCount,2);
+ assert.equal(report.eligibleCount,3);
  assert.equal(report.selectedSource,'GROQ_API_KEYS');
  assert.equal(selectGroqKey(env,0).key,a);
  assert.equal(selectGroqKey(env,1).key,b);
- assert.equal(selectGroqKey(env,2).key,a);
+ assert.equal(selectGroqKey(env,2).key,key('old'));
+ assert.equal(selectGroqKey(env,3).key,a);
  assert.equal(JSON.stringify(report).includes(a),false);
  assert.equal(selectGroqKey({GROQ_API_KEY:key('old')},0).source,'GROQ_API_KEY');
 });

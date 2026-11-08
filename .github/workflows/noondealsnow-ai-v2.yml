@@ -97,6 +97,18 @@ jobs:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
           GEMINI_API_KEYS_EXTRA: ${{ secrets.GEMINI_API_KEYS_EXTRA }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          NDN_GEMINI_POOL_01: ${{ secrets.NDN_GEMINI_POOL_01 }}
+          NDN_GEMINI_POOL_02: ${{ secrets.NDN_GEMINI_POOL_02 }}
+          NDN_GEMINI_POOL_03: ${{ secrets.NDN_GEMINI_POOL_03 }}
+          NDN_GEMINI_POOL_04: ${{ secrets.NDN_GEMINI_POOL_04 }}
+          NDN_GEMINI_POOL_05: ${{ secrets.NDN_GEMINI_POOL_05 }}
+          NDN_GEMINI_POOL_06: ${{ secrets.NDN_GEMINI_POOL_06 }}
+          NDN_GEMINI_POOL_07: ${{ secrets.NDN_GEMINI_POOL_07 }}
+          NDN_GEMINI_POOL_08: ${{ secrets.NDN_GEMINI_POOL_08 }}
+          NDN_GEMINI_POOL_09: ${{ secrets.NDN_GEMINI_POOL_09 }}
+          NDN_GEMINI_POOL_10: ${{ secrets.NDN_GEMINI_POOL_10 }}
+          NDN_GEMINI_POOL_11: ${{ secrets.NDN_GEMINI_POOL_11 }}
+          NDN_GEMINI_POOL_12: ${{ secrets.NDN_GEMINI_POOL_12 }}
         shell: bash
         run: |
           set -euo pipefail
@@ -109,6 +121,30 @@ jobs:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
           GROQ_API_KEYS_EXTRA: ${{ secrets.GROQ_API_KEYS_EXTRA }}
+          NDN_GEMINI_POOL_01: ${{ secrets.NDN_GEMINI_POOL_01 }}
+          NDN_GEMINI_POOL_02: ${{ secrets.NDN_GEMINI_POOL_02 }}
+          NDN_GEMINI_POOL_03: ${{ secrets.NDN_GEMINI_POOL_03 }}
+          NDN_GEMINI_POOL_04: ${{ secrets.NDN_GEMINI_POOL_04 }}
+          NDN_GEMINI_POOL_05: ${{ secrets.NDN_GEMINI_POOL_05 }}
+          NDN_GEMINI_POOL_06: ${{ secrets.NDN_GEMINI_POOL_06 }}
+          NDN_GEMINI_POOL_07: ${{ secrets.NDN_GEMINI_POOL_07 }}
+          NDN_GEMINI_POOL_08: ${{ secrets.NDN_GEMINI_POOL_08 }}
+          NDN_GEMINI_POOL_09: ${{ secrets.NDN_GEMINI_POOL_09 }}
+          NDN_GEMINI_POOL_10: ${{ secrets.NDN_GEMINI_POOL_10 }}
+          NDN_GEMINI_POOL_11: ${{ secrets.NDN_GEMINI_POOL_11 }}
+          NDN_GEMINI_POOL_12: ${{ secrets.NDN_GEMINI_POOL_12 }}
+          NDN_GROQ_POOL_01: ${{ secrets.NDN_GROQ_POOL_01 }}
+          NDN_GROQ_POOL_02: ${{ secrets.NDN_GROQ_POOL_02 }}
+          NDN_GROQ_POOL_03: ${{ secrets.NDN_GROQ_POOL_03 }}
+          NDN_GROQ_POOL_04: ${{ secrets.NDN_GROQ_POOL_04 }}
+          NDN_GROQ_POOL_05: ${{ secrets.NDN_GROQ_POOL_05 }}
+          NDN_GROQ_POOL_06: ${{ secrets.NDN_GROQ_POOL_06 }}
+          NDN_GROQ_POOL_07: ${{ secrets.NDN_GROQ_POOL_07 }}
+          NDN_GROQ_POOL_08: ${{ secrets.NDN_GROQ_POOL_08 }}
+          NDN_GROQ_POOL_09: ${{ secrets.NDN_GROQ_POOL_09 }}
+          NDN_GROQ_POOL_10: ${{ secrets.NDN_GROQ_POOL_10 }}
+          NDN_GROQ_POOL_11: ${{ secrets.NDN_GROQ_POOL_11 }}
+          NDN_GROQ_POOL_12: ${{ secrets.NDN_GROQ_POOL_12 }}
         shell: bash
         run: |
           set -euo pipefail
@@ -119,7 +155,8 @@ jobs:
           const configuredGemini=new Set([
             ...parseGeminiKeys(e.GEMINI_API_KEY),
             ...parseGeminiKeys(e.GEMINI_API_KEYS),
-            ...parseGeminiKeys(e.GEMINI_API_KEYS_EXTRA)
+            ...parseGeminiKeys(e.GEMINI_API_KEYS_EXTRA),
+            ...Array.from({length:12},(_,i)=>parseGeminiKeys(e['NDN_GEMINI_POOL_'+String(i+1).padStart(2,'0')])).flat()
           ]);
           const eligibleGemini=geminiKeyInventory(e);
           const eligibleGroq=groqKeyInventory(e);
@@ -188,6 +225,30 @@ jobs:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
       GROQ_API_KEYS_EXTRA: ${{ secrets.GROQ_API_KEYS_EXTRA }}
+      NDN_GEMINI_POOL_01: ${{ secrets.NDN_GEMINI_POOL_01 }}
+      NDN_GEMINI_POOL_02: ${{ secrets.NDN_GEMINI_POOL_02 }}
+      NDN_GEMINI_POOL_03: ${{ secrets.NDN_GEMINI_POOL_03 }}
+      NDN_GEMINI_POOL_04: ${{ secrets.NDN_GEMINI_POOL_04 }}
+      NDN_GEMINI_POOL_05: ${{ secrets.NDN_GEMINI_POOL_05 }}
+      NDN_GEMINI_POOL_06: ${{ secrets.NDN_GEMINI_POOL_06 }}
+      NDN_GEMINI_POOL_07: ${{ secrets.NDN_GEMINI_POOL_07 }}
+      NDN_GEMINI_POOL_08: ${{ secrets.NDN_GEMINI_POOL_08 }}
+      NDN_GEMINI_POOL_09: ${{ secrets.NDN_GEMINI_POOL_09 }}
+      NDN_GEMINI_POOL_10: ${{ secrets.NDN_GEMINI_POOL_10 }}
+      NDN_GEMINI_POOL_11: ${{ secrets.NDN_GEMINI_POOL_11 }}
+      NDN_GEMINI_POOL_12: ${{ secrets.NDN_GEMINI_POOL_12 }}
+      NDN_GROQ_POOL_01: ${{ secrets.NDN_GROQ_POOL_01 }}
+      NDN_GROQ_POOL_02: ${{ secrets.NDN_GROQ_POOL_02 }}
+      NDN_GROQ_POOL_03: ${{ secrets.NDN_GROQ_POOL_03 }}
+      NDN_GROQ_POOL_04: ${{ secrets.NDN_GROQ_POOL_04 }}
+      NDN_GROQ_POOL_05: ${{ secrets.NDN_GROQ_POOL_05 }}
+      NDN_GROQ_POOL_06: ${{ secrets.NDN_GROQ_POOL_06 }}
+      NDN_GROQ_POOL_07: ${{ secrets.NDN_GROQ_POOL_07 }}
+      NDN_GROQ_POOL_08: ${{ secrets.NDN_GROQ_POOL_08 }}
+      NDN_GROQ_POOL_09: ${{ secrets.NDN_GROQ_POOL_09 }}
+      NDN_GROQ_POOL_10: ${{ secrets.NDN_GROQ_POOL_10 }}
+      NDN_GROQ_POOL_11: ${{ secrets.NDN_GROQ_POOL_11 }}
+      NDN_GROQ_POOL_12: ${{ secrets.NDN_GROQ_POOL_12 }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.NOONDEALSNOW_AI_R2_CHECKPOINT_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
       NOONDEALSNOW_AI_FREE_ONLY_APPROVED: ${{ secrets.NOONDEALSNOW_AI_FREE_ONLY_APPROVED }}

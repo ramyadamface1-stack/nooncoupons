@@ -1,4 +1,5 @@
 import {readFileSync} from 'node:fs';
+import {buildSafeMonitor,writeSafeMonitor} from './runtime-telemetry.mjs';
 import {createHash} from 'node:crypto';
 import {cadence,validateConfig,assertTopic,mayCallProvider,qualityPreflight} from './guardrails.mjs';
 import {checkpointState} from './r2-checkpoints.mjs';
@@ -8,7 +9,7 @@ import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,queueMarketScanWindow,queueExpansionBridgeWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,queueExpansionBridgeWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
@@ -17,16 +18,16 @@ import {expandedEditorialTopics} from './topic-expansion.mjs';
 import {newEditorialTopicWave} from './topic-refresh.mjs';
 import {thirdEditorialTopicWave} from './topic-refresh-n3.mjs';
 import {fourthEditorialTopicWave} from './topic-refresh-n4.mjs';
-import {fifthEditorialTopicWave} from './topic-refresh-n5.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const baseTopics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
-const existingTopicCount=baseTopics.length+expandedEditorialTopics.length+newEditorialTopicWave.length+thirdEditorialTopicWave.length+fourthEditorialTopicWave.length;
+const existingTopicCount=baseTopics.length+expandedEditorialTopics.length+newEditorialTopicWave.length+thirdEditorialTopicWave.length;
 // Only append; historical private checkpoint identities and cursor positions stay fixed.
-const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave];
+const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave];
 let runStartedAt=Date.now();
-let lastReportStatus=null,jobBatchOrdinal=0;
+let lastReportStatus=null,lastSafeReport=null,lastSelectedCredential=null,jobBatchOrdinal=0;
 const report=(status,reason,data={})=>{
   lastReportStatus=status;
+  lastSafeReport={status,reason,url:typeof data?.url==='string'?data.url:null};
   console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,elapsedMs:Date.now()-runStartedAt,...data}));
 };
 const now=()=>new Date().toISOString();
@@ -91,13 +92,13 @@ async function run(){
   // They cannot select the same topic; legacy cursor and checkpoint identities
   // are unchanged, so old completed/uncertain drafts remain protected.
   const cursorId=hash(queueMarket?'noondealsnow|ai-v2|market-queue-v1|'+queueMarket:'noondealsnow|ai-v2|round-robin-cursor-v1').slice(0,24);
-  // Keep historical one-off recovery semantics untouched. Production reads a
-  // maximum of 24 article checkpoints per invocation, not the whole queue.
+  // Keep historical one-off recovery semantics untouched. A normal market job
+  // reads at most 24 own-market checkpoints, not 12 mixed-market checkpoints.
   const oldCursor=oneOffCanary?null:await readCheckpoint(config,cursorId);
   const firstPosition=queueMarket&&oldCursor?.cursor==null?baseTopics.length+(queueMarket==='AE'?1:0):oldCursor?.cursor;
-  const firstWindow=oneOffCanary?topics.map((_,i)=>i):queueMarket?queueMarketScanWindow(topics,firstPosition,queueMarket):queueScanWindow(topics.length,firstPosition);
+  const firstWindow=oneOffCanary?topics.map((_,i)=>i):(queueMarket?marketQueueScanWindow(topics,queueMarket,firstPosition):queueScanWindow(topics.length,firstPosition));
   const positions=[...firstWindow,...(oneOffCanary?[]:queueExpansionBridgeWindow(topics.length,existingTopicCount,firstWindow))];
-  let checked=0,lastChecked=null;
+  let checked=0,lastChecked=null,checkpointStates={};
   // If all free sources are cooling down, do not pin the global queue to an
   // unfinished article. Its immutable R2 checkpoint survives; later cycles
   // can find it again, while another ready draft may publish without AI.
@@ -119,6 +120,8 @@ async function run(){
     if(oneOffCanary&&process.env.AI_CANARY_SLUG&&topic.slug!==process.env.AI_CANARY_SLUG)continue;
     checked++;
     const articleId=assertTopic(topic,config),saved=await readCheckpoint(config,articleId);
+    const checkpointStatus=String(saved?.state||'UNSTARTED');
+    checkpointStates[checkpointStatus]=(checkpointStates[checkpointStatus]||0)+1;
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
     if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly,autoSafeSaudiRecovery:!oneOffCanary,autoSafeSaudiFilesystemRecovery:!oneOffCanary,autoSafeEnglishRecovery:!oneOffCanary,autoReadOnlyReconcile:!oneOffCanary,topic}))continue;
@@ -133,7 +136,7 @@ async function run(){
   }
   if(!selected){
     report('SKIPPED',oneOffCanary?'NO_ELIGIBLE_TOPIC':'QUEUE_WINDOW_EMPTY',
-      {queue:queueInventory(topics),checked,scanLimit:positions.length,nextCursor:oneOffCanary?null:nextQueueCursor(topics.length,lastChecked)});
+      {queue:queueInventory(topics),checked,scanLimit:positions.length,checkpointStates,nextCursor:oneOffCanary?null:nextQueueCursor(topics.length,lastChecked)});
     return;
   }
   const {topic,articleId}=selected;
@@ -239,6 +242,8 @@ async function run(){
           const modelKeyCircuitId=providerModelKeyCircuitId(candidateProvider,candidateModel,keyRef,hash);
           const modelKeyCircuit=await providerCircuits.read(modelKeyCircuitId);
           if(providerCircuitActive(modelKeyCircuit))continue;
+          lastSelectedCredential={provider:candidateProvider,model:candidateModel,keyRef,
+            source:credential.source,at:now()};
           return {provider:candidateProvider,model:candidateModel,modelCircuitId,modelCircuit,
             modelKeyCircuitId,modelKeyCircuit,credential,keyRef,circuitId,circuit};
         }
@@ -496,4 +501,22 @@ async function runScheduledBatch(){
   console.log('AI_V2_JOB_BATCH '+JSON.stringify({market:process.env.AI_QUEUE_MARKET||null,
     verifiedArticles:published,maxArticles:maximum,elapsedMs:Date.now()-jobStarted}));
 }
-runScheduledBatch().catch(e=>{console.error('AI_V2_SAFE_FAILURE '+String(e?.message||e).slice(0,250));process.exitCode=1});
+runScheduledBatch().then(async()=>{
+  // Five-minute census, plus immediate verified successes, keeps free R2 reads
+  // bounded and shows actual per-key quota cooldowns without provider calls.
+  const market=String(process.env.AI_QUEUE_MARKET||'').toUpperCase();
+  if(!['SA','AE'].includes(market))return;
+  const isCensusMinute=Math.floor(Date.now()/60000)%5===0;
+  if(!isCensusMinute&&lastReportStatus!=='LIVE_VERIFIED')return;
+  try{
+    const monitor=await buildSafeMonitor(process.env,{market,lastReport:lastSafeReport,lastSelected:lastSelectedCredential});
+    const saved=await writeSafeMonitor(monitor);
+    console.log('AI_V2_SAFE_MONITOR '+JSON.stringify({market,ok:saved.ok,
+      reason:saved.ok?'UPDATED':saved.reason,
+      configuredGemini:monitor.providers.gemini.total,configuredGroq:monitor.providers.groq.total,
+      quotaWaitingGemini:monitor.providers.gemini.counts.quotaWait,
+      quotaWaitingGroq:monitor.providers.groq.counts.quotaWait}));
+  }catch(e){
+    console.warn('AI_V2_MONITOR_NON_FATAL '+String(e?.message||e).slice(0,100));
+  }
+}).catch(e=>{console.error('AI_V2_SAFE_FAILURE '+String(e?.message||e).slice(0,250));process.exitCode=1});

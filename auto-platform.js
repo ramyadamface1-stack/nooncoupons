@@ -3,7 +3,7 @@ export {ControlPlane} from './platform.js';
 export {GeneratorControl} from './admin-runtime.js';
 import {renderAdmin} from './admin-page.js';
 import {secureLogin} from './secure-admin-auth.js';
-import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin,bulkTick,chooseAdaptiveBulkBatch} from './admin-runtime.js';
+import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin,bulkTick,chooseAdaptiveBulkBatch,getAiV2Control} from './admin-runtime.js';
 import {readState,pickTopic,pickRescueTopic,publishGenerated} from './generator-core-v2.js';
 import {generateWithWorkersAI,workersAiBudget,isWorkersAiFreeQuotaError} from './workers-ai-generator.js';
 import {BULK_ENGINE_INFO,BULK_RUNTIME_LIMITS,CAMPAIGN_CALENDAR_INFO} from './bulk-generator.js';
@@ -460,6 +460,12 @@ export default{
       const r=await app.fetch(req,env,ctx);if(!r.ok)return r;
       try{const s=await r.json();s.settings={...(s.settings||{}),aiPrimary:'workers-ai',aiFallback:null,targetWords:1500,minWords:1000,qualityThreshold:95};return json(s,r.status)}catch{return r}
     }
+    if(u.pathname==='/api/ai-v2-control-policy'&&req.method==='GET'){
+      // Public non-secret policy for the separately deployed minute scheduler.
+      // Never expose API key material or authentication tokens.
+      try{return json({ok:true,...await getAiV2Control(env)})}
+      catch{return json({ok:false,error:'control_unavailable'},503)}
+    }
     if(u.pathname==='/admin'||u.pathname==='/admin/'||u.pathname==='/admin/seo-settings')return renderAdmin(req,env);
     if(u.pathname==='/api/admin/login'&&req.method==='POST')return secureLogin(req,env);
     if(u.pathname==='/api/admin/generate-now'&&req.method==='POST'){
@@ -476,8 +482,8 @@ export default{
     }
     if(u.pathname.startsWith('/api/admin/')){const r=await handleAdminApi(req,env);if(r)return r}
     if(u.pathname==='/api/generation-freshness'&&req.method==='GET'){
-      const [status,aiV2]=await Promise.all([getGeneratorStatus(env),readAiV2PublicationLedger(env)]),snapshot=combineGenerationFreshness(generationFreshnessSnapshot(status),aiV2);
-      return json({ok:true,...snapshot,aiV2Windows:aiV2PublicationWindows(aiV2).windows||null,cron:'* * * * *',bulkLastTickAt:status.bulkLastTickAt||null,bulkLastTickPublished:Number(status.bulkLastTickPublished||0),bulkLastError:status.bulkLastError||null,workersAiLastSuccess:status.lastSuccess||null,qualityThreshold:95,minArticleWords:1500});
+      const [status,aiV2]=await Promise.all([getGeneratorStatus(env),readAiV2PublicationLedger(env)]),snapshot=combineGenerationFreshness(generationFreshnessSnapshot(status),aiV2),aiV2Info=aiV2PublicationWindows(aiV2);
+      return json({ok:true,...snapshot,aiV2Windows:aiV2Info.windows||null,aiV2LedgerAvailable:aiV2Info.available===true,aiV2LastVerified:aiV2Info.lastArticle||null,cron:'* * * * *',bulkLastTickAt:status.bulkLastTickAt||null,bulkLastTickPublished:Number(status.bulkLastTickPublished||0),bulkLastError:status.bulkLastError||null,workersAiLastSuccess:status.lastSuccess||null,qualityThreshold:95,minArticleWords:1500});
     }
     if(u.pathname==='/api/generator-health'){
       const [cfg,status,aiV2]=await Promise.all([getGeneratorConfig(env),getGeneratorStatus(env),readAiV2PublicationLedger(env)]);

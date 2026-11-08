@@ -114,6 +114,23 @@ export function effectiveRuntimeConfig(cfg,env){
   return {...cfg,enabled:true,publicationMode:'live_verified',
     safety:{...cfg.safety,noAutomaticPublishUntilLiveBridgeVerified:false}};
 }
+// Site admin's non-secret settings are stored in an existing Durable Object.
+// Treat absent/malformed settings as disabled: never dispatch the publisher
+// when the operator's latest pause/interval choice cannot be verified.
+export async function managedRuntimeConfig(cfg,env,fetchFn=fetch){
+  const active=effectiveRuntimeConfig(cfg,env);
+  if(!active.enabled)return {...active,controlStatus:'ACTIVATION_NOT_ENABLED'};
+  try{
+    const res=await fetchFn('https://noondealsnow.com/api/ai-v2-control-policy',{
+      headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(6000)});
+    if(!res.ok)return {...active,enabled:false,controlStatus:'POLICY_HTTP_'+res.status};
+    const policy=await res.json();
+    if(policy?.ok!==true||typeof policy.enabled!=='boolean'||
+      ![1,5,10,15,30,60].includes(policy.intervalMinutes))
+      return {...active,enabled:false,controlStatus:'POLICY_INVALID'};
+    return {...active,enabled:policy.enabled,intervalMinutes:policy.intervalMinutes,controlStatus:'POLICY_VERIFIED'};
+  }catch{return {...active,enabled:false,controlStatus:'POLICY_UNAVAILABLE'}}
+}
 export async function probeProductionCapacity(fetchFn=fetch){
   try{
     const response=await fetchFn('https://noondealsnow.com/api/health',{
@@ -128,7 +145,7 @@ export async function probeProductionCapacity(fetchFn=fetch){
   }catch{return {allowed:true,verified:false}}
 }
 async function tick(event,env){
-  const active=effectiveRuntimeConfig(config,env);
+  const active=await managedRuntimeConfig(config,env);
   if(active.enabled){
     const capacity=await probeProductionCapacity();
     if(!capacity.allowed){
@@ -143,12 +160,13 @@ async function tick(event,env){
 
 export default {
   scheduled(event,env,ctx){ctx.waitUntil(tick(event,env))},
-  fetch(request,env){
+  async fetch(request,env){
     const path=new URL(request.url).pathname;
     if(path!=='/health')return new Response('Not Found',{status:404});
-    const active=effectiveRuntimeConfig(config,env);
+    const active=await managedRuntimeConfig(config,env);
     return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:active.enabled,
-      intervalMinutes:active.intervalMinutes,source:'config-plus-explicit-runtime-secret',
+      intervalMinutes:active.intervalMinutes,source:'admin-do-policy-plus-explicit-runtime-secret',
+      controlStatus:active.controlStatus,
       dispatchPolicy:'one-cron-tick-per-minute-with-serialized-market-jobs',
       globalPublicationSpacingSeconds:30,
       legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:!active.enabled,
