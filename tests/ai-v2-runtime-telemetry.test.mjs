@@ -59,3 +59,40 @@ test('private admin status never infers working provider from unavailable R2 or 
  assert.equal(result.verified.lastHour?.total??0,0,'empty verified ledger cannot imply articles published');
  assert.equal(result.safety.configuredDoesNotMeanValidated,true);
 });
+
+test('admin monitoring never loads the giant publication ledger and reports queue saturation clearly',async()=>{
+ const now=new Date().toISOString();
+ const market={version:1,market:'SA',keyMaterialIncluded:false,generatedAt:now,
+   providers:{gemini:{total:43,counts:{eligibleUnverified:43,quotaWait:0,providerWait:0,unverified:0,notInspected:0},entries:[]},
+    groq:{total:1,counts:{eligibleUnverified:1,quotaWait:0,providerWait:0,unverified:0,notInspected:0},entries:[]}},
+   lastOutcome:{status:'SKIPPED',reason:'QUEUE_WINDOW_EMPTY'},selected:null};
+ const summary={version:1,generatedAt:now,windows:{'1h':{total:0},'24h':{total:3}},
+  lastArticle:{slug:'test-valid-publication',country:'SA',publishedAt:now}};
+ const accessed=[];
+ const env={CONTENT_FINAL:{get:async key=>{
+  accessed.push(key);
+  if(key.includes('publication-ledger'))throw Error('full ledger should never be read by admin');
+  if(key==='_ops/ai-v2-runtime-SA.json')return {json:async()=>market};
+  if(key==='_ops/ai-v2-verified-summary-v1.json')return {json:async()=>summary};
+  return null;
+ }}};
+ const result=await aiV2AdminMonitor(env,async()=>Response.json({
+  schedulerEnabled:true,intervalMinutes:1,controlStatus:'POLICY_VERIFIED'
+ }));
+ assert.equal(result.ok,true);
+ assert.equal(result.status,'queue-no-eligible-topics');
+ assert.equal(result.providers.gemini.total,43);
+ assert.equal(result.verified.ledgerAvailable,true);
+ assert.equal(result.verified.lastHour.total,0);
+ assert.ok(!accessed.some(key=>key.includes('publication-ledger')));
+});
+test('no R2 summary means verified count unknown rather than falsely zero',async()=>{
+ const env={CONTENT_FINAL:{get:async()=>null}};
+ const result=await aiV2AdminMonitor(env,async()=>Response.json({
+  schedulerEnabled:true,intervalMinutes:1,controlStatus:'POLICY_VERIFIED'
+ }));
+ assert.equal(result.status,'scheduler-active-no-fresh-report');
+ assert.equal(result.verified.ledgerAvailable,false);
+ assert.equal(result.verified.lastHour,null);
+ assert.equal(result.verified.reason,'SUMMARY_NOT_YET_WRITTEN');
+});
