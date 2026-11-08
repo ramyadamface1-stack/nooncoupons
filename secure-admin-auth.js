@@ -1,3 +1,5 @@
+import {pbkdf2} from 'node:crypto';
+import {Buffer} from 'node:buffer';
 const ADMIN_EMAIL='ramyshahin02@gmail.com';
 const PBKDF2_SALT_HEX='dd6cd13b4e5649d33d3d0f4f313cbffb';
 const PBKDF2_EXPECTED_HEX='850dcf47ea67c893ccbebe36f12b008a31a871201cdf322006dc524ba349e089';
@@ -8,7 +10,12 @@ const json=(x,s=200,extra={})=>new Response(JSON.stringify(x),{status:s,headers:
 const hexToBytes=h=>new Uint8Array((h.match(/.{2}/g)||[]).map(x=>parseInt(x,16)));
 const toHex=b=>[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
 async function sha256(s){return toHex(await crypto.subtle.digest('SHA-256',enc.encode(String(s||''))))}
-async function passwordHash(password){const key=await crypto.subtle.importKey('raw',enc.encode(String(password||'')),'PBKDF2',false,['deriveBits']);const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:hexToBytes(PBKDF2_SALT_HEX),iterations:PBKDF2_ITERATIONS},key,256);return toHex(bits)}
+function passwordHash(password){
+ return new Promise((resolve,reject)=>{
+  pbkdf2(String(password||''),Buffer.from(PBKDF2_SALT_HEX,'hex'),PBKDF2_ITERATIONS,32,'sha256',
+   (error,derived)=>error?reject(error):resolve(derived.toString('hex')));
+ });
+}
 function constantTimeHexEqual(a,b){const x=hexToBytes(a),y=hexToBytes(b);if(x.length!==y.length)return false;let mismatch=0;for(let i=0;i<x.length;i++)mismatch|=x[i]^y[i];return mismatch===0}
 function randomToken(){const a=new Uint8Array(32);crypto.getRandomValues(a);return toHex(a)}
 async function gctl(env,path,init){const id=env.GENERATOR_CONTROL.idFromName('primary');return env.GENERATOR_CONTROL.get(id).fetch('https://generator.internal'+path,init)}
