@@ -121,11 +121,11 @@ test('fifth append-only reserve keeps old checkpoints stable and adds distinct s
  assert.equal(fifthEditorialTopicWave[1].country,'AE');
 });
 
-test('N5 reserve is in production run queue, and all older append-only positions are unchanged',()=>{
+test('N5 identity remains in production queue before appended N6 wave',()=>{
  const source=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(source,/import \{fifthEditorialTopicWave\} from '\.\/topic-refresh-n5\.mjs'/);
- assert.match(source,/\.\.\.fourthEditorialTopicWave,\.\.\.fifthEditorialTopicWave\]/);
- assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,fifthWaveStart,firstWindow,4\)/);
+ assert.match(source,/\.\.\.fourthEditorialTopicWave,\.\.\.fifthEditorialTopicWave,\.\.\.sixthEditorialTopicWave\]/);
+ assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,sixthWaveStart,firstWindow,4\)/);
  assert.match(source,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  const previous=[...base,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave];
  const next=[...previous,...fifthEditorialTopicWave];
@@ -133,7 +133,7 @@ test('N5 reserve is in production run queue, and all older append-only positions
  assert.equal(next.length-previous.length,fifthEditorialTopicWave.length);
  for(let i=0;i<previous.length;i++)assert.equal(next[i],previous[i]);
 });
-test('N5 bridge rotates over fresh topics instead of rereading only first four',()=>{
+test('latest wave bridge rotates instead of rereading only the first four',()=>{
  const start=200,total=224;
  assert.deepEqual(queueRotatingFreshWaveWindow(total,start,[0,1,2,3]),[200,201,202,203]);
  assert.deepEqual(queueRotatingFreshWaveWindow(total,start,[24,25,26,27]),[201,202,203,204]);
@@ -146,4 +146,38 @@ test('N5 bridge rotates over fresh topics instead of rereading only first four',
  for(let cursor=0;cursor<200;cursor+=24)
    for(const p of queueRotatingFreshWaveWindow(total,start,[cursor]))visited.add(p);
  assert.ok(visited.size>=10);
+});
+
+import {sixthEditorialTopicWave} from '../automation/ai-v2/topic-refresh-n6.mjs';
+test('N6 new original buyer concerns preserve all 4820 previous R2 identities and market codes',()=>{
+ const older=[...base,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave];
+ assert.ok(older.length>=4820,'Existing append-only queue unexpectedly changed');
+ assert.ok(sixthEditorialTopicWave.length>=180,'N6 needs substantial original reserve');
+ const oldSlugs=new Set(older.map(t=>t.slug)),freshSlugs=new Set();
+ for(const t of sixthEditorialTopicWave){
+   assert.ok(!oldSlugs.has(t.slug),'Previous article slug repeated: '+t.slug);
+   assert.ok(!freshSlugs.has(t.slug),'N6 slug repeated: '+t.slug);
+   freshSlugs.add(t.slug);
+   assertTopic(t,config);
+   assert.ok(publicationReadyTopic(t));
+   assert.equal(t.coupon,t.country==='AE'?'NOV188':'NOV170');
+   assert.ok(t.topic.includes(t.coupon));
+   assert.ok(t.topic.includes(t.country==='AE'?'Noon UAE':'نون السعودية'));
+   assert.ok(t.topic.length>=28&&t.topic.length<=72);
+   assert.ok(t.slug.endsWith('-2026-n6'));
+   assert.equal(t.sections.length,5);
+ }
+ assert.ok(sixthEditorialTopicWave.some(t=>t.country==='SA'));
+ assert.ok(sixthEditorialTopicWave.some(t=>t.country==='AE'));
+ const combined=[...older,...sixthEditorialTopicWave];
+ for(let i=0;i<older.length;i++)assert.equal(combined[i],older[i]);
+});
+test('N6 is wired into the real Cron publisher with no old cursor reset or extra provider budget',()=>{
+ const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.match(s,/import \{sixthEditorialTopicWave\} from '\.\/topic-refresh-n6\.mjs'/);
+ assert.match(s,/const sixthWaveStart=fifthWaveStart\+fifthEditorialTopicWave\.length/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,sixthWaveStart,firstWindow,4\)/);
+ assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
+ assert.match(s,/market-queue-v1/);
+ assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
 });
