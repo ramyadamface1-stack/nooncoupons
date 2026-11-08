@@ -7,6 +7,8 @@ on:
       - 'wrangler.new-account-production.jsonc'
       - 'auto-platform.js'
       - 'admin-page.js'
+      - 'secure-admin-auth.js'
+      - 'tests/admin-login-credentials.test.mjs'
       - 'admin-runtime.js'
       - 'ai-v2-github-secrets.js'
       - 'ai-v2-admin-monitor.js'
@@ -86,7 +88,7 @@ jobs:
       - name: Install dependencies for approved source and test suite
         run: npm install --no-audit --no-fund --ignore-scripts
       - name: Check native gate and authenticated secret manager regressions
-        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs
+        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs
       - name: Deploy destination script ONLY, without hostname or DNS modification
         shell: bash
         run: |
@@ -122,3 +124,27 @@ jobs:
             test "$ok" = 1
           done
           echo 'NEW_PRODUCTION_POST_DEPLOY_SMOKE=PASS'
+
+      - name: Verify live login page and reject incorrect credentials (never send real password in Actions)
+        shell: bash
+        run: |
+          set -euo pipefail
+          public='https://noondealsnow.com'
+          code=$(curl -sS --max-time 22 -o /tmp/ndn-admin-login.html -w '%{http_code}' \
+            -H 'cache-control: no-cache' "$public/admin")
+          echo "ADMIN_LOGIN_PAGE_HTTP=$code"
+          test "$code" = 200
+          grep -Fq 'id="loginEmail" type="email" autocomplete="username" value="ramyshahin02@gmail.com"' /tmp/ndn-admin-login.html
+          grep -Fq 'id="loginPassword" type="password" autocomplete="current-password"' /tmp/ndn-admin-login.html
+          code=$(curl -sS --max-time 22 -o /tmp/ndn-invalid-login.json -w '%{http_code}' \
+            -X POST -H 'content-type: application/json' \
+            -d '{"email":"ramyshahin02@gmail.com","password":"incorrect-fixture-not-a-real-password"}' \
+            "$public/api/admin/login")
+          echo "INVALID_ADMIN_PASSWORD_HTTP=$code"
+          test "$code" = 401
+          jq -e '.error=="invalid_credentials"' /tmp/ndn-invalid-login.json >/dev/null
+          code=$(curl -sS --max-time 22 -o /tmp/ndn-protected-admin.json -w '%{http_code}' \
+            "$public/api/admin/ai-v2-monitor")
+          echo "ANONYMOUS_ADMIN_MONITOR_HTTP=$code"
+          test "$code" = 401
+          echo 'NEW_ADMIN_LOGIN_PAGE=LIVE;INVALID_PASSWORD_REJECTED=TRUE;REAL_PASSWORD_NOT_SENT_TO_ACTIONS=TRUE'
