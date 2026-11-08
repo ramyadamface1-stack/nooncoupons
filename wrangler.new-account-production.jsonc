@@ -70,6 +70,9 @@
       "bucket_name": "nooncoupons-content-v2"
     }
   ],
+  "services": [
+    {"binding": "AI_V2_SCHEDULER", "service": "noondealsnow-ai-scheduler-v2"}
+  ],
   "durable_objects": {
     "bindings": [
       {

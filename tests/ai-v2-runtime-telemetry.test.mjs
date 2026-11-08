@@ -96,3 +96,21 @@ test('no R2 summary means verified count unknown rather than falsely zero',async
  assert.equal(result.verified.lastHour,null);
  assert.equal(result.verified.reason,'SUMMARY_NOT_YET_WRITTEN');
 });
+
+test('existing Cloudflare service binding supplies real scheduler health without public subrequest',async()=>{
+ let called=0;
+ const now=new Date().toISOString();
+ const env={CONTENT_FINAL:{get:async key=>key.endsWith('runtime-SA.json')?{
+  json:async()=>({version:1,market:'SA',keyMaterialIncluded:false,generatedAt:now,
+   lastOutcome:{status:'SKIPPED',reason:'QUEUE_WINDOW_EMPTY'},selected:null,providers:{gemini:{total:43,counts:{eligibleUnverified:43,quotaWait:0,providerWait:0,unverified:0,notInspected:0},entries:[]},
+    groq:{total:1,counts:{eligibleUnverified:1,quotaWait:0,providerWait:0,unverified:0,notInspected:0},entries:[]}}})
+ }:null},AI_V2_SCHEDULER:{fetch:async request=>{
+   called++;assert.match(String(request),/noondealsnow-ai-scheduler-v2/);
+   return Response.json({schedulerEnabled:true,controlStatus:'POLICY_VERIFIED',intervalMinutes:1});
+ }}};
+ const result=await aiV2AdminMonitor(env,async()=>{throw Error('external fetch should not be used')});
+ assert.equal(called,1);
+ assert.equal(result.scheduler.reachable,true);
+ assert.equal(result.scheduler.enabled,true);
+ assert.equal(result.status,'queue-no-eligible-topics');
+});

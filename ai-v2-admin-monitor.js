@@ -41,7 +41,9 @@ async function schedulerHealth(request){
 }
 export async function aiV2AdminMonitor(env,fetchFn=fetch){
  const [sa,ae,scheduler,verified]=await Promise.all([
-   fromR2(env,'SA'),fromR2(env,'AE'),schedulerHealth(fetchFn),verifiedSnapshot(env)
+   fromR2(env,'SA'),fromR2(env,'AE'),
+   schedulerHealth(env.AI_V2_SCHEDULER?.fetch?.bind(env.AI_V2_SCHEDULER)||fetchFn),
+   verifiedSnapshot(env)
  ]);
  const markets={SA:sa,AE:ae},freshest=[sa,ae].filter(Boolean)
    .sort((a,b)=>Date.parse(b.generatedAt||'')-Date.parse(a.generatedAt||''))[0]||null;
