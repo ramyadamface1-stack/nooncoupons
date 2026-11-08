@@ -1,0 +1,32 @@
+name: NoonDealsNow — Diagnose admin login HTTP status (no private credentials)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diagnose-noondealsnow-admin-login.yml']
+permissions: {contents: read}
+jobs:
+  examine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Three harmless requests; never send valid password
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'ADMIN_DIAGNOSTIC_BEGIN=TRUE'
+          for sample in wrong-email wrong-password malformed; do
+            payload=''
+            case "$sample" in
+              wrong-email) payload='{"email":"nobody@example.invalid","password":"untrusted-invalid-test"}';;
+              wrong-password) payload='{"email":"ramyshahin02@gmail.com","password":"known-to-be-wrong-test-value-1111111"}';;
+              malformed) payload='{}';;
+            esac
+            status=$(curl -sS --max-time 25 -D /tmp/ndn-auth-hdr -o /tmp/ndn-auth-body -w '%{http_code}' \
+              -X POST -H 'content-type: application/json' -H 'cache-control: no-store' \
+              --data "$payload" 'https://noondealsnow.com/api/admin/login' || true)
+            body=$(head -c 350 /tmp/ndn-auth-body | tr '\n' ' ' | sed -E 's/[A-Za-z0-9_-]{40,}/[REDACTED]/g')
+            ray=$(grep -i '^cf-ray:' /tmp/ndn-auth-hdr | head -1 | cut -c1-100 || true)
+            ctype=$(grep -i '^content-type:' /tmp/ndn-auth-hdr | head -1 | cut -c1-100 || true)
+            echo "ADMIN_AUTH_DIAGNOSTIC sample=$sample http=$status ctype=$ctype cf=$ray body=$body"
+          done
+          echo 'REAL_PASSWORD_REQUESTS=0;SECRETS_EXPOSED=0'
