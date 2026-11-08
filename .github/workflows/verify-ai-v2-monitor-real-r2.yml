@@ -1,0 +1,85 @@
+name: NoonDealsNow — verify live AI monitor on isolated R2-bound Worker
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/verify-ai-v2-monitor-real-r2.yml']
+permissions: {contents: read}
+jobs:
+  verify:
+    if: github.repository == 'ramyadamface1-stack/nooncoupons'
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Prepare fail-closed monitor probe with existing read-only R2 binding
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}"
+          cat > .ndn-monitor-private-probe.mjs <<'JS'
+          import {aiV2AdminMonitor} from './ai-v2-admin-monitor.js';
+          export default {
+            async fetch(request,env){
+              if(!env.PROBE_TOKEN||request.headers.get('x-probe-token')!==env.PROBE_TOKEN)
+                return new Response('Forbidden',{status:403,headers:{'cache-control':'no-store','x-robots-tag':'noindex,nofollow'}});
+              if(request.method!=='GET'||new URL(request.url).pathname!=='/status')
+                return new Response('Not found',{status:404});
+              try{
+                const response=await aiV2AdminMonitor(env);
+                return Response.json(response,{headers:{'cache-control':'no-store','x-robots-tag':'noindex,nofollow'}});
+              }catch{
+                return Response.json({ok:false,error:'monitor_unavailable'},{status:503});
+              }
+            }
+          };
+          JS
+          cat > .ndn-monitor-private-probe.json <<'JSON'
+          {"name":"ndn-ai-v2-monitor-private-probe","main":".ndn-monitor-private-probe.mjs",
+          "compatibility_date":"2026-11-08","compatibility_flags":["nodejs_compat"],"minify":true,"workers_dev":true,
+          "r2_buckets":[{"binding":"CONTENT_FINAL","bucket_name":"nooncoupons-content-v2"}]}
+          JSON
+          node --check .ndn-monitor-private-probe.mjs
+          openssl rand -hex 24 > /tmp/ndn-monitor-probe-token
+          echo "::add-mask::$(cat /tmp/ndn-monitor-probe-token)"
+          npm install --no-audit --no-fund --ignore-scripts
+      - name: Deploy disposable monitor-only Worker without DNS or production changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler deploy --config .ndn-monitor-private-probe.json
+          cat /tmp/ndn-monitor-probe-token | npx wrangler secret put PROBE_TOKEN --config .ndn-monitor-private-probe.json
+      - name: Verify real native R2 summaries and monitor JSON without a site login
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://ndn-ai-v2-monitor-private-probe.ndn-e4c35f8a50.workers.dev'
+          anon=$(curl -sS --max-time 20 -o /tmp/ndn-monitor-private-anon -w '%{http_code}' "$base/status")
+          echo "PRIVATE_MONITOR_UNAUTHORIZED_HTTP=$anon"
+          test "$anon" = 403
+          token=$(cat /tmp/ndn-monitor-probe-token)
+          status=0
+          for i in 1 2 3 4 5; do
+            status=$(curl -sS --max-time 25 -o /tmp/ndn-monitor-private-response.json -w '%{http_code}' \
+              -H "x-probe-token: $token" "$base/status" || true)
+            if [ "$status" = 200 ]; then break; fi
+            sleep 3
+          done
+          echo "PRIVATE_MONITOR_AUTHORIZED_HTTP=$status"
+          test "$status" = 200
+          jq -e '.ok==true and .source=="redacted-github-run-r2-and-live-scheduler" and .safety.rawKeysExposed==false' /tmp/ndn-monitor-private-response.json >/dev/null
+          jq -e '.verified.ledgerAvailable==true and (.verified.lastHour.total|type)=="number" and (.verified.last24Hours.total|type)=="number"' /tmp/ndn-monitor-private-response.json >/dev/null
+          jq -c '{status,scheduler:{reachable:.scheduler.reachable,enabled:.scheduler.enabled,controlStatus:.scheduler.controlStatus,intervalMinutes:.scheduler.intervalMinutes},gemini:.providers.gemini.total,groq:.providers.groq.total,lastHour:.verified.lastHour.total,last24Hours:.verified.last24Hours.total,lastReportAt,snapshotAgeMinutes:.verified.ageMinutes}' /tmp/ndn-monitor-private-response.json
+          echo 'PRIVATE_AI_V2_MONITOR=PASS;PROVIDER_CALLS=0;R2_WRITES=0;DNS_WRITES=0'
+      - name: Always delete isolated probe Worker after verification
+        if: always()
+        shell: bash
+        run: |
+          code=$(curl -sS --max-time 18 -o /tmp/ndn-monitor-delete -w '%{http_code}' \
+            -X DELETE -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/ndn-ai-v2-monitor-private-probe" || true)
+          echo "PRIVATE_MONITOR_PROBE_CLEANUP_HTTP=$code"
