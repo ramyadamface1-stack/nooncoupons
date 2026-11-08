@@ -129,6 +129,46 @@ jobs:
           echo 'CRON_EVENT_DELIVERY=NOT_YET_PROVEN'
           echo 'WORKFLOW_DISPATCH_FROM_CLOUDFLARE=NOT_YET_PROVEN'
           echo 'AI_GENERATION=NOT_STARTED; LIVE_ARTICLE=NOT_VERIFIED'
+
+      - name: Verify live admin page and unauthenticated key-management boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          admin=$(curl -sS --max-time 24 -o /tmp/ndn-admin.html -w '%{http_code}' \
+            -H 'cache-control: no-cache' 'https://noondealsnow.com/admin')
+          echo "LIVE_ADMIN_LOGIN_HTTP=$admin"
+          test "$admin" = 200
+          grep -q 'loginForm' /tmp/ndn-admin.html
+          status=$(curl -sS --max-time 24 -o /tmp/ndn-ai-v2-monitor-anon.json -w '%{http_code}' \
+            'https://noondealsnow.com/api/admin/ai-v2-monitor')
+          echo "ANON_AI_V2_MONITOR_HTTP=$status"
+          test "$status" = 401
+          status=$(curl -sS --max-time 24 -o /tmp/ndn-ai-v2-keys-anon.json -w '%{http_code}' \
+            -X POST -H 'content-type: application/json' -d '{}' \
+            'https://noondealsnow.com/api/admin/ai-v2-keys')
+          echo "ANON_AI_V2_GITHUB_SECRETS_HTTP=$status"
+          test "$status" = 401
+          echo 'LIVE_ADMIN_PROTECTED=PASS;PUBLIC_SECRETS=NEVER_EXPOSED'
+      - name: Verify updated live scheduler consumes the site's DO policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in 1 2 3 4 5; do
+            code=$(curl -sS --max-time 22 -o /tmp/ndn-ai-v2-health-final.json -w '%{http_code}' \
+              -H 'cache-control: no-cache' \
+              'https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health' || true)
+            if [ "$code" = 200 ] && \
+               jq -e '.ok==true and .source=="admin-do-policy-plus-explicit-runtime-secret" and .controlStatus=="POLICY_VERIFIED" and (.intervalMinutes|IN(1,5,10,15,30,60)) and .schedulerEnabled==true' \
+                 /tmp/ndn-ai-v2-health-final.json >/dev/null; then
+              echo 'LIVE_AI_V2_SCHEDULER_ADMIN_CONTROL=PASS'
+              jq -c '{schedulerEnabled,intervalMinutes,controlStatus,source}' /tmp/ndn-ai-v2-health-final.json
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "LIVE_AI_V2_SCHEDULER_ADMIN_CONTROL=NOT_VERIFIED;LAST_HTTP=$code"
+          jq -c '{schedulerEnabled,intervalMinutes,controlStatus,source}' /tmp/ndn-ai-v2-health-final.json 2>/dev/null || true
+          exit 41
       - name: Report distinct verification states
         run: |
           echo '### NoonDealsNow AI V2 — isolated scheduler' >> "$GITHUB_STEP_SUMMARY"
