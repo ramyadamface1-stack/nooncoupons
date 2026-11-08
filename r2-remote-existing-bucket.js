@@ -14,10 +14,26 @@ const enc=s=>encodeURIComponent(String(s)).replace(/[!'()*]/g,c=>'%'+c.charCodeA
 const bytes=s=>s instanceof Uint8Array?s:new Uint8Array(s);
 const hex=a=>Array.from(bytes(a),v=>v.toString(16).padStart(2,'0')).join('');
 const sha=async raw=>hex(await crypto.subtle.digest('SHA-256',raw));
+// Empty-body S3 reads are the public article hot path. Avoid hashing the same
+// zero-byte payload on every request under the Cloudflare Free 10ms CPU cap.
+const EMPTY_SHA256='e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const hmac=async(key,data)=>{
   const k=await crypto.subtle.importKey('raw',typeof key==='string'?new TextEncoder().encode(key):key,{name:'HMAC',hash:'SHA-256'},false,['sign']);
   return new Uint8Array(await crypto.subtle.sign('HMAC',k,new TextEncoder().encode(data)));
 };
+// A SigV4 derived key is valid for one UTC date + AWS region/service scope.
+// Keep only the latest credential/day (constant-memory, isolate-local); verify
+// the full secret matches on every access so credential rotation is immediate.
+// No credentials, derived keys or key hashes are ever logged or returned.
+let signingKeyCache=null;
+async function signingKeyForDay(secret,day){
+  if(signingKeyCache?.day===day&&signingKeyCache.secret===secret)
+    return signingKeyCache.key;
+  let key=await hmac('AWS4'+secret,day);
+  for(const part of ['auto','s3','aws4_request'])key=await hmac(key,part);
+  signingKeyCache={day,secret,key};
+  return key;
+}
 const xmlText=(xml,tag)=>((xml.match(new RegExp('<(?:\\w+:)?'+tag+'(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:\\w+:)?'+tag+'>'))||[])[1]||'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&amp;/g,'&');
 const allowedKey=key=>typeof key==='string'&&
   /^(articles|bulk|quality|maintenance|english-canary|_ops|freshness|legacy-upgrade|migration|seo-rescue|blog|settings|coupons)\//.test(key)&&
@@ -82,7 +98,7 @@ async function signed(env,method,key='',query={},body=null,extra={},allowPrecond
   const stamp=new Date().toISOString().replace(/[:-]|\.\d{3}/g,'');
   const day=stamp.slice(0,8);
   const raw=body===null?new Uint8Array(0):body instanceof Uint8Array?body:bytes(body);
-  const hash=await sha(raw);
+  const hash=body===null?EMPTY_SHA256:await sha(raw);
   const headers={
     host:HOST,
     'x-amz-content-sha256':hash,
@@ -96,9 +112,7 @@ async function signed(env,method,key='',query={},body=null,extra={},allowPrecond
   const request=[method,path,qs,normalized,names,hash].join('\n');
   const scope=day+'/auto/s3/aws4_request';
   const toSign=['AWS4-HMAC-SHA256',stamp,scope,await sha(new TextEncoder().encode(request))].join('\n');
-  let keyBytes=await hmac('AWS4'+secret,day);
-  for(const item of ['auto','s3','aws4_request'])keyBytes=await hmac(keyBytes,item);
-  const signature=hex(await hmac(keyBytes,toSign));
+  const signature=hex(await hmac(await signingKeyForDay(secret,day),toSign));
   const outgoing=new Headers(headers);
   outgoing.delete('host'); // Fetch supplies Host automatically; still sign canonical host.
   outgoing.set('Authorization','AWS4-HMAC-SHA256 Credential='+id+'/'+scope+', SignedHeaders='+names+', Signature='+signature);

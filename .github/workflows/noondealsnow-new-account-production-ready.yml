@@ -125,6 +125,36 @@ jobs:
           done
           echo 'NEW_PRODUCTION_POST_DEPLOY_SMOKE=PASS'
 
+      - name: Check SA and AE native article fast render on real production after deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          ORIGIN='https://noondealsnow.com'
+          slugs=(
+            'saudi-buyer-baseus-powerbank-multiport-power-budget-sharing-nov170-2026-n6'
+            'uae-buyer-baseus-powerbank-multiport-power-budget-sharing-nov188-2026-n6'
+          )
+          for market in SA AE; do
+            if [ "$market" = SA ]; then slug="${slugs[0]}"; coupon='NOV170'; else slug="${slugs[1]}"; coupon='NOV188'; fi
+            passed=0
+            for attempt in 1 2 3 4 5 6; do
+              # Query bypasses prior edge cache, checking the actual deployed Worker
+              # and the exact original approved R2 article without any R2 writes.
+              code=$(curl -sS --max-time 30 -D /tmp/ndn-native-article.h -o /tmp/ndn-native-article.html \
+                -w '%{http_code}' "$ORIGIN/articles/$slug?verify=native-fast-20261108-$attempt" || true)
+              if [ "$code" = 200 ] &&
+                 grep -Fqi 'x-native-article-renderer: approved-fast-v1' /tmp/ndn-native-article.h &&
+                 grep -Fq "$coupon" /tmp/ndn-native-article.html &&
+                 grep -Fq 'rel="canonical"' /tmp/ndn-native-article.html; then
+                passed=1; break
+              fi
+              sleep 3
+            done
+            echo "NATIVE_ARTICLE_MARKET=$market;HTTP=$code;FAST_RENDER=$passed"
+            test "$passed" = 1
+          done
+          echo 'SA_AE_NATIVE_FAST_RENDER=PASS;PUBLIC_HTTP_200=TRUE;R2_WRITES=0'
+
       - name: Verify live login page and reject incorrect credentials (never send real password in Actions)
         shell: bash
         run: |

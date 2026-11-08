@@ -188,7 +188,7 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  if(md.p!=='ai-v2-native'||md.status!=='published'||md.c!==country||
     md.cp!==code||Number(md.q)<95||Number(md.w)<1500||
     source.length<4000||source.length>240000||!source.includes(code)||
-    !/<article\\b/i.test(source)||!/<h1\\b/i.test(source))return null;
+    !/<article\b/i.test(source)||!/<h1\b/i.test(source))return null;
  const fromMeta=value=>{try{return decodeURIComponent(String(value||''))}catch{return String(value||'')}};
  // Publisher stores title and description as URL-encoded R2 custom metadata.
  // Avoid running multiple full-document HTML regex passes on each public hit.
