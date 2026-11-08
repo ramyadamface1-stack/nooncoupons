@@ -1,3 +1,4 @@
+import {additionalKeyEntries} from './key-pool-slots.mjs';
 // Read only the configured free Groq credentials from GitHub Actions Secrets.
 // Do not print, persist or embed raw API keys in checkpoints or article metadata.
 export function parseGroqKeys(value){
@@ -25,11 +26,13 @@ function candidates(env={}){
  for(const [keys,source] of [[recent,recent.length?'GROQ_API_KEYS':'GROQ_API_KEY'],[legacy,'GROQ_API_KEY'],[extra,'GROQ_API_KEYS_EXTRA']]){
    for(const key of keys)if(!seen.has(key)){seen.add(key);out.push({key,source})}
  }
- return {recent,legacy,extra,out};
+ const dynamic=additionalKeyEntries(env,'groq',parseGroqKeys);
+ for(const entry of dynamic)if(!seen.has(entry.key)){seen.add(entry.key);out.push(entry)}
+ return {recent,legacy,extra,dynamic,out};
 }
 export function groqKeyInventory(env={}){
- const {recent,legacy,extra,out}=candidates(env);
- return {hasGroq:out.length>0,newCount:recent.length,legacyCount:legacy.length,extraCount:extra.length,
+ const {recent,legacy,extra,dynamic,out}=candidates(env);
+ return {hasGroq:out.length>0,newCount:recent.length,legacyCount:legacy.length,extraCount:extra.length,dynamicCount:dynamic.length,
    eligibleCount:out.length,selectedSource:out[0]?.source||null};
 }
 export function selectGroqKey(env={},slot=0){
