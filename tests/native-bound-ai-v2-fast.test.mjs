@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {nativeBoundAiV2ArticleFastResponse} from '../r2-emergency-readonly.js';
 
 const sample=(code,lang)=>'<article lang="'+lang+'"><h1>Verified Noon guide '+code+'</h1><p>'+
-  ('Verify Noon seller, official warranty and the final cart with '+code+' before ordering. '.repeat(100))+
+  (('Verify Noon seller, official warranty and the final cart with '+code+' before ordering. ').repeat(100))+
   '</p><script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@type':'Article',headline:'Verified Noon guide '+code})+'</script></article>';
 const metadata=(country,code)=>({
   status:'published',p:'ai-v2-native',c:country,cp:code,q:'100',w:'1775',at:'2026-11-08T20:40:15.702Z',
