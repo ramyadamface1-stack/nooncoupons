@@ -1,4 +1,5 @@
 import {readFileSync} from 'node:fs';
+import {buildSafeMonitor,writeSafeMonitor} from './runtime-telemetry.mjs';
 import {createHash} from 'node:crypto';
 import {cadence,validateConfig,assertTopic,mayCallProvider,qualityPreflight} from './guardrails.mjs';
 import {checkpointState} from './r2-checkpoints.mjs';
@@ -23,9 +24,10 @@ const existingTopicCount=baseTopics.length+expandedEditorialTopics.length+newEdi
 // Only append; historical private checkpoint identities and cursor positions stay fixed.
 const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave];
 let runStartedAt=Date.now();
-let lastReportStatus=null,jobBatchOrdinal=0;
+let lastReportStatus=null,lastSafeReport=null,lastSelectedCredential=null,jobBatchOrdinal=0;
 const report=(status,reason,data={})=>{
   lastReportStatus=status;
+  lastSafeReport={status,reason,url:typeof data?.url==='string'?data.url:null};
   console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,elapsedMs:Date.now()-runStartedAt,...data}));
 };
 const now=()=>new Date().toISOString();
@@ -240,6 +242,8 @@ async function run(){
           const modelKeyCircuitId=providerModelKeyCircuitId(candidateProvider,candidateModel,keyRef,hash);
           const modelKeyCircuit=await providerCircuits.read(modelKeyCircuitId);
           if(providerCircuitActive(modelKeyCircuit))continue;
+          lastSelectedCredential={provider:candidateProvider,model:candidateModel,keyRef,
+            source:credential.source,at:now()};
           return {provider:candidateProvider,model:candidateModel,modelCircuitId,modelCircuit,
             modelKeyCircuitId,modelKeyCircuit,credential,keyRef,circuitId,circuit};
         }
@@ -497,4 +501,22 @@ async function runScheduledBatch(){
   console.log('AI_V2_JOB_BATCH '+JSON.stringify({market:process.env.AI_QUEUE_MARKET||null,
     verifiedArticles:published,maxArticles:maximum,elapsedMs:Date.now()-jobStarted}));
 }
-runScheduledBatch().catch(e=>{console.error('AI_V2_SAFE_FAILURE '+String(e?.message||e).slice(0,250));process.exitCode=1});
+runScheduledBatch().then(async()=>{
+  // Five-minute census, plus immediate verified successes, keeps free R2 reads
+  // bounded and shows actual per-key quota cooldowns without provider calls.
+  const market=String(process.env.AI_QUEUE_MARKET||'').toUpperCase();
+  if(!['SA','AE'].includes(market))return;
+  const isCensusMinute=Math.floor(Date.now()/60000)%5===0;
+  if(!isCensusMinute&&lastReportStatus!=='LIVE_VERIFIED')return;
+  try{
+    const monitor=await buildSafeMonitor(process.env,{market,lastReport:lastSafeReport,lastSelected:lastSelectedCredential});
+    const saved=await writeSafeMonitor(monitor);
+    console.log('AI_V2_SAFE_MONITOR '+JSON.stringify({market,ok:saved.ok,
+      reason:saved.ok?'UPDATED':saved.reason,
+      configuredGemini:monitor.providers.gemini.total,configuredGroq:monitor.providers.groq.total,
+      quotaWaitingGemini:monitor.providers.gemini.counts.quotaWait,
+      quotaWaitingGroq:monitor.providers.groq.counts.quotaWait}));
+  }catch(e){
+    console.warn('AI_V2_MONITOR_NON_FATAL '+String(e?.message||e).slice(0,100));
+  }
+}).catch(e=>{console.error('AI_V2_SAFE_FAILURE '+String(e?.message||e).slice(0,250));process.exitCode=1});
