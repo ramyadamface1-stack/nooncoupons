@@ -487,6 +487,18 @@ export async function handleAdminApi(req,env){
       if(p==='/api/admin/ai-v2-run-now'){
         const cfg=await getAiV2Control(env);
         if(!cfg.enabled)return json({ok:false,error:'scheduler_paused',hint:'Resume AI V2 before running now.'},409);
+        // Respect the separate runtime-activation and site control policy. A
+        // direct GitHub dispatch otherwise bypasses the Cloudflare stop switch.
+        let liveScheduler;
+        try{
+          const response=await fetch('https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health',{
+            headers:{'cache-control':'no-store'},signal:AbortSignal.timeout(6000)});
+          if(response.ok)liveScheduler=await response.json();
+        }catch{}
+        if(!liveScheduler||liveScheduler.schedulerEnabled!==true||
+            liveScheduler.controlStatus!=='POLICY_VERIFIED'||liveScheduler.intervalMinutes!==cfg.intervalMinutes)
+          return json({ok:false,error:'scheduler_not_verified',
+            hint:'Scheduler runtime must confirm enabled, effective interval and verified admin policy.'},409);
         const root='https://api.github.com/repos/ramyadamface1-stack/nooncoupons/actions/workflows/noondealsnow-ai-v2.yml';
         const headers={'authorization':'Bearer '+token,'accept':'application/vnd.github+json',
           'x-github-api-version':'2022-11-28','user-agent':'NoonDealsNow-Admin-Manual-Dispatch'};
