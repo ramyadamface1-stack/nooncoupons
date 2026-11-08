@@ -20,7 +20,7 @@ function dashboard(){return `<!doctype html><html lang="ar" dir="rtl"><head><met
 <div><button class="ok" id="aiV2StartBtn" type="button">بدء / استئناف التوليد</button></div>
 <div><button class="danger" id="aiV2StopBtn" type="button">إيقاف التوليد</button></div>
 <div><button id="aiV2SaveIntervalBtn" type="button">حفظ الفاصل</button></div>
-<div><button id="aiV2RunNowBtn" type="button">إعادة تشغيل توليد الآن</button></div>
+<div><button id="aiV2RunNowBtn" type="button" title="يحتاج رمز GitHub بصلاحية Actions إذا لم يكن محفوظًا كسر في Cloudflare">تشغيل محاولة Gemini/Groq الآن</button></div>
 <div><button id="aiV2RefreshBtn" type="button">تحديث الحالة</button></div>
 </div>
 <p class="sub">زر التشغيل يحفظ طلب التشغيل فقط؛ تفعيل مجدول Cloudflare، صلاحيات GitHub، توافر كوتة AI ونجاح النشر تُفحص منفصلة. لا يتم تجاوز فحص الجودة أو حصة المفاتيح.</p>
@@ -367,7 +367,7 @@ async function aiV2Import(){
  }catch(e){$('aiV2ActionMessage').textContent='فشل إضافة المفاتيح: '+String(e.message||e)}
 }
 async function aiV2ManualRun(){
- if(!confirm('بدء محاولة توليد واحدة على GitHub؟ قد تستهلك حصة Gemini/Groq المجانية إن توفر موضوع جاهز.'))return;
+ if(!confirm('محاولة توليد جديدة عبر GitHub؛ لو الطابور كله منشور أو غير مؤهل، لن ينتج مقالًا. قد تستهلك حصة Gemini/Groq إن توفر موضوع جاهز. متابعة؟'))return;
  $('aiV2ActionMessage').textContent='جارٍ تقديم طلب إعادة تشغيل...';
  try{
    const state=await api('/api/admin/ai-v2-control');
