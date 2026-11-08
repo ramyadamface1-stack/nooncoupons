@@ -1,0 +1,61 @@
+name: NoonDealsNow AI V2 — inspect existing Durable Object owner (read-only)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/verify-noondealsnow-ai-control-owner.yml']
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read-only inspect current owner service settings, bindings and Cron; never print credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          acct='e4c35f8a50a7b2e4cfb9d6c534962603'
+          name='noondealsnow-migration-staging'
+          token=str(os.environ['CF_TOKEN']).strip()
+          def get(url,headers=None):
+            req=urllib.request.Request(url,headers=headers or {})
+            try:
+              with urllib.request.urlopen(req,timeout=15) as r:return r.status,json.load(r)
+            except urllib.error.HTTPError as e:return e.code,{}
+            except Exception as e:return 0,{'errorType':type(e).__name__}
+          base='https://api.cloudflare.com/client/v4/accounts/'+acct
+          h={'Authorization':'Bearer '+token,'Accept':'application/json'}
+          codes={}
+          code,settings=get(base+'/workers/scripts/'+name+'/settings',h)
+          codes['settings']=code
+          result=settings.get('result') or {}
+          b=result.get('bindings') or []
+          # Never emit arbitrary variable values or tokens; only four known
+          # boolean names with an explicit safe allowlist.
+          named={x.get('name'):x for x in b if isinstance(x,dict)}
+          safe={}
+          for key in ['DO_MIGRATION_RESTORE_ENABLED','DO_MIGRATION_EXPORT_ENABLED',
+             'AI_PRIMARY_PROVIDER','R2_RESCUE_READONLY_ENABLED']:
+            item=named.get(key,{})
+            val=item.get('text') if item.get('type')=='plain_text' else None
+            safe[key]=val if val in ['true','false','disabled','workers-ai'] else 'unknown'
+          code,schedules=get(base+'/workers/scripts/'+name+'/schedules',h)
+          codes['schedules']=code
+          scheduleList=(schedules.get('result') or {}).get('schedules') if isinstance(schedules.get('result'),dict) else schedules.get('result')
+          cron=[x.get('cron') for x in (scheduleList or []) if isinstance(x,dict)]
+          code,service=get(base+'/workers/services/'+name,h)
+          codes['service']=code
+          code,policy=get('https://noondealsnow.com/api/ai-v2-control-policy')
+          codes['livePolicy']=code
+          print('OWNER_DO_STATUS='+json.dumps({
+            'http':codes,'serviceExists':service.get('success')==True,
+            'scriptBindingCount':len(b),'boundDoNames':[x.get('name') for x in b if x.get('type')=='durable_object_namespace'],
+            'safePlainTextFlags':safe,'currentCronPatterns':cron,
+            'livePolicyError':str(policy.get('error') or '')[:80]
+          },separators=(',',':'),ensure_ascii=False),flush=True)
+          print('SAFE_READ_ONLY=TRUE;DO_WRITES=0;DNS_WRITES=0;AI_CALLS=0',flush=True)
+          PY
