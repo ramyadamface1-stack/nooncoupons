@@ -10,6 +10,7 @@ import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
 import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
 import {readRecentPublicManifest} from './r2-public-manifest.js';
+import {readPublicationArchiveJson} from './publication-report-storage.js';
 import {publicEdgeCacheEligible,publicEdgeTtlSeconds,publicEdgePolicyRevision} from './r2-public-cache-policy.js';
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
@@ -71,8 +72,15 @@ async function dailyPublishReport(env,from,to){
   if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to)||from>to)return {ok:false,error:'invalid_range'};
   const span=Math.round((Date.parse(to+'T00:00:00Z')-Date.parse(from+'T00:00:00Z'))/86400000)+1;
   if(span<1||span>45)return {ok:false,error:'range_too_large'};
-  const daysObj=await env.CONTENT_FINAL.get('bulk/days.json');
-  const manifest=daysObj?await daysObj.json():{days:[]};
+  let manifest;
+  try{
+    manifest=await readPublicationArchiveJson(env,'bulk/days.json');
+  }catch(error){
+    console.warn('daily_publish_archive_index_unavailable',String(error?.message||error).slice(0,90));
+    return {ok:false,error:'archive_index_unavailable',timeZone:'Africa/Cairo',from,to};
+  }
+  if(!Array.isArray(manifest?.days))
+    return {ok:false,error:'archive_index_missing',timeZone:'Africa/Cairo',from,to};
   const sourceFrom=isoDayAdd(from,-1),sourceTo=isoDayAdd(to,1);
   const rows=(manifest.days||[]).filter(x=>x?.day>=sourceFrom&&x?.day<=sourceTo&&Number(x?.count)>0);
   const out=new Map();
@@ -82,9 +90,15 @@ async function dailyPublishReport(env,from,to){
     if(out.has(row.day))out.get(row.day).bulkArchiveDayCount=Number(row.count)||0;
     const shards=Math.max(0,Number(row.shards)||Math.ceil(Number(row.count||0)/100));
     for(let shard=0;shard<shards;shard++){
-      const obj=await env.CONTENT_FINAL.get(`bulk/day/${row.day}/${shard}.json`);
-      if(!obj)continue;
-      const data=await obj.json();
+      let data;
+      try{
+        data=await readPublicationArchiveJson(env,`bulk/day/${row.day}/${shard}.json`);
+      }catch(error){
+        console.warn('daily_publish_archive_shard_unavailable',String(error?.message||error).slice(0,90));
+        return {ok:false,error:'archive_shard_unavailable',timeZone:'Africa/Cairo',from,to,day:row.day,shard};
+      }
+      if(!data||!Array.isArray(data.articles))
+        return {ok:false,error:'archive_shard_missing',timeZone:'Africa/Cairo',from,to,day:row.day,shard};
       for(const a of (data.articles||[])){
         if(!a?.slug)continue;
         const unique=String(a.slug);
@@ -604,7 +618,7 @@ export default{
     if(req.method==='GET'&&u.pathname==='/api/daily-publish-report'){
       const range=String(u.searchParams.get('range')||'').split('..'),from=String(u.searchParams.get('from')||range[0]||''),to=String(u.searchParams.get('to')||range[1]||from);
       const report=await dailyPublishReport(env,from,to);
-      return new Response(JSON.stringify(report,null,2),{status:report.ok?200:400,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-report-time-zone':'Africa/Cairo'}});
+      return new Response(JSON.stringify(report,null,2),{status:report.ok?200:['invalid_range','range_too_large'].includes(report.error)?400:503,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-report-time-zone':'Africa/Cairo'}});
     }
     if(req.method==='GET'&&u.pathname==='/api/sitemap-health')return sitemapHealth(req,env,ctx,origin);
     if(req.method==='GET'&&u.pathname==='/sitemap-core.xml'){const r=coreSitemap(origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
