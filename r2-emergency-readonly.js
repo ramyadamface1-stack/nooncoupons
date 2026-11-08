@@ -212,6 +212,34 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles',
   'x-native-article-renderer':'approved-fast-v1','content-language':english?'en':'ar'}});
 }
+// New-account production already binds the exact same R2 bucket natively and
+// deliberately DISABLES the old rescue router. Only approved native AI V2
+// articles use this read-only fast path; legacy pages stay on their current
+// rendering contract, untouched. Never enumerate R2 or alter its objects.
+export async function nativeBoundAiV2ArticleFastResponse(req,env){
+ if(req.method!=='GET'||String(env?.R2_RESCUE_READONLY_ENABLED||'')!=='false'||
+    typeof env?.CONTENT_FINAL?.get!=='function')return null;
+ const u=new URL(req.url),p=u.pathname.replace(/\/+$/,'');
+ const hit=p.match(/^\/articles\/((saudi|uae)-buyer-[a-z0-9-]+-(nov170|nov188)-2026-n[5-9])$/);
+ if(!hit)return null;
+ const slug=hit[1],market=hit[2],coupon=hit[3].toUpperCase();
+ if((market==='saudi'&&coupon!=='NOV170')||(market==='uae'&&coupon!=='NOV188'))return null;
+ try{
+   const article=await env.CONTENT_FINAL.get('articles/'+slug+'.html');
+   if(!article||article.customMetadata?.p!=='ai-v2-native'||
+      article.customMetadata?.status!=='published')return null;
+   // One native R2 get, no remote S3 signing, list(), or generated AI call.
+   const body=await article.text();
+   const output=renderApprovedNativeAiV2Fast({body,meta:article.customMetadata},
+     slug,u,market==='uae');
+   return output||null;
+ }catch(error){
+   console.warn('native_r2_article_fast_read_deferred',
+     String(error?.message||error).slice(0,70));
+   return null; // Keep the original live legacy route as safe fallback.
+ }
+}
+
 async function serveArticle(env,u,english){
   const slug=decodeURIComponent(u.pathname.split('/').filter(Boolean).pop()||'');
   if(!slug||slug.length>280||slug.includes('/')||slug.includes('..'))return new Response('Not Found',{status:404});
