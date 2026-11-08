@@ -418,6 +418,67 @@ export async function isAdmin(req,env){
 export async function handleAdminApi(req,env){
   const u=new URL(req.url),p=u.pathname;
   if(!(await isAdmin(req,env)))return json({error:'unauthorized'},401);
+  // Dedicated private AI V2 operator endpoints. Fail closed and never reflect
+  // GitHub PAT or secret contents into responses, logs or Durable Objects.
+  if(p==='/api/admin/ai-v2-monitor'&&req.method==='GET'){
+    const {aiV2AdminMonitor}=await import('./ai-v2-admin-monitor.js');
+    return json(await aiV2AdminMonitor(env));
+  }
+  const aiV2SecretEndpoint=['/api/admin/ai-v2-keys','/api/admin/ai-v2-key-import','/api/admin/ai-v2-run-now'].includes(p);
+  if(aiV2SecretEndpoint&&req.method==='POST'){
+    const origin=req.headers.get('origin');
+    if(origin&&origin!==u.origin)return json({ok:false,error:'invalid_origin'},403);
+    if(req.headers.get('sec-fetch-site')==='cross-site')return json({ok:false,error:'cross_site_forbidden'},403);
+    const contentType=req.headers.get('content-type')||'';
+    if(!contentType.includes('application/json'))return json({ok:false,error:'json_only'},415);
+    const len=Number(req.headers.get('content-length')||0);
+    if(len>25000)return json({ok:false,error:'request_too_large'},413);
+    const raw=await req.text();
+    if(raw.length>25000)return json({ok:false,error:'request_too_large'},413);
+    let payload;
+    try{payload=JSON.parse(raw)}catch{return json({ok:false,error:'invalid_json'},400)}
+    if(!payload||typeof payload!=='object'||Array.isArray(payload))return json({ok:false,error:'invalid_payload'},400);
+    const token=String(env.NOON_GITHUB_SECRETS_ADMIN_TOKEN||payload.githubToken||'').trim();
+    if(!token)return json({ok:false,error:'github_token_required',
+      hint:'Use a fine-grained GitHub PAT with Secrets read/write; Actions read/write for manual dispatch.'},409);
+    try{
+      if(p==='/api/admin/ai-v2-keys'){
+        const {listGithubKeySecrets}=await import('./ai-v2-github-secrets.js');
+        return json(await listGithubKeySecrets(token));
+      }
+      if(p==='/api/admin/ai-v2-key-import'){
+        const {importGithubKeySecret}=await import('./ai-v2-github-secrets.js');
+        const result=await importGithubKeySecret({provider:payload.provider,input:payload.keys,token});
+        return json(result,201);
+      }
+      if(p==='/api/admin/ai-v2-run-now'){
+        const cfg=await getAiV2Control(env);
+        if(!cfg.enabled)return json({ok:false,error:'scheduler_paused',hint:'Resume AI V2 before running now.'},409);
+        const root='https://api.github.com/repos/ramyadamface1-stack/nooncoupons/actions/workflows/noondealsnow-ai-v2.yml';
+        const headers={'authorization':'Bearer '+token,'accept':'application/vnd.github+json',
+          'x-github-api-version':'2022-11-28','user-agent':'NoonDealsNow-Admin-Manual-Dispatch'};
+        const active=await fetch(root+'/runs?event=workflow_dispatch&branch=main&per_page=10',{
+          headers,signal:AbortSignal.timeout(12000)});
+        if(!active.ok)return json({ok:false,error:'github_runs_http_'+active.status},502);
+        const runs=await active.json();
+        if((runs.workflow_runs||[]).some(x=>['queued','pending','in_progress','waiting','requested'].includes(x.status)))
+          return json({ok:false,error:'generation_already_running',dispatched:false},409);
+        const dispatched=await fetch(root+'/dispatches',{method:'POST',
+          headers:{...headers,'content-type':'application/json'},
+          body:JSON.stringify({ref:'main',inputs:{preflight_only:'false',
+            verify_gemini_metadata:'false',scheduled_ms:String(Date.now())}}),
+          signal:AbortSignal.timeout(12000)});
+        if(dispatched.status!==204)return json({ok:false,error:'github_dispatch_http_'+dispatched.status,dispatched:false},502);
+        return json({ok:true,dispatched:true,published:false,
+          message:'GitHub accepted the run. This is not an article-publication confirmation.'},202);
+      }
+    }catch(e){
+      const code=String(e?.message||'unknown');
+      const permitted=/^(GITHUB_[A-Z0-9_]+|INVALID_[A-Z0-9_]+|EMPTY_IMPORT|IMPORT_TOO_LARGE|UNSUPPORTED_KEY_PROVIDER)$/;
+      return json({ok:false,error:permitted.test(code)?code:'secure_operation_failed'},502);
+    }
+  }
+
   if(p==='/api/admin/ai-v2-control'&&req.method==='GET'){
     try{return json({ok:true,...await getAiV2Control(env)})}catch{return json({ok:false,error:'control_unavailable'},503)}
   }
