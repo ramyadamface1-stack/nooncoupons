@@ -496,8 +496,12 @@ export async function handleAdminApi(req,env){
         // direct GitHub dispatch otherwise bypasses the Cloudflare stop switch.
         let liveScheduler;
         try{
-          const response=await fetch('https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health',{
+          const schedulerHealthUrl='https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health';
+          const schedulerRequest=new Request(schedulerHealthUrl,{
             headers:{'cache-control':'no-store'},signal:AbortSignal.timeout(6000)});
+          const response=env.AI_V2_SCHEDULER?.fetch
+            ?await env.AI_V2_SCHEDULER.fetch(schedulerRequest)
+            :await fetch(schedulerRequest);
           if(response.ok)liveScheduler=await response.json();
         }catch{}
         if(!liveScheduler||liveScheduler.schedulerEnabled!==true||
