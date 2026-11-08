@@ -1,0 +1,81 @@
+name: NoonDealsNow auth crypto isolated capability probe
+on:
+  push:
+    branches: [probe/noondealsnow-admin-pbkdf2-runtime-20261108]
+    paths: ['.github/workflows/noondealsnow-auth-crypto-probe.yml']
+permissions: {contents: read}
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Create synthetic credential-free Worker (never touches production)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > .ndn-crypto-probe.mjs <<'JS'
+          import {pbkdf2,pbkdf2Sync,scrypt,scryptSync} from 'node:crypto';
+          import {Buffer} from 'node:buffer';
+          const passwd='not-an-actual-credential';
+          const salt=Buffer.from('1234567890abcdef');
+          export default {
+            async fetch(request){
+              const kind=new URL(request.url).searchParams.get('kind');
+              const test=async()=>{
+                if(kind==='web-import')return crypto.subtle.importKey('raw',new TextEncoder().encode(passwd),'PBKDF2',false,['deriveBits']);
+                if(kind==='web-derive-1k'||kind==='web-derive-310k'){
+                  const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(passwd),'PBKDF2',false,['deriveBits']);
+                  return crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt,iterations:kind.endsWith('310k')?310000:1000},key,256);
+                }
+                if(kind==='node-async-1k'||kind==='node-async-310k')
+                  return new Promise((resolve,reject)=>pbkdf2(passwd,salt,kind.endsWith('310k')?310000:1000,32,'sha256',(err,x)=>err?reject(err):resolve(x)));
+                if(kind==='node-sync-1k')return pbkdf2Sync(passwd,salt,1000,32,'sha256');
+                if(kind==='scrypt-async-1k'||kind==='scrypt-async-16k'){
+                  const N=kind.endsWith('16k')?16384:1024;
+                  return new Promise((resolve,reject)=>scrypt(passwd,salt,32,{N,r:8,p:1},(err,x)=>err?reject(err):resolve(x)));
+                }
+                if(kind==='scrypt-sync-1k')return scryptSync(passwd,salt,32,{N:1024,r:8,p:1});
+                if(kind==='sha-256')return crypto.subtle.digest('SHA-256',new TextEncoder().encode(passwd));
+                throw Error('unsupported_probe');
+              };
+              try{const result=await test();return Response.json({kind,ok:!!result})}
+              catch(e){return Response.json({kind,ok:false,errorName:String(e.name||'Error').slice(0,40),errorMessage:String(e.message||'').slice(0,90)})}
+            }
+          };
+          JS
+          cat > .ndn-crypto-probe.json <<'JSON'
+          {"name":"ndn-auth-crypto-probe","main":".ndn-crypto-probe.mjs","compatibility_date":"2026-11-08","workers_dev":true,"minify":true,"observability":{"enabled":false}}
+          JSON
+          node --check .ndn-crypto-probe.mjs
+          npm install --no-audit --no-fund --ignore-scripts
+      - name: Deploy disposable synthetic Worker on destination account only
+        run: npx wrangler deploy --config .ndn-crypto-probe.json
+      - name: Compare supported KDFs on actual Cloudflare runtime without user credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://ndn-auth-crypto-probe.ndn-e4c35f8a50.workers.dev'
+          for kind in sha-256 web-import web-derive-1k web-derive-310k node-async-1k node-async-310k node-sync-1k scrypt-async-1k scrypt-async-16k scrypt-sync-1k; do
+            status=$(curl -sS --max-time 18 -o /tmp/ndn-crypto-result.json -w '%{http_code}' "$url/?kind=$kind" || true)
+            if [ "$status" = 200 ]; then
+              echo "NDN_CRYPTO_CAPABILITY $(jq -c '{kind,ok,errorName,errorMessage}' /tmp/ndn-crypto-result.json)"
+            else
+              echo "NDN_CRYPTO_CAPABILITY kind=$kind http=$status"
+            fi
+          done
+          echo 'PRODUCTION_WORKER_UNCHANGED=TRUE;REAL_PASSWORDS=NONE;R2_WRITES=0;DO_WRITES=0'
+      - name: Remove isolated test Worker from account after verifying
+        if: always()
+        shell: bash
+        run: |
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then exit 0; fi
+          code=$(curl -sS --max-time 15 -X DELETE -o /tmp/ndn-crypto-delete.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/ndn-auth-crypto-probe" || true)
+          echo "ISOLATED_PROBE_CLEANUP_HTTP=$code"
