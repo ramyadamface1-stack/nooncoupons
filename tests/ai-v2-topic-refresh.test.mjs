@@ -5,7 +5,7 @@ import config from '../automation/ai-v2/config.json' with {type:'json'};
 import {expandedEditorialTopics,establishedEditorialFamilies} from '../automation/ai-v2/topic-expansion.mjs';
 import {newEditorialTopicWave} from '../automation/ai-v2/topic-refresh.mjs';
 import {assertTopic} from '../automation/ai-v2/guardrails.mjs';
-import {publicationReadyTopic,queueScanWindow,queueExpansionBridgeWindow} from '../automation/ai-v2/topic-queue.mjs';
+import {publicationReadyTopic,queueScanWindow,queueExpansionBridgeWindow,queueRotatingFreshWaveWindow} from '../automation/ai-v2/topic-queue.mjs';
 test('second wave appends distinct, approved country-specific product scenarios without mutating past positions',()=>{
  const historical=[...base,...expandedEditorialTopics],old=new Set(historical.map(x=>x.slug));
  assert.ok(establishedEditorialFamilies.length>=45);
@@ -118,4 +118,31 @@ test('fifth append-only reserve keeps old checkpoints stable and adds distinct s
  assert.deepEqual(bridge,Array.from({length:8},(_,i)=>prior.length+i));
  assert.equal(fifthEditorialTopicWave[0].country,'SA');
  assert.equal(fifthEditorialTopicWave[1].country,'AE');
+});
+
+test('N5 reserve is in production run queue, and all older append-only positions are unchanged',()=>{
+ const source=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.match(source,/import \{fifthEditorialTopicWave\} from '\.\/topic-refresh-n5\.mjs'/);
+ assert.match(source,/\.\.\.fourthEditorialTopicWave,\.\.\.fifthEditorialTopicWave\]/);
+ assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,fifthWaveStart,firstWindow,4\)/);
+ assert.match(source,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
+ const previous=[...base,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave];
+ const next=[...previous,...fifthEditorialTopicWave];
+ assert.ok(fifthEditorialTopicWave.length>=180);
+ assert.equal(next.length-previous.length,fifthEditorialTopicWave.length);
+ for(let i=0;i<previous.length;i++)assert.equal(next[i],previous[i]);
+});
+test('N5 bridge rotates over fresh topics instead of rereading only first four',()=>{
+ const start=200,total=224;
+ assert.deepEqual(queueRotatingFreshWaveWindow(total,start,[0,1,2,3]),[200,201,202,203]);
+ assert.deepEqual(queueRotatingFreshWaveWindow(total,start,[24,25,26,27]),[201,202,203,204]);
+ assert.deepEqual(queueRotatingFreshWaveWindow(total,start,[48,49,50,51]),[202,203,204,205]);
+ assert.deepEqual(queueRotatingFreshWaveWindow(total,start,[199,0,1,2]),[208,209,210,211]);
+ assert.deepEqual(queueRotatingFreshWaveWindow(total,start,[200,201,202,203]),[]);
+ assert.deepEqual(queueRotatingFreshWaveWindow(total,start,[225]),[]);
+ assert.deepEqual(queueRotatingFreshWaveWindow(total,start,[12],5),[]);
+ const visited=new Set();
+ for(let cursor=0;cursor<200;cursor+=24)
+   for(const p of queueRotatingFreshWaveWindow(total,start,[cursor]))visited.add(p);
+ assert.ok(visited.size>=10);
 });
