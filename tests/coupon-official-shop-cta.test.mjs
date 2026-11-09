@@ -22,7 +22,10 @@ for(const market of ['SA','AE']){
       assert.ok(official[0].includes('data-placement="featured_coupon"'));
       assert.ok(official[0].includes('rel="sponsored noopener noreferrer"'));
       assert.ok(official[0].includes('target="_blank"'));
-      assert.doesNotMatch(official[0],/utm_|affiliat|ref=|tag=/i,'official CTA must not inject affiliate tracking');
+      const outboundHref=official[0].match(/href="([^"]+)"/)?.[1]||'';
+      const destination=new URL(outboundHref);
+      assert.equal(destination.hostname,'www.noon.com');
+      assert.equal(destination.search,'','official CTA must not inject affiliate or tracking parameters');
       assert.match(article,new RegExp('افتح نون '+(market==='SA'?'السعودية':'الإمارات')+' وجرّب '+code));
       assert.match(html,new RegExp('rel="canonical" href="https://noondealsnow.com/coupon/'+code.toLowerCase()+'"'));
     });
