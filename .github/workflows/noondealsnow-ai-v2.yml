@@ -15,6 +15,7 @@ on:
       - 'tests/ai-v2-provider-circuit.test.mjs'
       - 'tests/ai-v2-groq-key-pool.test.mjs'
       - 'automation/ai-v2/groq-key-pool.mjs'
+      - 'automation/ai-v2/topic-refresh-n8.mjs'
       - 'tests/ai-v2-workflow-wiring.test.mjs'
       - '.github/workflows/noondealsnow-ai-v2.yml'
   workflow_dispatch:
