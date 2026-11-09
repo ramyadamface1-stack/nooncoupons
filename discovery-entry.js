@@ -547,6 +547,31 @@ export default{
       const canonical=new URL(req.url);canonical.protocol='https:';canonical.hostname='noondealsnow.com';canonical.port='';
       return new Response(null,{status:308,headers:{location:canonical.toString(),'cache-control':'public, max-age=86400','x-canonical-host-redirect':'www-to-apex-v1'}});
     }
+    // HEAD metadata parity for existing public sitemaps. Legacy dynamic GET
+    // handlers handled only GET and returned 404 for HEAD, even though the
+    // same canonical XML URL returned 200 to GET. Keep HEAD cheap and bodyless.
+    // Never invent a successful response for a non-existent rescue shard.
+    if(req.method==='HEAD'){
+      const isDynamic=u.pathname==='/sitemap-hubs.xml'||u.pathname==='/sitemap-priority.xml';
+      const isRescueShard=/^\/sitemap-rescue-(?:articles|images|english|english-images)-\d{1,4}\.xml$/.test(u.pathname);
+      if(isDynamic||isRescueShard){
+        const headers={
+          'content-type':'application/xml; charset=utf-8',
+          'cache-control':'public, max-age=300, s-maxage=900, stale-while-revalidate=600',
+          'x-robots-tag':'all',
+          'x-sitemap-head-parity':'v1'
+        };
+        if(isRescueShard){
+          try{
+            const publishedPaths=await rescueSitemapIndexPaths(env);
+            if(!publishedPaths.includes(u.pathname))return new Response(null,{status:404,headers});
+          }catch{
+            return new Response(null,{status:503,headers:{...headers,'cache-control':'no-store'}});
+          }
+        }
+        return new Response(null,{status:200,headers});
+      }
+    }
     // Emergency public read-only rescue: old account R2 is NotEntitled (10042).
     // Only articles and blog/archive are served from the verified new R2 mirror.
     // Keep ALL admin, cron, DO state, route, and publishing paths unchanged.
