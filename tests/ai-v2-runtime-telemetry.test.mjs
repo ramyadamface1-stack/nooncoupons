@@ -77,6 +77,7 @@ test('admin monitoring never loads the giant publication ledger and reports queu
   return null;
  }}};
  const result=await aiV2AdminMonitor(env,async()=>Response.json({
+  ok:true,source:'admin-do-policy-plus-explicit-runtime-secret',
   schedulerEnabled:true,intervalMinutes:1,controlStatus:'POLICY_VERIFIED'
  }));
  assert.equal(result.ok,true);
@@ -89,6 +90,7 @@ test('admin monitoring never loads the giant publication ledger and reports queu
 test('no R2 summary means verified count unknown rather than falsely zero',async()=>{
  const env={CONTENT_FINAL:{get:async()=>null}};
  const result=await aiV2AdminMonitor(env,async()=>Response.json({
+  ok:true,source:'admin-do-policy-plus-explicit-runtime-secret',
   schedulerEnabled:true,intervalMinutes:1,controlStatus:'POLICY_VERIFIED'
  }));
  assert.equal(result.status,'scheduler-active-no-fresh-report');
@@ -97,7 +99,7 @@ test('no R2 summary means verified count unknown rather than falsely zero',async
  assert.equal(result.verified.reason,'SUMMARY_NOT_YET_WRITTEN');
 });
 
-test('existing Cloudflare service binding supplies real scheduler health without public subrequest',async()=>{
+test('existing Cloudflare service binding supplies verified fallback when canonical health is unreachable',async()=>{
  let called=0;
  const now=new Date().toISOString();
  const env={CONTENT_FINAL:{get:async key=>key.endsWith('runtime-SA.json')?{
@@ -106,11 +108,45 @@ test('existing Cloudflare service binding supplies real scheduler health without
     groq:{total:1,counts:{eligibleUnverified:1,quotaWait:0,providerWait:0,unverified:0,notInspected:0},entries:[]}}})
  }:null},AI_V2_SCHEDULER:{fetch:async request=>{
    called++;assert.match(String(request),/noondealsnow-ai-scheduler-v2/);
-   return Response.json({schedulerEnabled:true,controlStatus:'POLICY_VERIFIED',intervalMinutes:1});
+   return Response.json({ok:true,source:'admin-do-policy-plus-explicit-runtime-secret',
+      schedulerEnabled:true,controlStatus:'POLICY_VERIFIED',intervalMinutes:1});
  }}};
- const result=await aiV2AdminMonitor(env,async()=>{throw Error('external fetch should not be used')});
+ const result=await aiV2AdminMonitor(env,async()=>{throw Error('canonical health inaccessible')});
  assert.equal(called,1);
  assert.equal(result.scheduler.reachable,true);
  assert.equal(result.scheduler.enabled,true);
  assert.equal(result.status,'queue-no-eligible-topics');
+});
+
+
+test('canonical live scheduler wins over a stale disabled internal service binding',async()=>{
+ const env={CONTENT_FINAL:{get:async()=>null},AI_V2_SCHEDULER:{fetch:async()=>Response.json({
+  ok:true,source:'admin-do-policy-plus-explicit-runtime-secret',schedulerEnabled:false,
+  intervalMinutes:1,controlStatus:'POLICY_VERIFIED'})}};
+ const result=await aiV2AdminMonitor(env,async()=>Response.json({
+  ok:true,source:'admin-do-policy-plus-explicit-runtime-secret',schedulerEnabled:true,
+  intervalMinutes:1,controlStatus:'POLICY_VERIFIED'}));
+ assert.equal(result.scheduler.enabled,true);
+ assert.equal(result.scheduler.statusSource,'PUBLIC_CLOUDFLARE_HEALTH');
+ assert.equal(result.scheduler.internalFallback,false);
+ assert.equal(result.status,'scheduler-active-no-fresh-report');
+});
+
+test('public health unavailable and stale disabled binding must not falsely claim OFF',async()=>{
+ const env={CONTENT_FINAL:{get:async()=>null},AI_V2_SCHEDULER:{fetch:async()=>Response.json({
+  ok:true,source:'admin-do-policy-plus-explicit-runtime-secret',schedulerEnabled:false,
+  intervalMinutes:1,controlStatus:'POLICY_VERIFIED'})}};
+ const result=await aiV2AdminMonitor(env,async()=>{throw Error('network unavailable')});
+ assert.equal(result.scheduler.reachable,false);
+ assert.equal(result.scheduler.statusSource,'HEALTH_SOURCES_UNVERIFIED');
+ assert.equal(result.status,'scheduler-unreachable');
+});
+
+test('verified disabled live canonical scheduler is correctly displayed as paused',async()=>{
+ const result=await aiV2AdminMonitor({CONTENT_FINAL:{get:async()=>null}},async()=>Response.json({
+  ok:true,source:'admin-do-policy-plus-explicit-runtime-secret',schedulerEnabled:false,
+  intervalMinutes:1,controlStatus:'POLICY_VERIFIED'}));
+ assert.equal(result.scheduler.reachable,true);
+ assert.equal(result.scheduler.enabled,false);
+ assert.equal(result.status,'paused');
 });
