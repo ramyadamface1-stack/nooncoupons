@@ -29,20 +29,41 @@ async function verifiedSnapshot(env){
      ageMinutes:Math.max(0,Math.round((Date.now()-Date.parse(s.generatedAt))/60000))};
  }catch{return {available:false,reason:'SUMMARY_READ_UNAVAILABLE'}}
 }
+// Canonical Cloudflare /health is the runtime truth. A service binding can
+// expose a stale status after a secret-only deployment (observed 2026-11-09).
 async function schedulerHealth(request){
  try{
    const response=await request(SCHEDULER,{headers:{'cache-control':'no-store'},signal:AbortSignal.timeout(6000)});
    if(!response.ok)return {reachable:false,http:response.status};
    const s=await response.json();
-   return {reachable:true,enabled:s.schedulerEnabled===true,intervalMinutes:Number(s.intervalMinutes)||null,
+   if(s?.ok!==true||typeof s.schedulerEnabled!=='boolean'||
+      s.source!=='admin-do-policy-plus-explicit-runtime-secret'||
+      ![1,5,10,15,30,60].includes(s.intervalMinutes))
+      return {reachable:false,http:200,reason:'UNVERIFIED_HEALTH_RESPONSE'};
+   return {reachable:true,enabled:s.schedulerEnabled,intervalMinutes:s.intervalMinutes,
      controlStatus:s.controlStatus||null,globalPublicationSpacingSeconds:s.globalPublicationSpacingSeconds||null,
      dispatchPolicy:s.dispatchPolicy||null};
- }catch{return {reachable:false,http:null}}
+ }catch{return {reachable:false,http:null,reason:'HEALTH_REQUEST_FAILED'}}
+}
+export async function reconcileSchedulerHealth(env,fetchFn=fetch){
+ // One no-store public health request per authenticated dashboard refresh.
+ const canonical=await schedulerHealth(fetchFn);
+ if(canonical.reachable)return {...canonical,statusSource:'PUBLIC_CLOUDFLARE_HEALTH',internalFallback:false};
+ // Private binding is a fallback for public network failures only. A negative
+ // fallback is ambiguous, NOT evidence that the live scheduler is disabled.
+ const binding=env?.AI_V2_SCHEDULER?.fetch;
+ if(typeof binding!=='function')return {...canonical,statusSource:'NO_VERIFIED_HEALTH'};
+ const internal=await schedulerHealth(binding.bind(env.AI_V2_SCHEDULER));
+ if(internal.reachable&&internal.enabled===true&&internal.controlStatus==='POLICY_VERIFIED')
+   return {...internal,statusSource:'VERIFIED_SERVICE_BINDING',internalFallback:true};
+ return {reachable:false,enabled:null,intervalMinutes:null,controlStatus:null,
+   statusSource:'HEALTH_SOURCES_UNVERIFIED',reason:'CANNOT_CONFIRM_SCHEDULER_FROM_PUBLIC_OR_BINDING',
+   internalFallback:true};
 }
 export async function aiV2AdminMonitor(env,fetchFn=fetch){
  const [sa,ae,scheduler,verified]=await Promise.all([
    fromR2(env,'SA'),fromR2(env,'AE'),
-   schedulerHealth(env.AI_V2_SCHEDULER?.fetch?.bind(env.AI_V2_SCHEDULER)||fetchFn),
+   reconcileSchedulerHealth(env,fetchFn),
    verifiedSnapshot(env)
  ]);
  const markets={SA:sa,AE:ae},freshest=[sa,ae].filter(Boolean)
