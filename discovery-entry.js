@@ -5,7 +5,7 @@ import {nativeAiV2SitemapResponse} from './ai-v2-sitemap.js';
 import app from './brand-runtime.js';
 import {llms as canonicalCouponSourceGuide} from './final-platform.js';
 import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
-import {emergencyPublicR2Response,nativeBoundAiV2ArticleFastResponse,rescueSitemapIndexPaths,rescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
+import {emergencyPublicR2Response,nativeBoundAiV2ArticleFastResponse,nativeBoundLegacyCpuCanaryResponse,rescueSitemapIndexPaths,rescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
 import {runEnglishCanaryBatch,englishCanaryRecords,englishPublicRecentRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
@@ -567,6 +567,10 @@ export default{
     // writes, crawler directives and authenticated routes are unaffected.
     const boundFast=await nativeBoundAiV2ArticleFastResponse(req,env);
     if(boundFast)return edgePageCachePut(req,u,boundFast,ctx);
+    // Canary only: bypass repeated whole-document SEO/HTML passes for this
+    // observed failing legacy article. Cache as normal; no R2 writes.
+    const legacyCpuCanary=await nativeBoundLegacyCpuCanaryResponse(req,env);
+    if(legacyCpuCanary)return edgePageCachePut(req,u,legacyCpuCanary,ctx);
     if(req.method==='GET'){
       const nativeSitemap=await nativeAiV2SitemapResponse(u.pathname,env,origin);
       if(nativeSitemap)return edgePageCachePut(req,u,nativeSitemap,ctx);
