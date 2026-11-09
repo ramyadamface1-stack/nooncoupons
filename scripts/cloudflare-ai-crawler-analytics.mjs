@@ -77,18 +77,40 @@ async function main(){
       measured++;
       let total=0,success=0,fail=0;
       const paths=new Map();
+      const errorStatuses=new Map();
+      const errorPaths=new Map();
+      const couponHits=new Map();
       for(const row of rows){
         const n=Number(row.count)||0,status=Number(row.dimensions?.edgeResponseStatus)||0;
         total+=n;
         if(status>=200&&status<400) success+=n;
-        if(status>=400) fail+=n;
+        if(status>=400) {
+          fail+=n;
+          errorStatuses.set(status,(errorStatuses.get(status)||0)+n);
+          const failedPath=row.dimensions?.clientRequestPath||'';
+          if(failedPath.startsWith('/')&&!failedPath.startsWith('/admin')&&!failedPath.startsWith('/api/'))
+            errorPaths.set(failedPath,(errorPaths.get(failedPath)||0)+n);
+        }
+        if(['/coupon/nov170','/coupon/nov188'].includes(row.dimensions?.clientRequestPath))
+          couponHits.set(row.dimensions.clientRequestPath,(couponHits.get(row.dimensions.clientRequestPath)||0)+n);
         const path=row.dimensions?.clientRequestPath||'';
         if(path&&path.startsWith('/')&&!path.startsWith('/admin')&&!path.startsWith('/api/'))
           paths.set(path,(paths.get(path)||0)+n);
       }
       const top=[...paths].sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
       lines.push('| '+label+' | '+total+' | '+success+' | '+fail+' | '+top.replaceAll('|','/').slice(0,95)+' |');
-      if(fail>0)notes.push(label+': '+fail+' sampled requests had 4xx/5xx responses. Check Cloudflare AI Crawl Control and WAF logs before changing rules.');
+      if(fail>0){
+        const statusSummary=[...errorStatuses].sort((a,b)=>a[0]-b[0]).map(([code,n])=>code+'='+n).join(', ');
+        const safe=p=>p.replace(/[|<>\r\n]/g,'_').slice(0,115);
+        const badPaths=[...errorPaths].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([path,n])=>safe(path)+' ('+n+')').join('; ')||'not visible in sampled groups';
+        notes.push(label+': '+fail+' sampled 4xx/5xx requests; status breakdown '+statusSummary+'; top failing paths: '+badPaths+'. These may be 404s for old URLs, not WAF blocks.');
+      }
+      if(agent==='OAI-SearchBot'||agent==='bingbot'||agent==='Googlebot'){
+        const best=[...paths].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([path,n])=>path.replace(/[|<>\r\n]/g,'_').slice(0,105)+' ('+n+')').join('; ');
+        notes.push(label+' top sampled paths: '+(best||'none'));
+        notes.push(label+' canonical NOV170/NOV188 paths represented among the top 100 grouped rows: '+
+          (couponHits.get('/coupon/nov170')||0)+' / '+(couponHits.get('/coupon/nov188')||0)+'. This is not a complete crawl-history count.');
+      }
       if(total===0)notes.push(label+': no *sampled* matching requests in this 23h window; this does NOT prove that this service stopped crawling.');
     } catch(err){
       errors++;lines.push('| '+label+' | unavailable | — | — | — |');
