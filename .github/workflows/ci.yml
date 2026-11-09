@@ -58,6 +58,9 @@ jobs:
       - name: Validate crawlable canonical coupon links on landing pages
         run: node --test tests/coupon-hub-canonical-links.test.mjs
 
+      - name: Test confirmed NOV clipboard actions and source-market attribution
+        run: node --test tests/nov-copy-success-analytics.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |
