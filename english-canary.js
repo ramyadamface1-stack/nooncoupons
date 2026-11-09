@@ -6,6 +6,7 @@ import {normalizeApprovedCoupon,isApprovedCoupon,replaceUnapprovedCouponTokens,i
 import {getCampaignWindow,campaignGenerationPlan,applyCampaignPlan,CAMPAIGN_CALENDAR_INFO} from './campaign-calendar.js';
 import {submitIndexNow,INDEXNOW_INFO} from './indexnow.js';
 import {publicationBlockedByArticleAudit,readArticleAuditLock} from './article-audit-lock.js';
+import {presentMarketCouponText,reconcileSourceCouponJsonLd} from './rescue-article-conversion.js';
 
 const STATE_KEY='english-canary/state.json';
 const JOURNAL_KEY='english-canary/publish-journal-v1.json';
@@ -95,7 +96,7 @@ const GSC_CTR_OVERRIDES={
     description:'A focused Noon UAE grocery coupon checklist for code eligibility, cart conditions, delivery and the final payable total.'
   }
 };
-function gscCtrMeta(rec,coupon){const row=GSC_CTR_OVERRIDES[String(rec?.slug||'')];return {title:row?.title||rec?.title||'',description:replaceWrongMarketCouponTokens(row?.description||rec?.metaDescription||'',rec?.country),overridden:Boolean(row)}}
+function gscCtrMeta(rec,coupon){const row=GSC_CTR_OVERRIDES[String(rec?.slug||'')];return {title:row?.title||rec?.title||'',description:presentMarketCouponText(replaceWrongMarketCouponTokens(row?.description||rec?.metaDescription||'',rec?.country),rec?.country,coupon),overridden:Boolean(row)}}
 
 function targetFromEnv(env){return Math.max(0,Math.min(2,Number(env.ENGLISH_CANARY_TOTAL||DEFAULT_TARGET)||DEFAULT_TARGET))}
 function controlledTargetFromEnv(env){const base=targetFromEnv(env),requested=Number(env.ENGLISH_CONTROLLED_TOTAL||DEFAULT_CONTROLLED_TOTAL)||DEFAULT_CONTROLLED_TOTAL;return Math.max(base,Math.min(MAX_CONTROLLED_TOTAL,requested))}
@@ -485,7 +486,15 @@ export async function serveEnglishCanaryArticle(req,env){
     return new Response(`<!doctype html><html lang="${marketLang}" dir="ltr"><head>${head}</head><body>${body}</body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=60,s-maxage=120','content-language':'en','x-english-archive-fallback':'v1','x-english-canary':'archive-fallback','x-robots-tag':indexable?'index, follow':'noindex, follow','x-content-type-options':'nosniff'}});
   }
   rec={...rec,coupon:normalizeMarketCoupon(rec.coupon,rec.country),metaDescription:replaceWrongMarketCouponTokens(rec.metaDescription||'',rec.country)};
-  const safeCoupon=normalizeMarketCoupon(rec.coupon,rec.country),raw=replaceWrongMarketCouponTokens(await o.text(),rec.country),origin=env.SITE_ORIGIN||u.origin,canonical=origin+'/en/articles/'+enc(slug),countryLabel=rec.country==='SA'?'Saudi Arabia':'UAE',countryPath=rec.country==='SA'?'/en/saudi':'/en/uae',categoryPath=rec.categoryKey?`${countryPath}/category/${rec.categoryKey}`:countryPath,marketLang=rec.country==='SA'?'en-SA':'en-AE',arabicLang=rec.country==='SA'?'ar-SA':'ar-AE',arabicPath=rec.country==='SA'?'/saudi':'/uae';
+  // The published record owns this article's selected approved market code.
+  // Some older create-only R2 documents contain a different *also approved* code
+  // in the quick answer, FAQ and clipboard button. Normalize only the rendered
+  // document and its FAQ text; preserve the source object and all links/scripts.
+  const safeCoupon=normalizeMarketCoupon(rec.coupon,rec.country),raw=reconcileSourceCouponJsonLd(
+    // The display-only normalizer handles all visible coupon tokens while
+    // keeping approved original href URLs and inline scripts unchanged.
+    presentMarketCouponText(await o.text(),rec.country,safeCoupon),
+    rec.country,safeCoupon),origin=env.SITE_ORIGIN||u.origin,canonical=origin+'/en/articles/'+enc(slug),countryLabel=rec.country==='SA'?'Saudi Arabia':'UAE',countryPath=rec.country==='SA'?'/en/saudi':'/en/uae',categoryPath=rec.categoryKey?`${countryPath}/category/${rec.categoryKey}`:countryPath,marketLang=rec.country==='SA'?'en-SA':'en-AE',arabicLang=rec.country==='SA'?'ar-SA':'ar-AE',arabicPath=rec.country==='SA'?'/saudi':'/uae';
   const imgPath=`/assets/coupon-svg/${encodeURIComponent(slug)}/1.svg?v=9&coupon=${encodeURIComponent(safeCoupon)}&country=${rec.country}`,featured=origin+imgPath,images=[1,2,3,4,5].map(v=>origin+`/assets/coupon-svg/${encodeURIComponent(slug)}/${v}.svg?v=9&coupon=${encodeURIComponent(safeCoupon)}&country=${rec.country}`);
   const graph={'@context':'https://schema.org','@graph':[
     {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',url:origin+'/',logo:{'@type':'ImageObject',url:origin+'/favicon.svg',contentUrl:origin+'/favicon.svg',width:64,height:64}},
@@ -500,7 +509,15 @@ export async function serveEnglishCanaryArticle(req,env){
     {'@type':'WebPage','@id':canonical+'#webpage',url:canonical,name:rec.title,description:rec.metaDescription,inLanguage:marketLang,isPartOf:{'@id':origin+'/#website'},breadcrumb:{'@id':canonical+'#breadcrumb'},primaryImageOfPage:{'@id':featured+'#image'}},
     {'@type':'Article','@id':canonical+'#article',headline:rec.title,description:rec.metaDescription,inLanguage:marketLang,datePublished:rec.createdAt,dateModified:rec.updatedAt||rec.createdAt,mainEntityOfPage:{'@id':canonical+'#webpage'},author:{'@id':origin+'/authors/editorial-team#team'},publisher:{'@id':origin+'/#organization'},image:images,about:[{'@type':'Thing',name:'Noon'},{'@type':'Place',name:countryLabel},{'@type':'Thing',name:rec.primaryKeyword},{'@type':'Thing',name:'Noon coupon code '+safeCoupon,identifier:safeCoupon}]}
   ]};
-  const ctrMeta=gscCtrMeta(rec,safeCoupon),safeMeta=ctrMeta.description;graph['@graph'][2].name=ctrMeta.title;graph['@graph'][2].description=safeMeta;graph['@graph'][3].headline=ctrMeta.title;graph['@graph'][3].description=safeMeta;const head=`<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(ctrMeta.title)}</title><meta name="description" content="${esc(safeMeta)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(canonical)}"><link rel="alternate" hreflang="${marketLang}" href="${esc(canonical)}"><link rel="alternate" hreflang="${arabicLang}" href="${esc(origin+arabicPath)}"><link rel="alternate" hreflang="x-default" href="${esc(canonical)}"><meta property="og:type" content="article"><meta property="og:locale" content="${rec.country==='SA'?'en_SA':'en_AE'}"><meta property="og:title" content="${esc(ctrMeta.title)}"><meta property="og:description" content="${esc(safeMeta)}"><meta property="og:url" content="${esc(canonical)}"><meta property="og:image" content="${esc(featured)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="760"><meta property="og:site_name" content="Noon Deals Now"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(featured)}"><script type="application/ld+json" data-schema="article">${safeJson(graph)}</script>${pageCss()}`;
+  const ctrMeta=gscCtrMeta(rec,safeCoupon),safeMeta=ctrMeta.description;
+  // Update the actual WebPage and Article nodes. Prior numeric indices
+  // accidentally changed WebSite and ImageObject while leaving Article
+  // description stale, creating inconsistent JSON-LD coupon evidence.
+  for(const node of graph['@graph']){
+    if(node['@type']==='WebPage'){node.name=ctrMeta.title;node.description=safeMeta}
+    if(node['@type']==='Article'){node.headline=ctrMeta.title;node.description=safeMeta}
+  }
+  const head=`<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(ctrMeta.title)}</title><meta name="description" content="${esc(safeMeta)}"><meta name="robots" content="index,follow,max-image-preview:large"><link rel="canonical" href="${esc(canonical)}"><link rel="alternate" hreflang="${marketLang}" href="${esc(canonical)}"><link rel="alternate" hreflang="${arabicLang}" href="${esc(origin+arabicPath)}"><link rel="alternate" hreflang="x-default" href="${esc(canonical)}"><meta property="og:type" content="article"><meta property="og:locale" content="${rec.country==='SA'?'en_SA':'en_AE'}"><meta property="og:title" content="${esc(ctrMeta.title)}"><meta property="og:description" content="${esc(safeMeta)}"><meta property="og:url" content="${esc(canonical)}"><meta property="og:image" content="${esc(featured)}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="760"><meta property="og:site_name" content="Noon Deals Now"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="${esc(featured)}"><script type="application/ld+json" data-schema="article">${safeJson(graph)}</script>${pageCss()}`;
   const phaseLabel=rec.canary?'canary':'controlled expansion';
   const updatedLabel=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'Africa/Cairo',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(rec.updatedAt||rec.createdAt));
   const publishedLabel=new Intl.DateTimeFormat('en-GB',{day:'2-digit',month:'short',year:'numeric',timeZone:'Africa/Cairo',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(rec.createdAt));
