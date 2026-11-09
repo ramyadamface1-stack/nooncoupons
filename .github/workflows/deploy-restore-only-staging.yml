@@ -7,6 +7,9 @@ on:
       - '.github/workflows/deploy-restore-only-staging.yml'
       - 'wrangler.migration-staging.jsonc'
       - 'do-migration-state.js'
+      - 'admin-runtime.js'
+      - 'publication-rate-limit.js'
+      - 'tests/ai-v2-publishing-cadence.test.mjs'
       - 'brand-runtime.js'
       - 'wrangler.new-account-production.jsonc'
   workflow_dispatch:
@@ -71,9 +74,26 @@ jobs:
           echo "NEW_CF_DEPLOY_TOKEN=active"
       - run: npm install --no-audit --no-fund --ignore-scripts
       - run: node --test tests/do-migration-state.test.mjs
+      - name: Verify native publication cadence on the actual DO owner script before deploying
+        run: node --test tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-global-capacity.test.mjs
       - run: npx wrangler deploy --dry-run --config wrangler.migration-staging.jsonc --outdir /tmp/new-stage
-      - name: Deploy isolated restore-only Worker
+      - name: Deploy isolated restore-only Worker and native publication gate owner
         run: npx wrangler deploy --config wrangler.migration-staging.jsonc
+      - name: Confirm the DO owner script includes native AI V2 publish control source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs=require('fs');
+          const config=JSON.parse(fs.readFileSync('wrangler.migration-staging.jsonc','utf8'));
+          const production=JSON.parse(fs.readFileSync('wrangler.new-account-production.jsonc','utf8'));
+          if(config.name!=='noondealsnow-migration-staging')process.exit(1);
+          const bindings=production.durable_objects?.bindings||[];
+          if(!bindings.some(x=>x.name==='GENERATOR_CONTROL'&&x.script_name===config.name))process.exit(2);
+          const source=fs.readFileSync('admin-runtime.js','utf8');
+          if(!source.includes("ai-v2-publication-permit-v1")||!source.includes('publishingIntervalMinutes'))process.exit(3);
+          console.log('AI_V2_PUBLISHING_DO_OWNER_SOURCE_AND_BINDING=VERIFIED');
+          NODE
       - name: Verify Worker exists on NEW account via API
         shell: bash
         run: |
