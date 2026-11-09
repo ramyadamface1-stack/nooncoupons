@@ -5,7 +5,7 @@ import {nativeAiV2SitemapResponse} from './ai-v2-sitemap.js';
 import app from './brand-runtime.js';
 import {llms as canonicalCouponSourceGuide} from './final-platform.js';
 import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
-import {emergencyPublicR2Response,nativeBoundAiV2ArticleFastResponse,nativeBoundLegacyCpuCanaryResponse,rescueSitemapIndexPaths,rescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
+import {emergencyPublicR2Response,nativeBoundAiV2ArticleFastResponse,nativeBoundLegacyCpuCanaryResponse,rescueSitemapIndexPaths,rescueSitemapResponse,prebuiltRescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
 import {runEnglishCanaryBatch,englishCanaryRecords,englishPublicRecentRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
@@ -609,6 +609,11 @@ export default{
          u.pathname==='/sitemap-rescue-english-catalog.xml'||
          /^\/sitemap-rescue-(?:articles|images|english|english-images)-\d{1,4}\.xml$/.test(u.pathname)){
         try{
+          // Prefer validated, streamed R2 XML on selected hot large shards.
+          // On stale/missing prebuilt XML the original quality-gated renderer
+          // remains active, including the same URLs and HTTP error semantics.
+          const prebuilt=await prebuiltRescueSitemapResponse(u.pathname,env);
+          if(prebuilt)return edgePageCachePut(req,u,prebuilt,ctx);
           const historical=await rescueSitemapResponse(u.pathname,env);
           if(historical)return edgePageCachePut(req,u,historical,ctx);
         }catch(error){console.warn('new_account_rescue_sitemap_unavailable',String(error?.message||error).slice(0,90))}
