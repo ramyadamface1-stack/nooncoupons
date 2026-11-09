@@ -79,8 +79,8 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 <section class="section" id="view-generation" role="tabpanel" hidden>
 <h2>التوليد والطابور</h2><p class="dim">تشغيل GitHub في الخلفية، حتى لو قفلتي المتصفح. الإيقاف اليدوي يحافظ على المهام المحفوظة.</p>
 <div class="panel"><h3>التحكم في تشغيل Gemini / Groq</h3><div id="genDetails" class="state">جارٍ القراءة</div>
-<div class="row"><button class="action" id="startGeneration">تشغيل / استئناف</button><button class="action danger" id="pauseGeneration">إيقاف مؤقت</button><button class="action secondary" id="runOnce">تشغيل محاولة الآن</button></div>
-<p class="subtle">تشغيل محاولة الآن يحتاج صلاحية GitHub Actions؛ لا يضمن إنتاج مقال عندما لا توجد مهمة مؤهلة.</p></div>
+<div class="row"><button class="action" id="startGeneration">1 — تشغيل / استئناف</button><button class="action secondary" id="runOnce">2 — توليد الآن (GitHub)</button><button class="action danger" id="pauseGeneration">إيقاف مؤقت</button></div>
+<p class="subtle">تشغيل محاولة الآن يستخدم رمز GitHub المحفوظ داخل خدمة Cloudflare، ولا يحتاج لصق توكن في المتصفح. يجب أولًا أن يظهر المجدول مفعّلًا. قبول المحاولة لا يعني نشر مقال.</p></div>
 <div class="panel"><h3>حالة الطابور</h3><div id="queueDetail" class="smalllist">جارٍ القراءة</div><p class="data-note">وجود آلاف الموضوعات في الملف لا يعني أنها لم تُنجز. لا نعيد توليد مقال مؤكد النشر أو محجوز للفحص.</p></div>
 <div class="panel"><h3>مراحل المقالة المطلوبة</h3><p class="subtle">الكلمة → مخطط → كتابة → مراجعة → SEO → 5 تصميمات → روابط → جودة → مخزون READY → موعد النشر. عرض مراحل قديمة مؤكد؛ مخزون READY منفصل غير مثبت حتى تُستكمل البنية.</p></div>
 </section>
@@ -127,7 +127,7 @@ function local(x){const d=Date.parse(x||'');return Number.isFinite(d)?new Date(d
 function item(parent,strong,detail){const div=document.createElement('div'),b=document.createElement('b'),p=document.createElement('div');b.textContent=strong;p.textContent=detail;p.className='subtle';div.append(b,p);parent.append(div)}
 function setState(id,title,detail,tone){const el=$(id);el.className='state '+(tone||'');el.replaceChildren();item(el,title,detail)}
 async function api(path,opts){const response=await fetch(path,Object.assign({credentials:'same-origin',cache:'no-store'},opts||{}));if(response.status===401){location.href='/admin';throw Error('AUTH_REQUIRED')}let json;try{json=await response.json()}catch{throw Error('INVALID_SERVER_RESPONSE')}if(!response.ok||json.ok===false)throw Error(json.error||('HTTP_'+response.status));return json}
-const statusNames={PAUSED_MANUALLY:'متوقف يدويًا',PAUSED_QUOTA_EXHAUSTED:'انتظار تجدد الكوتة',WAITING_ELIGIBLE_TOPIC:'المجدول يعمل، لا توجد مهمة مؤهلة في آخر فحص',WAITING_TELEMETRY:'المجدول يعمل، لم يصل تقرير حديث',SCHEDULER_ACTIVE_UNVERIFIED:'المجدول مفعّل، لا يوجد توليد مؤكد',ERROR:'تعذر التحقق من المجدول',DISABLED:'المجدول غير مفعل',UNKNOWN:'الحالة غير معروفة'};
+const statusNames={PAUSED_MANUALLY:'متوقف يدويًا',PAUSED_QUOTA_EXHAUSTED:'انتظار تجدد الكوتة',WAITING_ELIGIBLE_TOPIC:'المجدول يعمل، لا توجد مهمة مؤهلة في آخر فحص',WAITING_TELEMETRY:'المجدول يعمل، لم يصل تقرير حديث',SCHEDULER_ACTIVE_UNVERIFIED:'المجدول مفعّل، لا يوجد توليد مؤكد',ERROR:'تعذر التحقق من المجدول',DISABLED:'المجدول غير مفعّل فعليًا على Cloudflare',UNKNOWN:'الحالة غير معروفة'};
 const publishNames={RECENT_VERIFIED:'تم تأكيد نشر خلال آخر ساعة',NO_VERIFIED_PUBLICATION_LAST_HOUR:'لا يوجد نشر مؤكد آخر ساعة',UNVERIFIED:'حالة النشر غير متاحة'};
 function statusTone(s){return s==='PAUSED_MANUALLY'||s==='DISABLED'?'stop':s==='RECENT_VERIFIED'?'ok':'warn'}
 function metric(id,value){$(id).textContent=fmt(value)}
@@ -211,8 +211,29 @@ else if(entries.length){for(const x of entries)item(el,x.source+' · #'+x.id,'ح
 else item(el,'لا توجد بيانات مفصلة للمفاتيح','لعرض أسماء GitHub Secrets يلزم رمز بصلاحية Secrets Read، ولا يتم حفظه على المتصفح');}
 async function post(path,value){return api(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(value)})}
 async function setControl(patch){try{const value=await post('/api/admin/ai-v2-control',patch);note('حُفظ الطلب بنجاح. التحقق من حالة المجدول الفعلية بعد التحديث.');await load();return value}catch(e){note('تعذر تغيير إعداد التوليد: '+e.message);return null}}
-async function runNow(){if(!confirm('سيطلب محاولة فعلية من GitHub إذا كان المجدول مفعلا. قد تُستهلك حصة Gemini/Groq عند وجود موضوع مؤهل. متابعة؟'))return;
-try{const result=await post('/api/admin/ai-v2-run-now',{githubToken:$('githubToken').value});note(result.dispatched?'قَبِل GitHub طلب المحاولة؛ نشر المقال غير مؤكد حتى يثبت في R2':'لم تُرسل محاولة')}catch(e){note('لم تبدأ المحاولة: '+e.message)}}
+async function runNow(){
+ const g=snapshot?.generation||{};
+ if(g.desiredEnabled===false){note('ابدئي بالضغط على تشغيل / استئناف، ثم تحديث البيانات للتأكد أن المجدول مفعل.');return}
+ if(g.actualScheduler?.enabled===false){note('المجدول متوقف فعليًا. اضغطي تشغيل / استئناف أولًا ثم حدّثي الحالة. لو ظل متوقفًا يحتاج تفعيل Cloudflare.');return}
+ if(!confirm('طلب محاولة توليد فعلية عبر GitHub. قد تستهلك حصة Gemini/Groq عندما توجد مهمة جديدة. هل تريدين المتابعة؟'))return;
+ const btn=$('runOnce');btn.disabled=true;
+ try{
+   const result=await post('/api/admin/ai-v2-run-now',{});
+   note(result.dispatched?'تم قبول محاولة التوليد في GitHub. ده لا يعني نشر مقالة؛ تابعي السجل وعداد النشر المؤكد.':'لم تُرسل محاولة جديدة');
+   await load();
+ }catch(e){
+   const messages={
+    generation_already_running:'يوجد تشغيل توليد جارٍ بالفعل. انتظري نتيجة نفس التشغيل بدل محاولة مكررة.',
+    scheduler_paused:'التوليد متوقف يدويًا. اضغطي تشغيل / استئناف أولًا.',
+    scheduler_not_verified:'المجدول غير مفعّل أو لم تُتحقق سياسة تشغيله على Cloudflare.',
+    dispatch_secret_missing:'رمز إرسال GitHub غير موجود في أسرار مجدول Cloudflare؛ يجب إعادة ربطه بشكل آمن.',
+    internal_dispatch_not_configured:'الاتصال الداخلي بالمجدول غير جاهز بعد. راجعي آخر نشر Cloudflare.',
+    github_token_expired:'رمز GitHub المحفوظ في Cloudflare انتهت صلاحيته؛ يجب تجديده.',
+    github_token_permissions:'رمز GitHub المحفوظ لا يملك صلاحية Actions المطلوبة.'
+   };
+   note(messages[e.message]||'تعذر إرسال المحاولة: '+e.message);
+ }finally{btn.disabled=false}
+}
 async function githubSecrets(){try{gh=await post('/api/admin/ai-v2-keys',{githubToken:$('githubToken').value});renderKeys();note('عرض أسماء الخانات فقط؛ قيم المفاتيح مشفرة وغير قابلة للقراءة')}catch(e){note('تعذر قراءة خانات GitHub: '+e.message)}}
 async function importKeys(){const text=$('keyBulk').value.trim();if(!text){note('الصقي المفاتيح أو ارفعي ملفًا أولًا');return}
  if(!confirm('سيتم تشفير وحفظ المفاتيح في خانة GitHub Secret جديدة دون الكتابة فوق القديمة. متابعة؟'))return;
