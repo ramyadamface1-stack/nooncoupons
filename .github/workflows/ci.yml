@@ -34,6 +34,9 @@ jobs:
       - name: Guard approved NOV consistency in native English pages
         run: node --test tests/english-coupon-consistency.test.mjs
 
+      - name: Verify direct official Noon checkout CTA on every approved coupon detail
+        run: node --test tests/coupon-official-shop-cta.test.mjs
+
       - name: Test real coupon funnel events (no fake attribution)
         run: node --test tests/coupon-funnel-attribution.test.mjs
 
