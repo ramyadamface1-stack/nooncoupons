@@ -36,6 +36,9 @@ on:
       - 'tests/ai-v2-native-publish-bridge.test.mjs'
       - 'r2-emergency-readonly.js'
       - 'rescue-article-conversion.js'
+      - 'index.js'
+      - 'approved-coupons.js'
+      - 'tests/market-coupon-routes.test.mjs'
       - 'tests/remote-existing-r2-binding.test.mjs'
       - 'tests/complete-blog-listing.test.mjs'
       - 'r2-public-cache-policy.js'
@@ -90,6 +93,9 @@ jobs:
         run: npm install --no-audit --no-fund --ignore-scripts
       - name: Check native gate and authenticated secret manager regressions
         run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs
+      - name: Test country coupon lists without changing live codes
+        run: node --test tests/market-coupon-routes.test.mjs
+
       - name: Verify on-site coupon attribution cannot invent sales or codes
         run: node --test tests/coupon-funnel-attribution.test.mjs
 
