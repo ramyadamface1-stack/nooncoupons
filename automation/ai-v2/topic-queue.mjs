@@ -181,6 +181,19 @@ export function nextQueueCursor(total,lastChecked){
 /** Hold the current topic until the next tick has observed its terminal
  * checkpoint. Native publication slot delays therefore retry without new AI
  * calls, while LIVE_VERIFIED/blocked states advance on the following tick. */
+/**
+ * Supplemental bridge/fresh-wave probes must not consume unvisited positions
+ * from the durable primary queue when all sampled checkpoints are terminal.
+ * A selected topic (including a supplemental candidate) remains pinned until
+ * its checkpoint is inspected on a subsequent run.
+ */
+export function queueCursorAnchorForScan(primaryPositions,lastChecked,wasSelected){
+ if(!Array.isArray(primaryPositions)||!primaryPositions.length)throw Error('INVALID_PRIMARY_SCAN_WINDOW');
+ if(!Number.isSafeInteger(lastChecked)||lastChecked<0)throw Error('INVALID_LAST_CHECKED_POSITION');
+ const finalPrimary=primaryPositions[primaryPositions.length-1];
+ if(!Number.isSafeInteger(finalPrimary)||finalPrimary<0)throw Error('INVALID_PRIMARY_SCAN_WINDOW');
+ return wasSelected?lastChecked:finalPrimary;
+}
 export function queueCursorAfterScan(total,lastChecked,wasSelected){
  return wasSelected?lastChecked:nextQueueCursor(total,lastChecked);
 }
