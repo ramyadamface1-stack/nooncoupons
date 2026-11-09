@@ -46,6 +46,9 @@ jobs:
       - name: Confirm single canonical URL per NOV coupon and no duplicate sitemap entries
         run: node --test tests/nov-canonical-owner.test.mjs
 
+      - name: Prevent stale country NOV sitemap cache and preserve archive cache
+        run: node --test tests/market-sitemap-cache-version.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |
