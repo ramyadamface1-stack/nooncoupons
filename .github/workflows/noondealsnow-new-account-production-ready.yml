@@ -97,6 +97,9 @@ jobs:
       - name: Prevent incorrect AI-readable NOV coupon market mappings
         run: node --test tests/nov-llms-canonical-source.test.mjs
 
+      - name: Protect public AI code reference source consistency
+        run: node --test tests/llms-primary-route.test.mjs
+
       - name: Guard crawler-facing XML sitemaps against CPU regression
         run: node --test tests/sitemap-crawler-cpu-bounded.test.mjs
 
