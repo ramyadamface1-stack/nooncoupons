@@ -36,7 +36,7 @@ export function publicEdgeCacheEligible(req,u=new URL(req.url)){
 // changes its SEO/schema presentation. Keep expensive archive/catalog cache warm.
 export function publicEdgePolicyRevision(path,baseRevision='r2-jsonld-dedupe-r16'){
   const kind=publicRouteKind(String(path||''));
-  if((String(path||'').replace(/\\/+$/,'')||'/')==='/en/articles/en-iphone-18-pro-max-noon-abu-dhabi-price')
+  if(String(path||'')==='/en/articles/en-iphone-18-pro-max-noon-abu-dhabi-price')
     return 'legacy-1102-cpu-canary-r2-direct-v1';
   if(kind==='article')return 'r2-rescue-security-ga4-topic-links-v21-nativefast-cpu';
   // Invalidate only the /coupons HTML assembled before visible canonical detail links.
