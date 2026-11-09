@@ -596,6 +596,34 @@ export async function rescueSitemapResponse(path,env){
   const ns=image?' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"':'';
   return xmlResponse('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'+ns+'>'+body+'</urlset>');
 }
+// Read-only canary for one canonical legacy article repeatedly returning Cloudflare
+// 1102 on the new-account Worker. It takes the existing, already-shipped rescue
+// renderer before the heavier brand/commerce/SEO decorating chain runs.
+// Keep the original article slug and R2 object untouched; never widen this
+// exact allowlist without comparing production responses and the CPU metrics.
+export async function nativeBoundLegacyCpuCanaryResponse(req,env){
+  if(req.method!=='GET'||req.headers.has('authorization')||
+     String(env?.R2_RESCUE_READONLY_ENABLED||'')!=='false'||
+     typeof env?.CONTENT_FINAL?.get!=='function')return null;
+  const u=new URL(req.url);
+  if(u.pathname!=='/en/articles/en-iphone-18-pro-max-noon-abu-dhabi-price')return null;
+  try{
+    const res=await serveArticle(env,u,true);
+    if(!res?.ok)return res;
+    const h=new Headers(res.headers);
+    h.set('x-legacy-cpu-canary','r2-direct-v1');
+    h.set('x-legacy-cpu-source','published-r2-existing');
+    return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
+  }catch(error){
+    console.warn('legacy_cpu_canary_read_failed',
+      String(error?.message||error).slice(0,80));
+    return new Response('Article temporarily unavailable',{status:503,headers:{
+      'cache-control':'no-store','retry-after':'120',
+      'x-legacy-cpu-canary':'temporary-unavailable-v1'
+    }});
+  }
+}
+
 export async function emergencyPublicR2Response(req,env){
   const u=new URL(req.url);
   if(req.method!=='GET'||String(env.R2_RESCUE_READONLY_ENABLED||'')!=='true')return null;
