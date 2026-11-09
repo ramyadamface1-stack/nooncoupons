@@ -39,6 +39,10 @@ export function publicEdgePolicyRevision(path,baseRevision='r2-jsonld-dedupe-r16
   if(String(path||'')==='/en/articles/en-iphone-18-pro-max-noon-abu-dhabi-price')
     return 'legacy-1102-cpu-canary-r2-direct-v1';
   if(kind==='article')return 'r2-rescue-security-ga4-topic-links-v21-nativefast-cpu';
+  // Country hubs previously featured a secondary code and omitted direct links to
+  // the approved market-primary canonical detail; refresh these four small pages only.
+  if(['/saudi','/uae','/en/saudi','/en/uae'].includes(String(path||'').replace(/\/+$/,'')))
+    return 'primary-market-nov-canonical-v1';
   // Invalidate only the /coupons HTML assembled before visible canonical detail links.
   if((String(path||'').replace(/\/+$/,'')||'/')==='/coupons')return 'nov-coupon-detail-links-v1';
   // Ensure old market sitemaps are replaced immediately after the canonical market fix.
