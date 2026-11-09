@@ -1,3 +1,5 @@
+import {HOMEPAGE_COUPONS_BY_MARKET, PRIMARY_COUPON_BY_MARKET} from './approved-coupons.js';
+
 const SITE = {
   name: 'كوبونات نون',
   origin: 'https://noondealsnow.com',
@@ -105,7 +107,8 @@ function couponCard(code,market='SA',featured=false){
   const m=MARKETS[market];
   return `<article class="coupon"><div class="couponTop"><span class="badge">${m.flag} نون ${m.label}</span><span class="verified">● متاح للتجربة</span></div><h3>${featured?'ابدأ بهذا الكود':'كود نون'} <span style="direction:ltr;display:inline-block">${code}</span></h3><p>انسخ الكود وجرّبه في سلة نون ${m.label}. الأهلية وقيمة الخصم النهائية تظهر داخل السلة حسب الحساب والمنتجات وشروط العرض.</p><div class="codeRow"><div class="code">${code}</div><button class="copy" data-copy="${code}">نسخ الكود</button></div><div class="small" style="margin-top:10px">آخر مراجعة: ${esc(nowDate())} · بدون ادعاء نسبة خصم غير مؤكدة</div></article>`;
 }
-function allCards(market){return CODES.map((c,i)=>couponCard(c,market,i===0)).join('')}
+function marketCodes(market){return HOMEPAGE_COUPONS_BY_MARKET[market]||[]}
+function allCards(market){return marketCodes(market).map((c,i)=>couponCard(c,market,i===0)).join('')}
 
 function home(){
   const featured=CODES.slice(0,4).map((c,i)=>couponCard(c,i%2?'AE':'SA',i===0)).join('');
@@ -131,19 +134,20 @@ function home(){
 }
 
 function marketPage(key){
-  const m=MARKETS[key];
+  const m=MARKETS[key], codes=marketCodes(key);
   const faq=[
     [`كيف أستخدم كود نون ${m.label}؟`,`انسخ الكود، افتح نون ${m.label}، أضف المنتجات للسلة، ثم أدخل الكود وتحقق من إجمالي الطلب قبل الدفع.`],
     [`هل كل الأكواد تعمل في ${m.label}؟`,`ليست هناك أهلية مضمونة لكل حساب. الدولة والحساب والمنتجات وطريقة الدفع وشروط الحملة قد تؤثر على قبول الكود.`],
     ['لماذا لم يظهر الخصم؟','قد يكون المنتج مستثنى أو الحساب غير مؤهل أو العرض منتهيًا أو مرتبطًا بشرط إضافي. جرّب كودًا آخر وراجع تفاصيل السلة.']
   ];
-  return layout(`كوبونات نون ${m.label} | 10 أكواد حالية`, `قائمة أكواد نون ${m.label} الحالية مع نسخ سريع للكود ودليل للتحقق من الأهلية داخل السلة قبل الدفع.`, `${pageHero(`كوبونات نون ${m.label}`,`الأكواد العشرة الحالية في صفحة مخصصة لسوق ${m.label}.`,breadcrumbs([m.label]))}<section class="section"><div class="shell"><div class="notice">لا نعرض نسبة خصم ثابتة لأي كود بدون شروط موثقة. جرّب الكود وتحقق من الخصم داخل السلة.</div><div class="grid" style="margin-top:16px">${allCards(key)}</div></div></section><section class="section alt"><div class="shell"><div class="head"><div><h2>طريقة الاستخدام في ${m.label}</h2></div></div><div class="steps"><div class="step"><div><b>انسخ أحد الأكواد</b><div class="small">ابدأ من أول القائمة ثم انتقل للتالي عند الحاجة.</div></div></div><div class="step"><div><b>افتح نون ${m.label}</b><div class="small">تأكد أنك على متجر الدولة الصحيحة.</div></div></div><div class="step"><div><b>تحقق من الإجمالي</b><div class="small">الخصم الظاهر في السلة هو المرجع النهائي.</div></div></div></div></div></section><section class="section"><div class="shell"><div class="head"><div><h2>أسئلة نون ${m.label}</h2></div></div><div class="faq">${faq.map(x=>`<details><summary>${x[0]}</summary><p>${x[1]}</p></details>`).join('')}</div></div></section>`,m.path,[{'@context':'https://schema.org','@type':'FAQPage',mainEntity:faq.map(x=>({'@type':'Question',name:x[0],acceptedAnswer:{'@type':'Answer',text:x[1]}}))}]);
+  return layout(`كوبونات نون ${m.label} | ${codes.length} أكواد حالية`, `قائمة أكواد نون ${m.label} الحالية مع نسخ سريع للكود ودليل للتحقق من الأهلية داخل السلة قبل الدفع.`, `${pageHero(`كوبونات نون ${m.label}`,`${codes.length} أكواد من القائمة الحالية في صفحة مخصصة لسوق ${m.label}.`,breadcrumbs([m.label]))}<section class="section"><div class="shell"><div class="notice">لا نعرض نسبة خصم ثابتة لأي كود بدون شروط موثقة. جرّب الكود وتحقق من الخصم داخل السلة.</div><div class="grid" style="margin-top:16px">${allCards(key)}</div></div></section><section class="section alt"><div class="shell"><div class="head"><div><h2>طريقة الاستخدام في ${m.label}</h2></div></div><div class="steps"><div class="step"><div><b>انسخ أحد الأكواد</b><div class="small">ابدأ من أول القائمة ثم انتقل للتالي عند الحاجة.</div></div></div><div class="step"><div><b>افتح نون ${m.label}</b><div class="small">تأكد أنك على متجر الدولة الصحيحة.</div></div></div><div class="step"><div><b>تحقق من الإجمالي</b><div class="small">الخصم الظاهر في السلة هو المرجع النهائي.</div></div></div></div></div></section><section class="section"><div class="shell"><div class="head"><div><h2>أسئلة نون ${m.label}</h2></div></div><div class="faq">${faq.map(x=>`<details><summary>${x[0]}</summary><p>${x[1]}</p></details>`).join('')}</div></div></section>`,m.path,[{'@context':'https://schema.org','@type':'FAQPage',mainEntity:faq.map(x=>({'@type':'Question',name:x[0],acceptedAnswer:{'@type':'Answer',text:x[1]}}))}]);
 }
 
 function couponsPage(){
-  const sa=CODES.map(c=>couponCard(c,'SA')).join('');
-  const ae=CODES.map(c=>couponCard(c,'AE')).join('');
-  return layout('كل كوبونات نون السعودية والإمارات | 16 بطاقة كوبون','اعرض الأكواد العشرة للسعودية والعشرة للإمارات في مكان واحد مع نسخ سريع وتنظيم واضح حسب السوق.',`${pageHero('كل كوبونات نون','الثمانية أكواد الحالية معروضة لكل من السعودية والإمارات.',breadcrumbs(['كل الأكواد']))}<section class="section"><div class="shell"><div class="head"><div><h2>🇸🇦 السعودية</h2><p>10 أكواد حالية</p></div><a href="/saudi">صفحة السعودية ←</a></div><div class="grid">${sa}</div></div></section><section class="section alt"><div class="shell"><div class="head"><div><h2>🇦🇪 الإمارات</h2><p>10 أكواد حالية</p></div><a href="/uae">صفحة الإمارات ←</a></div><div class="grid">${ae}</div></div></section>`,'/coupons');
+  const saCodes=marketCodes('SA'),aeCodes=marketCodes('AE');
+  const sa=saCodes.map(c=>couponCard(c,'SA')).join('');
+  const ae=aeCodes.map(c=>couponCard(c,'AE')).join('');
+  return layout('كل كوبونات نون السعودية والإمارات | أكواد حسب السوق',`اعرض ${saCodes.length} أكواد للسعودية و${aeCodes.length} أكواد للإمارات في مكان واحد، مع نسخ سريع وتنظيم واضح حسب السوق.`,`${pageHero('كل كوبونات نون','اختر السوق الصحيح، ثم انسخ أحد أكواده المعتمدة.',breadcrumbs(['كل الأكواد']))}<section class="section"><div class="shell"><div class="head"><div><h2>🇸🇦 السعودية</h2><p>${saCodes.length} أكواد حالية · ابدأ بـ ${PRIMARY_COUPON_BY_MARKET.SA}</p></div><a href="/saudi">صفحة السعودية ←</a></div><div class="grid">${sa}</div></div></section><section class="section alt"><div class="shell"><div class="head"><div><h2>🇦🇪 الإمارات</h2><p>${aeCodes.length} أكواد حالية · ابدأ بـ ${PRIMARY_COUPON_BY_MARKET.AE}</p></div><a href="/uae">صفحة الإمارات ←</a></div><div class="grid">${ae}</div></div></section>`,'/coupons');
 }
 
 function categoriesPage(){
