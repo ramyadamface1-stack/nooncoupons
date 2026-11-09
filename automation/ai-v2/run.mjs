@@ -20,13 +20,15 @@ import {thirdEditorialTopicWave} from './topic-refresh-n3.mjs';
 import {fourthEditorialTopicWave} from './topic-refresh-n4.mjs';
 import {fifthEditorialTopicWave} from './topic-refresh-n5.mjs';
 import {sixthEditorialTopicWave} from './topic-refresh-n6.mjs';
+import {seventhEditorialTopicWave} from './topic-refresh-n7.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const baseTopics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
 const existingTopicCount=baseTopics.length+expandedEditorialTopics.length+newEditorialTopicWave.length+thirdEditorialTopicWave.length;
 // Only append; historical private checkpoint identities and cursor positions stay fixed.
 const fifthWaveStart=baseTopics.length+expandedEditorialTopics.length+newEditorialTopicWave.length+thirdEditorialTopicWave.length+fourthEditorialTopicWave.length;
 const sixthWaveStart=fifthWaveStart+fifthEditorialTopicWave.length;
-const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave,...sixthEditorialTopicWave];
+const seventhWaveStart=sixthWaveStart+sixthEditorialTopicWave.length;
+const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave,...sixthEditorialTopicWave,...seventhEditorialTopicWave];
 let runStartedAt=Date.now();
 let lastReportStatus=null,lastSafeReport=null,lastSelectedCredential=null,jobBatchOrdinal=0;
 const report=(status,reason,data={})=>{
@@ -102,11 +104,11 @@ async function run(){
   const firstPosition=queueMarket&&oldCursor?.cursor==null?baseTopics.length+(queueMarket==='AE'?1:0):oldCursor?.cursor;
   const firstWindow=oneOffCanary?topics.map((_,i)=>i):(queueMarket?marketQueueScanWindow(topics,queueMarket,firstPosition):queueScanWindow(topics.length,firstPosition));
   // Old window: up to 24 checkpoint reads. Two 4-entry append-only bridges
-  // preserve the previous 8-entry reserve budget; fresh N6 opportunities
+  // preserve the previous 8-entry reserve budget; fresh N7 opportunities
   // rotate as the durable cursor progresses. Existing topic IDs never change.
   const positions=[...firstWindow,...(oneOffCanary?[]:[
     ...queueExpansionBridgeWindow(topics.length,existingTopicCount,firstWindow,4),
-    ...queueRotatingFreshWaveWindow(topics.length,sixthWaveStart,firstWindow,4)
+    ...queueRotatingFreshWaveWindow(topics.length,seventhWaveStart,firstWindow,4)
   ])];
   let checked=0,lastChecked=null,checkpointStates={};
   // If all free sources are cooling down, do not pin the global queue to an
