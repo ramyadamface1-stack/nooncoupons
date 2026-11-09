@@ -77,10 +77,10 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 <p class="subtle">اعتماد أو تجاهل الكلمات من هذه الشاشة غير مفعل حتى تتصل القرارات بالطابور الدائم؛ لا توجد أزرار شكلية لا تعمل.</p>
 </section>
 <section class="section" id="view-generation" role="tabpanel" hidden>
-<h2>التوليد والطابور</h2><p class="dim">تشغيل GitHub في الخلفية، حتى لو قفلتي المتصفح. الإيقاف اليدوي يحافظ على المهام المحفوظة.</p>
+<h2>التوليد والطابور</h2><p class="dim">ابدئي التوليد من الموقع نفسه دون فتح GitHub. خدمة الخلفية تتابع الطلب حتى لو قفلتي المتصفح. الإيقاف اليدوي يحافظ على المهام المحفوظة.</p>
 <div class="panel"><h3>التحكم في تشغيل Gemini / Groq</h3><div id="genDetails" class="state">جارٍ القراءة</div>
-<div class="row"><button class="action" id="startGeneration">1 — تشغيل / استئناف</button><button class="action secondary" id="runOnce">2 — توليد الآن (GitHub)</button><button class="action danger" id="pauseGeneration">إيقاف مؤقت</button></div>
-<p class="subtle">تشغيل محاولة الآن يستخدم رمز GitHub المحفوظ داخل خدمة Cloudflare، ولا يحتاج لصق توكن في المتصفح. يجب أولًا أن يظهر المجدول مفعّلًا. قبول المحاولة لا يعني نشر مقال.</p></div>
+<div class="row"><button class="action" id="startGeneration">1 — تشغيل / استئناف</button><button class="action secondary" id="runOnce">2 — توليد الآن من الموقع</button><button class="action danger" id="pauseGeneration">إيقاف مؤقت</button></div>
+<p class="subtle">زر التوليد يتصل مباشرة بالخدمة الداخلية الآمنة على Cloudflare دون مطالبتك برمز GitHub. تنفيذ المولد يجري في الخلفية. قبول الطلب لا يعني توليد مقال أو نشره؛ تحققي من النتائج والعدادات.</p></div>
 <div class="panel"><h3>حالة الطابور</h3><div id="queueDetail" class="smalllist">جارٍ القراءة</div><p class="data-note">وجود آلاف الموضوعات في الملف لا يعني أنها لم تُنجز. لا نعيد توليد مقال مؤكد النشر أو محجوز للفحص.</p></div>
 <div class="panel"><h3>مراحل المقالة المطلوبة</h3><p class="subtle">الكلمة → مخطط → كتابة → مراجعة → SEO → 5 تصميمات → روابط → جودة → مخزون READY → موعد النشر. عرض مراحل قديمة مؤكد؛ مخزون READY منفصل غير مثبت حتى تُستكمل البنية.</p></div>
 </section>
@@ -215,11 +215,11 @@ async function runNow(){
  const g=snapshot?.generation||{};
  if(g.desiredEnabled===false){note('ابدئي بالضغط على تشغيل / استئناف، ثم تحديث البيانات للتأكد أن المجدول مفعل.');return}
  if(g.actualScheduler?.enabled===false){note('المجدول متوقف فعليًا. اضغطي تشغيل / استئناف أولًا ثم حدّثي الحالة. لو ظل متوقفًا يحتاج تفعيل Cloudflare.');return}
- if(!confirm('طلب محاولة توليد فعلية عبر GitHub. قد تستهلك حصة Gemini/Groq عندما توجد مهمة جديدة. هل تريدين المتابعة؟'))return;
+ if(!confirm('تشغيل محاولة توليد من لوحة الموقع؟ سيعمل المحرك في الخلفية وقد يستخدم حصة Gemini/Groq إذا وجد موضوعًا مؤهلًا. هل تريدين المتابعة؟'))return;
  const btn=$('runOnce');btn.disabled=true;
  try{
    const result=await post('/api/admin/ai-v2-run-now',{});
-   note(result.dispatched?'تم قبول محاولة التوليد في GitHub. ده لا يعني نشر مقالة؛ تابعي السجل وعداد النشر المؤكد.':'لم تُرسل محاولة جديدة');
+   note(result.dispatched?'استلمت خدمة الخلفية طلب التوليد من الموقع. لم يتم تأكيد توليد أو نشر مقالة بعد؛ تابعي العدادات والسجل.':'لم تُرسل محاولة جديدة');
    await load();
  }catch(e){
    const messages={
