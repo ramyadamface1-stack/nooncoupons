@@ -20,5 +20,5 @@ test('bounded recent analytics window keeps the long-window baseline available',
   assert.ok(source.includes('CF_LOOKBACK_MINUTES'));
   assert.ok(source.includes('Math.max(10,Math.min(1380'));
   assert.ok(source.includes('lookbackMinutes*60*1000'));
-  assert.ok(source.includes('lookback='+lookbackMinutes'));
+  assert.ok(source.includes("lookback='+lookbackMinutes"));
 });
