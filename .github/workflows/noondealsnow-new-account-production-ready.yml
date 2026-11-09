@@ -7,6 +7,10 @@ on:
       - 'wrangler.new-account-production.jsonc'
       - 'auto-platform.js'
       - 'admin-page.js'
+      - 'system1-control-center.js'
+      - 'system1-admin-data.js'
+      - 'tests/system1-admin.test.mjs'
+      - 'tests/system1-keyword-index.test.mjs'
       - 'secure-admin-auth.js'
       - 'tests/admin-login-credentials.test.mjs'
       - 'admin-runtime.js'
@@ -94,7 +98,7 @@ jobs:
       - name: Install dependencies for approved source and test suite
         run: npm install --no-audit --no-fund --ignore-scripts
       - name: Check native gate and authenticated secret manager regressions
-        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs
+        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs
       - name: Prevent incorrect AI-readable NOV coupon market mappings
         run: node --test tests/nov-llms-canonical-source.test.mjs
 
@@ -191,6 +195,25 @@ jobs:
           done
           echo 'SA_AE_NATIVE_FAST_RENDER=PASS;PUBLIC_HTTP_200=TRUE;R2_WRITES=0'
 
+      - name: Verify SYSTEM1 routing is private, default login works and old admin is preserved
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /admin /admin/system1 /admin/legacy; do
+            status=$(curl -sS --max-time 20 -o /tmp/ndn-system1-html -w '%{http_code}' "https://noondealsnow.com$path")
+            case "$path" in
+              /admin) test "$status" = 200 ;;
+              /admin/system1) test "$status" = 302 ;;
+              /admin/legacy) test "$status" = 200 ;;
+            esac
+            echo "SYSTEM1_AUTH_ROUTE=$path;HTTP=$status"
+          done
+          for path in /api/admin/system1/summary /api/admin/system1/keywords; do
+            status=$(curl -sS --max-time 20 -o /tmp/ndn-system1-anon -w '%{http_code}' "https://noondealsnow.com$path")
+            echo "SYSTEM1_ANON_API=$path;HTTP=$status"
+            test "$status" = 401
+          done
+          echo 'SYSTEM1_AUTH_ROUTES=PASS;LEGACY_ADMIN_PRESERVED=TRUE'
       - name: Verify live login page and reject incorrect credentials (never send real password in Actions)
         shell: bash
         run: |
