@@ -480,7 +480,7 @@ export async function handleAdminApi(req,env){
     try{payload=JSON.parse(raw)}catch{return json({ok:false,error:'invalid_json'},400)}
     if(!payload||typeof payload!=='object'||Array.isArray(payload))return json({ok:false,error:'invalid_payload'},400);
     const token=String(env.NOON_GITHUB_SECRETS_ADMIN_TOKEN||payload.githubToken||'').trim();
-    if(!token)return json({ok:false,error:'github_token_required',
+    if(p!=='/api/admin/ai-v2-run-now'&&!token)return json({ok:false,error:'github_token_required',
       hint:'Use a fine-grained GitHub PAT with Secrets read/write; Actions read/write for manual dispatch.'},409);
     try{
       if(p==='/api/admin/ai-v2-keys'){
@@ -506,39 +506,29 @@ export async function handleAdminApi(req,env){
       }
       if(p==='/api/admin/ai-v2-run-now'){
         const cfg=await getAiV2Control(env);
-        if(!cfg.enabled)return json({ok:false,error:'scheduler_paused',hint:'Resume AI V2 before running now.'},409);
-        // Respect the separate runtime-activation and site control policy. A
-        // direct GitHub dispatch otherwise bypasses the Cloudflare stop switch.
-        let liveScheduler;
-        try{
-          const schedulerHealthUrl='https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health';
-          const schedulerRequest=new Request(schedulerHealthUrl,{
-            headers:{'cache-control':'no-store'},signal:AbortSignal.timeout(6000)});
-          const response=env.AI_V2_SCHEDULER?.fetch
-            ?await env.AI_V2_SCHEDULER.fetch(schedulerRequest)
-            :await fetch(schedulerHealthUrl,{headers:{'cache-control':'no-store'},
-              signal:AbortSignal.timeout(6000)});
-          if(response.ok)liveScheduler=await response.json();
-        }catch{}
-        if(!liveScheduler||liveScheduler.schedulerEnabled!==true||
-            liveScheduler.controlStatus!=='POLICY_VERIFIED'||liveScheduler.intervalMinutes!==cfg.intervalMinutes)
-          return json({ok:false,error:'scheduler_not_verified',
-            hint:'Scheduler runtime must confirm enabled, effective interval and verified admin policy.'},409);
-        const root='https://api.github.com/repos/ramyadamface1-stack/nooncoupons/actions/workflows/noondealsnow-ai-v2.yml';
-        const headers={'authorization':'Bearer '+token,'accept':'application/vnd.github+json',
-          'x-github-api-version':'2022-11-28','user-agent':'NoonDealsNow-Admin-Manual-Dispatch'};
-        const active=await fetch(root+'/runs?event=workflow_dispatch&branch=main&per_page=10',{
-          headers,signal:AbortSignal.timeout(12000)});
-        if(!active.ok)return json({ok:false,error:'github_runs_http_'+active.status},502);
-        const runs=await active.json();
-        if((runs.workflow_runs||[]).some(x=>['queued','pending','in_progress','waiting','requested'].includes(x.status)))
-          return json({ok:false,error:'generation_already_running',dispatched:false},409);
-        const dispatched=await fetch(root+'/dispatches',{method:'POST',
-          headers:{...headers,'content-type':'application/json'},
-          body:JSON.stringify({ref:'main',inputs:{preflight_only:'false',
-            verify_gemini_metadata:'false',scheduled_ms:String(Date.now())}}),
-          signal:AbortSignal.timeout(12000)});
-        if(dispatched.status!==204)return json({ok:false,error:'github_dispatch_http_'+dispatched.status,dispatched:false},502);
+        if(!cfg.enabled)return json({ok:false,error:'scheduler_paused',
+          hint:'Enable Gemini/Groq generation in the control panel before running.'},409);
+        // Only the scheduler Worker holds the GitHub Dispatch Secret.
+        // This named RPC method is never exposed as a public URL.
+        if(!env.AI_V2_ADMIN_DISPATCH?.dispatchOnce)
+          return json({ok:false,error:'internal_dispatch_not_configured'},503);
+        const result=await env.AI_V2_ADMIN_DISPATCH.dispatchOnce();
+        if(!result?.dispatched){
+          const reason=String(result?.reason||'INTERNAL_DISPATCH_FAILED');
+          const known={
+            SCHEDULER_PAUSED:'scheduler_paused',
+            SCHEDULER_POLICY_UNVERIFIED:'scheduler_not_verified',
+            DISPATCH_SECRET_MISSING:'dispatch_secret_missing',
+            PUBLISHER_BUSY_SKIP_DISPATCH:'generation_already_running',
+            WORKFLOW_ALREADY_RUNNING:'generation_already_running',
+            DISPATCH_TOKEN_MISSING:'dispatch_secret_missing',
+            GITHUB_TOKEN_INVALID_OR_EXPIRED:'github_token_expired',
+            GITHUB_TOKEN_FORBIDDEN:'github_token_permissions',
+            GITHUB_WORKFLOW_NOT_FOUND_OR_UNAUTHORIZED:'github_workflow_unavailable'
+          };
+          return json({ok:false,dispatched:false,error:known[reason]||'dispatch_not_accepted',
+            reason:reason.slice(0,90),published:false},409);
+        }
         return json({ok:true,dispatched:true,published:false,
           message:'GitHub accepted the run. This is not an article-publication confirmation.'},202);
       }
