@@ -80,8 +80,8 @@ const CSS = `
 @media(max-width:760px){nav{display:none}.mobileMenu{display:inline-flex}.topline .shell{font-size:11px}.hero{padding-top:34px}.heroGrid,.grid,.grid3,.grid4,.footgrid{grid-template-columns:1fr}.hero h1{font-size:40px}.heroPanel{order:-1}.heroPanel .stat{grid-template-columns:repeat(3,1fr)}.codeRow{flex-direction:column}.head{align-items:start;flex-direction:column}.adminGrid{grid-template-columns:1fr}.compare{font-size:12px}.compare th,.compare td{padding:10px}}
 `;
 
-const JS = `<script>
-document.addEventListener('click',async e=>{const b=e.target.closest('[data-copy]');if(!b)return;const code=b.dataset.copy;try{await navigator.clipboard.writeText(code);const old=b.textContent;b.textContent='تم النسخ ✓';setTimeout(()=>b.textContent=old,1400)}catch{prompt('انسخ الكود',code)}});
+export const JS = `<script>
+document.addEventListener('click',async e=>{const b=e.target.closest('[data-copy]');if(!b)return;const code=b.dataset.copy;try{await navigator.clipboard.writeText(code);const old=b.textContent;b.textContent='تم النسخ ✓';setTimeout(()=>b.textContent=old,1400);try{if(typeof window.gtag==='function')window.gtag('event','coupon_copy_success',{coupon_code:code,page_path:location.pathname,market:b.getAttribute('data-market')||'UNSPECIFIED',placement:b.getAttribute('data-placement')||'coupon_card',source:'confirmed_clipboard_write'})}catch(_){}}catch{prompt('انسخ الكود',code)}});
 document.addEventListener('submit',e=>{const f=e.target.closest('[data-search]');if(!f)return;e.preventDefault();const q=f.querySelector('input').value.trim();if(q)location.href='/search?q='+encodeURIComponent(q)});
 </script>`;
 
@@ -105,7 +105,7 @@ function pageHero(title,sub,crumb=''){return `<section class="pageHero"><div cla
 
 function couponCard(code,market='SA',featured=false){
   const m=MARKETS[market];
-  return `<article class="coupon"><div class="couponTop"><span class="badge">${m.flag} نون ${m.label}</span><span class="verified">● متاح للتجربة</span></div><h3>${featured?'ابدأ بهذا الكود':'كود نون'} <span style="direction:ltr;display:inline-block">${code}</span></h3><p>انسخ الكود وجرّبه في سلة نون ${m.label}. الأهلية وقيمة الخصم النهائية تظهر داخل السلة حسب الحساب والمنتجات وشروط العرض.</p><div class="codeRow"><div class="code">${code}</div><button class="copy" data-copy="${code}">نسخ الكود</button></div><div class="small" style="margin-top:10px"><a href="/coupon/${code.toLowerCase()}" style="color:#1558c0;text-decoration:underline;font-weight:700">تفاصيل وشروط كود ${code} ←</a></div><div class="small" style="margin-top:10px">آخر مراجعة: ${esc(nowDate())} · بدون ادعاء نسبة خصم غير مؤكدة</div></article>`;
+  return `<article class="coupon"><div class="couponTop"><span class="badge">${m.flag} نون ${m.label}</span><span class="verified">● متاح للتجربة</span></div><h3>${featured?'ابدأ بهذا الكود':'كود نون'} <span style="direction:ltr;display:inline-block">${code}</span></h3><p>انسخ الكود وجرّبه في سلة نون ${m.label}. الأهلية وقيمة الخصم النهائية تظهر داخل السلة حسب الحساب والمنتجات وشروط العرض.</p><div class="codeRow"><div class="code">${code}</div><button class="copy" data-copy="${code}" data-market="${market}" data-placement="${featured?'featured_coupon':'coupon_card'}">نسخ الكود</button></div><div class="small" style="margin-top:10px"><a href="/coupon/${code.toLowerCase()}" style="color:#1558c0;text-decoration:underline;font-weight:700">تفاصيل وشروط كود ${code} ←</a></div><div class="small" style="margin-top:10px">آخر مراجعة: ${esc(nowDate())} · بدون ادعاء نسبة خصم غير مؤكدة</div></article>`;
 }
 function marketCodes(market){return HOMEPAGE_COUPONS_BY_MARKET[market]||[]}
 function allCards(market){return marketCodes(market).map((c,i)=>couponCard(c,market,i===0)).join('')}
