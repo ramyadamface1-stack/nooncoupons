@@ -9,7 +9,7 @@ test('bounded per-isolate XML reuse never mutates archive content',()=>{
   assert.ok(src.includes('const rescueXmlCache=new Map()'));
   assert.ok(src.includes('const RESCUE_XML_TTL_MS=10*60*1000'));
   assert.ok(src.includes('const RESCUE_XML_MAX_ENTRIES=4'));
-  assert.ok(src.includes('const RESCUE_XML_MAX_BYTES=1200000'));
+  assert.ok(src.includes('const RESCUE_XML_MAX_BYTES=2200000'));
   assert.ok(src.includes('if(memoized!==null)return xmlResponse(memoized)'));
   assert.ok(src.includes('if(info)rescueXmlCachePut(path,xml)'));
   assert.ok(src.includes("if(!segment)return new Response('Unknown sitemap segment',{status:404})"));
@@ -43,3 +43,4 @@ test('a published 2k-item R2 rescue sitemap is valid and unchanged across reques
   const missing=await rescueSitemapResponse('/sitemap-rescue-articles-8942.xml',env);
   assert.equal(missing.status,503,'manifest-listed but missing segment must never become fake HTTP 200');
 });
+
