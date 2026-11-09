@@ -44,12 +44,11 @@ function snapshotView(raw,name){
 }
 export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=getAiV2Control}={}){
   const items=await Promise.allSettled([
-    monitor(env),control(env),readSmall(env,STOCKPILE),readSmall(env,VISUALS),readSmall(env,KEYWORDS,180000)
+    monitor(env),control(env),readSmall(env,STOCKPILE),readSmall(env,VISUALS)
   ]);
   const item=i=>items[i].status==='fulfilled'?items[i].value:null;
   const mon=item(0),cfg=item(1),stock=snapshotView(item(2)||{available:false,reason:'STOCKPILE_READ_FAILED'},'stockpile'),
     visuals=snapshotView(item(3)||{available:false,reason:'VISUALS_READ_FAILED'},'visuals');
-  const keys=item(4);
   const verified=mon?.verified?.ledgerAvailable===true?mon.verified:{ledgerAvailable:false,reason:mon?.verified?.reason||'VERIFIED_LEDGER_UNAVAILABLE'};
   const enable=cfg?.enabled===true;
   const scheduler=mon?.scheduler||{reachable:false};
@@ -74,8 +73,8 @@ export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=
     publishing:{status:publishing,verified,publicationIntervalMinutes:null,
       explanation:'فاصل تشغيل GitHub ليس ضمانًا لفاصل نشر المقالات؛ لا يوجد متحكم مستقل بالنشر هنا'},
     providers:mon?.providers||{gemini:null,groq:null},
-    keywords:{available:Boolean(keys?.available&&keys.data?.version===1),source:'curated_existing_repository_queue',
-      total:keys?.data?.total??null,snapshotAt:keys?.data?.generatedAt||null,
+    keywords:{available:null,source:'curated_existing_repository_queue',
+      total:null,snapshotAt:null,onDemandEndpoint:'/api/admin/system1/keywords',
       measuredSearchVolume:false,runnerQueueIsSeparate:true},
     stockpile:stock,visualQuality:visuals,
     capabilities:{
