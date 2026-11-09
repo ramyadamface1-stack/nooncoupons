@@ -1,0 +1,65 @@
+name: GEO Verify Live Prebuilt R2 Sitemap Stream (Read Only)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '37 7 * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/geo-prebuilt-r2-live-smoke.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noondealsnow-geo-prebuilt-live-smoke
+  cancel-in-progress: true
+
+jobs:
+  verify-prebuilt-xml:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify prebuilt R2 streaming and original XML bytes via live cold GET
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s\n' '# GEO Prebuilt XML Production Integrity' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' '' 'Read-only synthetic QA requests, NOT evidence of Google/OpenAI bot activity or AI recommendations.' '' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' '| Sitemap | HTTP | Bytes | SHA256 prefix | R2 streamed |' '|---|---:|---:|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          for spec in 'images-9|1574015|16f77f497a2f9b' 'images-25|1631365|88af2f596a2c52' 'articles-32|780862|a422cc59e0c29a'; do
+            IFS='|' read -r route expected_size expected_sha <<< "$spec"
+            headers=$(mktemp)
+            file=$(mktemp)
+            # Cache-busted GET exercises a cold origin request from CI.
+            # It NEVER rewrites the canonical URL or sends a bot UA.
+            url="https://noondealsnow.com/sitemap-rescue-$route.xml?geo_qa=$(date +%s%N)"
+            status=$(curl --silent --show-error --location --max-time 35 \
+              -H 'User-Agent: NoonDealsNow-GEO-Prebuilt-Integrity-Test/1.0' \
+              --dump-header "$headers" --output "$file" --write-out '%{http_code}' "$url")
+            bytes=$(wc -c < "$file" | tr -d ' ')
+            digest=$(sha256sum "$file" | cut -c1-16)
+            marker=$(grep -i '^x-r2-rescue-prebuilt:' "$headers" | tail -1 | tr -d '\r' || true)
+            streamed='NO'
+            if echo "$marker" | grep -qi 'etag-verified-v1'; then streamed='YES'; fi
+            printf '| %s | %s | %s | %s | %s |\n' "$route" "$status" "$bytes" "$digest" "$streamed" >> "$GITHUB_STEP_SUMMARY"
+            if [[ "$status" != '200' || "$bytes" != "$expected_size" ||
+                  "$digest" != "$expected_sha" || "$streamed" != 'YES' ]]; then
+              echo "::error title=GEO sitemap prebuilt stream failed::Route $route HTTP=$status bytes=$bytes sha16=$digest prebuilt=$streamed"
+              exit 1
+            fi
+            urls=$(grep -o '<url>' "$file" | wc -l | tr -d ' ')
+            if [[ "$urls" != '2000' ]]; then
+              echo "::error title=GEO sitemap count mismatch::Route $route URLs=$urls"
+              exit 1
+            fi
+            if [[ "$route" == images-* ]]; then
+              imgs=$(grep -o '<image:image>' "$file" | wc -l | tr -d ' ')
+              if [[ "$imgs" != '2000' ]]; then
+                echo "::error title=GEO image sitemap count mismatch::Route $route images=$imgs"
+                exit 1
+              fi
+            fi
+            rm -f "$headers" "$file"
+          done
+          echo 'All three canonical XML shards streamed from ETag-verified R2, with exact expected bytes and URL counts.'
