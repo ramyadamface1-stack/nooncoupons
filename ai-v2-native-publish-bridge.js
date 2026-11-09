@@ -99,7 +99,7 @@ export async function publishAiV2NativeArticle(env,payload){
  const key='articles/'+article.slug+'.html';
  let old;try{old=await env.CONTENT_FINAL.head(key)}catch{return reject('DUPLICATE_CHECK_UNAVAILABLE')}
  if(old)return reject('ARTICLE_ALREADY_PUBLISHED');
- const status=await getPublicationSlotStatus(env);
+ const status=await getPublicationSlotStatus(env,{aiV2:true});
  if(!status.ok||status.eligible===false)return reject('GLOBAL_PUBLICATION_SLOT_NOT_DUE',{nextEligibleAt:status.nextEligibleAt||null});
  const permit=await claimPublicationSlot(env,topic.country,'ai-v2-native');
  if(!permit.ok)return reject('GLOBAL_PUBLICATION_SLOT_NOT_GRANTED');

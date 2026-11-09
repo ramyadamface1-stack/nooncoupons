@@ -2,6 +2,7 @@
 // No generation dispatch and no large R2 corpus scans in the web request.
 import {aiV2AdminMonitor} from './ai-v2-admin-monitor.js';
 import {getAiV2Control} from './admin-runtime.js';
+import {getPublicationSlotStatus} from './publication-rate-limit.js';
 
 const KEYWORDS='_ops/system1/keyword-opportunities-v1.json';
 const STOCKPILE='_ops/system1/stockpile-summary-v1.json';
@@ -47,14 +48,29 @@ function snapshotView(raw,name){
     return {available:false,reason:'INVALID_'+name.toUpperCase()+'_SNAPSHOT'};
   return {available:true,...s};
 }
-export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=getAiV2Control}={}){
+export function nextPublicationOpportunityAt(atMs,generationMinutes,nextAiEligibleAt){
+ if(!Number.isFinite(atMs)||![1,5,10,15,30,60].includes(generationMinutes))return null;
+ const gateMs=Date.parse(nextAiEligibleAt||'');
+ if(nextAiEligibleAt&&(!Number.isFinite(gateMs)||gateMs<0))return null;
+ // Earliest possible generation attempt on/after the publication permit.
+ // This is a WINDOW, never an article's scheduled_at or guaranteed publication.
+ return nextGenerationWindowAt(Math.max(atMs,Number.isFinite(gateMs)?gateMs-1:atMs),generationMinutes);
+}
+export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=getAiV2Control,
+ publicationGate=getPublicationSlotStatus}={}){
   const items=await Promise.allSettled([
-    monitor(env),control(env),readSmall(env,STOCKPILE),readSmall(env,VISUALS)
+    monitor(env),control(env),readSmall(env,STOCKPILE),readSmall(env,VISUALS),publicationGate(env)
   ]);
   const item=i=>items[i].status==='fulfilled'?items[i].value:null;
   const mon=item(0),cfg=item(1),stock=snapshotView(item(2)||{available:false,reason:'STOCKPILE_READ_FAILED'},'stockpile'),
     visuals=snapshotView(item(3)||{available:false,reason:'VISUALS_READ_FAILED'},'visuals');
   const verified=mon?.verified?.ledgerAvailable===true?mon.verified:{ledgerAvailable:false,reason:mon?.verified?.reason||'VERIFIED_LEDGER_UNAVAILABLE'};
+  const gate=item(4);
+  const requestedMinutes=Number.isInteger(cfg?.publishingIntervalMinutes)&&
+    cfg.publishingIntervalMinutes>=1&&cfg.publishingIntervalMinutes<=15?cfg.publishingIntervalMinutes:1;
+  const publishingGateVerified=gate?.ok===true&&
+    gate.aiV2PublishingIntervalMinutes===requestedMinutes&&
+    typeof gate.aiV2Eligible==='boolean';
   const enable=cfg?.enabled===true;
   const scheduler=mon?.scheduler||{reachable:false};
   const generation=!cfg?'UNKNOWN':
@@ -68,7 +84,12 @@ export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=
     'SCHEDULER_ACTIVE_UNVERIFIED';
   // Publishing is a different state: the verified ledger is the source of truth.
   // Scheduler activation alone must never be called publication success.
-  const publicationIntervalMinutes=null; // No independent READY publisher enabled yet.
+  const publicationIntervalMinutes=publishingGateVerified?requestedMinutes:null;
+  // Generator writes accepted articles directly, with a saved minimum gap.
+  // Do not invent queued READY articles or future guaranteed publications.
+  const nextPublicationWindowAt=publishingGateVerified&&enable&&
+    scheduler?.reachable===true&&scheduler?.enabled===true?
+    nextPublicationOpportunityAt(Date.now(),scheduler.intervalMinutes,gate.aiV2NextEligibleAt):null;
   const verifiedMarketTotals=verified?.last24Hours&&Number.isSafeInteger(verified.last24Hours.SA)&&Number.isSafeInteger(verified.last24Hours.AE)?
     {SA:verified.last24Hours.SA,AE:verified.last24Hours.AE}:null;
   const effectiveInterval=scheduler?.enabled&&enable&&[1,5,10,15,30,60].includes(scheduler.intervalMinutes)?scheduler.intervalMinutes:null;
@@ -83,8 +104,11 @@ export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=
       draftsGeneratedLast24Hours:null,generatedCounterReason:'NO_INDEPENDENT_DRAFT_LEDGER',
       nextGenerationCheckAt, nextGenerationCheckNote:'COMPUTED_CRON_WINDOW_NOT_CONFIRMED_JOB'},
     publishing:{status:publishing,verified,publicationIntervalMinutes,verifiedMarketTotals,
-      nextArticleScheduledAt:null,nextArticleStatus:'NO_INDEPENDENT_READY_PUBLISHER',
-      explanation:'فاصل تشغيل GitHub ليس ضمانًا لفاصل نشر المقالات؛ لا يوجد متحكم مستقل بالنشر هنا'},
+      desiredIntervalMinutes:requestedMinutes,intervalVerified:publishingGateVerified,
+      nextPublicationWindowAt,permitNextEligibleAt:publishingGateVerified?gate.aiV2NextEligibleAt:null,
+      permitEligibleNow:publishingGateVerified?gate.aiV2Eligible:null,
+      nextArticleScheduledAt:null,nextArticleStatus:'NO_READY_ARTICLE_SCHEDULED',
+      explanation:'نافذة النشر المستهدفة هي أول فرصة مسموحة لنشر مقال جاهز. لا يوجد موعد scheduled_at لمقال بعينه، ولا ضمان نشر دون جودة ومخزون مؤهل'},
     providers:mon?.providers||{gemini:null,groq:null},
     keywords:{available:null,source:'curated_existing_repository_queue',
       total:null,snapshotAt:null,onDemandEndpoint:'/api/admin/system1/keywords',
@@ -93,7 +117,7 @@ export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=
     capabilities:{
       liveGenerationControl:true,manualGitHubDispatch:true,keyBulkImport:true,perKeyQuotaCircuit:true,
       keywordDiscoveryFromGsc:false,keywordApprovalsToRunner:false,
-      separatedReadyStockpile:false,separatePublicationCadence:false,
+      separatedReadyStockpile:false,separatePublicationCadence:true,
       fiveStoredValidatedVisuals:false,liveProviderKeyVerification:false
     },
     limits:{freeTierOnly:true,runWhenBrowserClosed:true,
@@ -101,6 +125,7 @@ export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=
     warnings:[
       ...(!mon?.ok?['MONITOR_UNAVAILABLE']:[]),
       ...(generation==='WAITING_ELIGIBLE_TOPIC'?['NO_ELIGIBLE_TOPIC_IN_LAST_SCAN']:[]),
+      ...(!publishingGateVerified?['PUBLISHING_CADENCE_NOT_VERIFIED']:[]),
       ...(!stock.available?['READY_STOCKPILE_NOT_MEASURED']:[]),
       ...(!visuals.available?['FIVE_VISUALS_NOT_VERIFIED']:[])
     ]

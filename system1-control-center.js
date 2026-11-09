@@ -96,7 +96,7 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
  </div>
  <div class="live-facts">
   <div class="live-fact"><span class="live-fact-label">آخر مقالة منشورة مؤكدًا</span><strong class="live-fact-value" id="liveLastPublished">غير متاح</strong></div>
-  <div class="live-fact"><span class="live-fact-label">موعد المقالة القادمة</span><strong class="live-fact-value" id="liveNextPublish">غير محدد</strong></div>
+  <div class="live-fact"><span class="live-fact-label">نافذة النشر المستهدفة التالية</span><strong class="live-fact-value" id="liveNextPublish">غير محدد</strong></div>
   <div class="live-fact"><span class="live-fact-label">المخزون الجاهز</span><strong class="live-fact-value" id="liveReadyCount">غير مقاس</strong></div>
   <div class="live-fact"><span class="live-fact-label">آخر مشكلة أو سبب انتظار</span><strong class="live-fact-value" id="liveIssue">جارٍ الفحص</strong></div>
  </div>
@@ -108,7 +108,7 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 <div class="grid two"><div class="state" id="genState" role="status"><strong>التوليد: جارٍ الفحص</strong><small>يتم التحقق من المجدول وتقارير GitHub</small></div><div class="state" id="pubState" role="status"><strong>النشر: جارٍ الفحص</strong><small>العداد من سجل المقالات المنشورة المؤكدة</small></div></div>
 <div class="grid"><div class="stat">نشر مؤكد آخر ساعة<b id="lastHour">—</b><small>R2 verified ledger فقط</small></div><div class="stat">نشر مؤكد آخر 24 ساعة<b id="lastDay">—</b><small>R2 verified ledger فقط</small></div><div class="stat">Gemini مسجل<b id="geminiCount">—</b><small>ليست مفاتيح مؤكد صلاحيتها</small></div><div class="stat">Groq مسجل<b id="groqCount">—</b><small>ليست حصصًا يومية منفصلة</small></div></div>
 <div class="grid"><div class="stat">تم توليدها وحفظها خلال 24 ساعة<b id="generatedDay">—</b><small id="generatedDayHint">العدد المستقل غير مقاس بعد</small></div><div class="stat">منشور السعودية خلال 24 ساعة<b id="saPublishedDay">—</b><small>من R2 المؤكد</small></div><div class="stat">منشور الإمارات خلال 24 ساعة<b id="aePublishedDay">—</b><small>من R2 المؤكد</small></div><div class="stat">مخزون READY<b id="readyCount">—</b><small>جرد المقالات الجاهزة الفعلي فقط</small></div></div>
-<div class="grid two"><div class="panel"><h3>آخر مقالة منشورة فعلًا</h3><div id="lastArticleSummary" class="smalllist">جارٍ التحميل</div></div><div class="panel"><h3>المقالة التالية ونافذة التشغيل</h3><div id="nextArticleSummary" class="smalllist">جارٍ التحميل</div></div></div>
+<div class="grid two"><div class="panel"><h3>آخر مقالة منشورة فعلًا</h3><div id="lastArticleSummary" class="smalllist">جارٍ التحميل</div></div><div class="panel"><h3>موعد النشر المستهدف ونافذة التشغيل</h3><div id="nextArticleSummary" class="smalllist">جارٍ التحميل</div></div></div>
 <div class="panel"><h3>آخر نتيجة فعلية لكل سوق</h3><div id="marketSummary" class="smalllist">جارٍ التحميل</div><p id="lastDataAt" class="subtle"></p></div>
 <div class="panel"><h3>الوظائف الأساسية</h3><div class="linkrow"><a href="#generation" data-jump="generation">التحكم في التوليد</a><a href="#keywords" data-jump="keywords">عرض الكلمات الموجودة</a><a href="#keys" data-jump="keys">إدارة المفاتيح</a><a href="#publishing" data-jump="publishing">حالة النشر</a></div></div>
 </section>
@@ -143,8 +143,8 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 <div class="panel"><h3>مقالات READY / SCHEDULED</h3><p>يجب قياس المخزون المنفصل من R2 قبل عرض رقم أو السماح بتغيير هدف التخزين.</p><p id="stockEvidence" class="data-note">غير مقاس</p></div>
 <p class="subtle">هذه المرحلة غير مفعّلة بالكامل في النظام القديم. نشر READY المستحق أثناء توقف التوليد يتطلب مشغلًا ومخزونًا حقيقيين، وليس زرًا شكليًا.</p></section>
 <section class="section" id="view-publishing" role="tabpanel" hidden>
-<h2>الجدولة والنشر</h2><p class="data-note">التوقيت القابل للتغيير الآن هو فاصل إرسال مهمة التوليد إلى GitHub، وليس فاصل نشر المقالات. موعد المقال التالي لا يتأكد قبل أن تصبح المقالة جاهزة ومجدولة في مخزون مستقل.</p><div class="grid two"><div class="panel"><h3>1 — فاصل تشغيل التوليد</h3><p class="subtle">يتحكم في إرسال مهمة GitHub، وليس فاصل نشر المقالات.</p><div class="field"><label for="genInterval">كل</label><select id="genInterval"><option value="1">1 دقيقة</option><option value="5">5 دقائق</option><option value="10">10 دقائق</option><option value="15">15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">60 دقيقة</option></select></div><button class="action" id="saveInterval">حفظ فاصل التوليد</button></div>
-<div class="panel"><h3>2 — فاصل نشر المقالات</h3><div class="state warn"><strong>غير مرتبط بمخزون مستقل حتى الآن</strong><small>لن نعرض زر حفظ مضللًا. بيانات النشر المؤكد في النظرة العامة.</small></div><p class="subtle">عند إضافة READY/SCHEDULED المستدام سنربط هذه الخانة بموعد scheduled_at الحقيقي.</p></div></div>
+<h2>الجدولة والنشر</h2><p class="data-note">يمكنكِ اختيار فاصل نشر مقالات AI V2 من دقيقة حتى 15 دقيقة مستقلاً عن فاصل تشغيل المولد. يتم حفظ الاختيار في Cloudflare وتطبيقه على بوابة النشر الفعلية؛ لا يمكن ضمان نزول مقال في كل نافذة دون مقالة مؤهلة.</p><div class="grid two"><div class="panel"><h3>1 — فاصل تشغيل التوليد</h3><p class="subtle">يتحكم في إرسال مهمة GitHub، وليس فاصل نشر المقالات.</p><div class="field"><label for="genInterval">كل</label><select id="genInterval"><option value="1">1 دقيقة</option><option value="5">5 دقائق</option><option value="10">10 دقائق</option><option value="15">15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">60 دقيقة</option></select></div><button class="action" id="saveInterval">حفظ فاصل التوليد</button></div>
+<div class="panel"><h3>2 — فاصل نشر مقالات AI V2</h3><p class="subtle">الافتراضي دقيقة واحدة، ويمكن تغييره من 1 إلى 15 دقيقة. يمنع النظام نشر مقالين من AI V2 بأقل من الفاصل المختار، ولا يؤثر على المنشورات القديمة أو المولدات الأخرى.</p><div class="field"><label for="publishInterval">كل</label><select id="publishInterval"><option value="1">1 دقيقة</option><option value="2">2 دقائق</option><option value="3">3 دقائق</option><option value="4">4 دقائق</option><option value="5">5 دقائق</option><option value="6">6 دقائق</option><option value="7">7 دقائق</option><option value="8">8 دقائق</option><option value="9">9 دقائق</option><option value="10">10 دقائق</option><option value="11">11 دقائق</option><option value="12">12 دقائق</option><option value="13">13 دقائق</option><option value="14">14 دقائق</option><option value="15">15 دقائق</option></select></div><button class="action" id="savePublishingInterval">حفظ فاصل النشر</button><p id="publishingIntervalHint" class="data-note">جارٍ التحقق من إعداد فاصل النشر المحفوظ في Cloudflare.</p></div></div>
 <div class="panel"><h3>آخر نشر مؤكد</h3><div id="lastPublished">غير متاح</div><p id="nextGenerationSchedule" class="data-note">نافذة التوليد التالية: غير متاحة</p><p id="nextPublishingSchedule" class="data-note">موعد المقال التالي: لم يُجدول بعد</p><p>المقالات المنشورة بالفعل لا تُحذف أو تُعاد جدولة روابطها بهذه الشاشة.</p></div></section>
 <section class="section" id="view-quality" role="tabpanel" hidden>
 <h2>الجودة والتصميمات</h2><div class="panel"><h3>QUALITY GATE المطلوب</h3><p>Search Intent 15 · الأصالة والفائدة 20 · الدقة 15 · SEO/Schema 15 · الصور 15 · UX 10 · الروابط والأداء 10. الحد العام 90/100 مع الشروط الإلزامية المنفصلة.</p><div class="data-note">المولد الحالي يطبق بوابات جودة قائمة؛ لم يتم بعد توحيدها مع مقياس SYSTEM1 الجديد أو التحقق بصريًا من خمسة ملفات 1600×1000 لكل مقال. لا نعرض PASS دون دليل.</div></div>
@@ -230,7 +230,7 @@ function renderLiveStrip(s){
  const lastHour=Number.isSafeInteger(v.lastHour?.total)?v.lastHour.total:null;
  liveStage('liveStagePublishing',publicationFresh&&lastHour!==null?(lastHour>0?'تم تأكيد '+lastHour+' مقالة آخر ساعة':'لا نشر مؤكّد آخر ساعة'):v.ledgerAvailable?'تقرير النشر قديم أو غير مكتمل':'سجل النشر غير متاح',publicationFresh&&lastHour>0?'ok':'warn');
  $('liveLastPublished').textContent=v.ledgerAvailable&&liveFresh(v.lastArticle?.publishedAt,525600)?local(v.lastArticle.publishedAt):'غير متاح من السجل';
- $('liveNextPublish').textContent=p.nextArticleScheduledAt?local(p.nextArticleScheduledAt):'غير محدد — ليس موعد التوليد';
+ $('liveNextPublish').textContent=p.nextPublicationWindowAt?local(p.nextPublicationWindowAt)+' (مستهدفة)':'غير متاحة حتى تحقق بوابة النشر';
  $('liveReadyCount').textContent=stockMeasured?String(s.stockpile.readyCount):'غير مقاس';
  let issue='لا يوجد خطأ محدد في آخر تقرير';
  if(g.desiredEnabled===false)issue='التوليد متوقف يدويًا';
@@ -265,8 +265,10 @@ metric('lastHour',v.lastHour?.total);metric('lastDay',v.last24Hours?.total);
  metric('readyCount',s.stockpile?.available===true&&Number.isSafeInteger(s.stockpile.readyCount)?s.stockpile.readyCount:null);
  renderLastArticle(v.lastArticle);
  const next=$('nextArticleSummary');next.replaceChildren();
- item(next,p.nextArticleScheduledAt?'مقال مجدول: '+local(p.nextArticleScheduledAt):'المقالة القادمة: موعد النشر غير محدد',
-  p.nextArticleScheduledAt?'يستلزم اجتياز فحوص النشر النهائية':'لا يوجد ناشر READY مستقل مؤكد؛ تشغيل المولد لا يضمن نزول مقال');
+ item(next,p.nextPublicationWindowAt?'نافذة النشر المستهدفة التالية: '+local(p.nextPublicationWindowAt):'نافذة النشر المستهدفة: غير متاحة',
+  p.intervalVerified?'الفاصل الفعلي: كل '+p.publicationIntervalMinutes+' دقيقة · الموعد فرصة لنشر مقال جاهز وليس وعدًا بنشر مقال':'فاصل النشر لم يُتحقق منه بعد من Cloudflare');
+ item(next,p.nextArticleScheduledAt?'مقال محجوز للنشر: '+local(p.nextArticleScheduledAt):'لا توجد مقالة بعينها بموعد مضمون',
+  'لن نعرض موعدًا مؤكدًا لمقالة ما لم تتوافر مقالة READY ولها scheduled_at حقيقي');
  item(next,g.nextGenerationCheckAt?'نافذة تشغيل المولد القادمة: '+local(g.nextGenerationCheckAt):'نافذة تشغيل المولد غير متاحة',
   g.nextGenerationCheckAt?'توقيت حسابي متوقع للفحص، وليس ضمان تشغيل GitHub':'تتطلب مجدولًا نشطًا ومعتمدًا');
 for(const provider of ['gemini','groq'])metric(provider+'Count',s.providers?.[provider]?.total);
@@ -277,6 +279,12 @@ for(const m of g.marketReports||[]){const reason=m.lastOutcome?.reason||'NO_RECE
 $('lastDataAt').textContent='آخر فحص: '+local(s.checkedAt);
 $('genDetails').textContent=statusNames[g.status]||g.status||'غير متاح';
 $('genInterval').value=String(g.dispatchIntervalMinutes||1);
+$('publishInterval').value=String(p.desiredIntervalMinutes||1);
+$('publishingIntervalHint').textContent=p.intervalVerified?
+ 'الفاصل المحفوظ والمطبق على بوابة Cloudflare: '+p.publicationIntervalMinutes+' دقيقة · النافذة المستهدفة: '+
+ (p.nextPublicationWindowAt?local(p.nextPublicationWindowAt):'غير متاحة')+
+ ' · أي مقالة تحتاج اجتياز الجودة قبل النشر':
+ 'الإعداد المطلوب: '+(p.desiredIntervalMinutes||1)+' دقيقة، لكن تأكيد تطبيقه على Cloudflare غير متاح حاليًا.';
 const queue=$('queueDetail');queue.replaceChildren();
 for(const m of g.marketReports||[])item(queue,m.market==='SA'?'السعودية':'الإمارات',fmt(m.lastOutcome?.status)+' · '+fmt(m.lastOutcome?.reason)+' · '+local(m.generatedAt));
 setState('stockState',s.stockpile?.available?'تقرير المخزون موجود':'المخزون READY غير مقاس بعد',
@@ -292,7 +300,7 @@ setState('visualState',s.visualQuality?.scope==='single_canary_only'?
  'لا يوجد تدقيق مؤكد لخمسة تصميمات مختلفة محفوظة لكل مقال','warn');
 $('lastPublished').textContent=v.lastArticle?'آخر مقال: '+fmt(v.lastArticle.slug)+' | '+local(v.lastArticle.publishedAt):'غير متاح';
  $('nextGenerationSchedule').textContent=g.nextGenerationCheckAt?'نافذة فحص التوليد القادمة (تقديرية): '+local(g.nextGenerationCheckAt):'نافذة فحص التوليد غير متاحة';
- $('nextPublishingSchedule').textContent=p.nextArticleScheduledAt?'موعد المقال التالي المجدول: '+local(p.nextArticleScheduledAt):'موعد نشر المقال القادم غير محدد حتى تفعيل مخزون READY المجدول';
+ $('nextPublishingSchedule').textContent=p.nextPublicationWindowAt?'نافذة النشر المستهدفة القادمة: '+local(p.nextPublicationWindowAt)+' (ليست ضمانًا لنزول مقال)':'نافذة النشر التالية غير متاحة حتى تأكيد بوابة النشر';
 $('diagState').textContent=s.warnings?.length?s.warnings.join(' · '):'لا توجد أخطاء مسجلة في هذه اللقطة، لكن ذلك لا يثبت اكتمال كل مراحل SYSTEM1';
 $('diagJson').textContent=JSON.stringify({checkedAt:s.checkedAt,generation:s.generation,publishing:s.publishing,capabilities:s.capabilities,warnings:s.warnings},null,2);
 for(const provider of ['gemini','groq']){
@@ -366,6 +374,12 @@ $('kwSearch').onkeydown=e=>{if(e.key==='Enter')loadKeywords()};
 $('startGeneration').onclick=()=>setControl({enabled:true});
 $('pauseGeneration').onclick=()=>setControl({enabled:false});
 $('saveInterval').onclick=()=>setControl({intervalMinutes:Number($('genInterval').value)});
+$('savePublishingInterval').onclick=async()=>{
+ const minutes=Number($('publishInterval').value);
+ if(!Number.isInteger(minutes)||minutes<1||minutes>15){note('اختاري فاصلاً من دقيقة إلى 15 دقيقة');return}
+ const result=await setControl({publishingIntervalMinutes:minutes});
+ if(result)note('تم حفظ الفاصل: '+minutes+' دقيقة. يتم التحقق من تطبيقه على بوابة النشر؛ راجعي النافذة المستهدفة.');
+};
 $('runOnce').onclick=runNow;
 $('keysGemini').onclick=()=>{shownProvider='gemini';$('keyProvider').value='gemini';renderKeys()};
 $('keysGroq').onclick=()=>{shownProvider='groq';$('keyProvider').value='groq';renderKeys()};

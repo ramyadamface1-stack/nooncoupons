@@ -27,7 +27,9 @@ test('SYSTEM1 renders all ten organized tabs and separates generation/publishing
  assert.match(html,/admin\/legacy/);
  assert.match(result.headers.get('x-robots-tag'),/noindex/);
  assert.match(result.headers.get('cache-control'),/no-store/);
- assert.doesNotMatch(html,/id="publishInterval"[^>]*>/);
+ assert.match(html,/id="publishInterval"/);
+ assert.match(html,/id="savePublishingInterval"/);
+ assert.match(html,/value="15">15 دقائق/);
  const scripts=[...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];
  assert.equal(scripts.length,1);
  for(const code of scripts)assert.doesNotThrow(()=>new Script(code[1]));

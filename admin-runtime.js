@@ -261,11 +261,14 @@ export async function bulkTick(env){
 // Non-secret publication scheduling policy. Gemini/Groq credentials must NEVER
 // be saved in this Durable Object or returned to the browser.
 export const AI_V2_INTERVALS=Object.freeze([1,5,10,15,30,60]);
+export const AI_V2_PUBLISH_INTERVALS=Object.freeze(Array.from({length:15},(_,i)=>i+1));
 export async function getAiV2Control(env){
  const response=await gctl(env,'/ai-v2-control',{method:'GET'});
  if(!response.ok)throw Error('AI_V2_CONTROL_UNAVAILABLE');
  const value=await response.json();
- return {enabled:value.enabled===true,intervalMinutes:AI_V2_INTERVALS.includes(value.intervalMinutes)?value.intervalMinutes:1,updatedAt:value.updatedAt||null};
+ return {enabled:value.enabled===true,intervalMinutes:AI_V2_INTERVALS.includes(value.intervalMinutes)?value.intervalMinutes:1,
+  publishingIntervalMinutes:AI_V2_PUBLISH_INTERVALS.includes(value.publishingIntervalMinutes)?value.publishingIntervalMinutes:1,
+  updatedAt:value.updatedAt||null};
 }
 
 export class GeneratorControl{
@@ -292,21 +295,51 @@ export class GeneratorControl{
     if(p==='/__migration/export'&&req.method==='POST')return snapshotDurableObjectKeys(this.ctx.storage,this.env,'GeneratorControl');
     if(p==='/__migration/restore'&&req.method==='POST')return restoreDurableObjectKeys(this.ctx.storage,this.env,'GeneratorControl');
     if(p==='/publication-slot'&&(req.method==='GET'||req.method==='POST')){
-      // Reuse the existing Durable Object key so a 60s->36s upgrade retains
-      // the last accepted publication timestamp. Never reset publication lock
-      // state or bypass the single atomic storage transaction.
-      const spacingMs=GLOBAL_PUBLICATION_SPACING_MS,stamp=Date.now(),key='publication-rate-v1';
-      const shape=(entry,ok)=>{
-        const lastAtMs=Math.max(0,Number(entry?.lastAtMs||0)),waitMs=Math.max(0,lastAtMs+spacingMs-stamp);
-        return {ok,policy:GLOBAL_PUBLICATION_POLICY,maxPerMinute:GLOBAL_PUBLICATION_MAX_PER_MINUTE,minSpacingMs:spacingMs,lastPublishedAt:lastAtMs?new Date(lastAtMs).toISOString():null,nextEligibleAt:lastAtMs?new Date(lastAtMs+spacingMs).toISOString():null,retryAfterMs:waitMs,source:entry?.source||null,market:entry?.market||null,throttled:!ok};
+      // Preserve the global 30s permit for ALL publishers, and apply a second
+      // per-site 1–15 minute cadence ONLY to ai-v2-native. Both writes are
+      // atomic in the existing Durable Object; no Cron or paid services.
+      const stamp=Date.now(),key='publication-rate-v1',aiKey='ai-v2-publication-permit-v1';
+      const view=(entry,aiEntry,minutes,ok,forAi=false)=>{
+        const lastAtMs=Math.max(0,Number(entry?.lastAtMs||0));
+        // During the upgrade, infer the latest AI permit from the existing
+        // shared record so the first minute is never silently shortened.
+        const aiLastAtMs=Math.max(0,Number(aiEntry?.lastAtMs||
+          (entry?.source==='ai-v2-native'?entry.lastAtMs:0)||0));
+        const globalDue=lastAtMs?lastAtMs+GLOBAL_PUBLICATION_SPACING_MS:0;
+        const aiDue=aiLastAtMs?aiLastAtMs+minutes*60000:0;
+        const globalWaitMs=Math.max(0,globalDue-stamp),aiWaitMs=Math.max(0,globalDue-stamp,aiDue-stamp);
+        const waitMs=forAi?aiWaitMs:globalWaitMs;
+        const nextGlobal=globalDue?new Date(globalDue).toISOString():null;
+        const nextAi=globalDue||aiDue?new Date(Math.max(globalDue,aiDue)).toISOString():null;
+        return {ok,policy:GLOBAL_PUBLICATION_POLICY,maxPerMinute:GLOBAL_PUBLICATION_MAX_PER_MINUTE,
+          minSpacingMs:GLOBAL_PUBLICATION_SPACING_MS,lastPublishedAt:lastAtMs?new Date(lastAtMs).toISOString():null,
+          nextEligibleAt:forAi?nextAi:nextGlobal,retryAfterMs:waitMs,
+          source:entry?.source||null,market:entry?.market||null,throttled:!ok,
+          aiV2PublishingIntervalMinutes:minutes,aiV2Eligible:aiWaitMs===0,
+          aiV2LastPermitAt:aiLastAtMs?new Date(aiLastAtMs).toISOString():null,
+          aiV2NextEligibleAt:nextAi,aiV2RetryAfterMs:aiWaitMs};
       };
-      if(req.method==='GET'){const entry=await this.ctx.storage.get(key);return json({...shape(entry,true),eligible:Math.max(0,Number(entry?.lastAtMs||0)+spacingMs-stamp)===0})}
-      const body=await req.json().catch(()=>({})),source=String(body.source||'unknown').slice(0,70),market=String(body.market||'SA').slice(0,8);
+      if(req.method==='GET'){
+        const [entry,aiEntry,control]=await Promise.all([
+          this.ctx.storage.get(key),this.ctx.storage.get(aiKey),this.ctx.storage.get('aiV2Control')]);
+        const minutes=AI_V2_PUBLISH_INTERVALS.includes(control?.publishingIntervalMinutes)?
+          control.publishingIntervalMinutes:1;
+        const result=view(entry,aiEntry,minutes,true);
+        return json({...result,eligible:result.retryAfterMs===0});
+      }
+      const body=await req.json().catch(()=>({})),source=String(body.source||'unknown').slice(0,70),
+        market=String(body.market||'SA').slice(0,8),isAiV2=source==='ai-v2-native';
       const result=await this.ctx.storage.transaction(async txn=>{
-        const entry=await txn.get(key),previous=Math.max(0,Number(entry?.lastAtMs||0));
-        if(previous&&stamp-previous<spacingMs)return shape(entry,false);
+        const [entry,aiEntry,control]=await Promise.all([
+          txn.get(key),txn.get(aiKey),txn.get('aiV2Control')]);
+        const minutes=AI_V2_PUBLISH_INTERVALS.includes(control?.publishingIntervalMinutes)?
+          control.publishingIntervalMinutes:1;
+        const current=view(entry,aiEntry,minutes,true,isAiV2);
+        if(current.retryAfterMs>0)return {...current,ok:false,throttled:true};
         await txn.put(key,{lastAtMs:stamp,market,source});
-        return shape({lastAtMs:stamp,market,source},true);
+        if(isAiV2)await txn.put(aiKey,{lastAtMs:stamp,market,source});
+        return view({lastAtMs:stamp,market,source},
+          isAiV2?{lastAtMs:stamp,market,source}:aiEntry,minutes,true,isAiV2);
       });
       return json(result,result.ok?200:429);
     }
@@ -332,15 +365,20 @@ export class GeneratorControl{
       return json({ok:deleted},deleted?200:409);
     }
     if(p==='/ai-v2-control'&&req.method==='GET'){
-      return json((await this.ctx.storage.get('aiV2Control'))||{enabled:true,intervalMinutes:1,updatedAt:null});
+      const old=(await this.ctx.storage.get('aiV2Control'))||{enabled:true,intervalMinutes:1,updatedAt:null};
+      return json({...old,publishingIntervalMinutes:AI_V2_PUBLISH_INTERVALS.includes(old.publishingIntervalMinutes)?old.publishingIntervalMinutes:1});
     }
     if(p==='/ai-v2-control'&&req.method==='POST'){
       const b=await req.json().catch(()=>({}));
-      if(('enabled' in b&&typeof b.enabled!=='boolean')||('intervalMinutes' in b&&!AI_V2_INTERVALS.includes(b.intervalMinutes)))
+      if(('enabled' in b&&typeof b.enabled!=='boolean')||('intervalMinutes' in b&&!AI_V2_INTERVALS.includes(b.intervalMinutes))||
+         ('publishingIntervalMinutes' in b&&!AI_V2_PUBLISH_INTERVALS.includes(b.publishingIntervalMinutes))||
+         !('enabled' in b)&&!('intervalMinutes' in b)&&!('publishingIntervalMinutes' in b))
         return json({ok:false,error:'invalid_ai_v2_control'},400);
       const prior=(await this.ctx.storage.get('aiV2Control'))||{enabled:true,intervalMinutes:1};
       const next={enabled:'enabled' in b?b.enabled:prior.enabled,
         intervalMinutes:'intervalMinutes' in b?b.intervalMinutes:prior.intervalMinutes,
+        publishingIntervalMinutes:'publishingIntervalMinutes' in b?b.publishingIntervalMinutes:
+          (AI_V2_PUBLISH_INTERVALS.includes(prior.publishingIntervalMinutes)?prior.publishingIntervalMinutes:1),
         updatedAt:now()};
       await this.ctx.storage.put('aiV2Control',next);
       return json({ok:true,...next});
@@ -548,7 +586,8 @@ export async function handleAdminApi(req,env){
     if(origin&&origin!==u.origin)return json({ok:false,error:'invalid_origin'},403);
     const b=await body(req);
     if(('enabled' in b&&typeof b.enabled!=='boolean')||('intervalMinutes' in b&&!AI_V2_INTERVALS.includes(b.intervalMinutes))||
-      !('enabled' in b)&&!('intervalMinutes' in b))
+      ('publishingIntervalMinutes' in b&&!AI_V2_PUBLISH_INTERVALS.includes(b.publishingIntervalMinutes))||
+      !('enabled' in b)&&!('intervalMinutes' in b)&&!('publishingIntervalMinutes' in b))
       return json({ok:false,error:'invalid_control_payload'},400);
     try{return await gctl(env,'/ai-v2-control',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(b)})}
     catch{return json({ok:false,error:'control_unavailable'},503)}
