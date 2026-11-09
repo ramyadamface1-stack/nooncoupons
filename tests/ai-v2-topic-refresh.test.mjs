@@ -124,8 +124,8 @@ test('fifth append-only reserve keeps old checkpoints stable and adds distinct s
 test('N5 identity remains in production queue before appended N6 wave',()=>{
  const source=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(source,/import \{fifthEditorialTopicWave\} from '\.\/topic-refresh-n5\.mjs'/);
- assert.match(source,/\.\.\.fourthEditorialTopicWave,\.\.\.fifthEditorialTopicWave,\.\.\.sixthEditorialTopicWave\]/);
- assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,sixthWaveStart,firstWindow,4\)/);
+ assert.match(source,/\.\.\.fourthEditorialTopicWave,\.\.\.fifthEditorialTopicWave,\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave\]/);
+ assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,seventhWaveStart,firstWindow,4\)/);
  assert.match(source,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  const previous=[...base,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave];
  const next=[...previous,...fifthEditorialTopicWave];
@@ -172,11 +172,48 @@ test('N6 new original buyer concerns preserve all 4820 previous R2 identities an
  const combined=[...older,...sixthEditorialTopicWave];
  for(let i=0;i<older.length;i++)assert.equal(combined[i],older[i]);
 });
-test('N6 is wired into the real Cron publisher with no old cursor reset or extra provider budget',()=>{
+test('N6 history remains wired before N7, without changing legacy provider budget',()=>{
  const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(s,/import \{sixthEditorialTopicWave\} from '\.\/topic-refresh-n6\.mjs'/);
  assert.match(s,/const sixthWaveStart=fifthWaveStart\+fifthEditorialTopicWave\.length/);
- assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,sixthWaveStart,firstWindow,4\)/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,seventhWaveStart,firstWindow,4\)/);
+ assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
+ assert.match(s,/market-queue-v1/);
+ assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
+});
+
+import {seventhEditorialTopicWave} from '../automation/ai-v2/topic-refresh-n7.mjs';
+test('N7 replenishes fresh market-safe questions without altering the N1-N6 corpus or coupons',()=>{
+ const previous=[...base,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave,...sixthEditorialTopicWave];
+ const oldSlugs=new Set(previous.map(t=>t.slug)),seen=new Set();
+ const olderQuestions=new Set(sixthEditorialTopicWave.map(t=>t.queryModifier));
+ assert.ok(seventhEditorialTopicWave.length>=220,'Need a substantial, truly fresh N7 reserve');
+ for(const t of seventhEditorialTopicWave){
+   assert.ok(!oldSlugs.has(t.slug),'Prior checkpoint slug must remain untouched: '+t.slug);
+   assert.ok(!seen.has(t.slug),'N7 slug collision: '+t.slug);
+   seen.add(t.slug);
+   assert.ok(!olderQuestions.has(t.queryModifier),'N6 buyer question duplicated: '+t.queryModifier);
+   assertTopic(t,config);
+   assert.ok(publicationReadyTopic(t));
+   assert.ok(['SA','AE'].includes(t.country));
+   assert.equal(t.coupon,t.country==='AE'?'NOV188':'NOV170');
+   assert.ok(t.topic.includes(t.coupon));
+   assert.ok(t.topic.includes(t.country==='AE'?'Noon UAE':'نون السعودية'));
+   assert.ok(t.topic.length>=28&&t.topic.length<=72);
+   assert.ok(t.slug.endsWith('-2026-n7'));
+   assert.equal(t.sections.length,5);
+ }
+ assert.ok(seventhEditorialTopicWave.some(t=>t.country==='SA'));
+ assert.ok(seventhEditorialTopicWave.some(t=>t.country==='AE'));
+ const appended=[...previous,...seventhEditorialTopicWave];
+ for(let i=0;i<previous.length;i++)assert.equal(appended[i],previous[i]);
+});
+test('new N7 is used in production and keeps the 4+4 bounded reserve without resetting cursors',()=>{
+ const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.match(s,/import \{seventhEditorialTopicWave\} from '\.\/topic-refresh-n7\.mjs'/);
+ assert.match(s,/const seventhWaveStart=sixthWaveStart\+sixthEditorialTopicWave\.length/);
+ assert.match(s,/\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave\]/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,seventhWaveStart,firstWindow,4\)/);
  assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.match(s,/market-queue-v1/);
  assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
