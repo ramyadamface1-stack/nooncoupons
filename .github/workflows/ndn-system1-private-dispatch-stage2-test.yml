@@ -1,0 +1,23 @@
+name: NoonDealsNow SYSTEM1 Private Dispatch Stage 2 Validation
+on:
+  push:
+    branches: ['fix/ndn-system1-internal-dispatch-stage2-20261109']
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate admin API, UI and safety guards without secrets
+        run: |
+          node --check admin-runtime.js
+          node --check system1-control-center.js
+          node --test tests/ai-v2-admin-console.test.mjs tests/system1-admin.test.mjs
+      - name: Compile production Worker, no deployment or AI requests
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --config wrangler.new-account-production.jsonc --outdir /tmp/ndn-system1-rpc-dry
+          echo 'SYSTEM1_PRIVATE_RPC_BUNDLE=PASS;GITHUB_TOKEN_BROWSER_REQUIRED=FALSE;PROVIDER_CALLS=0;PRODUCTION_WRITES=0'
