@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {decideTick,dispatchDue,githubHttpStatus,effectiveRuntimeConfig,probeProductionCapacity} from '../ai-scheduler-v2/worker.mjs';
+import {decideTick,dispatchDue,githubHttpStatus,effectiveRuntimeConfig,probeProductionCapacity,adminManualDispatch} from '../ai-scheduler-v2/worker.mjs';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 const start=Date.parse('2026-11-01T12:00:00.000Z');
 test('default disables dispatch',()=>{assert.equal(decideTick(config,start,start).reason,'SCHEDULER_DISABLED')});
@@ -191,4 +191,57 @@ test('live scheduler probes cheap public health instead of high-CPU generator st
  assert.deepEqual(seen,['https://noondealsnow.com/api/health']);
  assert.equal(result.allowed,true);
  assert.equal(result.verified,true);
+});
+
+
+test('private operator RPC never dispatches while scheduler disabled even with stored token',async()=>{
+ let calls=0;
+ const result=await adminManualDispatch({GITHUB_DISPATCH_TOKEN:'test-only'},{
+   readConfig:async()=>({enabled:false,controlStatus:'POLICY_VERIFIED'}),
+   checkCapacity:async()=>{calls++;return {allowed:true}},
+   send:async()=>{calls++;throw Error('MUST_NOT_DISPATCH')}
+ });
+ assert.equal(result.dispatched,false);
+ assert.equal(result.reason,'SCHEDULER_PAUSED');
+ assert.equal(calls,0);
+});
+test('private operator RPC requires verified policy and existing scheduler secret',async()=>{
+ const policy=await adminManualDispatch({GITHUB_DISPATCH_TOKEN:'test-only'},{
+   readConfig:async()=>({enabled:true,controlStatus:'POLICY_UNAVAILABLE'}),
+   send:async()=>{throw Error('MUST_NOT_DISPATCH')}
+ });
+ assert.equal(policy.reason,'SCHEDULER_POLICY_UNVERIFIED');
+ const secret=await adminManualDispatch({},{
+   readConfig:async()=>({enabled:true,controlStatus:'POLICY_VERIFIED'}),
+   send:async()=>{throw Error('MUST_NOT_DISPATCH')}
+ });
+ assert.equal(secret.reason,'DISPATCH_SECRET_MISSING');
+});
+test('private operator RPC uses the existing server secret, never leaks it to result',async()=>{
+ let called=0;
+ const fake='test-only-never-production-secret';
+ const result=await adminManualDispatch({GITHUB_DISPATCH_TOKEN:fake},{
+   readConfig:async()=>({enabled:true,intervalMinutes:5,publicationMode:'live_verified',
+      safety:{noAutomaticPublishUntilLiveBridgeVerified:false},controlStatus:'POLICY_VERIFIED'}),
+   checkCapacity:async()=>({allowed:true}),
+   clock:()=>Date.parse('2026-11-09T17:17:36Z'),
+   send:async({config,token,scheduledTime})=>{
+     called++;assert.equal(config.intervalMinutes,1);
+     assert.equal(token,fake);assert.ok(Number.isFinite(scheduledTime));
+     return {dispatched:true,reason:'DISPATCH_ACCEPTED',dispatchHttpStatus:204};
+   }
+ });
+ assert.equal(called,1);
+ assert.equal(result.dispatched,true);
+ assert.equal(result.acceptedRunNotPublication,true);
+ assert.ok(!JSON.stringify(result).includes(fake));
+});
+test('private operator RPC refuses a busy publisher',async()=>{
+ const result=await adminManualDispatch({GITHUB_DISPATCH_TOKEN:'test-only'},{
+   readConfig:async()=>({enabled:true,controlStatus:'POLICY_VERIFIED'}),
+   checkCapacity:async()=>({allowed:true}),
+   send:async()=>({dispatched:false,reason:'PUBLISHER_BUSY_SKIP_DISPATCH'})
+ });
+ assert.equal(result.dispatched,false);
+ assert.equal(result.reason,'PUBLISHER_BUSY_SKIP_DISPATCH');
 });

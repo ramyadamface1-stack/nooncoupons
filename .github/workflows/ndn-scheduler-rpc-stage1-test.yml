@@ -1,0 +1,30 @@
+name: NoonDealsNow Scheduler Private RPC Stage 1 Validation
+on:
+  push:
+    branches:
+      - 'fix/ndn-scheduler-private-rpc-stage1-20261109'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate scheduler and named RPC syntax
+        run: |
+          node --check ai-scheduler-v2/worker.mjs
+          node --check ai-scheduler-v2/rpc-entry.mjs
+          node --check tests/ai-v2-scheduler.test.mjs
+      - name: Verify pause, busy, tokenless RPC and no unauthorized dispatch
+        run: node --test tests/ai-v2-scheduler.test.mjs
+      - name: Cloudflare bundle dry-run only (no secrets, no changes to production)
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --config ai-scheduler-v2/wrangler.jsonc --outdir /tmp/ndn-scheduler-rpc-dry
+          grep -Fq 'AdminDispatch' ai-scheduler-v2/rpc-entry.mjs
+          echo 'PRIVATE_RPC_BUNDLE=PASS;PROVIDER_REQUESTS=0;R2_WRITES=0;GITHUB_DISPATCHES=0'

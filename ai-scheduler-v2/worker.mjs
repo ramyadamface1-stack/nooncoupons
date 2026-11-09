@@ -158,6 +158,28 @@ async function tick(event,env){
     scheduledTime:event?.scheduledTime,token:env.GITHUB_DISPATCH_TOKEN});
 }
 
+// Only a named Cloudflare Service Binding entrypoint can invoke this helper.
+// The public HTTP handler below is read-only /health and exposes NO dispatch API.
+// Authorization + origin checks happen in the calling site's Admin Worker.
+export async function adminManualDispatch(env,{readConfig=managedRuntimeConfig,
+  checkCapacity=probeProductionCapacity,send=dispatchDue,clock=Date.now}={}){
+  const active=await readConfig(config,env);
+  if(active.controlStatus!=='POLICY_VERIFIED')
+    return {ok:false,dispatched:false,reason:'SCHEDULER_POLICY_UNVERIFIED',
+      controlStatus:active.controlStatus||'UNKNOWN'};
+  if(!active.enabled)return {ok:false,dispatched:false,reason:'SCHEDULER_PAUSED'};
+  if(!env?.GITHUB_DISPATCH_TOKEN)return {ok:false,dispatched:false,reason:'DISPATCH_SECRET_MISSING'};
+  const capacity=await checkCapacity();
+  if(!capacity.allowed)return {ok:false,dispatched:false,reason:capacity.reason||'PRODUCTION_UNAVAILABLE'};
+  const now=Number(clock());
+  // The operator is asking for a one-off attempt, not for an interval tick.
+  // Keep the REAL schedule unchanged and bypass only the minute-modulo check.
+  const result=await send({config:{...active,intervalMinutes:1},scheduledTime:now,
+    actualTime:now,token:env.GITHUB_DISPATCH_TOKEN,logger:()=>{}});
+  return {ok:result.dispatched===true,dispatched:result.dispatched===true,
+    reason:result.reason||'DISPATCH_FAILED',dispatchHttpStatus:result.dispatchHttpStatus??null,
+    acceptedRunNotPublication:true};
+}
 export default {
   scheduled(event,env,ctx){ctx.waitUntil(tick(event,env))},
   async fetch(request,env){
