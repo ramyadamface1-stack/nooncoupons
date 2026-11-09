@@ -64,6 +64,8 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 <h2>نظرة عامة</h2><p class="dim">التوليد والنشر عمليتان منفصلتان؛ نجاح المجدول لا يعني إنتاج مقال أو نشره.</p>
 <div class="grid two"><div class="state" id="genState" role="status"><strong>التوليد: جارٍ الفحص</strong><small>يتم التحقق من المجدول وتقارير GitHub</small></div><div class="state" id="pubState" role="status"><strong>النشر: جارٍ الفحص</strong><small>العداد من سجل المقالات المنشورة المؤكدة</small></div></div>
 <div class="grid"><div class="stat">نشر مؤكد آخر ساعة<b id="lastHour">—</b><small>R2 verified ledger فقط</small></div><div class="stat">نشر مؤكد آخر 24 ساعة<b id="lastDay">—</b><small>R2 verified ledger فقط</small></div><div class="stat">Gemini مسجل<b id="geminiCount">—</b><small>ليست مفاتيح مؤكد صلاحيتها</small></div><div class="stat">Groq مسجل<b id="groqCount">—</b><small>ليست حصصًا يومية منفصلة</small></div></div>
+<div class="grid"><div class="stat">تم توليدها وحفظها خلال 24 ساعة<b id="generatedDay">—</b><small id="generatedDayHint">العدد المستقل غير مقاس بعد</small></div><div class="stat">منشور السعودية خلال 24 ساعة<b id="saPublishedDay">—</b><small>من R2 المؤكد</small></div><div class="stat">منشور الإمارات خلال 24 ساعة<b id="aePublishedDay">—</b><small>من R2 المؤكد</small></div><div class="stat">مخزون READY<b id="readyCount">—</b><small>جرد المقالات الجاهزة الفعلي فقط</small></div></div>
+<div class="grid two"><div class="panel"><h3>آخر مقالة منشورة فعلًا</h3><div id="lastArticleSummary" class="smalllist">جارٍ التحميل</div></div><div class="panel"><h3>المقالة التالية ونافذة التشغيل</h3><div id="nextArticleSummary" class="smalllist">جارٍ التحميل</div></div></div>
 <div class="panel"><h3>آخر نتيجة فعلية لكل سوق</h3><div id="marketSummary" class="smalllist">جارٍ التحميل</div><p id="lastDataAt" class="subtle"></p></div>
 <div class="panel"><h3>الوظائف الأساسية</h3><div class="linkrow"><a href="#generation" data-jump="generation">التحكم في التوليد</a><a href="#keywords" data-jump="keywords">عرض الكلمات الموجودة</a><a href="#keys" data-jump="keys">إدارة المفاتيح</a><a href="#publishing" data-jump="publishing">حالة النشر</a></div></div>
 </section>
@@ -98,9 +100,9 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 <div class="panel"><h3>مقالات READY / SCHEDULED</h3><p>يجب قياس المخزون المنفصل من R2 قبل عرض رقم أو السماح بتغيير هدف التخزين.</p><p id="stockEvidence" class="data-note">غير مقاس</p></div>
 <p class="subtle">هذه المرحلة غير مفعّلة بالكامل في النظام القديم. نشر READY المستحق أثناء توقف التوليد يتطلب مشغلًا ومخزونًا حقيقيين، وليس زرًا شكليًا.</p></section>
 <section class="section" id="view-publishing" role="tabpanel" hidden>
-<h2>الجدولة والنشر</h2><div class="grid two"><div class="panel"><h3>1 — فاصل تشغيل التوليد</h3><p class="subtle">يتحكم في إرسال مهمة GitHub، وليس فاصل نشر المقالات.</p><div class="field"><label for="genInterval">كل</label><select id="genInterval"><option value="1">1 دقيقة</option><option value="5">5 دقائق</option><option value="10">10 دقائق</option><option value="15">15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">60 دقيقة</option></select></div><button class="action" id="saveInterval">حفظ فاصل التوليد</button></div>
+<h2>الجدولة والنشر</h2><p class="data-note">التوقيت القابل للتغيير الآن هو فاصل إرسال مهمة التوليد إلى GitHub، وليس فاصل نشر المقالات. موعد المقال التالي لا يتأكد قبل أن تصبح المقالة جاهزة ومجدولة في مخزون مستقل.</p><div class="grid two"><div class="panel"><h3>1 — فاصل تشغيل التوليد</h3><p class="subtle">يتحكم في إرسال مهمة GitHub، وليس فاصل نشر المقالات.</p><div class="field"><label for="genInterval">كل</label><select id="genInterval"><option value="1">1 دقيقة</option><option value="5">5 دقائق</option><option value="10">10 دقائق</option><option value="15">15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">60 دقيقة</option></select></div><button class="action" id="saveInterval">حفظ فاصل التوليد</button></div>
 <div class="panel"><h3>2 — فاصل نشر المقالات</h3><div class="state warn"><strong>غير مرتبط بمخزون مستقل حتى الآن</strong><small>لن نعرض زر حفظ مضللًا. بيانات النشر المؤكد في النظرة العامة.</small></div><p class="subtle">عند إضافة READY/SCHEDULED المستدام سنربط هذه الخانة بموعد scheduled_at الحقيقي.</p></div></div>
-<div class="panel"><h3>آخر نشر مؤكد</h3><div id="lastPublished">غير متاح</div><p>المقالات المنشورة بالفعل لا تُحذف أو تُعاد جدولة روابطها بهذه الشاشة.</p></div></section>
+<div class="panel"><h3>آخر نشر مؤكد</h3><div id="lastPublished">غير متاح</div><p id="nextGenerationSchedule" class="data-note">نافذة التوليد التالية: غير متاحة</p><p id="nextPublishingSchedule" class="data-note">موعد المقال التالي: لم يُجدول بعد</p><p>المقالات المنشورة بالفعل لا تُحذف أو تُعاد جدولة روابطها بهذه الشاشة.</p></div></section>
 <section class="section" id="view-quality" role="tabpanel" hidden>
 <h2>الجودة والتصميمات</h2><div class="panel"><h3>QUALITY GATE المطلوب</h3><p>Search Intent 15 · الأصالة والفائدة 20 · الدقة 15 · SEO/Schema 15 · الصور 15 · UX 10 · الروابط والأداء 10. الحد العام 90/100 مع الشروط الإلزامية المنفصلة.</p><div class="data-note">المولد الحالي يطبق بوابات جودة قائمة؛ لم يتم بعد توحيدها مع مقياس SYSTEM1 الجديد أو التحقق بصريًا من خمسة ملفات 1600×1000 لكل مقال. لا نعرض PASS دون دليل.</div></div>
 <div class="panel"><h3>خمسة تصميمات لكل مقالة</h3><p>Featured · Product · Geometric · Lifestyle · Minimal. يجب إثبات أن الملفات الخمسة مختلفة وقابلة للعرض ومخزنة في R2 مع Alt Text.</p><div id="visualState" class="state">التحقق قيد الإعداد، لا يعني نجاح الصور.</div></div></section>
@@ -129,6 +131,15 @@ const statusNames={PAUSED_MANUALLY:'متوقف يدويًا',PAUSED_QUOTA_EXHAUS
 const publishNames={RECENT_VERIFIED:'تم تأكيد نشر خلال آخر ساعة',NO_VERIFIED_PUBLICATION_LAST_HOUR:'لا يوجد نشر مؤكد آخر ساعة',UNVERIFIED:'حالة النشر غير متاحة'};
 function statusTone(s){return s==='PAUSED_MANUALLY'||s==='DISABLED'?'stop':s==='RECENT_VERIFIED'?'ok':'warn'}
 function metric(id,value){$(id).textContent=fmt(value)}
+function renderLastArticle(article){
+ const el=$('lastArticleSummary');el.replaceChildren();
+ const slug=String(article?.slug||'');
+ if(!/^[a-z0-9-]{16,120}$/.test(slug)){item(el,'غير متاح','لم يصلنا سجل نشر برابط مؤكد');return}
+ const div=document.createElement('div'),link=document.createElement('a'),detail=document.createElement('div');
+ link.href='/articles/'+encodeURIComponent(slug);link.target='_blank';link.rel='noopener';link.textContent=slug;
+ detail.className='subtle';detail.textContent=(article.country==='SA'?'السعودية':article.country==='AE'?'الإمارات':'غير معروف')+' · '+local(article.publishedAt);
+ div.append(link,detail);el.append(div);
+}
 function update(){
 const s=snapshot;if(!s)return;const g=s.generation||{},p=s.publishing||{},v=p.verified||{};
 setState('genState','التوليد — '+(statusNames[g.status]||g.status||'غير معروف'),
@@ -136,6 +147,15 @@ setState('genState','التوليد — '+(statusNames[g.status]||g.status||'غ�
 setState('pubState','النشر — '+(publishNames[p.status]||p.status||'غير معروف'),
  v.ledgerAvailable?'آخر تحديث عدادات: '+local(v.generatedAt):'بيانات سجل المنشورات غير متاحة',statusTone(p.status));
 metric('lastHour',v.lastHour?.total);metric('lastDay',v.last24Hours?.total);
+ metric('generatedDay',g.draftsGeneratedLast24Hours);$('generatedDayHint').textContent=Number.isSafeInteger(g.draftsGeneratedLast24Hours)?'مسودات محفوظة مؤكدة':'العدد غير مقاس بعد، وليس صفرًا';
+ metric('saPublishedDay',p.verifiedMarketTotals?.SA);metric('aePublishedDay',p.verifiedMarketTotals?.AE);
+ metric('readyCount',s.stockpile?.available===true&&Number.isSafeInteger(s.stockpile.readyCount)?s.stockpile.readyCount:null);
+ renderLastArticle(v.lastArticle);
+ const next=$('nextArticleSummary');next.replaceChildren();
+ item(next,p.nextArticleScheduledAt?'مقال مجدول: '+local(p.nextArticleScheduledAt):'المقالة القادمة: موعد النشر غير محدد',
+  p.nextArticleScheduledAt?'يستلزم اجتياز فحوص النشر النهائية':'لا يوجد ناشر READY مستقل مؤكد؛ تشغيل المولد لا يضمن نزول مقال');
+ item(next,g.nextGenerationCheckAt?'نافذة تشغيل المولد القادمة: '+local(g.nextGenerationCheckAt):'نافذة تشغيل المولد غير متاحة',
+  g.nextGenerationCheckAt?'توقيت حسابي متوقع للفحص، وليس ضمان تشغيل GitHub':'تتطلب مجدولًا نشطًا ومعتمدًا');
 for(const provider of ['gemini','groq'])metric(provider+'Count',s.providers?.[provider]?.total);
 const market=$('marketSummary');market.replaceChildren();
 for(const m of g.marketReports||[]){const reason=m.lastOutcome?.reason||'NO_RECENT_REPORT';
@@ -158,6 +178,8 @@ setState('visualState',s.visualQuality?.scope==='single_canary_only'?
  ' · المراجعة البصرية البشرية: '+(s.visualQuality.visualHumanReviewed?'مكتملة':'لم تتم'):
  'لا يوجد تدقيق مؤكد لخمسة تصميمات مختلفة محفوظة لكل مقال','warn');
 $('lastPublished').textContent=v.lastArticle?'آخر مقال: '+fmt(v.lastArticle.slug)+' | '+local(v.lastArticle.publishedAt):'غير متاح';
+ $('nextGenerationSchedule').textContent=g.nextGenerationCheckAt?'نافذة فحص التوليد القادمة (تقديرية): '+local(g.nextGenerationCheckAt):'نافذة فحص التوليد غير متاحة';
+ $('nextPublishingSchedule').textContent=p.nextArticleScheduledAt?'موعد المقال التالي المجدول: '+local(p.nextArticleScheduledAt):'موعد نشر المقال القادم غير محدد حتى تفعيل مخزون READY المجدول';
 $('diagState').textContent=s.warnings?.length?s.warnings.join(' · '):'لا توجد أخطاء مسجلة في هذه اللقطة، لكن ذلك لا يثبت اكتمال كل مراحل SYSTEM1';
 $('diagJson').textContent=JSON.stringify({checkedAt:s.checkedAt,generation:s.generation,publishing:s.publishing,capabilities:s.capabilities,warnings:s.warnings},null,2);
 for(const provider of ['gemini','groq']){
@@ -200,6 +222,8 @@ async function importKeys(){const text=$('keyBulk').value.trim();if(!text){note(
 for(const tab of tabs)tab.onclick=()=>show(tab.dataset.tab);
 for(const link of document.querySelectorAll('[data-jump]'))link.onclick=e=>{e.preventDefault();show(link.dataset.jump)};
 $('refresh').onclick=load;$('kwLoad').onclick=loadKeywords;
+// Refresh the bounded overview every two minutes only while this page is visible.
+window.setInterval(()=>{if(!document.hidden)load()},120000);
 $('kwSearch').onkeydown=e=>{if(e.key==='Enter')loadKeywords()};
 $('startGeneration').onclick=()=>setControl({enabled:true});
 $('pauseGeneration').onclick=()=>setControl({enabled:false});
