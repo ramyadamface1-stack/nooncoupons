@@ -64,6 +64,9 @@ jobs:
       - name: Prevent stale country NOV sitemap cache and preserve archive cache
         run: node --test tests/market-sitemap-cache-version.test.mjs
 
+      - name: Keep Cloudflare crawler reports free of synthetic-test attribution
+        run: node --check scripts/cloudflare-ai-crawler-analytics.mjs && node --test tests/geo-cloudflare-probe-isolation.test.mjs
+
       - name: Check AI-readable NOV market code references
         run: node --test tests/nov-llms-canonical-source.test.mjs
 
