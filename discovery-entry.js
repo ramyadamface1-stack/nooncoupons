@@ -669,8 +669,8 @@ export default{
     }
     if(req.method==='GET'&&u.pathname==='/api/sitemap-health')return sitemapHealth(req,env,ctx,origin);
     if(req.method==='GET'&&u.pathname==='/sitemap-core.xml'){const r=coreSitemap(origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
-    if(req.method==='GET'&&u.pathname==='/sitemap-priority.xml'){const r=await prioritySitemap(env,origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
-    if(req.method==='GET'&&u.pathname==='/sitemap-hubs.xml'){const r=await hubSitemap(env,origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
+    if(req.method==='GET'&&u.pathname==='/sitemap-priority.xml'){const r=await prioritySitemap(env,origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return edgePageCachePut(req,u,new Response(r.body,{status:r.status,statusText:r.statusText,headers:h}),ctx)}
+    if(req.method==='GET'&&u.pathname==='/sitemap-hubs.xml'){const r=await hubSitemap(env,origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return edgePageCachePut(req,u,new Response(r.body,{status:r.status,statusText:r.statusText,headers:h}),ctx)}
     if(req.method==='GET'&&u.pathname==='/sitemap-images.xml'){const r=await imageSitemap(env,origin),h=new Headers(r.headers);h.set('x-runtime-revision',DISCOVERY_RELEASE);return new Response(r.body,{status:r.status,statusText:r.statusText,headers:h})}
     if(req.method==='GET'&&u.pathname==='/api/coupon-migration-health'){
       const state=await readCouponR2MigrationState(env);
