@@ -3,7 +3,7 @@
 import {isAdmin} from './admin-runtime.js';
 const pageHeaders={'content-type':'text/html; charset=utf-8','cache-control':'private, no-store','x-robots-tag':'noindex,nofollow','referrer-policy':'same-origin','x-content-type-options':'nosniff'};
 export async function renderSystem1(req,env){
- if(!(await isAdmin(req,env)))return new Response(null,{status:302,headers:{location:'/admin/login','cache-control':'no-store','x-robots-tag':'noindex'}});
+ if(!(await isAdmin(req,env)))return new Response(null,{status:302,headers:{location:'/admin','cache-control':'no-store','x-robots-tag':'noindex'}});
  return new Response(SYSTEM1_HTML,{headers:pageHeaders});
 }
 export const SYSTEM1_HTML=String.raw`<!doctype html>
