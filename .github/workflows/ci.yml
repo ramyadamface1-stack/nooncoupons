@@ -49,6 +49,9 @@ jobs:
       - name: Prevent stale country NOV sitemap cache and preserve archive cache
         run: node --test tests/market-sitemap-cache-version.test.mjs
 
+      - name: Check AI-readable NOV market code references
+        run: node --test tests/nov-llms-canonical-source.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |
