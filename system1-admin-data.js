@@ -35,6 +35,11 @@ export async function readSystem1Keywords(env,{market='ALL',q='',limit=60}={}){
     seoDemandMeasured:false,mutableQueue:false,
     note:'هذه أفكار من طابور GitHub الموجود بالفعل، وليست كلمات جديدة أو عدد مهام تنتظر التنفيذ'};
 }
+export function nextGenerationWindowAt(atMs,minutes){
+  if(!Number.isFinite(atMs)||![1,5,10,15,30,60].includes(minutes))return null;
+  const gap=minutes*60000;
+  return new Date((Math.floor(atMs/gap)+1)*gap).toISOString();
+}
 function snapshotView(raw,name){
   if(!raw.available)return {available:false,reason:raw.reason};
   const s=raw.data;
@@ -63,14 +68,22 @@ export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=
     'SCHEDULER_ACTIVE_UNVERIFIED';
   // Publishing is a different state: the verified ledger is the source of truth.
   // Scheduler activation alone must never be called publication success.
+  const publicationIntervalMinutes=null; // No independent READY publisher enabled yet.
+  const verifiedMarketTotals=verified?.last24Hours&&Number.isSafeInteger(verified.last24Hours.SA)&&Number.isSafeInteger(verified.last24Hours.AE)?
+    {SA:verified.last24Hours.SA,AE:verified.last24Hours.AE}:null;
+  const effectiveInterval=scheduler?.enabled&&enable&&[1,5,10,15,30,60].includes(scheduler.intervalMinutes)?scheduler.intervalMinutes:null;
+  const nextGenerationCheckAt=effectiveInterval?nextGenerationWindowAt(Date.now(),effectiveInterval):null;
   const publishing=verified?.lastHour?.total>0?'RECENT_VERIFIED':
     verified.ledgerAvailable?'NO_VERIFIED_PUBLICATION_LAST_HOUR':'UNVERIFIED';
   return {ok:true,version:3,site:'noondealsnow',checkedAt:new Date().toISOString(),timezone:'Africa/Cairo',
     markets:{SA:{language:'ar-SA',coupon:'NOV170'},AE:{language:'en-AE',coupon:'NOV188'}},
     generation:{status:generation,desiredEnabled:cfg?.enabled??null,dispatchIntervalMinutes:cfg?.intervalMinutes??null,
       actualScheduler:scheduler,marketReports:mon?.markets||null,lastSelected:mon?.latestSelected||null,
-      lastReportAt:mon?.lastReportAt||null},
-    publishing:{status:publishing,verified,publicationIntervalMinutes:null,
+      lastReportAt:mon?.lastReportAt||null,
+      draftsGeneratedLast24Hours:null,generatedCounterReason:'NO_INDEPENDENT_DRAFT_LEDGER',
+      nextGenerationCheckAt, nextGenerationCheckNote:'COMPUTED_CRON_WINDOW_NOT_CONFIRMED_JOB'},
+    publishing:{status:publishing,verified,publicationIntervalMinutes,verifiedMarketTotals,
+      nextArticleScheduledAt:null,nextArticleStatus:'NO_INDEPENDENT_READY_PUBLISHER',
       explanation:'فاصل تشغيل GitHub ليس ضمانًا لفاصل نشر المقالات؛ لا يوجد متحكم مستقل بالنشر هنا'},
     providers:mon?.providers||{gemini:null,groq:null},
     keywords:{available:null,source:'curated_existing_repository_queue',
