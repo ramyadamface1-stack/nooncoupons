@@ -1,0 +1,28 @@
+name: GEO Coupon Crawler Readiness (Read Only)
+
+on:
+  schedule:
+    # Daily, without Cloudflare paid Cron or R2 writes.
+    - cron: '31 5 * * *'
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/geo-coupon-crawler-readiness.yml'
+      - 'scripts/geo-crawler-readiness.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-public-coupon-pages:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate monitor source
+        run: node --check scripts/geo-crawler-readiness.mjs
+      - name: Check OAI Search, Google and Bing synthetic user-agent responses
+        run: node scripts/geo-crawler-readiness.mjs
