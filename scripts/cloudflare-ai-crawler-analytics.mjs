@@ -23,8 +23,8 @@ const lines = [
   '',
   '**Sampled, self-declared crawler names, NOT authenticated crawler activity or AI recommendations. Our own earlier synthetic checks used some of these same names, which can contaminate the totals.**',
   '',
-  '| Claimed crawler | Sampled requests | 2xx/3xx | 4xx/5xx | Most requested path (sample) |',
-  '|---|---:|---:|---:|---|'
+  '| Claimed crawler | Sampled requests | Test-pattern traffic | Other (unverified) | 4xx/5xx | Most requested path (sample) |',
+  '|---|---:|---:|---:|---:|---|'
 ];
 function writeReport() {
   let report=lines.concat('',notes.length?'## Diagnostic notes':'## Status',...(notes.length?notes:['Read-only report complete. Google indexing and actual AI citations require independent checks.'])).join('\n')+'\n';
@@ -71,11 +71,12 @@ async function main(){
       if(data.errors?.length||!Array.isArray(rows)){
         errors++;
         notes.push(label+': analytics dataset unavailable or token lacks read permission. No inference about crawler activity.');
-        lines.push('| '+label+' | unavailable | — | — | — |');
+        lines.push('| '+label+' | unavailable | — | — | — | — |');
         continue;
       }
       measured++;
-      let total=0,success=0,fail=0;
+      let total=0,success=0,fail=0,synthetic=0;
+      const otherCouponHits=new Map();
       const paths=new Map();
       const errorStatuses=new Map();
       const errorPaths=new Map();
@@ -83,6 +84,9 @@ async function main(){
       for(const row of rows){
         const n=Number(row.count)||0,status=Number(row.dimensions?.edgeResponseStatus)||0;
         total+=n;
+        const ua=String(row.dimensions?.userAgent||'');
+        const probePattern=ua.includes('automated-readonly-visibility-monitor') || ua===('Mozilla/5.0 (compatible; '+agent+'/1.0)');
+        if(probePattern)synthetic+=n;
         if(status>=200&&status<400) success+=n;
         if(status>=400) {
           fail+=n;
@@ -93,12 +97,14 @@ async function main(){
         }
         if(['/coupon/nov170','/coupon/nov188'].includes(row.dimensions?.clientRequestPath))
           couponHits.set(row.dimensions.clientRequestPath,(couponHits.get(row.dimensions.clientRequestPath)||0)+n);
+          if(!probePattern)otherCouponHits.set(row.dimensions.clientRequestPath,(otherCouponHits.get(row.dimensions.clientRequestPath)||0)+n);
         const path=row.dimensions?.clientRequestPath||'';
         if(path&&path.startsWith('/')&&!path.startsWith('/admin')&&!path.startsWith('/api/'))
           paths.set(path,(paths.get(path)||0)+n);
       }
       const top=[...paths].sort((a,b)=>b[1]-a[1])[0]?.[0]||'—';
-      lines.push('| '+label+' | '+total+' | '+success+' | '+fail+' | '+top.replaceAll('|','/').slice(0,95)+' |');
+      lines.push('| '+label+' | '+total+' | '+synthetic+' | '+(total-synthetic)+' | '+fail+' | '+top.replaceAll('|','/').slice(0,95)+' |');
+      if(synthetic)notes.push(label+': '+synthetic+' matched known synthetic-test User-Agent patterns, so do not count them as independent platform crawls.');
       if(fail>0){
         const statusSummary=[...errorStatuses].sort((a,b)=>a[0]-b[0]).map(([code,n])=>code+'='+n).join(', ');
         const safe=p=>p.replace(/[|<>\r\n]/g,'_').slice(0,115);
@@ -109,11 +115,11 @@ async function main(){
         const best=[...paths].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([path,n])=>path.replace(/[|<>\r\n]/g,'_').slice(0,105)+' ('+n+')').join('; ');
         notes.push(label+' top sampled paths: '+(best||'none'));
         notes.push(label+' canonical NOV170/NOV188 paths represented among the top 100 grouped rows: '+
-          (couponHits.get('/coupon/nov170')||0)+' / '+(couponHits.get('/coupon/nov188')||0)+'. This is not a complete crawl-history count.');
+          (couponHits.get('/coupon/nov170')||0)+' / '+(couponHits.get('/coupon/nov188')||0)+'; excluding known test patterns: '+(otherCouponHits.get('/coupon/nov170')||0)+' / '+(otherCouponHits.get('/coupon/nov188')||0)+'. Remaining traffic is still UNVERIFIED and not AI citations.');
       }
       if(total===0)notes.push(label+': no *sampled* matching requests in this 23h window; this does NOT prove that this service stopped crawling.');
     } catch(err){
-      errors++;lines.push('| '+label+' | unavailable | — | — | — |');
+      errors++;lines.push('| '+label+' | unavailable | — | — | — | — |');
       notes.push(label+': analytics query unavailable ('+String(err.message).slice(0,75)+').');
     }
   }
