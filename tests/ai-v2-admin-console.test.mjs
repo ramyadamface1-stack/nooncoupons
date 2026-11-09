@@ -61,42 +61,53 @@ test('served admin dashboard JavaScript parses successfully in browser syntax',a
  for(const script of scripts){try{new Script(script[1],{filename:'rendered-admin-inline.js'})}catch(e){throw Error('Admin inline JS syntax: '+String(e.stack||e).split('\n').slice(0,7).join('\n'))}}
 });
 
-test('AI V2 manual restart refuses bypass when independent scheduler is unreachable',async()=>{
- const previous=globalThis.fetch,visited=[];
- globalThis.fetch=async url=>{visited.push(String(url));throw Error('scheduler offline')};
- try{
-  const req=new Request(origin+'/api/admin/ai-v2-run-now',{method:'POST',
+test('manual action requires enabled admin policy, but NOT a browser GitHub PAT',async()=>{
+ const base=env(),calls=[];
+ base.AI_V2_ADMIN_DISPATCH={dispatchOnce:async()=>{calls.push('rpc');return {ok:true,dispatched:true,reason:'DISPATCH_ACCEPTED'}}};
+ const req=new Request(origin+'/api/admin/ai-v2-run-now',{method:'POST',
     headers:{cookie:'nc_admin=fake-valid-cookie',origin,'content-type':'application/json'},
-    body:JSON.stringify({githubToken:'github_pat_1234567890123456789'})});
-  const res=await handleAdminApi(req,env());
-  assert.equal(res.status,409);
-  assert.equal((await res.json()).error,'scheduler_not_verified');
-  assert.equal(visited.length,1);
-  assert.ok(!visited[0].includes('api.github.com'));
- }finally{globalThis.fetch=previous}
-});
-test('AI V2 manual restart is read-only when job is already active',async()=>{
- const previous=globalThis.fetch,visited=[];
- globalThis.fetch=async(url,options={})=>{
-  visited.push({url:String(url),method:options.method||'GET'});
-  if(String(url).endsWith('/health'))
-   return Response.json({schedulerEnabled:true,intervalMinutes:1,controlStatus:'POLICY_VERIFIED'});
-  if(String(url).includes('/runs?'))
-   return Response.json({workflow_runs:[{status:'in_progress'}]});
-  throw Error('must never dispatch while already running');
- };
- try{
-  const req=new Request(origin+'/api/admin/ai-v2-run-now',{method:'POST',
-    headers:{cookie:'nc_admin=fake-valid-cookie',origin,'content-type':'application/json'},
-    body:JSON.stringify({githubToken:'github_pat_1234567890123456789'})});
-  const res=await handleAdminApi(req,env());
-  assert.equal(res.status,409);
-  assert.equal((await res.json()).error,'generation_already_running');
-  assert.equal(visited.length,2);
-  assert.ok(!visited.some(x=>x.method==='POST'));
- }finally{globalThis.fetch=previous}
+    body:'{}'});
+ const res=await handleAdminApi(req,base);
+ assert.equal(res.status,202);
+ const output=await res.json();
+ assert.equal(output.dispatched,true);
+ assert.equal(output.published,false);
+ assert.deepEqual(calls,['rpc']);
 });
 
+test('admin cannot bypass a scheduler that is not verified: private RPC refuses',async()=>{
+ const base=env(),calls=[];
+ base.AI_V2_ADMIN_DISPATCH={dispatchOnce:async()=>{
+   calls.push('rpc');
+   return {ok:false,dispatched:false,reason:'SCHEDULER_POLICY_UNVERIFIED'};
+ }};
+ const req=new Request(origin+'/api/admin/ai-v2-run-now',{method:'POST',
+   headers:{cookie:'nc_admin=fake-valid-cookie',origin,'content-type':'application/json'},
+   body:'{}'});
+ const res=await handleAdminApi(req,base);
+ assert.equal(res.status,409);
+ assert.equal((await res.json()).error,'scheduler_not_verified');
+ assert.deepEqual(calls,['rpc']);
+});
+test('manual action never starts concurrent generation if scheduler reports busy',async()=>{
+ const base=env(),calls=[];
+ base.AI_V2_ADMIN_DISPATCH={dispatchOnce:async()=>{
+   calls.push('rpc');return {ok:false,dispatched:false,reason:'PUBLISHER_BUSY_SKIP_DISPATCH'};
+ }};
+ const res=await handleAdminApi(new Request(origin+'/api/admin/ai-v2-run-now',{method:'POST',
+   headers:{cookie:'nc_admin=fake-valid-cookie',origin,'content-type':'application/json'},
+   body:'{}'}),base);
+ assert.equal(res.status,409);
+ assert.equal((await res.json()).error,'generation_already_running');
+ assert.deepEqual(calls,['rpc']);
+});
+test('manual action fails closed when scheduler RPC is not configured, never asks for browser PAT',async()=>{
+ const res=await handleAdminApi(new Request(origin+'/api/admin/ai-v2-run-now',{method:'POST',
+   headers:{cookie:'nc_admin=fake-valid-cookie',origin,'content-type':'application/json'},
+   body:'{}'}),env());
+ assert.equal(res.status,503);
+ assert.equal((await res.json()).error,'internal_dispatch_not_configured');
+});
 test('old generator button visibly routes to Gemini/Groq and never triggers legacy generation',async()=>{
  const response=await renderAdmin(new Request(origin+'/admin',{headers:{cookie:'nc_admin=fake-valid-cookie'}}),env());
  const html=await response.text();
