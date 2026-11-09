@@ -26,7 +26,7 @@ jobs:
           set -euo pipefail
           printf '%s\n' '# GEO Prebuilt XML Production Integrity' >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' '' 'Read-only synthetic QA requests, NOT evidence of Google/OpenAI bot activity or AI recommendations.' '' >> "$GITHUB_STEP_SUMMARY"
-          printf '%s\n' '| Sitemap | HTTP | Bytes | SHA256 prefix | R2 streamed |' '|---|---:|---:|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' '| Sitemap | HTTP | Bytes | SHA256 prefix (14 hex chars) | R2 streamed |' '|---|---:|---:|---|---|' >> "$GITHUB_STEP_SUMMARY"
           for spec in 'images-9|1574015|16f77f497a2f9b' 'images-25|1631365|88af2f596a2c52' 'articles-32|780862|a422cc59e0c29a'; do
             IFS='|' read -r route expected_size expected_sha <<< "$spec"
             headers=$(mktemp)
@@ -38,7 +38,7 @@ jobs:
               -H 'User-Agent: NoonDealsNow-GEO-Prebuilt-Integrity-Test/1.0' \
               --dump-header "$headers" --output "$file" --write-out '%{http_code}' "$url")
             bytes=$(wc -c < "$file" | tr -d ' ')
-            digest=$(sha256sum "$file" | cut -c1-16)
+            digest=$(sha256sum "$file" | cut -c1-14)
             marker=$(grep -i '^x-r2-rescue-prebuilt:' "$headers" | tail -1 | tr -d '\r' || true)
             streamed='NO'
             if echo "$marker" | grep -qi 'etag-verified-v1'; then streamed='YES'; fi
