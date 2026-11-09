@@ -9,7 +9,7 @@ import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
 import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,queueExpansionBridgeWindow,queueRotatingFreshWaveWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,queueExpansionBridgeWindow,queueRotatingFreshWaveWindow,nextQueueCursor,queueCursorAfterScan,queueCursorAnchorForScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
@@ -142,13 +142,17 @@ async function run(){
   if(!oneOffCanary&&lastChecked!==null){
     // Fail closed if the queue cursor cannot be persisted. This prevents
     // repeated scans and makes successful scheduled runs progress durably.
-    const next=queueCursorAfterScan(topics.length,lastChecked,Boolean(selected));
+    // Supplemental bridge/fresh-wave slots are opportunistic probes, not the
+    // durable primary scan. Without a selection, advancing to their final slot
+    // jumps over thousands of older, uninspected queued topics.
+    const anchor=queueCursorAnchorForScan(firstWindow,lastChecked,Boolean(selected));
+    const next=queueCursorAfterScan(topics.length,anchor,Boolean(selected));
     await saveCheckpoint(config,{articleId:cursorId,state:'QUEUE_CURSOR',cursor:next,
       createdAt:oldCursor?.createdAt||now(),version:Number(oldCursor?.version||0)+1});
   }
   if(!selected){
     report('SKIPPED',oneOffCanary?'NO_ELIGIBLE_TOPIC':'QUEUE_WINDOW_EMPTY',
-      {queue:queueInventory(topics),checked,scanLimit:positions.length,checkpointStates,nextCursor:oneOffCanary?null:nextQueueCursor(topics.length,lastChecked)});
+      {queue:queueInventory(topics),checked,scanLimit:positions.length,checkpointStates,nextCursor:oneOffCanary?null:nextQueueCursor(topics.length,queueCursorAnchorForScan(firstWindow,lastChecked,false))});
     return;
   }
   const {topic,articleId}=selected;
