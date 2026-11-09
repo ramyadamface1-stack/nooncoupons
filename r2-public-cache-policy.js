@@ -48,6 +48,10 @@ export function publicEdgePolicyRevision(path,baseRevision='r2-jsonld-dedupe-r16
 }
 
 export function publicEdgeTtlSeconds(path){
+  // seo-rescue segments are immutable historical snapshots. Increasing this
+  // cache TTL avoids expensive 2k-URL sitemap reconstruction per Cloudflare PoP.
+  // The live recent/new article sitemaps keep their short refresh intervals.
+  if(/^\/sitemap-rescue-(?:articles|images|english|english-images)-\d{1,4}\.xml$/.test(path))return 86400;
   if((path.replace(/\/+$/,'')||'/')==='/sitemap-live-recent.xml')return 60;
   if(['/blog','/blog/saudi','/blog/uae'].includes(path.replace(/\/+$/,'')||'/'))return 30;
   const kind=publicRouteKind(path);
