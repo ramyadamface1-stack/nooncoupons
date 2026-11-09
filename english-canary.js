@@ -6,6 +6,7 @@ import {normalizeApprovedCoupon,isApprovedCoupon,replaceUnapprovedCouponTokens,i
 import {getCampaignWindow,campaignGenerationPlan,applyCampaignPlan,CAMPAIGN_CALENDAR_INFO} from './campaign-calendar.js';
 import {submitIndexNow,INDEXNOW_INFO} from './indexnow.js';
 import {publicationBlockedByArticleAudit,readArticleAuditLock} from './article-audit-lock.js';
+import {presentMarketCouponText,reconcileSourceCouponJsonLd} from './rescue-article-conversion.js';
 
 const STATE_KEY='english-canary/state.json';
 const JOURNAL_KEY='english-canary/publish-journal-v1.json';
@@ -95,7 +96,7 @@ const GSC_CTR_OVERRIDES={
     description:'A focused Noon UAE grocery coupon checklist for code eligibility, cart conditions, delivery and the final payable total.'
   }
 };
-function gscCtrMeta(rec,coupon){const row=GSC_CTR_OVERRIDES[String(rec?.slug||'')];return {title:row?.title||rec?.title||'',description:replaceWrongMarketCouponTokens(row?.description||rec?.metaDescription||'',rec?.country),overridden:Boolean(row)}}
+function gscCtrMeta(rec,coupon){const row=GSC_CTR_OVERRIDES[String(rec?.slug||'')];return {title:row?.title||rec?.title||'',description:presentMarketCouponText(replaceWrongMarketCouponTokens(row?.description||rec?.metaDescription||'',rec?.country),rec?.country,coupon),overridden:Boolean(row)}}
 
 function targetFromEnv(env){return Math.max(0,Math.min(2,Number(env.ENGLISH_CANARY_TOTAL||DEFAULT_TARGET)||DEFAULT_TARGET))}
 function controlledTargetFromEnv(env){const base=targetFromEnv(env),requested=Number(env.ENGLISH_CONTROLLED_TOTAL||DEFAULT_CONTROLLED_TOTAL)||DEFAULT_CONTROLLED_TOTAL;return Math.max(base,Math.min(MAX_CONTROLLED_TOTAL,requested))}
@@ -485,7 +486,13 @@ export async function serveEnglishCanaryArticle(req,env){
     return new Response(`<!doctype html><html lang="${marketLang}" dir="ltr"><head>${head}</head><body>${body}</body></html>`,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=60,s-maxage=120','content-language':'en','x-english-archive-fallback':'v1','x-english-canary':'archive-fallback','x-robots-tag':indexable?'index, follow':'noindex, follow','x-content-type-options':'nosniff'}});
   }
   rec={...rec,coupon:normalizeMarketCoupon(rec.coupon,rec.country),metaDescription:replaceWrongMarketCouponTokens(rec.metaDescription||'',rec.country)};
-  const safeCoupon=normalizeMarketCoupon(rec.coupon,rec.country),raw=replaceWrongMarketCouponTokens(await o.text(),rec.country),origin=env.SITE_ORIGIN||u.origin,canonical=origin+'/en/articles/'+enc(slug),countryLabel=rec.country==='SA'?'Saudi Arabia':'UAE',countryPath=rec.country==='SA'?'/en/saudi':'/en/uae',categoryPath=rec.categoryKey?`${countryPath}/category/${rec.categoryKey}`:countryPath,marketLang=rec.country==='SA'?'en-SA':'en-AE',arabicLang=rec.country==='SA'?'ar-SA':'ar-AE',arabicPath=rec.country==='SA'?'/saudi':'/uae';
+  // The published record owns this article's selected approved market code.
+  // Some older create-only R2 documents contain a different *also approved* code
+  // in the quick answer, FAQ and clipboard button. Normalize only the rendered
+  // document and its FAQ text; preserve the source object and all links/scripts.
+  const safeCoupon=normalizeMarketCoupon(rec.coupon,rec.country),raw=reconcileSourceCouponJsonLd(
+    presentMarketCouponText(replaceWrongMarketCouponTokens(await o.text(),rec.country),rec.country,safeCoupon),
+    rec.country,safeCoupon),origin=env.SITE_ORIGIN||u.origin,canonical=origin+'/en/articles/'+enc(slug),countryLabel=rec.country==='SA'?'Saudi Arabia':'UAE',countryPath=rec.country==='SA'?'/en/saudi':'/en/uae',categoryPath=rec.categoryKey?`${countryPath}/category/${rec.categoryKey}`:countryPath,marketLang=rec.country==='SA'?'en-SA':'en-AE',arabicLang=rec.country==='SA'?'ar-SA':'ar-AE',arabicPath=rec.country==='SA'?'/saudi':'/uae';
   const imgPath=`/assets/coupon-svg/${encodeURIComponent(slug)}/1.svg?v=9&coupon=${encodeURIComponent(safeCoupon)}&country=${rec.country}`,featured=origin+imgPath,images=[1,2,3,4,5].map(v=>origin+`/assets/coupon-svg/${encodeURIComponent(slug)}/${v}.svg?v=9&coupon=${encodeURIComponent(safeCoupon)}&country=${rec.country}`);
   const graph={'@context':'https://schema.org','@graph':[
     {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',url:origin+'/',logo:{'@type':'ImageObject',url:origin+'/favicon.svg',contentUrl:origin+'/favicon.svg',width:64,height:64}},
