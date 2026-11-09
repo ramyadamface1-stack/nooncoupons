@@ -74,3 +74,16 @@ test('no R2 keyword snapshot is unknown, never an invented empty queue',async()=
  const x=await readSystem1Keywords({CONTENT_FINAL:{get:async()=>null}});
  assert.equal(x.ok,true);assert.equal(x.available,false);assert.equal(x.total,null);
 });
+
+test('Free-tier overview does not read full keyword index or publication corpus',async()=>{
+ const visited=[];
+ const env={CONTENT_FINAL:{get:async key=>{visited.push(key);return null}}};
+ const summary=await system1AdminSummary(env,{monitor:async()=>({ok:false}),
+   control:async()=>({enabled:false,intervalMinutes:1})});
+ assert.equal(summary.ok,true);
+ assert.equal(summary.generation.status,'PAUSED_MANUALLY');
+ assert.equal(summary.keywords.available,null);
+ assert.equal(summary.keywords.onDemandEndpoint,'/api/admin/system1/keywords');
+ assert.ok(!visited.includes('_ops/system1/keyword-opportunities-v1.json'));
+ assert.ok(!visited.includes('_ops/ai-v2-publication-ledger-v1.json'));
+});
