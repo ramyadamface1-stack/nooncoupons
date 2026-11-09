@@ -28,6 +28,9 @@ jobs:
         run: |
           node --test tests/remote-existing-r2-binding.test.mjs tests/remote-r2-signature-cache.test.mjs tests/r2-rescue-retry.test.mjs tests/native-article-rescue-fast.test.mjs tests/native-bound-ai-v2-fast.test.mjs
 
+      - name: Test real coupon funnel events (no fake attribution)
+        run: node --test tests/coupon-funnel-attribution.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |
@@ -40,6 +43,7 @@ jobs:
             commerce-entry.js
             network-entry.js
             brand-runtime.js
+            rescue-article-conversion.js
             discovery-entry.js
             r2-public-manifest.js
             r2-public-cache-policy.js

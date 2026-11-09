@@ -143,16 +143,25 @@ export const rescueCopyScript=String.raw`
     if(navigator.doNotTrack==='1'||window.doNotTrack==='1')return;
     var eventData={type:type,path:location.pathname,label:type==='copy_code'?coupon:'www.noon.com',market:market,coupon_code:coupon,placement:placement,destination_host:type==='open_noon'?'www.noon.com':''};
     var payload=JSON.stringify(eventData);
-    try{if(typeof window.gtag==='function')window.gtag('event',type==='copy_code'?'coupon_copy':'noon_outbound',{page_path:eventData.path,coupon_code:coupon,market:market,placement:placement,cta_position:placement,destination_host:eventData.destination_host});}catch(e){}
+    try{if(typeof window.gtag==='function'){
+      var common={page_path:eventData.path,coupon_code:coupon,market:market,placement:placement,cta_position:placement,destination_host:eventData.destination_host};
+      window.gtag('event',type==='copy_code'?'coupon_copy':'noon_outbound',common);
+      // This event means a successful copy, not an attributed Noon purchase.
+      if(type==='copy_code')window.gtag('event','coupon_copy_success',common);
+    }}catch(e){}
     try{if(navigator.sendBeacon&&navigator.sendBeacon('/api/track-event',new Blob([payload],{type:'application/json'})))return}catch(e){}
     try{fetch('/api/track-event',{method:'POST',headers:{'content-type':'application/json'},body:payload,keepalive:true}).catch(function(){})}catch(e){}
   }
   document.addEventListener('click',function(event){
     var anchor=event.target.closest('a[href]');if(!anchor)return;
     try{var dest=new URL(anchor.href,location.href);if(!/(^|\.)noon\.com$/i.test(dest.hostname))return}catch(e){return}
-    var root=anchor.closest('[data-market]')||document.querySelector('.rescue-article[data-market]');
+    var offer=anchor.closest('.rescue-offer');
+    var root=offer||anchor.closest('[data-market]')||document.querySelector('.rescue-article[data-market]');
     var market=root&&root.getAttribute('data-market')==='AE'?'AE':'SA';
-    track('open_noon',market,market==='AE'?'NOV188':'NOV170',anchor.closest('.rescue-offer')?.querySelector('[data-placement]')?.getAttribute('data-placement')||'article_link');
+    // Never assign a coupon to generic Noon outbound links: they do not prove
+    // that a shopper viewed or copied any specific code.
+    var code=offer?.querySelector('button[data-rescue-copy]')?.getAttribute('data-rescue-copy')||anchor.getAttribute('data-shop-click')||'';
+    track('open_noon',market,code,offer?.querySelector('[data-placement]')?.getAttribute('data-placement')||'article_link');
   },true);
   document.addEventListener('click',async function(event){
     var button=event.target.closest('button[data-rescue-copy],button[data-copy-code]');
