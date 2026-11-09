@@ -8,6 +8,9 @@ on:
       - 'automation/ai-v2/**'
       - 'ai-scheduler-v2/**'
       - 'admin-*.js'
+      - 'system1-*.js'
+      - 'tests/system1-*.test.mjs'
+      - '.github/workflows/noondealsnow-system1-keyword-index.yml'
       - 'secure-admin-auth.js'
       - 'tests/admin-login-credentials.test.mjs'
       - 'ai-v2-*.js'
@@ -33,6 +36,9 @@ jobs:
       - name: Syntax checks without provider calls
         run: |
           node --check admin-runtime.js
+          node --check system1-control-center.js
+          node --check system1-admin-data.js
+          node --check automation/ai-v2/system1-keyword-index.mjs
           node --check admin-page.js
           node --check ai-v2-github-secrets.js
           node --check ai-v2-admin-monitor.js
@@ -58,7 +64,9 @@ jobs:
             tests/ai-v2-github-secrets.test.mjs \
             tests/ai-v2-runtime-telemetry.test.mjs \
             tests/ai-v2-admin-console.test.mjs \
-            tests/admin-login-credentials.test.mjs
+            tests/admin-login-credentials.test.mjs \
+            tests/system1-admin.test.mjs \
+            tests/system1-keyword-index.test.mjs
 
       - name: Compile destination Cloudflare Worker with sealed-box dependencies (NO deployment)
         run: npx wrangler deploy --dry-run --config wrangler.new-account-production.jsonc --outdir /tmp/noondealsnow-ai-v2-admin-dry
