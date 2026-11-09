@@ -528,6 +528,28 @@ async function liveRecentSitemap(env){
 const rescueOrigin='https://noondealsnow.com';
 const rescueArticleUrl=a=>rescueOrigin+(a.slug.startsWith('en-')?'/en/articles/':'/articles/')+encodeURIComponent(a.slug);
 const sitemapPathNum=p=>{const match=p.match(/^\/sitemap-rescue-(english-images|english|articles|images)-([0-9]{1,4})\.xml$/);return match?{kind:match[1],n:Number(match[2])}:null};
+// Immutable 2k-URL rescue shards are expensive to rebuild on every cold
+// Cloudflare edge miss. Keep at most four fully rendered, verified XML bodies
+// per isolate for ten minutes. This is NOT a persistent storage or R2 write.
+// Cache only successful generated XML, never a missing/failed segment.
+const rescueXmlCache=new Map();
+const RESCUE_XML_TTL_MS=10*60*1000;
+const RESCUE_XML_MAX_BYTES=1200000;
+const RESCUE_XML_MAX_ENTRIES=4;
+function rescueXmlCacheGet(path){
+  const item=rescueXmlCache.get(path);
+  if(!item)return null;
+  if(item.expires<=Date.now()){rescueXmlCache.delete(path);return null}
+  return item.xml;
+}
+function rescueXmlCachePut(path,xml){
+  if(typeof xml!=='string'||xml.length>RESCUE_XML_MAX_BYTES)return;
+  rescueXmlCache.delete(path);
+  rescueXmlCache.set(path,{xml,expires:Date.now()+RESCUE_XML_TTL_MS});
+  while(rescueXmlCache.size>RESCUE_XML_MAX_ENTRIES)
+    rescueXmlCache.delete(rescueXmlCache.keys().next().value);
+}
+
 
 /** Cheap, read-only inventory summary. Manifest entries are *not* validated objects.
  * This makes their mismatch with DO publication counters explicit instead of
@@ -577,6 +599,9 @@ export async function rescueSitemapResponse(path,env){
   if(path==='/sitemap-rescue-english-catalog.xml')return englishCatalogSitemap(env);
   const info=sitemapPathNum(path);
   if(!info&&path!=='/sitemap-images.xml'&&path!=='/sitemap-en-articles.xml')return null;
+  // This branch does not read R2 or rebuild an 800KB+ XML document.
+  const memoized=info?rescueXmlCacheGet(path):null;
+  if(memoized!==null)return xmlResponse(memoized);
   const manifest=await getJson(env,'seo-rescue/index.json');
   if(!manifest||manifest.version!==1||!Array.isArray(manifest.segments))return null;
   const english=info?.kind?.startsWith('english')||path==='/sitemap-en-articles.xml';
@@ -594,7 +619,9 @@ export async function rescueSitemapResponse(path,env){
     return '<url><loc>'+xmlSafe(loc)+'</loc><image:image><image:loc>'+xmlSafe(img)+'</image:loc></image:image></url>';
   }).join('');
   const ns=image?' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"':'';
-  return xmlResponse('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'+ns+'>'+body+'</urlset>');
+  const xml='<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"'+ns+'>'+body+'</urlset>';
+  if(info)rescueXmlCachePut(path,xml);
+  return xmlResponse(xml);
 }
 // Read-only canary for one canonical legacy article repeatedly returning Cloudflare
 // 1102 on the new-account Worker. It takes the existing, already-shipped rescue
