@@ -116,6 +116,9 @@ jobs:
       - name: Guard crawler-facing XML sitemaps against CPU regression
         run: node --test tests/sitemap-crawler-cpu-bounded.test.mjs
 
+      - name: Guard answer completeness on canonical NOV170 and NOV188 URLs
+        run: node --test tests/nov-primary-aeo-country-answer.test.mjs
+
       - name: Test country coupon lists without changing live codes
         run: node --test tests/market-coupon-routes.test.mjs
 
