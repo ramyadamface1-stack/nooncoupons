@@ -31,3 +31,12 @@ test('historical R2 rescue shards retain their previously approved cache path',(
   assert.equal(publicRouteKind('/sitemap-rescue-articles-32.xml'),'xml');
   assert.ok(!source.includes('fetch("https://www.noon.com'));
 });
+
+test('historical rescue XML keeps long edge TTL; live publishing keeps short TTL',()=>{
+  for(const kind of ['articles','images','english','english-images']){
+    assert.equal(publicEdgeTtlSeconds('/sitemap-rescue-'+kind+'-25.xml'),86400);
+  }
+  assert.equal(publicEdgeTtlSeconds('/sitemap-live-recent.xml'),60);
+  assert.equal(publicEdgeTtlSeconds('/sitemap-hubs.xml'),900);
+  assert.equal(publicEdgeTtlSeconds('/sitemap-rescue-catalog.xml'),900);
+});
