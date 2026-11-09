@@ -30,7 +30,7 @@ test('optional GA4 settings do not configure the same already-loaded measurement
 
 test('coupon-country XML edge cache uses a new revision after whitelist corrections',()=>{
   const source=load('r2-public-cache-policy.js');
-  assert.match(source,/market-coupon-canonical-v2/);
+  assert.match(source,/market-coupon-canonical-v3/);
   assert.match(source,/sitemap-coupons-/);
 });
 
