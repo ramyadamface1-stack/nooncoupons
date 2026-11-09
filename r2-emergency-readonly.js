@@ -534,7 +534,9 @@ const sitemapPathNum=p=>{const match=p.match(/^\/sitemap-rescue-(english-images|
 // Cache only successful generated XML, never a missing/failed segment.
 const rescueXmlCache=new Map();
 const RESCUE_XML_TTL_MS=10*60*1000;
-const RESCUE_XML_MAX_BYTES=1200000;
+// Keep immutable 2k-image XML (~1.6 MB) in isolate memory too, not just
+// the smaller article XML. Four entries cap memory at <= 8.8 MB.
+const RESCUE_XML_MAX_BYTES=2200000;
 const RESCUE_XML_MAX_ENTRIES=4;
 function rescueXmlCacheGet(path){
   const item=rescueXmlCache.get(path);
