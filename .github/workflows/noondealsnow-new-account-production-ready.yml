@@ -38,6 +38,7 @@ on:
       - 'rescue-article-conversion.js'
       - 'tests/sitemap-crawler-cpu-bounded.test.mjs'
       - 'index.js'
+      - 'tests/coupon-hub-canonical-links.test.mjs'
       - 'approved-coupons.js'
       - 'tests/market-coupon-routes.test.mjs'
       - 'tests/remote-existing-r2-binding.test.mjs'
@@ -96,6 +97,9 @@ jobs:
         run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs
       - name: Prevent incorrect AI-readable NOV coupon market mappings
         run: node --test tests/nov-llms-canonical-source.test.mjs
+
+      - name: Validate crawlable canonical coupon links on landing pages
+        run: node --test tests/coupon-hub-canonical-links.test.mjs
 
       - name: Protect public AI code reference source consistency
         run: node --test tests/llms-primary-route.test.mjs
