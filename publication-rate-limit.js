@@ -19,4 +19,12 @@ async function callPublicationGate(env,method,source,market){
   }catch(e){return {ok:false,throttled:true,error:'publication_control_unavailable',detail:String(e?.message||e).slice(0,100)}}
 }
 export async function claimPublicationSlot(env,market,source){return callPublicationGate(env,'POST',source,market)}
-export async function getPublicationSlotStatus(env){return callPublicationGate(env,'GET','','')}
+// AI V2 reads its own stronger publication window; legacy generators retain
+// their original 30-second global gate and are unaffected by site admin cadence.
+export async function getPublicationSlotStatus(env,{aiV2=false}={}){
+  const status=await callPublicationGate(env,'GET','','');
+  if(!aiV2||!status.ok)return status;
+  if(typeof status.aiV2Eligible!=='boolean')return {ok:false,error:'ai_v2_publication_policy_unavailable',throttled:true};
+  return {...status,eligible:status.aiV2Eligible,
+    nextEligibleAt:status.aiV2NextEligibleAt,retryAfterMs:status.aiV2RetryAfterMs};
+}
