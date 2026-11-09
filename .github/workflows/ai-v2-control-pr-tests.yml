@@ -69,6 +69,7 @@ jobs:
             tests/ai-v2-admin-console.test.mjs \
             tests/admin-login-credentials.test.mjs \
             tests/system1-admin.test.mjs \
+            tests/system1-operator-overview.test.mjs \
             tests/system1-keyword-index.test.mjs \
             tests/system1-visuals.test.mjs
 
