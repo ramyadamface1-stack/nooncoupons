@@ -11,6 +11,8 @@ on:
       - 'system1-admin-data.js'
       - 'tests/system1-admin.test.mjs'
       - 'tests/system1-keyword-index.test.mjs'
+      - 'automation/ai-v2/system1-visuals.mjs'
+      - 'tests/system1-visuals.test.mjs'
       - 'secure-admin-auth.js'
       - 'tests/admin-login-credentials.test.mjs'
       - 'admin-runtime.js'
@@ -98,7 +100,7 @@ jobs:
       - name: Install dependencies for approved source and test suite
         run: npm install --no-audit --no-fund --ignore-scripts
       - name: Check native gate and authenticated secret manager regressions
-        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs
+        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs
       - name: Prevent incorrect AI-readable NOV coupon market mappings
         run: node --test tests/nov-llms-canonical-source.test.mjs
 
