@@ -21,7 +21,7 @@ function boot({clipboardWorks=true}={}){
     sendBeacon(url){beacons.push(url);return true}
   };
   const window={doNotTrack:'',gtag:(...args)=>events.push(args)};
-  const source=rescueCopyScript.replace(/^<script\b[^>]*>/,'').replace(/<\/script>\s*$/,'');
+  const source=rescueCopyScript.trim().replace(/^<script\b[^>]*>/,'').replace(/<\/script>\s*$/,'');
   runInNewContext(source,{document:doc,navigator,window,URL,location:{pathname:'/articles/probe',href:'https://noondealsnow.com/articles/probe'},CustomEvent:class{constructor(name,options){this.type=name;this.detail=options?.detail}}});
   assert.equal(clicks.length,2,'rescue script must register outbound and copy handlers');
   return {clicks,events,beacons,article};
