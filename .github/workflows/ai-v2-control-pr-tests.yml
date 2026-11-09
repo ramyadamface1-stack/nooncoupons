@@ -40,6 +40,7 @@ jobs:
           node --check system1-admin-data.js
           node --check automation/ai-v2/system1-keyword-index.mjs
           node --check automation/ai-v2/system1-visuals.mjs
+          node --check automation/ai-v2/ready-stockpile.mjs
           node --check admin-page.js
           node --check ai-v2-github-secrets.js
           node --check ai-v2-admin-monitor.js
@@ -62,6 +63,7 @@ jobs:
             tests/ai-v2-control-policy.test.mjs \
             tests/ai-v2-scheduler.test.mjs \
             tests/ai-v2-workflow-wiring.test.mjs \
+            tests/ai-v2-ready-stockpile.test.mjs \
             tests/ai-v2-github-secrets.test.mjs \
             tests/ai-v2-runtime-telemetry.test.mjs \
             tests/ai-v2-admin-console.test.mjs \
