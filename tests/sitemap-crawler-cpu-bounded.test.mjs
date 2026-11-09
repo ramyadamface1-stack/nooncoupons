@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {APPROVED_COUPON_CODES} from '../approved-coupons.js';
-import {coreSitemap,prioritySitemap,hubSitemap,imageSitemap,boundedEnglishSitemapRecords} from '../discovery-entry.js';
+import {coreSitemap,prioritySitemap,hubSitemap,imageSitemap,englishRecentSitemap,boundedEnglishSitemapRecords} from '../discovery-entry.js';
 
 const ORIGIN='https://noondealsnow.com';
 function fakeR2({englishAvailable=true}={}){
@@ -42,7 +42,8 @@ test('CPU-bounded priority, hubs and images use only precomputed R2 public snaps
   for(const [label,fn,expected] of [
     ['priority',prioritySitemap,'en-uae-nov188-verified'],
     ['hubs',hubSitemap,'/en/uae/category/beauty'],
-    ['images',imageSitemap,'en-uae-nov188-verified']
+    ['images',imageSitemap,'en-uae-nov188-verified'],
+    ['english',englishRecentSitemap,'en-uae-nov188-verified']
   ]){
     const res=await fn(env,ORIGIN),xml=await res.text();
     assert.equal(res.status,200,label);
@@ -58,7 +59,7 @@ test('missing English snapshot degrades to stable valid XML without heavy-state 
   const {env,calls}=fakeR2({englishAvailable:false});
   const english=await boundedEnglishSitemapRecords(env);
   assert.deepEqual(english,[]);
-  for(const fn of [prioritySitemap,hubSitemap,imageSitemap]){
+  for(const fn of [prioritySitemap,hubSitemap,imageSitemap,englishRecentSitemap]){
     const res=await fn(env,ORIGIN),xml=await res.text();
     assert.equal(res.status,200);
     assert.ok(xml.startsWith('<?xml version="1.0"'));
