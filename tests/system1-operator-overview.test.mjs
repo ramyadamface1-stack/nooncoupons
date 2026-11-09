@@ -44,3 +44,12 @@ test('dashboard summary distinguishes published article and metrics from unmeasu
  assert.equal(unavailable.publishing.verifiedMarketTotals,null);
  assert.equal(unavailable.publishing.nextArticleScheduledAt,null);
 });
+
+
+test('generation button starts from the site while keeping backend completion honest',()=>{
+ assert.match(SYSTEM1_HTML,/id="runOnce">2 — توليد الآن من الموقع<\/button>/);
+ assert.match(SYSTEM1_HTML,/\/api\/admin\/ai-v2-run-now/);
+ assert.match(SYSTEM1_HTML,/استلمت خدمة الخلفية طلب التوليد من الموقع/);
+ assert.match(SYSTEM1_HTML,/لم يتم تأكيد توليد أو نشر مقالة بعد/);
+ assert.doesNotMatch(SYSTEM1_HTML,/id="runOnce">[^<]*GitHub/);
+});
