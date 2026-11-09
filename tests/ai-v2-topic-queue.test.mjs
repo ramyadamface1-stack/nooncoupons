@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import config from '../automation/ai-v2/config.json' with {type:'json'};
 import topics from '../automation/ai-v2/topics.json' with {type:'json'};
-import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,nextQueueCursor,queueCursorAfterScan,pausedProviderNextCursor,QUEUE_SCAN_LIMIT,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from '../automation/ai-v2/topic-queue.mjs';
+import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,nextQueueCursor,queueCursorAfterScan,queueCursorAnchorForScan,pausedProviderNextCursor,QUEUE_SCAN_LIMIT,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from '../automation/ai-v2/topic-queue.mjs';
 import {assertTopic} from '../automation/ai-v2/guardrails.mjs';
 test('curated queue has unique topic slugs, stable IDs, country and approved coupon',()=>{
  const ids=topics.map(t=>assertTopic(t,config));
@@ -233,4 +233,26 @@ test('Saudi network accessory false coupon code can be re-audited once from exis
  assert.equal(safeSaudiFilesystemRecovery({...cp,nativeGateDiagnostics:{p0:['coupon_lock','country_lock'],failed:['coupon_lock'],schemas:[],duplicates:[],indexation:[]}},topic),false);
  assert.equal(safeSaudiFilesystemRecovery({...cp,nativeArticle:{html:'NOV170 فقط'}},topic),false);
  assert.equal(safeSaudiFilesystemRecovery(cp,{...topic,country:'AE'}),false);
+});
+
+test('empty NoonDealsNow queue window preserves primary cursor instead of jumping into supplemental wave',()=>{
+ const total=5828;
+ const primary=Array.from({length:24},(_,i)=>100+i);
+ // The existing code saved cursor 5604 because it used the last fresh-wave
+ // probe; that skipped every topic from 124 through 5603.
+ const sampled=[...primary,20,21,22,23,5600,5601,5602,5603];
+ const lastChecked=sampled.at(-1);
+ assert.equal(lastChecked,5603);
+ const anchor=queueCursorAnchorForScan(primary,lastChecked,false);
+ assert.equal(anchor,123);
+ assert.equal(queueCursorAfterScan(total,anchor,false),124);
+ assert.notEqual(queueCursorAfterScan(total,lastChecked,false),124);
+ // A genuinely selected supplemental topic must still resume its saved
+ // checkpoint before moving past it, avoiding repeat writes/charges.
+ const selected=queueCursorAnchorForScan(primary,5602,true);
+ assert.equal(selected,5602);
+ assert.equal(queueCursorAfterScan(total,selected,true),5602);
+ const lastOfQueue=queueCursorAnchorForScan([5800,5827],7,false);
+ assert.equal(queueCursorAfterScan(total,lastOfQueue,false),0);
+ assert.throws(()=>queueCursorAnchorForScan([],123,false),/INVALID_PRIMARY_SCAN_WINDOW/);
 });
