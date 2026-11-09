@@ -31,6 +31,9 @@ jobs:
       - name: Verify bounded read-only legacy article 1102 rescue
         run: node --test tests/legacy-article-cpu-canary.test.mjs
 
+      - name: Verify fast self-contained R2 blog route avoids Worker 1102
+        run: node --test tests/complete-blog-listing.test.mjs
+
       - name: Guard approved NOV consistency in native English pages
         run: node --test tests/english-coupon-consistency.test.mjs
 
