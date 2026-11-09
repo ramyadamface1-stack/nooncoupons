@@ -149,8 +149,14 @@ for(const m of g.marketReports||[])item(queue,m.market==='SA'?'السعودية'
 setState('stockState',s.stockpile?.available?'تقرير المخزون موجود':'المخزون READY غير مقاس بعد',
  s.stockpile?.available?'آخر تحديث: '+local(s.stockpile.generatedAt):'لا يمكن حساب READY وSCHEDULED أو أيام التغطية بدون جرد حقيقي','warn');
 $('stockEvidence').textContent=s.stockpile?.available?JSON.stringify(s.stockpile):'لم يصل تقرير مؤكد لمخزون المقالات الجاهزة';
-setState('visualState',s.visualQuality?.available?'تقرير صور محفوظ موجود':'الصور الخمس غير مثبتة في الإنتاج',
- s.visualQuality?.available?'تحديث: '+local(s.visualQuality.generatedAt):'لا يوجد تدقيق مؤكد لخمسة تصميمات مختلفة محفوظة لكل مقال','warn');
+setState('visualState',s.visualQuality?.scope==='single_canary_only'?
+ 'خمسة تصميمات محفوظة لمقال تجريبي واحد فقط':
+ s.visualQuality?.available?'تقرير تصميمات محدود':'الصور الخمس غير مثبتة لكل المقالات',
+ s.visualQuality?.available?'الأصول المؤكدة: '+fmt(s.visualQuality.verifiedAssets)+
+ ' · المقالات التجريبية: '+fmt(s.visualQuality.verifiedArticles)+
+ ' · آخر فحص: '+local(s.visualQuality.generatedAt)+
+ ' · المراجعة البصرية البشرية: '+(s.visualQuality.visualHumanReviewed?'مكتملة':'لم تتم'):
+ 'لا يوجد تدقيق مؤكد لخمسة تصميمات مختلفة محفوظة لكل مقال','warn');
 $('lastPublished').textContent=v.lastArticle?'آخر مقال: '+fmt(v.lastArticle.slug)+' | '+local(v.lastArticle.publishedAt):'غير متاح';
 $('diagState').textContent=s.warnings?.length?s.warnings.join(' · '):'لا توجد أخطاء مسجلة في هذه اللقطة، لكن ذلك لا يثبت اكتمال كل مراحل SYSTEM1';
 $('diagJson').textContent=JSON.stringify({checkedAt:s.checkedAt,generation:s.generation,publishing:s.publishing,capabilities:s.capabilities,warnings:s.warnings},null,2);
