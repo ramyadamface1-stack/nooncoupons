@@ -66,7 +66,7 @@ test('live status ribbon is visible before every tab and contains verified stage
  assert.match(SYSTEM1_HTML,/s\.stockpile\?\.available===true&&Number\.isSafeInteger/);
  assert.match(SYSTEM1_HTML,/المجدول غير مفعّل فعليًا/);
  assert.match(SYSTEM1_HTML,/غير محدد — ليس موعد التوليد/);
- assert.match(SYSTEM1_HTML,/مؤشرات مستقلة وليس نسبة تقدّم/);
+ assert.match(SYSTEM1_HTML,/حالات مستقلة وليس نسبة تقدّم/);
  assert.match(SYSTEM1_HTML,/function liveStripUnavailable\(message\)/);
  assert.match(SYSTEM1_HTML,/lastManualDispatch=\{at:new Date\(\)\.toISOString\(\)/);
  assert.doesNotMatch(SYSTEM1_HTML,/id="liveNextPublish"[^>]*>\d{1,2}:\d{2}/);
