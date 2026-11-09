@@ -122,6 +122,9 @@ jobs:
       - name: Guard crawler-facing XML sitemaps against CPU regression
         run: node --test tests/sitemap-crawler-cpu-bounded.test.mjs
 
+      - name: Verify prebuilt rescue sitemap stream ETag guard before production deploy
+        run: node --test tests/geo-prebuilt-rescue-serving.test.mjs tests/geo-prebuilt-rescue-xml.test.mjs
+
       - name: Guard answer completeness on canonical NOV170 and NOV188 URLs
         run: node --test tests/nov-primary-aeo-country-answer.test.mjs
 

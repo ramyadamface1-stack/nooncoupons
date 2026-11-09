@@ -67,6 +67,9 @@ jobs:
       - name: Keep Cloudflare crawler reports free of synthetic-test attribution
         run: node --check scripts/cloudflare-ai-crawler-analytics.mjs && node --test tests/geo-cloudflare-probe-isolation.test.mjs
 
+      - name: Guard streaming R2 XML sitemap with source ETag and original fallback
+        run: node --test tests/geo-prebuilt-rescue-serving.test.mjs
+
       - name: Verify prebuilt R2 XML byte-for-byte matches original sitemap renderer
         run: node --test tests/geo-prebuilt-rescue-xml.test.mjs
 

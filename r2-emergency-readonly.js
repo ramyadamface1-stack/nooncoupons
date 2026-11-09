@@ -595,6 +595,42 @@ export async function rescueSitemapIndexPaths(env){
   try{const live=await getJson(env,'blog/latest-live-v1.json');if((live?.articles||[]).some(liveSitemapEligible))rows.push('/sitemap-live-recent.xml')}catch{}
   return rows;
 }
+// Stream only three independently prebuilt sitemap XML canaries; never
+// re-serialize the 2,000 URL/image entries on a cold Cloudflare Worker request.
+// The source JSON shard's current ETag must match the ETag captured when the
+// XML was built on GitHub. Fail closed to the ORIGINAL renderer on any mismatch.
+export async function prebuiltRescueSitemapResponse(path,env){
+  const match=String(path||'').match(/^\/sitemap-rescue-(articles|images)-(\d{1,4})\.xml$/);
+  if(!match||!env?.CONTENT_FINAL?.get||!env.CONTENT_FINAL?.head)return null;
+  const kind=match[1],n=Number(match[2]);
+  if(!((kind==='images'&&(n===9||n===25))||(kind==='articles'&&n===32)))return null;
+  const key='seo-rescue/prebuilt-xml/'+kind+'-'+n+'.xml';
+  try{
+    const prebuilt=await env.CONTENT_FINAL.get(key);
+    if(!prebuilt?.body)return null;
+    const meta=prebuilt.customMetadata||{};
+    const sourceTag=String(meta['source-etag']||'').replace(/^"|"$/g,'');
+    if(!sourceTag||meta['generated-by']!=='geo-prebuilt-canary-v1')return null;
+    const manifest=await getJson(env,'seo-rescue/index.json');
+    if(manifest?.version!==1||!Array.isArray(manifest.segments))return null;
+    const shard=manifest.segments.find(part=>part?.n===n);
+    if(!shard?.key||meta['source-key']!==shard.key)return null;
+    const current=await env.CONTENT_FINAL.head(shard.key);
+    const currentTag=String(current?.etag||'').replace(/^"|"$/g,'');
+    if(!currentTag||currentTag!==sourceTag)return null;
+    // R2 streaming avoids constructing or transforming multi-MB XML strings.
+    // Public cache retains canonical existing sitemap TTL and robots policy.
+    return new Response(prebuilt.body,{headers:{
+      ...sitemapHeaders,
+      'x-r2-rescue-prebuilt':'etag-verified-v1',
+      'cache-control':'public,max-age=300,s-maxage=86400,stale-while-revalidate=3600'
+    }});
+  }catch(error){
+    console.warn('prebuilt_rescue_xml_fallback',String(error?.message||error).slice(0,80));
+    return null;
+  }
+}
+
 export async function rescueSitemapResponse(path,env){
   if(path==='/sitemap-live-recent.xml')return liveRecentSitemap(env);
   if(path==='/sitemap-rescue-catalog.xml')return catalogSitemap(env);
