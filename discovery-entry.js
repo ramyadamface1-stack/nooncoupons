@@ -8,7 +8,7 @@ import {emergencyPublicR2Response,nativeBoundAiV2ArticleFastResponse,rescueSitem
 import {runEnglishCanaryBatch,englishCanaryRecords,englishPublicRecentRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
-import {replaceUnapprovedCouponTokens} from './approved-coupons.js';
+import {replaceUnapprovedCouponTokens,APPROVED_COUPON_CODES} from './approved-coupons.js';
 import {readRecentPublicManifest} from './r2-public-manifest.js';
 import {publicEdgeCacheEligible,publicEdgeTtlSeconds,publicEdgePolicyRevision} from './r2-public-cache-policy.js';
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
@@ -146,7 +146,9 @@ function keyPages(origin){
     '/privacy',
     '/research',
     '/glossary',
-    '/countries'
+    '/countries',
+    // Lightweight indexable coupon detail URLs: no R2 scan required.
+    ...APPROVED_COUPON_CODES.map(code=>'/coupon/'+code.toLowerCase())
   ].map(path=>({loc:origin+path,lastmod:null}));
 }
 
@@ -245,15 +247,28 @@ function coreSitemap(origin){
   return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300, s-maxage=1800, stale-while-revalidate=86400','x-robots-tag':'all','x-core-sitemap':'v1','x-core-sitemap-count':String(rows.length)}});
 }
 
-async function prioritySitemap(env,origin){
+// CPU-safe sitemap projection. The full English state can grow to tens of
+// thousands of entries; parsing it during a public sitemap GET caused
+// intermittent Cloudflare Worker 1102 CPU errors. Source archives stay intact
+// and remain covered by independent canonical R2/native sitemap shards.
+export async function boundedEnglishSitemapRecords(env){
+  try{
+    const object=await env?.CONTENT_FINAL?.get('english-canary/public-recent-v1.json');
+    if(!object)return [];
+    const data=await object.json();
+    if(data?.version!==1||!Array.isArray(data.articles))return [];
+    return data.articles.slice(-500).filter(discoveryEligible);
+  }catch{return []}
+}
+
+export async function prioritySitemap(env,origin){
   const data=await latest(env);
   const articles=(data.articles||[])
     .filter(discoveryEligible)
     .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')))
     .slice(0,500)
     .map(a=>({loc:origin+'/articles/'+enc(a.slug),lastmod:a.updatedAt||a.createdAt||null}));
-  let english=[];
-  try{english=(await englishCanaryRecords(env)).filter(discoveryEligible)}catch{}
+  const english=await boundedEnglishSitemapRecords(env);
   const englishArticles=english
     .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')))
     .slice(0,500)
@@ -302,7 +317,7 @@ async function prioritySitemap(env,origin){
   return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300, s-maxage=900, stale-while-revalidate=86400','x-robots-tag':'all','x-priority-sitemap-count':String(rows.length),'x-priority-sitemap':'v2','x-english-priority-count':String(englishArticles.length),'x-english-priority-hubs':String(englishPages.length)}});
 }
 
-async function hubSitemap(env,origin){
+export async function hubSitemap(env,origin){
   const data=await latest(env);
   const rows=new Map();
   const add=(path,lastmod=null)=>{
@@ -321,7 +336,7 @@ async function hubSitemap(env,origin){
     if(a.landingPath&&String(a.landingPath).startsWith('/'))add(String(a.landingPath),lastmod);
   }
   add('/en/coupons');add('/en/uae/saving-guide');add('/en/saudi');add('/en/uae');add('/en/saudi/noon-coupon-code');add('/en/uae/noon-coupon-code');add('/en/saudi/category/mobiles');
-  let english=[];try{english=(await englishCanaryRecords(env)).filter(discoveryEligible)}catch{}
+  const english=await boundedEnglishSitemapRecords(env);
   for(const a of english){
     const market=a.country==='AE'?'uae':'saudi',lastmod=a.updatedAt||a.createdAt||null;
     add('/en/'+market,lastmod);
@@ -339,9 +354,9 @@ async function hubSitemap(env,origin){
   return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300, s-maxage=900, stale-while-revalidate=86400','x-robots-tag':'all','x-hub-sitemap':'v1','x-hub-sitemap-count':String(out.length)}});
 }
 
-async function imageSitemap(env,origin){
+export async function imageSitemap(env,origin){
   const data=await latest(env);
-  let english=[];try{english=await englishCanaryRecords(env)}catch{}
+  const english=await boundedEnglishSitemapRecords(env);
   const source=[...(data.articles||[]),...(english||[])].filter(discoveryEligible)
     .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,500);
   const rows=source.map(a=>{
