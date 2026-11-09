@@ -1,0 +1,36 @@
+name: Prebuild Verified Rescue Sitemap XML Canaries in R2 (No Site Change)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/geo-prebuilt-rescue-xml-render.mjs'
+      - '.github/scripts/prebuild-rescue-xml-canary.py'
+      - '.github/workflows/prebuild-rescue-xml-canary.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noondealsnow-prebuilt-rescue-xml-canary
+  cancel-in-progress: false
+
+jobs:
+  prebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test exact existing XML renderer with a published-shard fixture
+        run: node --test tests/geo-prebuilt-rescue-xml.test.mjs
+      - name: Install S3 client for destination-only R2 canary
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Generate and verify only three derived XML objects (no article writes)
+        run: python3 -u .github/scripts/prebuild-rescue-xml-canary.py
