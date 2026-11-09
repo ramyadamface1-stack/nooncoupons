@@ -439,6 +439,21 @@ export async function isAdmin(req,env){
 export async function handleAdminApi(req,env){
   const u=new URL(req.url),p=u.pathname;
   if(!(await isAdmin(req,env)))return json({error:'unauthorized'},401);
+  if(p==='/api/admin/system1/summary'&&req.method==='GET'){
+    try{
+      const {system1AdminSummary}=await import('./system1-admin-data.js');
+      return json(await system1AdminSummary(env));
+    }catch{return json({ok:false,error:'system1_summary_unavailable'},503)}
+  }
+  if(p==='/api/admin/system1/keywords'&&req.method==='GET'){
+    try{
+      const {readSystem1Keywords}=await import('./system1-admin-data.js');
+      const limit=Number(u.searchParams.get('limit')||60);
+      const result=await readSystem1Keywords(env,{market:u.searchParams.get('market')||'ALL',
+        q:u.searchParams.get('q')||'',limit});
+      return json(result,result.ok?200:400);
+    }catch{return json({ok:false,error:'system1_keywords_unavailable'},503)}
+  }
   // Dedicated private AI V2 operator endpoints. Fail closed and never reflect
   // GitHub PAT or secret contents into responses, logs or Durable Objects.
   if(p==='/api/admin/ai-v2-monitor'&&req.method==='GET'){
