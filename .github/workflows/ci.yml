@@ -40,6 +40,9 @@ jobs:
       - name: Verify market-specific coupon answer pages
         run: node --test tests/nov-coupon-answer-market.test.mjs
 
+      - name: Verify crawler-safe bounded sitemap and approved NOV discovery
+        run: node --test tests/sitemap-crawler-cpu-bounded.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |

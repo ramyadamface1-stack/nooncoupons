@@ -36,6 +36,7 @@ on:
       - 'tests/ai-v2-native-publish-bridge.test.mjs'
       - 'r2-emergency-readonly.js'
       - 'rescue-article-conversion.js'
+      - 'tests/sitemap-crawler-cpu-bounded.test.mjs'
       - 'index.js'
       - 'approved-coupons.js'
       - 'tests/market-coupon-routes.test.mjs'
@@ -93,6 +94,9 @@ jobs:
         run: npm install --no-audit --no-fund --ignore-scripts
       - name: Check native gate and authenticated secret manager regressions
         run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs
+      - name: Guard crawler-facing XML sitemaps against CPU regression
+        run: node --test tests/sitemap-crawler-cpu-bounded.test.mjs
+
       - name: Test country coupon lists without changing live codes
         run: node --test tests/market-coupon-routes.test.mjs
 
