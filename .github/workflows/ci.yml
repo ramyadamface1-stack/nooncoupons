@@ -34,6 +34,9 @@ jobs:
       - name: Validate rescue archive and cache revisions
         run: node --test tests/archive-catalog.test.mjs
 
+      - name: Verify market-specific coupon landing pages
+        run: node --test tests/market-coupon-routes.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |
