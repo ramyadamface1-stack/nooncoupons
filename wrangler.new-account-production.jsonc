@@ -71,7 +71,8 @@
     }
   ],
   "services": [
-    {"binding": "AI_V2_SCHEDULER", "service": "noondealsnow-ai-scheduler-v2"}
+    {"binding": "AI_V2_SCHEDULER", "service": "noondealsnow-ai-scheduler-v2"},
+    {"binding": "AI_V2_ADMIN_DISPATCH", "service": "noondealsnow-ai-scheduler-v2", "entrypoint": "AdminDispatch"}
   ],
   "durable_objects": {
     "bindings": [
