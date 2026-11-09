@@ -43,6 +43,9 @@ jobs:
       - name: Verify crawler-safe bounded sitemap and approved NOV discovery
         run: node --test tests/sitemap-crawler-cpu-bounded.test.mjs
 
+      - name: Confirm single canonical URL per NOV coupon and no duplicate sitemap entries
+        run: node --test tests/nov-canonical-owner.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |
