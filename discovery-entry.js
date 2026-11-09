@@ -229,7 +229,7 @@ async function injectDiscoveryLinks(req,env,res){
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
-function coreSitemap(origin){
+export function coreSitemap(origin){
   const extra=[
     '/en/saudi',
     '/en/uae',
