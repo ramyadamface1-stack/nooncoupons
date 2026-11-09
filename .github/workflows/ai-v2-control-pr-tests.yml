@@ -39,6 +39,7 @@ jobs:
           node --check system1-control-center.js
           node --check system1-admin-data.js
           node --check automation/ai-v2/system1-keyword-index.mjs
+          node --check automation/ai-v2/system1-visuals.mjs
           node --check admin-page.js
           node --check ai-v2-github-secrets.js
           node --check ai-v2-admin-monitor.js
@@ -66,7 +67,8 @@ jobs:
             tests/ai-v2-admin-console.test.mjs \
             tests/admin-login-credentials.test.mjs \
             tests/system1-admin.test.mjs \
-            tests/system1-keyword-index.test.mjs
+            tests/system1-keyword-index.test.mjs \
+            tests/system1-visuals.test.mjs
 
       - name: Compile destination Cloudflare Worker with sealed-box dependencies (NO deployment)
         run: npx wrangler deploy --dry-run --config wrangler.new-account-production.jsonc --outdir /tmp/noondealsnow-ai-v2-admin-dry
