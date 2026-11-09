@@ -98,6 +98,9 @@ jobs:
       - name: Prevent incorrect AI-readable NOV coupon market mappings
         run: node --test tests/nov-llms-canonical-source.test.mjs
 
+      - name: Verify real NOV copy success and country before deploying
+        run: node --test tests/nov-copy-success-analytics.test.mjs
+
       - name: Validate crawlable canonical coupon links on landing pages
         run: node --test tests/coupon-hub-canonical-links.test.mjs
 
