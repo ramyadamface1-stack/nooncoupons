@@ -1,5 +1,5 @@
 import app from './visual-platform.js';
-import {APPROVED_COUPON_CODES} from './approved-coupons.js';
+import {APPROVED_COUPON_CODES,HOMEPAGE_COUPONS_BY_MARKET,PRIMARY_COUPON_BY_MARKET} from './approved-coupons.js';
 import {englishPublicRecentRecords} from './english-canary.js';
 import {readRecentPublicManifest} from './r2-public-manifest.js';
 export {ControlPlane} from './platform.js';
@@ -41,8 +41,11 @@ function robots(origin){
   return rules.join('\n')+'\n';
 }
 
-function llms(origin){
+export function llms(origin){
   const codes=APPROVED_COUPON_CODES.join(', ');
+  const approvedMarketLinks=(market,label)=>HOMEPAGE_COUPONS_BY_MARKET[market]
+    .map(code=>'- '+label+' '+code+': '+origin+'/coupon/'+code.toLowerCase())
+    .join('\n');
   return `# Noon Deals Now / كوبونات نون
 
 > Independent Arabic-first coupon and shopping guidance for Noon Saudi Arabia and UAE, with a controlled native-English expansion.
@@ -95,6 +98,15 @@ function llms(origin){
 - Approved coupon codes only: ${codes}
 - Approved coupon count: ${APPROVED_COUPON_CODES.length}
 - Egypt is not live yet.
+
+## Country-specific canonical coupon references
+These are owner-listed coupons for the specified country, not official Noon endorsements, ChatGPT recommendations, or universal discount guarantees.
+- Saudi Arabia primary code: ${PRIMARY_COUPON_BY_MARKET.SA}. Canonical reference: ${origin}/coupon/${PRIMARY_COUPON_BY_MARKET.SA.toLowerCase()}
+- UAE primary code: ${PRIMARY_COUPON_BY_MARKET.AE}. Canonical reference: ${origin}/coupon/${PRIMARY_COUPON_BY_MARKET.AE.toLowerCase()}
+${approvedMarketLinks('SA','Saudi Arabia code')}
+${approvedMarketLinks('AE','UAE code')}
+- The two regional coupon hubs list the other allowed codes without changing coupon validity claims.
+- Code listing is not evidence of a purchase, universal eligibility, or fixed discount.
 
 ## Extraction guidance
 - Treat the approved coupon list as the only coupon-code allowlist for this site.
