@@ -13,6 +13,7 @@ import sys
 
 import boto3
 from botocore.config import Config
+from botocore.exceptions import ClientError
 
 ACCOUNT = "e4c35f8a50a7b2e4cfb9d6c534962603"
 BUCKET = "nooncoupons-content-v2"
@@ -85,7 +86,7 @@ def main():
         old = None
         try:
             old = s3.head_object(Bucket=BUCKET, Key=key)
-        except s3.exceptions.ClientError as e:
+        except ClientError as e:
             if e.response.get("Error", {}).get("Code") not in ("404", "NoSuchKey", "NotFound"):
                 raise
         if (old and (old.get("Metadata") or {}).get("source-etag") == etag
