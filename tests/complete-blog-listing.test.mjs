@@ -182,3 +182,16 @@ test('unpublished and case-variant published R2 metadata are handled consistentl
  assert.match(html,/001-saudi-a/);
  assert.ok(!html.includes('002-saudi-b')&&!html.includes('003-saudi-c'));
 });
+
+test('premium /blog fast path returns complete self-contained R2 markup without expensive decoration layers',async()=>{
+ const {default:premium}=await import('../premium-entry.js');
+ const e=mockEnv(rows(36));
+ const response=await premium.fetch(new Request('https://noondealsnow.com/blog'),e,{});
+ assert.equal(response.status,200);
+ assert.equal(response.headers.get('x-full-blog-r2'),'read-only-cursor-v1');
+ const html=await response.text();
+ assert.equal(urls(html).length,15);
+ assert.match(html,/<link rel="canonical" href="https:\/\/noondealsnow\.com\/blog">/);
+ assert.match(html,/application\/ld\+json/);
+ assert.equal(e.calls.length,1,'First R2 page must require one bounded list call');
+});
