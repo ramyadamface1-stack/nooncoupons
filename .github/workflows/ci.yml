@@ -52,6 +52,9 @@ jobs:
       - name: Check AI-readable NOV market code references
         run: node --test tests/nov-llms-canonical-source.test.mjs
 
+      - name: Confirm public AI market guide is consistent on primary route
+        run: node --test tests/llms-primary-route.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |
