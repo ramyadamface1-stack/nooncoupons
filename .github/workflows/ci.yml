@@ -31,6 +31,9 @@ jobs:
       - name: Test real coupon funnel events (no fake attribution)
         run: node --test tests/coupon-funnel-attribution.test.mjs
 
+      - name: Validate rescue archive and cache revisions
+        run: node --test tests/archive-catalog.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |
