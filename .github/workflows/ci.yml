@@ -55,6 +55,9 @@ jobs:
       - name: Confirm public AI market guide is consistent on primary route
         run: node --test tests/llms-primary-route.test.mjs
 
+      - name: Validate crawlable canonical coupon links on landing pages
+        run: node --test tests/coupon-hub-canonical-links.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |
