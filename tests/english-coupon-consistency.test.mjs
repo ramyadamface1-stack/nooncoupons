@@ -75,6 +75,13 @@ test('published English article renders recorded approved coupon across summary,
   assert.match(html,/How do I use NOV188/);
   assert.match(html,/Apply NOV188 and check your cart/);
   assert.match(html,/content="Copy NOV188 in your cart"/);
+  const articleSchemaMatch=html.match(/<script type="application\/ld\+json" data-schema="article">([\s\S]*?)<\/script>/);
+  assert.ok(articleSchemaMatch,'structured Article schema must exist');
+  const nodes=JSON.parse(articleSchemaMatch[1])['@graph'];
+  assert.equal(nodes.find(n=>n['@type']==='WebSite').name,'Noon Deals Now');
+  for(const kind of ['WebPage','Article']){
+    assert.equal(nodes.find(n=>n['@type']===kind).description,'Copy NOV188 in your cart',kind+' description must use recorded code');
+  }
   assert.match(html,/href="\/coupon\/nov186"/); // no link rewrites
   assert.match(html,/rel="canonical" href="https:\/\/noondealsnow.com\/en\/articles\/en-iphone-duo-noon-abu-dhabi-coupon-code"/);
   assert.doesNotMatch(html,/>Copy NOV186<\/button>/);
@@ -86,6 +93,6 @@ test('published English article renders recorded approved coupon across summary,
 test('new alignment is limited to controlled English page render, not Arabic market routing',()=>{
   const src=readFileSync(new URL('../english-canary.js',import.meta.url),'utf8');
   assert.match(src,/const safeCoupon=normalizeMarketCoupon\(rec.coupon,rec.country\),raw=reconcileSourceCouponJsonLd\(/);
-  assert.match(src,/presentMarketCouponText\(replaceWrongMarketCouponTokens\(await o.text\(\),rec.country\),rec.country,safeCoupon\)/);
+  assert.match(src,/presentMarketCouponText\(await o.text\(\),rec.country,safeCoupon\)/);
   assert.match(src,/r2PutArticleCreateOnly\(env/);
 });
