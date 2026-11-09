@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import app from '../index.js';
 import {APPROVED_COUPON_CODES,HOMEPAGE_COUPONS_BY_MARKET,PRIMARY_COUPON_BY_MARKET} from '../approved-coupons.js';
+import {selectMarketSpotlightArticles} from '../commerce-pages-v2.js';
 
 const responseFor = async path => {
   const response = await app.fetch(new Request('https://noondealsnow.com'+path), {});
@@ -40,4 +41,20 @@ test('existing homepage keeps the primary Saudi NOV170 and the navigation links'
   assert.ok(html.includes('href="/coupons"'));
   assert.ok(html.includes('href="/saudi"'));
   assert.ok(html.includes('href="/uae"'));
+});
+
+test('country spotlight does not recommend an approved coupon from the wrong market in article previews',()=>{
+  const articles=[
+    {slug:'sa-nov170',country:'SA',title:'Saudi guide',metaDescription:'Try NOV170 before checkout'},
+    {slug:'sa-mixed',country:'SA',title:'Saudi guide',metaDescription:'Try NOV188 in the Saudi cart'},
+    {slug:'sa-nov195',country:'SA',title:'Saudi guide',metaDescription:'Try NOV195 with an eligible basket'},
+    {slug:'ae-nov188',country:'AE',title:'UAE guide',metaDescription:'Try NOV188 before checkout'},
+    {slug:'ae-mixed',country:'AE',title:'UAE guide',metaDescription:'Try NOV170 in the UAE cart'},
+    {slug:'ae-nov157',country:'AE',title:'UAE guide',metaDescription:'Try NOV157 when eligible'}
+  ];
+  const original=JSON.stringify(articles);
+  assert.deepEqual(selectMarketSpotlightArticles(articles,'saudi',12).map(x=>x.slug),['sa-nov170','sa-nov195']);
+  assert.deepEqual(selectMarketSpotlightArticles(articles,'uae',12).map(x=>x.slug),['ae-nov188','ae-nov157']);
+  assert.deepEqual(selectMarketSpotlightArticles(articles,'saudi',1).map(x=>x.slug),['sa-nov170']);
+  assert.equal(JSON.stringify(articles),original,'published records must remain entirely untouched');
 });
