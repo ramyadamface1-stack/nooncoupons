@@ -2,6 +2,7 @@ import app from './final-platform.js';
 export {ControlPlane} from './platform.js';
 export {GeneratorControl} from './admin-runtime.js';
 import {renderAdmin} from './admin-page.js';
+import {renderSystem1} from './system1-control-center.js';
 import {secureLogin} from './secure-admin-auth.js';
 import {handleAdminApi,getGeneratorConfig,getGeneratorStatus,updateGeneratorStatus,generatorLock,generatorUnlock,isAdmin,bulkTick,chooseAdaptiveBulkBatch,getAiV2Control} from './admin-runtime.js';
 import {readState,pickTopic,pickRescueTopic,publishGenerated} from './generator-core-v2.js';
@@ -466,7 +467,12 @@ export default{
       try{return json({ok:true,...await getAiV2Control(env)})}
       catch{return json({ok:false,error:'control_unavailable'},503)}
     }
-    if(u.pathname==='/admin'||u.pathname==='/admin/'||u.pathname==='/admin/seo-settings')return renderAdmin(req,env);
+    if(u.pathname==='/admin'||u.pathname==='/admin/'){
+       if(await isAdmin(req,env))return renderSystem1(req,env);
+       return renderAdmin(req,env);
+     }
+     if(u.pathname==='/admin/system1')return renderSystem1(req,env);
+     if(u.pathname==='/admin/legacy'||u.pathname==='/admin/seo-settings')return renderAdmin(req,env);
     if(u.pathname==='/api/admin/login'&&req.method==='POST')return secureLogin(req,env);
     if(u.pathname==='/api/admin/generate-now'&&req.method==='POST'){
       if(!(await isAdmin(req,env)))return json({error:'unauthorized'},401);
