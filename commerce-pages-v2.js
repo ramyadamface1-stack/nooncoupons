@@ -12,7 +12,7 @@ import {
 } from './commerce-taxonomy.js';
 import {englishPublicRecentRecords} from './english-canary.js';
 import {readRecentPublicManifest} from './r2-public-manifest.js';
-import {APPROVED_COUPON_CODES,PRIMARY_COUPON_BY_MARKET} from './approved-coupons.js';
+import {APPROVED_COUPON_CODES,PRIMARY_COUPON_BY_MARKET,HOMEPAGE_COUPONS_BY_MARKET} from './approved-coupons.js';
 
 const CODES = APPROVED_COUPON_CODES;
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -63,6 +63,17 @@ function codeFor(seed) {
 
 function marketRows(all, market) {
   return all.filter((a) => a?.slug && a.indexable !== false && a.country === MARKETS[market].country);
+}
+
+export function selectMarketSpotlightArticles(all,market,limit=12){
+  const otherMarket=market==='saudi'?'AE':'SA';
+  const otherCodes=HOMEPAGE_COUPONS_BY_MARKET[otherMarket]||[];
+  // Only the market-hub spotlight is filtered. Every article remains published,
+  // addressable at its existing URL, and eligible for the full blog/archive.
+  return marketRows(all,market).filter(a=>{
+    const preview=[a.title,a.metaDescription,a.primaryKeyword,a.code,a.couponCode].filter(Boolean).join(' ').toUpperCase();
+    return !otherCodes.some(code=>new RegExp('(?:^|[^A-Z0-9])'+code+'(?=$|[^A-Z0-9])').test(preview));
+  }).slice(0,Math.max(0,limit));
 }
 
 function articleCard(a) {
@@ -354,7 +365,7 @@ async function englishCountryPage(market,origin,env){
 
 async function countryPage(market,origin,env){
  const mk=MARKETS[market];if(!mk)return null;
- const rows=marketRows(await latestArticles(env),market).slice(0,12),path=`/${market}`,code=PRIMARY_COUPON_BY_MARKET[market==='saudi'?'SA':'AE'],couponPath=market==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code';
+ const rows=selectMarketSpotlightArticles(await latestArticles(env),market,12),path=`/${market}`,code=PRIMARY_COUPON_BY_MARKET[market==='saudi'?'SA':'AE'],couponPath=market==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code';
  const title=`دليل ${mk.name} | الأقسام والبراندات وأدلة الشراء`,desc=`بوابة تسوق ${mk.name}: أقسام وبراندات ومدن وأدلة شراء مترابطة. لنية البحث عن الكوبون استخدم صفحة الكود المخصصة للسوق.`;
  const cities=(CITIES[market]||[]).map(c=>`<article class="card"><small>${esc(c.en)}</small><h3><a href="/${market}/city/${c.key}">${esc(c.ar)}</a></h3><p>محتوى وكوبونات ${esc(mk.name)} المرتبطة بالبحث من ${esc(c.ar)} بدون ادعاء اختلاف خصم غير موثق حسب المدينة.</p></article>`).join('');
  const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/">الرئيسية</a></div><div class="market-switch"><a class="${market==='saudi'?'current':''}" href="/saudi">🇸🇦 السعودية</a><a class="${market==='uae'?'current':''}" href="/uae">🇦🇪 الإمارات</a></div><h1>${title}</h1><p>${desc}</p><div class="chips"><a href="/${market}/shopping-guide">دليل الشراء</a><a href="/${market}/categories">كل الأقسام</a><a href="${couponPath}">صفحة كود نون ${market==='saudi'?'السعودية':'الإمارات'}</a><a href="/coupon/${code.toLowerCase()}">تفاصيل كود ${code} الأساسية</a></div><aside class="coupon"><div><small>اختصار للكوبون — النية الأساسية في صفحة الكود</small><h2>جرّب <span class="code">${code}</span> بعد اختيار سلتك</h2><p class="lead">للتفاصيل والأكواد انتقل إلى صفحة السوق المخصصة؛ نتيجة نون داخل السلة هي المرجع.</p></div><div class="chips"><button class="cta" type="button" data-copy-code="${code}" data-market="${market==='saudi'?'SA':'AE'}" data-placement="country_hero" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='✓ تم النسخ'">نسخ الكود</button><a class="cta" href="/coupon/${code.toLowerCase()}">شروط كود ${code}</a></div></aside><div class="trust-row"><span>${CODES.length} أكواد معتمدة فقط</span><span>المحتوى مستقل عن Noon</span><span>التحقق داخل السلة هو المرجع</span><span><a href="/coupon-verification">منهجية التحقق</a></span></div></div></header>`;
