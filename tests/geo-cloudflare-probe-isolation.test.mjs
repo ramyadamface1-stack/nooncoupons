@@ -15,3 +15,10 @@ test('coupon-only counts guard both market detail URLs',()=>{
   assert.ok(source.includes('if(!probePattern)otherCouponHits.set(path'));
   assert.ok(source.includes('const path=row.dimensions.clientRequestPath;'));
 });
+
+test('bounded recent analytics window keeps the long-window baseline available',()=>{
+  assert.ok(source.includes('CF_LOOKBACK_MINUTES'));
+  assert.ok(source.includes('Math.max(10,Math.min(1380'));
+  assert.ok(source.includes('lookbackMinutes*60*1000'));
+  assert.ok(source.includes("lookback='+lookbackMinutes"));
+});

@@ -13,13 +13,16 @@ const CLIENTS = [
   ['Bing / Copilot discovery', 'bingbot'],
   ['Perplexity', 'PerplexityBot']
 ];
+const lookbackRaw=Number(process.env.CF_LOOKBACK_MINUTES || 1380);
+const lookbackMinutes=Number.isFinite(lookbackRaw)?Math.max(10,Math.min(1380,Math.trunc(lookbackRaw))):1380;
+const pathLimit=process.env.CF_LOOKBACK_MINUTES?260:115;
 const end = new Date();
-const start = new Date(end.getTime()-23*3600*1000);
+const start = new Date(end.getTime()-lookbackMinutes*60*1000);
 const notes = [];
 const lines = [
   '# Cloudflare GEO/AEO crawler requests',
   '',
-  'Host: '+SITE+'; UTC time: '+start.toISOString()+' to '+end.toISOString(),
+  'Host: '+SITE+'; UTC time: '+start.toISOString()+' to '+end.toISOString()+'; lookback='+lookbackMinutes+' minutes',
   '',
   '**Sampled, self-declared crawler names, NOT authenticated crawler activity or AI recommendations. Our own earlier synthetic checks used some of these same names, which can contaminate the totals.**',
   '',
@@ -109,7 +112,7 @@ async function main(){
       if(synthetic)notes.push(label+': '+synthetic+' matched known synthetic-test User-Agent patterns, so do not count them as independent platform crawls.');
       if(fail>0){
         const statusSummary=[...errorStatuses].sort((a,b)=>a[0]-b[0]).map(([code,n])=>code+'='+n).join(', ');
-        const safe=p=>p.replace(/[|<>\r\n]/g,'_').slice(0,115);
+        const safe=p=>p.replace(/[|<>\r\n]/g,'_').slice(0,pathLimit);
         const badPaths=[...errorPaths].sort((a,b)=>b[1]-a[1]).slice(0,8).map(([path,n])=>safe(path)+' ('+n+')').join('; ')||'not visible in sampled groups';
         notes.push(label+': '+fail+' sampled 4xx/5xx requests; status breakdown '+statusSummary+'; top failing paths: '+badPaths+'. These may be 404s for old URLs, not WAF blocks.');
       }
@@ -119,7 +122,7 @@ async function main(){
         notes.push(label+' canonical NOV170/NOV188 paths represented among the top 100 grouped rows: '+
           (couponHits.get('/coupon/nov170')||0)+' / '+(couponHits.get('/coupon/nov188')||0)+'; excluding known test patterns: '+(otherCouponHits.get('/coupon/nov170')||0)+' / '+(otherCouponHits.get('/coupon/nov188')||0)+'. Remaining traffic is still UNVERIFIED and not AI citations.');
       }
-      if(total===0)notes.push(label+': no *sampled* matching requests in this 23h window; this does NOT prove that this service stopped crawling.');
+      if(total===0)notes.push(label+': no *sampled* matching requests in this '+lookbackMinutes+'min window; this does NOT prove that this service stopped crawling.');
     } catch(err){
       errors++;lines.push('| '+label+' | unavailable | — | — | — | — |');
       notes.push(label+': analytics query unavailable ('+String(err.message).slice(0,75)+').');
