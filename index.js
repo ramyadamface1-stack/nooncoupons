@@ -189,7 +189,10 @@ function guidePage(slug){
 
 function couponDetail(code){
   if(!CODES.includes(code))return null;
-  return layout(`كود نون ${code} | السعودية والإمارات`,`صفحة كود نون ${code} مع زر نسخ وتعليمات تجربة الكود في السعودية والإمارات بدون ادعاء نسبة خصم غير موثقة.`,`${pageHero(`كود نون ${code}`,'جرّب الكود في السوق المناسب وتحقق من نتيجة السلة.',breadcrumbs([`<a href="/coupons">كل الأكواد</a>`,code]))}<section class="section"><div class="shell grid">${couponCard(code,'SA',true)}${couponCard(code,'AE',true)}</div></section><section class="section alt"><div class="shell content"><h2>متى تعرف أن الكود يعمل؟</h2><p>بعد إدخاله في خانة الكوبون داخل نون، يجب أن يظهر الخصم أو التغيير في إجمالي السلة. إذا لم يظهر، راجع أهلية الحساب والمنتج والدولة ثم جرّب كودًا آخر.</p><h2>لماذا لا نكتب نسبة خصم ثابتة؟</h2><p>لأن الملف المتاح لدينا يحدد الأكواد فقط، ولا يحدد نسبة الخصم أو الحد الأقصى أو شروط كل دولة. لذلك نحافظ على الدقة ونترك نتيجة السلة هي المرجع النهائي.</p></div></section>`,`/coupon/${code.toLowerCase()}`);
+  const market=marketCodes('SA').includes(code)?'SA':marketCodes('AE').includes(code)?'AE':null;
+  if(!market)return null;
+  const region=MARKETS[market].label;
+  return layout(`كود نون ${code} | نون ${region}`,`كود نون ${code} مدرج لسوق ${region}. اطلع على الكود وطريقة نسخه وخطوات التحقق من أهلية السلة دون افتراض نسبة خصم ثابتة.`,`${pageHero(`كود نون ${code} في ${region}`,'هذا الكود مدرج في قائمة السوق المحدد. راجع أهلية الحساب والمنتجات في سلة نون قبل الدفع.',breadcrumbs([`<a href="/coupons">كل الأكواد</a>`,code]))}<section class="section"><div class="shell"><p>الكود <strong>${code}</strong> مدرج ضمن أكواد نون ${region} المعتمدة للموقع. وجوده في القائمة لا يضمن قيمة خصم معينة لكل عميل.</p><div class="grid">${couponCard(code,market,true)}</div><p><a href="${market==='SA'?'/saudi':'/uae'}">شوف باقي أكواد نون ${region}</a></p></div></section><section class="section alt"><div class="shell content"><h2>متى تعرف أن الكود يعمل؟</h2><p>بعد إدخاله في خانة الكوبون داخل نون، يجب أن يظهر الخصم أو التغيير في إجمالي السلة. إذا لم يظهر، راجع أهلية الحساب والمنتج والدولة ثم جرّب كودًا آخر.</p><h2>لماذا لا نكتب نسبة خصم ثابتة؟</h2><p>لأن البيانات المتاحة لا تحدد نسبة الخصم أو الحد الأقصى أو شروط كل دولة. لذلك لا نفترض توفيرًا غير موثق؛ نتيجة السلة هي المرجع النهائي.</p></div></section>`,`/coupon/${code.toLowerCase()}`);
 }
 
 function shoppingWorld(){
