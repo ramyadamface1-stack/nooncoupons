@@ -13,7 +13,9 @@ test('120-per-hour headroom uses shared durable atomic 30s permit, not quality b
  assert.equal(GLOBAL_PUBLICATION_SPACING_MS,30_000);
  assert.equal(GLOBAL_PUBLICATION_MAX_PER_MINUTE,2);
  const worker=readFileSync('admin-runtime.js','utf8');
- assert.match(worker,/const spacingMs=GLOBAL_PUBLICATION_SPACING_MS/);
+ assert.match(worker,/const globalDue=lastAtMs\?lastAtMs\+GLOBAL_PUBLICATION_SPACING_MS:0;/);
+ assert.match(worker,/if\(isAiV2\)await txn\.put\(aiKey,/);
+ assert.match(worker,/this\.ctx\.storage\.transaction\(async txn=>/);
  assert.ok(worker.includes('this.ctx.storage.transaction('));
  const storage=new MemoryStorage();
  const doInstance=new GeneratorControl({storage},{});
