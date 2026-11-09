@@ -50,6 +50,41 @@ for(const [page,url,code] of targets)for(const agent of agents){
     if(!ok)problems.push(page+' '+agent+': status='+response.status+' canonical='+canonical+' code='+visible+' noindex='+noindex);
   }catch(e){cases.push({page,agent,status:0,ok:false,reason:'request error'});problems.push(page+' '+agent+': '+String(e).slice(0,150))}
 }
+// Detect GET/HEAD divergence on known indexable XML sitemaps. Google/Bing
+// can preflight a URL with HEAD; a published GET 200 must not yield HEAD 404.
+// One deliberately unknown shard guards against falsely returning 200 for all.
+const sitemapHeadCases=[
+  {path:'/sitemap-hubs.xml',expected:200},
+  {path:'/sitemap-priority.xml',expected:200},
+  {path:'/sitemap-rescue-articles-32.xml',expected:200},
+  {path:'/sitemap-rescue-articles-999.xml',expected:404}
+];
+async function fetchStatus(url,method){
+  let lastError;
+  for(let attempt=0;attempt<2;attempt++){
+    try{
+      const response=await fetch(url,{method,headers:{'user-agent':'NoonDealsNow-public-sitemap-readonly-test/1.0','accept':'application/xml,*/*;q=0.5'},redirect:'follow',signal:AbortSignal.timeout(20000)});
+      const status=response.status;
+      const xml=(response.headers.get('content-type')||'').includes('xml');
+      const marker=response.headers.get('x-sitemap-head-parity')||'';
+      await response.body?.cancel();
+      if(status>=500&&attempt===0)continue;
+      return {status,xml,marker};
+    }catch(e){lastError=e}
+  }
+  throw lastError||new Error('503 after retry');
+}
+for(const item of sitemapHeadCases){
+  const url='https://noondealsnow.com'+item.path;
+  try{
+    const head=await fetchStatus(url,'HEAD');
+    const get=item.expected===200?await fetchStatus(url,'GET'):null;
+    const ok=head.status===item.expected&&(item.expected!==200||(get?.status===200&&head.xml&&get.xml&&head.marker==='v1'));
+    cases.push({page:'NoonDealsNow '+item.path,agent:'HEAD/GET parity',status:String(head.status)+'/'+(get?.status??'n/a'),ok});
+    if(!ok)problems.push('Sitemap method mismatch: '+item.path+' HEAD='+head.status+' GET='+(get?.status??'not tested')+' headMarker='+head.marker);
+  }catch(e){cases.push({page:'NoonDealsNow '+item.path,agent:'HEAD/GET parity',status:0,ok:false});problems.push('Sitemap method check '+item.path+': '+String(e).slice(0,120))}
+}
+
 const report=[
   '# Noon GEO/AEO synthetic crawler readiness',
   '',
