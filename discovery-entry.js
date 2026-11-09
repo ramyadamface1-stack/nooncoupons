@@ -3,6 +3,7 @@ import {publishAiV2NativeArticle} from './ai-v2-native-publish-bridge.js';
 import {reconcileAiV2Publication} from './ai-v2-publication-ledger.js';
 import {nativeAiV2SitemapResponse} from './ai-v2-sitemap.js';
 import app from './brand-runtime.js';
+import {llms as canonicalCouponSourceGuide} from './final-platform.js';
 import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
 import {emergencyPublicR2Response,nativeBoundAiV2ArticleFastResponse,rescueSitemapIndexPaths,rescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
 import {runEnglishCanaryBatch,englishCanaryRecords,englishPublicRecentRecords} from './english-canary.js';
@@ -552,6 +553,15 @@ export default{
     // Check canonical public Cloudflare Cache API BEFORE cross-account R2 GET.
     // Without this, every article visit and bot crawl incurs new-account R2 Class B reads.
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
+    // Always expose one truthful, tiny, market-specific coupon reference guide.
+    // Some older static/edge llms.txt responses omitted NOV170 and NOV188;
+    // this avoids a second, conflicting source for crawlers.
+    if(req.method==='GET'&&u.pathname==='/llms.txt')
+      return new Response(canonicalCouponSourceGuide(origin),{headers:{
+        'content-type':'text/plain; charset=utf-8',
+        'cache-control':'public, max-age=60, s-maxage=300',
+        'x-llms-source':'canonical-approved-market-codes-v1'
+      }});
     // Direct destination R2 binding: bypass CPU-intensive legacy HTML layers
     // ONLY for the same native QA-approved N5-N9 articles; old URLs, R2
     // writes, crawler directives and authenticated routes are unaffected.
