@@ -95,9 +95,11 @@ async function main(){
           if(failedPath.startsWith('/')&&!failedPath.startsWith('/admin')&&!failedPath.startsWith('/api/'))
             errorPaths.set(failedPath,(errorPaths.get(failedPath)||0)+n);
         }
-        if(['/coupon/nov170','/coupon/nov188'].includes(row.dimensions?.clientRequestPath))
-          couponHits.set(row.dimensions.clientRequestPath,(couponHits.get(row.dimensions.clientRequestPath)||0)+n);
-          if(!probePattern)otherCouponHits.set(row.dimensions.clientRequestPath,(otherCouponHits.get(row.dimensions.clientRequestPath)||0)+n);
+        if(['/coupon/nov170','/coupon/nov188'].includes(row.dimensions?.clientRequestPath)){
+          const path=row.dimensions.clientRequestPath;
+          couponHits.set(path,(couponHits.get(path)||0)+n);
+          if(!probePattern)otherCouponHits.set(path,(otherCouponHits.get(path)||0)+n);
+        }
         const path=row.dimensions?.clientRequestPath||'';
         if(path&&path.startsWith('/')&&!path.startsWith('/admin')&&!path.startsWith('/api/'))
           paths.set(path,(paths.get(path)||0)+n);
