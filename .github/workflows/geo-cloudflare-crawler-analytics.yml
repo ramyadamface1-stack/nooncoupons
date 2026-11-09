@@ -1,0 +1,37 @@
+name: NoonDealsNow Cloudflare AI Crawler Analytics (Read Only)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '47 8 * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/geo-cloudflare-crawler-analytics.yml'
+      - 'scripts/cloudflare-ai-crawler-analytics.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noondealsnow-geo-crawler-analytics
+  cancel-in-progress: true
+
+jobs:
+  ai-crawler-analytics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      # DNS ownership moved to the new Cloudflare account. Read only this zone;
+      # never query/deploy the retired account or change any DNS bindings.
+      CF_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+      CF_TOKEN: ${{ secrets.CF_GEO_ANALYTICS_TOKEN || secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Syntax-check read-only Cloudflare analytics reporter
+        run: node --check scripts/cloudflare-ai-crawler-analytics.mjs
+      - name: Summarize AI search crawler requests and errors
+        run: node scripts/cloudflare-ai-crawler-analytics.mjs
