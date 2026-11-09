@@ -49,6 +49,9 @@ jobs:
       - name: Verify market-specific coupon landing pages
         run: node --test tests/market-coupon-routes.test.mjs
 
+      - name: Verify NOV primary AI-readable buyer answers and true update date
+        run: node --test tests/nov-primary-aeo-country-answer.test.mjs
+
       - name: Verify market-specific coupon answer pages
         run: node --test tests/nov-coupon-answer-market.test.mjs
 
