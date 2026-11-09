@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import app from '../index.js';
 import {HOMEPAGE_COUPONS_BY_MARKET,APPROVED_COUPON_CODES} from '../approved-coupons.js';
+import {publicEdgePolicyRevision} from '../r2-public-cache-policy.js';
 
 const origin='https://noondealsnow.com';
 async function page(path){
@@ -42,4 +43,11 @@ test('each detail target remains public with one canonical owner URL',async()=>{
     const html=await page(url);
     assert.ok(html.includes('<link rel="canonical" href="'+origin+url+'">'),url);
   }
+});
+
+test('landing-page canonical links receive a fresh cache key without purging article or blog caches',()=>{
+  assert.equal(publicEdgePolicyRevision('/coupons'),'nov-coupon-detail-links-v1');
+  assert.notEqual(publicEdgePolicyRevision('/blog'),'nov-coupon-detail-links-v1');
+  assert.notEqual(publicEdgePolicyRevision('/articles/nov170-tips'),'nov-coupon-detail-links-v1');
+  assert.notEqual(publicEdgePolicyRevision('/sitemap-core.xml'),'nov-coupon-detail-links-v1');
 });
