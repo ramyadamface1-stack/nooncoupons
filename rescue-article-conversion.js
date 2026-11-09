@@ -1,10 +1,10 @@
 // Shared article presentation for the existing R2 rescue reader.
 // No R2 rewrites, original article URLs, pricing claims or affiliate links.
-import {PRIMARY_COUPON_BY_MARKET} from './approved-coupons.js';
+import {PRIMARY_COUPON_BY_MARKET,normalizeMarketCoupon} from './approved-coupons.js';
 const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export const primaryCodeForMarket=country=>PRIMARY_COUPON_BY_MARKET[country==='AE'?'AE':'SA'];
-export function presentMarketCouponText(source,country='SA'){
-  const code=primaryCodeForMarket(country);
+export function presentMarketCouponText(source,country='SA',preferredCode=null){
+  const code=preferredCode?normalizeMarketCoupon(preferredCode,country):primaryCodeForMarket(country);
   // Rewrite rendered text, not link destinations, scripts, styles, or archived source bytes.
   // Article headings/paragraphs/FAQ must agree with the prominent code CTA.
   return String(source||'').split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>|<[^>]+>)/gi).map(part=>{
@@ -16,7 +16,8 @@ export function presentMarketCouponText(source,country='SA'){
         .replace(/((?:alt|title)=["'][^"']*)\b(?:NOV|RAMY|OPS)\d{2,4}\b/gi,'$1'+code);
     }
     if(/^<button\b/i.test(part)&&/data-copy-code/i.test(part)){
-      return part.replace(/(data-copy-code=["'])(?:NOV|RAMY|OPS)\d{2,4}(["'])/gi,'$1'+code+'$2');
+      return part.replace(/(data-copy-code=["'])(?:NOV|RAMY|OPS)\d{2,4}(["'])/gi,'$1'+code+'$2')
+        .replace(/((?:aria-label|title)=["'][^"']*)\b(?:NOV|RAMY|OPS)\d{2,4}\b/gi,'$1'+code);
     }
     return part;
   }).join('');
@@ -24,8 +25,8 @@ export function presentMarketCouponText(source,country='SA'){
 // R2 stores older FAQ JSON-LD under the original promotion code. The public
 // reader now displays the market primary code; keep FAQ schema in agreement
 // with the *visible* FAQ without touching canonical URLs, item IDs or source R2.
-export function reconcileSourceCouponJsonLd(html,country='SA'){
-  const code=primaryCodeForMarket(country);
+export function reconcileSourceCouponJsonLd(html,country='SA',preferredCode=null){
+  const code=preferredCode?normalizeMarketCoupon(preferredCode,country):primaryCodeForMarket(country);
   const tokens=/\b(?:NOV|RAMY|OPS)\d{2,4}\b/gi;
   const textualFields=new Set(['name','headline','description','text','alternateName','step','suggestedAnswer','itemText']);
   const replaceText=value=>String(value).replace(tokens,code);
