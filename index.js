@@ -105,7 +105,7 @@ function pageHero(title,sub,crumb=''){return `<section class="pageHero"><div cla
 
 function couponCard(code,market='SA',featured=false){
   const m=MARKETS[market];
-  return `<article class="coupon"><div class="couponTop"><span class="badge">${m.flag} نون ${m.label}</span><span class="verified">● متاح للتجربة</span></div><h3>${featured?'ابدأ بهذا الكود':'كود نون'} <span style="direction:ltr;display:inline-block">${code}</span></h3><p>انسخ الكود وجرّبه في سلة نون ${m.label}. الأهلية وقيمة الخصم النهائية تظهر داخل السلة حسب الحساب والمنتجات وشروط العرض.</p><div class="codeRow"><div class="code">${code}</div><button class="copy" data-copy="${code}" data-market="${market}" data-placement="${featured?'featured_coupon':'coupon_card'}">نسخ الكود</button></div><div class="small" style="margin-top:12px"><a href="${m.noon}" target="_blank" rel="sponsored noopener noreferrer" data-shop-click="${code}" data-market="${market}" data-placement="${featured?'featured_coupon':'coupon_card'}" aria-label="افتح متجر نون ${m.label} لتجربة كود ${code}" style="display:inline-block;background:#facc15;color:#111827;text-decoration:none;border-radius:10px;padding:10px 14px;font-weight:800">افتح نون ${m.label} وجرّب ${code} ←</a></div><div class="small" style="margin-top:10px"><a href="/coupon/${code.toLowerCase()}" style="color:#1558c0;text-decoration:underline;font-weight:700">تفاصيل وشروط كود ${code} ←</a></div><div class="small" style="margin-top:10px">آخر مراجعة: ${esc(nowDate())} · بدون ادعاء نسبة خصم غير مؤكدة</div></article>`;
+  return `<article class="coupon"><div class="couponTop"><span class="badge">${m.flag} نون ${m.label}</span><span class="verified">● متاح للتجربة</span></div><h3>${featured?'ابدأ بهذا الكود':'كود نون'} <span style="direction:ltr;display:inline-block">${code}</span></h3><p>انسخ الكود وجرّبه في سلة نون ${m.label}. الأهلية وقيمة الخصم النهائية تظهر داخل السلة حسب الحساب والمنتجات وشروط العرض.</p><div class="codeRow"><div class="code">${code}</div><button class="copy" data-copy="${code}" data-market="${market}" data-placement="${featured?'featured_coupon':'coupon_card'}">نسخ الكود</button></div><div class="small" style="margin-top:12px"><a href="${m.noon}" target="_blank" rel="sponsored noopener noreferrer" data-shop-click="${code}" data-market="${market}" data-placement="${featured?'featured_coupon':'coupon_card'}" aria-label="افتح متجر نون ${m.label} لتجربة كود ${code}" style="display:inline-block;background:#facc15;color:#111827;text-decoration:none;border-radius:10px;padding:10px 14px;font-weight:800">افتح نون ${m.label} وجرّب ${code} ←</a></div><div class="small" style="margin-top:10px"><a href="/coupon/${code.toLowerCase()}" style="color:#1558c0;text-decoration:underline;font-weight:700">تفاصيل وشروط كود ${code} ←</a></div><div class="small" style="margin-top:10px">آخر تحديث للصفحة: ${esc(nowDate())} · هذا التاريخ ليس فحصًا جديدًا لقبول الكود</div></article>`;
 }
 function marketCodes(market){return HOMEPAGE_COUPONS_BY_MARKET[market]||[]}
 function allCards(market){return marketCodes(market).map((c,i)=>couponCard(c,market,i===0)).join('')}
@@ -187,12 +187,47 @@ function guidePage(slug){
   return layout(`${title} | كوبونات نون`,desc,`${pageHero(title,desc,breadcrumbs([`<a href="/blog">الأدلة</a>`,title]))}<section class="section"><div class="shell"><article class="content">${generic}<div class="hr"></div><h2>أكواد يمكنك تجربتها الآن</h2><div class="grid">${CODES.slice(0,4).map((c,i)=>couponCard(c,i%2?'AE':'SA')).join('')}</div></article></div></section>`,`/guide/${s}`,extra);
 }
 
+// Specific, grounded buying answers for the two market-primary coupon URLs.
+// The code is owner-listed; eligibility, expiry and savings are always decided
+// at the official checkout. Don't manufacture a verification on page refresh.
+function primaryCouponAnswer(code,market){
+  if(code==='NOV170'&&market==='SA')return `<section class="content" aria-label="الإجابة المباشرة لكود نون السعودية NOV170">
+    <h2>هل NOV170 كود خصم نون السعودية؟</h2>
+    <p>نعم، NOV170 مدرج في قائمة أكواد نون السعودية التي يعتمدها مالك هذا الموقع. صفحة NoonDealsNow مستقلة عن متجر نون، وإدراج الكود هنا ليس ضمانًا بقبوله لكل حساب أو منتج أو بقيمة خصم محددة.</p>
+    <h2>إزاي تستخدم NOV170 في نون السعودية؟</h2>
+    <ol>
+      <li>اختر منتجاتك من <a href="https://www.noon.com/saudi-ar/" rel="sponsored noopener noreferrer" target="_blank">نون السعودية الرسمي</a> وتأكد أن بلد وعنوان التوصيل هما السعودية.</li>
+      <li>سجل إجمالي السلة بالريال السعودي مع رسوم الشحن الظاهرة، ثم انسخ NOV170 واكتبه في خانة كود الخصم.</li>
+      <li>راجع الرسالة التي تعرضها السلة والتوفير الفعلي وإجمالي الدفع قبل إتمام الطلب؛ قد تختلف الأهلية حسب الحساب والمنتجات.</li>
+    </ol>
+    <h2>لو NOV170 ما اتحسبش على السلة؟</h2>
+    <p>راجع كتابة الكود وعنوان التوصيل وحدود الطلب إن كانت ظاهرة في نون. لا تغيّر الدولة إلى الإمارات لمجرد تجربة كوبون؛ لكل سوق أكواده المنفصلة. اقرأ <a href="/coupon-verification">منهجية تسجيل الأكواد</a> أو <a href="/saudi-arabia/noon-coupon-code">دليل أكواد نون السعودية</a>.</p>
+    <h3 lang="en">NOV170 Noon Saudi coupon: quick answer</h3>
+    <p lang="en">NOV170 is an owner-listed coupon code for Noon Saudi Arabia. Copy the code, use the official Saudi Noon checkout, and compare the displayed final total in SAR. This listing does not guarantee eligibility, an expiry date, or a fixed discount.</p>
+  </section>`;
+  if(code==='NOV188'&&market==='AE')return `<section class="content" aria-label="الإجابة المباشرة لكود نون الإمارات NOV188">
+    <h2>هل NOV188 كود خصم نون الإمارات؟</h2>
+    <p>نعم، NOV188 مدرج في قائمة أكواد نون الإمارات المعتمدة لدى مالك الموقع. NoonDealsNow موقع مستقل ولا يمثل نون، والتوفير لا يمكن تأكيده قبل مراجعة السلة.</p>
+    <h2>كيف تجرب NOV188 على نون الإمارات؟</h2>
+    <ol>
+      <li>افتح <a href="https://www.noon.com/uae-ar/" rel="sponsored noopener noreferrer" target="_blank">نون الإمارات الرسمي</a> وحدد العنوان الصحيح داخل الإمارات.</li>
+      <li>راجع السعر قبل الكود ورسوم التوصيل بالدرهم الإماراتي، ثم انسخ NOV188 وأدخله في صفحة الدفع.</li>
+      <li>قارن الإجمالي النهائي بعد تطبيق الكود. قد تتغير النتيجة باختلاف البائع والمنتج والسلة والحساب وشروط المتجر.</li>
+    </ol>
+    <h2>هل NOV188 له خصم ثابت أو استخدام مضمون؟</h2>
+    <p>لا نعرض نسبة أو حدًا أقصى أو صلاحية لم يقدم مالك الموقع دليلها. تأكد من النتيجة داخل نون نفسه. راجع <a href="/coupon-verification">منهجية الكوبونات</a> أو <a href="/uae/noon-coupon-code">دليل نون الإمارات</a>.</p>
+    <h3 lang="en">NOV188 Noon UAE promo code: quick answer</h3>
+    <p lang="en">NOV188 is an owner-listed Noon UAE coupon. Copy NOV188 and test it only in the UAE Noon checkout. Confirm the delivery address, seller, shipping cost and the final total in AED. A listing alone cannot promise a particular saving or universal eligibility.</p>
+  </section>`;
+  return '';
+}
+
 function couponDetail(code){
   if(!CODES.includes(code))return null;
   const market=marketCodes('SA').includes(code)?'SA':marketCodes('AE').includes(code)?'AE':null;
   if(!market)return null;
   const region=MARKETS[market].label;
-  return layout(`كود نون ${code} | نون ${region}`,`كود نون ${code} مدرج لسوق ${region}. اطلع على الكود وطريقة نسخه وخطوات التحقق من أهلية السلة دون افتراض نسبة خصم ثابتة.`,`${pageHero(`كود نون ${code} في ${region}`,'هذا الكود مدرج في قائمة السوق المحدد. راجع أهلية الحساب والمنتجات في سلة نون قبل الدفع.',breadcrumbs([`<a href="/coupons">كل الأكواد</a>`,code]))}<section class="section"><div class="shell"><p>الكود <strong>${code}</strong> مدرج ضمن أكواد نون ${region} المعتمدة للموقع. وجوده في القائمة لا يضمن قيمة خصم معينة لكل عميل.</p><div class="grid">${couponCard(code,market,true)}</div><p><a href="${market==='SA'?'/saudi':'/uae'}">شوف باقي أكواد نون ${region}</a></p></div></section><section class="section alt"><div class="shell content"><h2>متى تعرف أن الكود يعمل؟</h2><p>بعد إدخاله في خانة الكوبون داخل نون، يجب أن يظهر الخصم أو التغيير في إجمالي السلة. إذا لم يظهر، راجع أهلية الحساب والمنتج والدولة ثم جرّب كودًا آخر.</p><h2>لماذا لا نكتب نسبة خصم ثابتة؟</h2><p>لأن البيانات المتاحة لا تحدد نسبة الخصم أو الحد الأقصى أو شروط كل دولة. لذلك لا نفترض توفيرًا غير موثق؛ نتيجة السلة هي المرجع النهائي.</p></div></section>`,`/coupon/${code.toLowerCase()}`);
+  return layout(`كود نون ${code} | نون ${region}`,`كود نون ${code} مدرج لسوق ${region}. اطلع على الكود وطريقة نسخه وخطوات التحقق من أهلية السلة دون افتراض نسبة خصم ثابتة.`,`${pageHero(`كود نون ${code} في ${region}`,'هذا الكود مدرج في قائمة السوق المحدد. راجع أهلية الحساب والمنتجات في سلة نون قبل الدفع.',breadcrumbs([`<a href="/coupons">كل الأكواد</a>`,code]))}<section class="section"><div class="shell"><p>الكود <strong>${code}</strong> مدرج ضمن أكواد نون ${region} المعتمدة للموقع. وجوده في القائمة لا يضمن قيمة خصم معينة لكل عميل.</p><div class="grid">${couponCard(code,market,true)}</div>${primaryCouponAnswer(code,market)}<p><a href="${market==='SA'?'/saudi':'/uae'}">شوف باقي أكواد نون ${region}</a></p></div></section><section class="section alt"><div class="shell content"><h2>متى تعرف أن الكود يعمل؟</h2><p>بعد إدخاله في خانة الكوبون داخل نون، يجب أن يظهر الخصم أو التغيير في إجمالي السلة. إذا لم يظهر، راجع أهلية الحساب والمنتج والدولة ثم جرّب كودًا آخر.</p><h2>لماذا لا نكتب نسبة خصم ثابتة؟</h2><p>لأن البيانات المتاحة لا تحدد نسبة الخصم أو الحد الأقصى أو شروط كل دولة. لذلك لا نفترض توفيرًا غير موثق؛ نتيجة السلة هي المرجع النهائي.</p></div></section>`,`/coupon/${code.toLowerCase()}`);
 }
 
 function shoppingWorld(){
