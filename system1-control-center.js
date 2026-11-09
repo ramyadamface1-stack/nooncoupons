@@ -173,7 +173,6 @@ async function loadKeywords(){const rows=$('keywordRows');rows.replaceChildren()
  ])tr.insertCell().textContent=fmt(text)}
  if(!keywords.items.length){const tr=rows.insertRow(),td=tr.insertCell();td.colSpan=5;td.textContent='لا توجد نتائج مطابقة'}
 }catch(e){const tr=rows.insertRow(),td=tr.insertCell();td.colSpan=5;td.textContent='تعذر عرض الكلمات: '+e.message}}
-}
 function renderKeys(){const el=$('keyRows');el.replaceChildren();$('keysTitle').textContent=shownProvider==='gemini'?'Gemini':'Groq';
 const provider=snapshot?.providers?.[shownProvider];const entries=provider?.entries||[];
 const group=gh?.groups?.[shownProvider]||[];
