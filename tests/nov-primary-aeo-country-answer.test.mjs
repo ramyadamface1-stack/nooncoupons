@@ -6,14 +6,14 @@ const MARKET_CASES=[
   {
     code:'NOV170',market:'SA',other:'NOV188',currency:'SAR',
     official:'https://www.noon.com/saudi-ar/',place:'السعودية',
-    heading:'هل NOV170 كود خصم نون السعودية?',
+    heading:'هل NOV170 كود خصم نون السعودية؟',
     question:'NOV170 Noon Saudi coupon: quick answer',
     guide:'/saudi-arabia/noon-coupon-code'
   },
   {
     code:'NOV188',market:'AE',other:'NOV170',currency:'AED',
     official:'https://www.noon.com/uae-ar/',place:'الإمارات',
-    heading:'هل NOV188 كود خصم نون الإمارات?',
+    heading:'هل NOV188 كود خصم نون الإمارات؟',
     question:'NOV188 Noon UAE promo code: quick answer',
     guide:'/uae/noon-coupon-code'
   }
