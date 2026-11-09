@@ -1,0 +1,100 @@
+name: NoonDealsNow SYSTEM1 — five-image R2 canary (no AI calls)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-system1-five-visuals-canary.yml'
+      - 'automation/ai-v2/system1-visuals.mjs'
+      - 'tests/system1-visuals.test.mjs'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ndn-system1-visual-canary
+  cancel-in-progress: false
+jobs:
+  create-validate-store:
+    if: github.repository == 'ramyadamface1-stack/nooncoupons'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      R2_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Validate genuine five-design SVG set without any model tokens
+        run: |
+          node --test tests/system1-visuals.test.mjs
+          node --check automation/ai-v2/system1-visuals.mjs
+      - name: Render five original English-only 1600x1000 SVGs into ephemeral runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/ndn-system1-five-svg
+          node --input-type=module <<'NODE'
+          import {writeFileSync} from 'node:fs';
+          import {createSystem1VisualSet,inspectSystem1VisualSet} from './automation/ai-v2/system1-visuals.mjs';
+          const slug='saudi-samsung-storage-warranty-seller-checklist-2026';
+          const files=createSystem1VisualSet({slug,country:'SA',coupon:'NOV170',brand:'Samsung'});
+          const result=inspectSystem1VisualSet(files);
+          if(!result.ok)throw Error('VISUAL_GATE_FAILED_'+result.reason);
+          for(const item of files)writeFileSync('/tmp/ndn-system1-five-svg/'+item.filename,item.svg);
+          writeFileSync('/tmp/ndn-system1-five-svg/manifest.json',JSON.stringify({
+           version:1,site:'noondealsnow',scope:'single_canary_only',slug,market:'SA',
+           generatedAt:new Date().toISOString(),code:'NOV170',
+           assets:files.map(f=>({kind:f.kind,filename:f.filename,width:f.width,height:f.height,
+             sha256:f.sha256,alt:f.alt})),assetCount:5,
+           automatedValidationPassed:true,visualHumanReviewed:false,
+           allPublishedArticlesPassed:false,providerCalls:0
+          }));
+          console.log('VISUALS_GENERATED='+files.length+';DIMENSIONS=1600x1000;UNIQUE_SHA256=5;LLM_CALLS=0');
+          NODE
+          python3 - <<'PY'
+          import xml.etree.ElementTree as et
+          from glob import glob
+          paths=glob('/tmp/ndn-system1-five-svg/*.svg')
+          assert len(paths)==5
+          for p in paths:
+            root=et.parse(p).getroot()
+            assert root.attrib.get('width')=='1600' and root.attrib.get('height')=='1000'
+            assert root.attrib.get('viewBox')=='0 0 1600 1000'
+          print('SVG_XML_VALID=5/5;VISUAL_REVIEW=NOT_CLAIMED')
+          PY
+      - name: Save five verified canary designs and immutable evidence into EXISTING R2
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${R2_ACCESS:-}"
+          test -n "${R2_SECRET:-}"
+          python3 -m pip install --quiet --disable-pip-version-check boto3
+          python3 - <<'PY'
+          import os,json,hashlib,datetime
+          from pathlib import Path
+          import boto3
+          from botocore.config import Config
+          base=Path('/tmp/ndn-system1-five-svg')
+          manifest=json.loads((base/'manifest.json').read_text())
+          bucket='nooncoupons-content-v2';slug=manifest['slug']
+          s3=boto3.client('s3',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            aws_access_key_id=os.environ['R2_ACCESS'],aws_secret_access_key=os.environ['R2_SECRET'],
+            region_name='auto',config=Config(connect_timeout=10,read_timeout=20,retries={'max_attempts':2,'mode':'standard'}))
+          for entry in manifest['assets']:
+            raw=(base/entry['filename']).read_bytes()
+            assert hashlib.sha256(raw).hexdigest()==entry['sha256']
+            key='assets/system1/'+slug+'/'+entry['filename']
+            s3.put_object(Bucket=bucket,Key=key,Body=raw,ContentType='image/svg+xml')
+            verified=s3.get_object(Bucket=bucket,Key=key)['Body'].read()
+            assert verified==raw,'R2_VISUAL_READBACK_MISMATCH'
+            entry['r2Key']=key
+          summary={'version':1,'site':'noondealsnow','generatedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            'scope':'single_canary_only','verifiedArticles':1,'verifiedAssets':5,'allPublishedArticlesPassed':False,
+            'visualHumanReviewed':False,'canarySlug':slug,
+            'assets':[{'r2Key':f['r2Key'],'sha256':f['sha256'],'width':f['width'],'height':f['height']} for f in manifest['assets']]}
+          key='_ops/system1/visual-quality-summary-v1.json'
+          payload=json.dumps(summary,ensure_ascii=False).encode()
+          s3.put_object(Bucket=bucket,Key=key,Body=payload,ContentType='application/json')
+          assert s3.get_object(Bucket=bucket,Key=key)['Body'].read()==payload
+          print('VISUAL_CANARY_R2=PASS;ASSETS=5;ARTICLES=1;ALL_ARTICLES=NOT_VERIFIED;HUMAN_VISUAL_QA=NOT_DONE')
+          PY
