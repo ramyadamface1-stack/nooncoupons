@@ -35,3 +35,7 @@ jobs:
         run: node --check scripts/cloudflare-ai-crawler-analytics.mjs
       - name: Summarize AI search crawler requests and errors
         run: node scripts/cloudflare-ai-crawler-analytics.mjs
+      - name: Check recent 20-minute crawler error sample after sitemap optimizations
+        env:
+          CF_LOOKBACK_MINUTES: '20'
+        run: node scripts/cloudflare-ai-crawler-analytics.mjs
