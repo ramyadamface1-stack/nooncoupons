@@ -354,6 +354,27 @@ export async function hubSitemap(env,origin){
   return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300, s-maxage=900, stale-while-revalidate=86400','x-robots-tag':'all','x-hub-sitemap':'v1','x-hub-sitemap-count':String(out.length)}});
 }
 
+// The legacy English sitemap read a large restored R2 segment and occasionally
+// hit Worker 1102. Public bounded discovery is only a recent projection.
+// The independent rescue shard sitemaps in the root index retain historic
+// complete article coverage; do not alter or remove those URLs.
+export async function englishRecentSitemap(env,origin){
+  const rows=await boundedEnglishSitemapRecords(env);
+  const seen=new Set(),entries=[];
+  for(const a of rows){
+    const path=articleHref(a);
+    if(!path.startsWith('/en/articles/')||seen.has(path))continue;
+    seen.add(path);
+    const updated=a.updatedAt||a.createdAt||null;
+    entries.push('<url><loc>'+esc(origin+path)+'</loc>'+(updated?'<lastmod>'+esc(updated)+'</lastmod>':'')+'</url>');
+  }
+  const xml='<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+entries.join('')+'</urlset>';
+  return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8',
+    'cache-control':'public, max-age=300, s-maxage=900, stale-while-revalidate=86400',
+    'x-robots-tag':'all','x-english-sitemap-source':'public-recent-projection-v1',
+    'x-english-sitemap-count':String(entries.length)}});
+}
+
 export async function imageSitemap(env,origin){
   const data=await latest(env);
   const english=await boundedEnglishSitemapRecords(env);
@@ -539,6 +560,12 @@ export default{
     if(req.method==='GET'){
       const nativeSitemap=await nativeAiV2SitemapResponse(u.pathname,env,origin);
       if(nativeSitemap)return edgePageCachePut(req,u,nativeSitemap,ctx);
+      // Intercept the legacy heavy R2 sitemap renderers before rescue fallback:
+      // full historic article URLs remain in independent sitemap-rescue shards.
+      if(u.pathname==='/sitemap-en-articles.xml')
+        return edgePageCachePut(req,u,await englishRecentSitemap(env,origin),ctx);
+      if(u.pathname==='/sitemap-images.xml')
+        return edgePageCachePut(req,u,await imageSitemap(env,origin),ctx);
       if(u.pathname==='/sitemap-live-recent.xml'||u.pathname==='/sitemap-rescue-catalog.xml'||
          u.pathname==='/sitemap-rescue-english-catalog.xml'||
          /^\/sitemap-rescue-(?:articles|images|english|english-images)-\d{1,4}\.xml$/.test(u.pathname)){
