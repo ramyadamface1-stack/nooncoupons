@@ -37,6 +37,9 @@ jobs:
       - name: Verify market-specific coupon landing pages
         run: node --test tests/market-coupon-routes.test.mjs
 
+      - name: Verify market-specific coupon answer pages
+        run: node --test tests/nov-coupon-answer-market.test.mjs
+
       - name: Syntax-check runtime
         shell: bash
         run: |
