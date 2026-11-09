@@ -23,8 +23,8 @@ const AUDIT_DISCOVERY_CURRENT_KEY='maintenance/article-discovery-v1/current.json
 const STATIC_PAGE_PATHS=['/','/coupons','/blog','/blog/saudi','/blog/uae','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide','/about','/contact','/privacy','/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer','/terms','/research','/glossary','/countries'];
 const STATIC_GUIDE_PATHS=['/guide/how-to-use-noon-coupon','/guide/coupon-not-working','/guide/saudi-noon-saving-guide','/guide/uae-noon-saving-guide','/guide/first-order-guide','/guide/payment-methods-and-coupons','/guide/coupon-vs-offer','/guide/smart-cart-checklist','/guide/noon-yellow-friday','/guide/noon-refund-credit','/guide/philips-lumea-warranty-safety'];
 const STATIC_MARKET_MONEY_PATHS={
-  'coupons-saudi':['/saudi-arabia/noon-coupon-code',...HOMEPAGE_COUPONS_BY_MARKET.SA.map(code=>'/saudi-arabia/coupon/'+code.toLowerCase())],
-  'coupons-uae':['/uae/noon-coupon-code',...HOMEPAGE_COUPONS_BY_MARKET.AE.map(code=>'/uae/coupon/'+code.toLowerCase())]
+  'coupons-saudi':['/saudi-arabia/noon-coupon-code',...HOMEPAGE_COUPONS_BY_MARKET.SA.map(code=>'/coupon/'+code.toLowerCase())],
+  'coupons-uae':['/uae/noon-coupon-code',...HOMEPAGE_COUPONS_BY_MARKET.AE.map(code=>'/coupon/'+code.toLowerCase())]
 };
 const now=()=>new Date().toISOString();
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
