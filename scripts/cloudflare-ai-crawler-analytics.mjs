@@ -21,7 +21,7 @@ const lines = [
   '',
   'Host: '+SITE+'; UTC time: '+start.toISOString()+' to '+end.toISOString(),
   '',
-  '**Traffic sample observed at Cloudflare, not a confirmed ChatGPT/Gemini/Copilot recommendation. User-Agent can be spoofed; low traffic and sampling can hide real crawls.**',
+  '**Sampled, self-declared crawler names, NOT authenticated crawler activity or AI recommendations. Our own earlier synthetic checks used some of these same names, which can contaminate the totals.**',
   '',
   '| Claimed crawler | Sampled requests | 2xx/3xx | 4xx/5xx | Most requested path (sample) |',
   '|---|---:|---:|---:|---|'
