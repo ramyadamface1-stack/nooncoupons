@@ -43,6 +43,28 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 @media(max-width:1070px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:780px){.shell{display:block}aside{position:static;height:auto;overflow:visible;padding:11px 12px}.brand{padding:2px 5px 8px;margin:0;border:0}.brand strong{font-size:17px}.brand p,.navgroup,.asideBottom{display:none}.nav{display:flex;overflow:auto;gap:4px}.navbtn{width:auto;white-space:nowrap;font-size:12px;padding:8px 10px}main{padding:14px}.header{align-items:flex-start}h1{font-size:21px}.grid.two,.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:470px){.grid,.grid.two{grid-template-columns:1fr}.panel{padding:13px}.header{flex-direction:column}.row>.field{min-width:100%}}
+
+/* Read-only operator ribbon: colors describe evidence, never invented progress. */
+.live-strip{background:#fff;border:1px solid #d9e2ee;border-radius:15px;padding:16px 18px;margin:0 0 21px;box-shadow:0 3px 14px #11182705}
+.live-strip-top{display:flex;align-items:start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.live-kicker{color:#516579;font-size:12px;font-weight:700}
+.live-heading{display:flex;align-items:center;gap:10px;margin-top:4px;font-size:19px;color:#152c48}
+.live-dot{width:11px;height:11px;flex:none;border-radius:100%;background:#94a3b8}
+.live-strip[data-tone="ok"] .live-dot{background:#1b8061}.live-strip[data-tone="stop"] .live-dot{background:#b44343}
+.live-strip[data-tone="warn"] .live-dot{background:#bc8d29}
+.live-reason{font-size:13px;color:#465870;margin-top:5px;max-width:850px}
+.live-stamp{font-size:11px;color:#52647b;border:1px solid #dce5f0;border-radius:8px;padding:5px 9px;background:#f8fafc}
+.live-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:17px 0 13px}
+.live-step{min-width:0;border:1px solid #e0e7ef;border-bottom:4px solid #9baabd;border-radius:10px;padding:10px 12px;background:#f9fbfd}
+.live-step[data-tone="ok"]{border-bottom-color:#1b8061}.live-step[data-tone="warn"]{border-bottom-color:#bc8d29}.live-step[data-tone="stop"]{border-bottom-color:#b44343}
+.live-step-label{font-size:12px;color:#51627a;font-weight:700}.live-step-value{font-size:13px;font-weight:800;color:#263950;margin-top:3px;overflow-wrap:anywhere}
+.live-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.live-fact{border-top:1px solid #e8edf4;padding:10px 1px 1px;min-width:0}
+.live-fact-label{font-size:11px;color:#607186}.live-fact-value{font-size:13px;font-weight:800;color:#243950;overflow-wrap:anywhere;display:block}
+.live-attempt{margin-top:12px;padding:9px 11px;border:1px solid #dde6f0;border-radius:9px;background:#f8fafc;color:#36506a;font-size:12px}
+.live-footnote{margin:9px 0 0;color:#67768a;font-size:11px}
+@media(max-width:1070px){.live-steps,.live-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:470px){.live-strip{padding:13px}.live-heading{font-size:16px}.live-step{padding:9px}.live-steps,.live-facts{gap:7px}}
 </style></head><body><div class="shell">
 <aside><div class="brand"><strong>SYSTEM1</strong><p>NoonDealsNow · مركز إنتاج ونشر المحتوى</p></div>
 <div class="nav" role="tablist" aria-label="أقسام التحكم">
@@ -60,6 +82,27 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 <button type="button" class="navbtn" data-tab="diagnostics" aria-selected="false" role="tab">الأخطاء والتحليلات</button>
 </div><div class="asideBottom"><a href="/admin/legacy">الإدارة المتقدمة القديمة</a><a href="/blog" target="_blank" rel="noopener">عرض المدونة</a><a href="https://github.com/ramyadamface1-stack/nooncoupons/actions/workflows/noondealsnow-ai-v2.yml" target="_blank" rel="noopener">سجلات GitHub</a></div></aside>
 <main><header class="header"><div><h1>SYSTEM1 — مركز التحكم</h1><div class="dim">لوحة واحدة · بيانات إنتاج حقيقية فقط · توقيت القاهرة</div></div><button type="button" class="action secondary" id="refresh">تحديث البيانات</button></header>
+<div class="live-strip" id="liveStrip" data-tone="unknown" role="region" aria-label="شريط متابعة التوليد والنشر">
+ <div class="live-strip-top"><div>
+  <div class="live-kicker">حالة التشغيل والنشر — بيانات حقيقية</div>
+  <div class="live-heading"><span class="live-dot" aria-hidden="true"></span><strong id="liveHeadline" role="status" aria-live="polite">جارٍ التحقق من حالة النظام…</strong></div>
+  <div class="live-reason" id="liveReason">سيتم التحقق من المجدول وتقارير المقالات المنشورة، بدون افتراض أن الضغط على زر التشغيل أنجز نشرًا.</div>
+ </div><span class="live-stamp" id="liveCheckedAt">آخر فحص: جارٍ التحميل</span></div>
+ <div class="live-steps" aria-label="مؤشرات مستقلة لحالة المراحل">
+  <div class="live-step" id="liveStageScheduler" data-tone="unknown"><div class="live-step-label">1 — مجدول Cloudflare</div><div class="live-step-value">جارٍ الفحص</div></div>
+  <div class="live-step" id="liveStageGeneration" data-tone="unknown"><div class="live-step-label">2 — آخر تقرير توليد</div><div class="live-step-value">جارٍ الفحص</div></div>
+  <div class="live-step" id="liveStageReady" data-tone="unknown"><div class="live-step-label">3 — المخزون الجاهز READY</div><div class="live-step-value">جارٍ الفحص</div></div>
+  <div class="live-step" id="liveStagePublishing" data-tone="unknown"><div class="live-step-label">4 — النشر المؤكد</div><div class="live-step-value">جارٍ الفحص</div></div>
+ </div>
+ <div class="live-facts">
+  <div class="live-fact"><span class="live-fact-label">آخر مقالة منشورة مؤكدًا</span><strong class="live-fact-value" id="liveLastPublished">غير متاح</strong></div>
+  <div class="live-fact"><span class="live-fact-label">موعد المقالة القادمة</span><strong class="live-fact-value" id="liveNextPublish">غير محدد</strong></div>
+  <div class="live-fact"><span class="live-fact-label">المخزون الجاهز</span><strong class="live-fact-value" id="liveReadyCount">غير مقاس</strong></div>
+  <div class="live-fact"><span class="live-fact-label">آخر مشكلة أو سبب انتظار</span><strong class="live-fact-value" id="liveIssue">جارٍ الفحص</strong></div>
+ </div>
+ <div class="live-attempt" id="liveAttempt">آخر طلب «توليد الآن» من هذه الصفحة: لم يتم إرسال طلب في الجلسة الحالية.</div>
+ <p class="live-footnote">الشريط يوضح حالات مستقلة وليس نسبة تقدّم. قبول طلب التوليد لا يؤكد إنتاج مقال، وموعد فحص المولد لا يساوي موعد نشر المقالة.</p>
+</div>
 <section class="section active" id="view-overview" role="tabpanel">
 <h2>نظرة عامة</h2><p class="dim">التوليد والنشر عمليتان منفصلتان؛ نجاح المجدول لا يعني إنتاج مقال أو نشره.</p>
 <div class="grid two"><div class="state" id="genState" role="status"><strong>التوليد: جارٍ الفحص</strong><small>يتم التحقق من المجدول وتقارير GitHub</small></div><div class="state" id="pubState" role="status"><strong>النشر: جارٍ الفحص</strong><small>العداد من سجل المقالات المنشورة المؤكدة</small></div></div>
@@ -116,7 +159,7 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 (function(){
 "use strict";
 const $=id=>document.getElementById(id);
-let snapshot=null,keywords=null,shownProvider="gemini",gh=null;
+let snapshot=null,keywords=null,shownProvider="gemini",gh=null,lastManualDispatch=null;
 const tabs=[...document.querySelectorAll('[data-tab]')];
 function show(tab){if(!$('view-'+tab))tab='overview';for(const n of tabs){const active=n.dataset.tab===tab;n.classList.toggle('active',active);n.setAttribute('aria-selected',active?'true':'false');}
 for(const node of document.querySelectorAll('.section')){const active=node.id==='view-'+tab;node.classList.toggle('active',active);node.hidden=!active;}
@@ -140,8 +183,78 @@ function renderLastArticle(article){
  detail.className='subtle';detail.textContent=(article.country==='SA'?'السعودية':article.country==='AE'?'الإمارات':'غير معروف')+' · '+local(article.publishedAt);
  div.append(link,detail);el.append(div);
 }
+
+function liveStage(id,value,tone){
+ const el=$(id);el.dataset.tone=tone||'unknown';
+ el.querySelector('.live-step-value').textContent=value;
+}
+function liveFresh(value,minutes){
+ const ts=Date.parse(value||'');
+ return Number.isFinite(ts)&&Date.now()-ts>=-120000&&Date.now()-ts<=minutes*60000;
+}
+function liveOutcome(m){
+ const reason=m?.lastOutcome?.reason||'';
+ const status=m?.lastOutcome?.status||'';
+ if(status==='LIVE_VERIFIED')return 'آخر تقرير: نشر موثّق';
+ if(reason==='BATCH_CONTENT_THIN')return 'آخر محاولة: المحتوى لم يجتز الجودة';
+ if(reason==='PUBLISH_5XX_OUTCOME_QUARANTINED')return 'آخر محاولة نشر: خطأ 503، النتيجة غير مؤكدة';
+ if(reason==='QUEUE_WINDOW_EMPTY')return 'آخر تشغيل: لا توجد مهمة مؤهلة';
+ if(reason==='QUOTA_EXHAUSTED'||reason==='PAUSED_QUOTA')return 'انتظار تجدد الحصة';
+ if(status==='BLOCKED')return 'آخر محاولة: محجوبة — راجعي الأخطاء';
+ return 'لا توجد نتيجة توليد مؤكدة';
+}
+function renderLiveStrip(s){
+ const g=s.generation||{},p=s.publishing||{},v=p.verified||{},scheduler=g.actualScheduler||{};
+ const verifiedScheduler=g.desiredEnabled===true&&scheduler.reachable===true&&scheduler.enabled===true&&scheduler.controlStatus==='POLICY_VERIFIED';
+ const reports=Array.isArray(g.marketReports)?g.marketReports.filter(m=>m&&typeof m==='object'):[];
+ const latest=reports.slice().sort((a,b)=>Date.parse(b.generatedAt||'')-Date.parse(a.generatedAt||''))[0]||null;
+ const generationFresh=liveFresh(g.lastReportAt||latest?.generatedAt,15);
+ const publicationFresh=v.ledgerAvailable===true&&liveFresh(v.generatedAt,15);
+ let tone='warn',headline='حالة التشغيل غير مؤكدة',reason='لم تصل بيانات كافية لإثبات تشغيل المجدول.';
+ if(g.desiredEnabled===false){tone='stop';headline='التوليد متوقف من لوحة التحكم';reason='اضغطي تشغيل / استئناف ثم حدّثي الحالة للتأكد من تفعيل Cloudflare الفعلي.'}
+ else if(scheduler.reachable===false){headline='تعذر الاتصال بمجدول Cloudflare';reason='لا يمكن الجزم إن المجدول يعمل. يُرجى مراجعة الاتصال وحالة الخدمة.'}
+ else if(scheduler.enabled===false){tone='stop';headline='المجدول غير مفعّل فعليًا';reason='طلب التشغيل محفوظ، لكن مجدول Cloudflare لا يزال غير مفعّل. الضغط على توليد الآن لا يثبت تشغيلًا تلقائيًا.'}
+ else if(!verifiedScheduler){headline='تفعيل المجدول غير متحقق';reason='وصلت استجابة من Cloudflare، لكن سياسة تشغيل المجدول لم تُؤكَّد بعد.'}
+ else if(g.status==='PAUSED_QUOTA_EXHAUSTED'){headline='المجدول مفعّل — انتظار تجدد الحصة';reason='المفاتيح المتاحة في انتظار حصة Gemini/Groq وفق آخر تقرير. لا يوجد توليد ناجح مؤكد الآن.'}
+ else if(g.status==='WAITING_ELIGIBLE_TOPIC'){headline='المجدول مفعّل — لا توجد مهمة مؤهلة';reason='آخر فحص لم يجد موضوعًا مؤهلًا؛ هذا ليس دليلًا على نشر مقال جديد.'}
+ else if(!generationFresh){headline='المجدول مفعّل — ننتظر تقرير توليد حديث';reason='تشغيل المجدول لا يثبت أن Gemini/Groq يولّد مقالة الآن.'}
+ else {tone='ok';headline='المجدول مفعّل — ورد تقرير تشغيل حديث';reason='نستقبل بيانات التوليد؛ نجاح النشر يُقاس بشكل منفصل بسجل المنشورات المؤكدة.'}
+ $('liveStrip').dataset.tone=tone;
+ $('liveHeadline').textContent=headline;
+ $('liveReason').textContent=reason;
+ $('liveCheckedAt').textContent='آخر فحص: '+local(s.checkedAt)+' (القاهرة)';
+ liveStage('liveStageScheduler',verifiedScheduler?'مفعّل ومتحقق':g.desiredEnabled===false?'متوقف يدويًا':scheduler.reachable===false?'تعذر الاتصال':scheduler.enabled===false?'غير مفعّل':'التفعيل غير متحقق',verifiedScheduler?'ok':g.desiredEnabled===false||scheduler.enabled===false?'stop':'warn');
+ liveStage('liveStageGeneration',generationFresh?liveOutcome(latest):'لا يوجد تقرير حديث يثبت التوليد',generationFresh&&latest?.lastOutcome?.status==='LIVE_VERIFIED'?'ok':'warn');
+ const stockMeasured=s.stockpile?.available===true&&Number.isSafeInteger(s.stockpile.readyCount)&&s.stockpile.readyCount>=0;
+ liveStage('liveStageReady',stockMeasured?'READY مؤكد: '+s.stockpile.readyCount:'غير مقاس — لا نفترض صفرًا',stockMeasured?'ok':'warn');
+ const lastHour=Number.isSafeInteger(v.lastHour?.total)?v.lastHour.total:null;
+ liveStage('liveStagePublishing',publicationFresh&&lastHour!==null?(lastHour>0?'تم تأكيد '+lastHour+' مقالة آخر ساعة':'لا نشر مؤكّد آخر ساعة'):v.ledgerAvailable?'تقرير النشر قديم أو غير مكتمل':'سجل النشر غير متاح',publicationFresh&&lastHour>0?'ok':'warn');
+ $('liveLastPublished').textContent=v.ledgerAvailable&&liveFresh(v.lastArticle?.publishedAt,525600)?local(v.lastArticle.publishedAt):'غير متاح من السجل';
+ $('liveNextPublish').textContent=p.nextArticleScheduledAt?local(p.nextArticleScheduledAt):'غير محدد — ليس موعد التوليد';
+ $('liveReadyCount').textContent=stockMeasured?String(s.stockpile.readyCount):'غير مقاس';
+ let issue='لا يوجد خطأ محدد في آخر تقرير';
+ if(g.desiredEnabled===false)issue='التوليد متوقف يدويًا';
+ else if(scheduler.reachable===false)issue='مجدول Cloudflare لا يستجيب';
+ else if(scheduler.enabled===false)issue='المجدول غير مفعّل فعليًا';
+ else if(g.status==='PAUSED_QUOTA_EXHAUSTED')issue='انتظار تجدد حصة المفاتيح';
+ else if(generationFresh&&latest?.lastOutcome?.status==='BLOCKED')issue=liveOutcome(latest);
+ else if(!generationFresh)issue='تقرير التوليد غير حديث';
+ else if(!publicationFresh)issue='بيانات النشر غير حديثة أو غير متاحة';
+ $('liveIssue').textContent=issue;
+ $('liveAttempt').textContent=lastManualDispatch?
+ 'آخر طلب من هذه الصفحة: '+local(lastManualDispatch.at)+' — '+lastManualDispatch.message:
+ 'آخر طلب «توليد الآن» من هذه الصفحة: لم يتم إرسال طلب في الجلسة الحالية.';
+}
+function liveStripUnavailable(message){
+ $('liveStrip').dataset.tone='warn';
+ $('liveHeadline').textContent='تعذّر التحقق من حالة التوليد والنشر';
+ $('liveReason').textContent='تعذّر تحديث حالة الإنتاج. لا يمكن اعتبار القيم السابقة دليلًا على التشغيل الحالي. '+message;
+ $('liveCheckedAt').textContent='آخر فحص: فشل التحديث';
+ for(const id of ['liveStageScheduler','liveStageGeneration','liveStageReady','liveStagePublishing'])liveStage(id,'غير متاح حاليًا','warn');
+ for(const id of ['liveLastPublished','liveNextPublish','liveReadyCount','liveIssue'])$(id).textContent='غير متاح';
+}
 function update(){
-const s=snapshot;if(!s)return;const g=s.generation||{},p=s.publishing||{},v=p.verified||{};
+const s=snapshot;if(!s)return;renderLiveStrip(s);const g=s.generation||{},p=s.publishing||{},v=p.verified||{};
 setState('genState','التوليد — '+(statusNames[g.status]||g.status||'غير معروف'),
  'آخر تقرير: '+local(g.lastReportAt)+' | تشغيل كل '+fmt(g.actualScheduler?.intervalMinutes||g.dispatchIntervalMinutes)+' دقيقة',statusTone(g.status));
 setState('pubState','النشر — '+(publishNames[p.status]||p.status||'غير معروف'),
@@ -188,7 +301,7 @@ $(provider+'Quota').textContent=count?'إجمالي محمل: '+fmt(s.providers?
 }
 renderKeys();
 }
-async function load(){try{snapshot=await api('/api/admin/system1/summary');update()}catch(e){setState('genState','المراقبة غير متاحة',e.message,'warn');setState('pubState','النشر غير متاح','الرقم مجهول، وليس صفرًا','warn');note('تعذر قراءة بيانات الإنتاج: '+e.message)}}
+async function load(){try{snapshot=await api('/api/admin/system1/summary');update()}catch(e){liveStripUnavailable('تعذر قراءة بيانات الإنتاج');setState('genState','المراقبة غير متاحة',e.message,'warn');setState('pubState','النشر غير متاح','الرقم مجهول، وليس صفرًا','warn');note('تعذر قراءة بيانات الإنتاج: '+e.message)}}
 async function loadKeywords(){const rows=$('keywordRows');rows.replaceChildren();try{
  const params=new URLSearchParams({market:$('kwMarket').value,q:$('kwSearch').value.slice(0,120),limit:'100'});
  keywords=await api('/api/admin/system1/keywords?'+params.toString());
@@ -219,6 +332,8 @@ async function runNow(){
  const btn=$('runOnce');btn.disabled=true;
  try{
    const result=await post('/api/admin/ai-v2-run-now',{});
+   lastManualDispatch={at:new Date().toISOString(),message:result.dispatched?'تم قبول طلب التوليد في الخلفية، ولم يثبت توليد أو نشر مقالة بعد':'لم تُرسل محاولة جديدة'};
+   if(snapshot)renderLiveStrip(snapshot);
    note(result.dispatched?'استلمت خدمة الخلفية طلب التوليد من الموقع. لم يتم تأكيد توليد أو نشر مقالة بعد؛ تابعي العدادات والسجل.':'لم تُرسل محاولة جديدة');
    await load();
  }catch(e){
@@ -231,6 +346,8 @@ async function runNow(){
     github_token_expired:'رمز GitHub المحفوظ في Cloudflare انتهت صلاحيته؛ يجب تجديده.',
     github_token_permissions:'رمز GitHub المحفوظ لا يملك صلاحية Actions المطلوبة.'
    };
+   lastManualDispatch={at:new Date().toISOString(),message:messages[e.message]||'تعذر إرسال الطلب'};
+   if(snapshot)renderLiveStrip(snapshot);
    note(messages[e.message]||'تعذر إرسال المحاولة: '+e.message);
  }finally{btn.disabled=false}
 }

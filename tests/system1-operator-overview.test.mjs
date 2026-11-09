@@ -53,3 +53,21 @@ test('generation button starts from the site while keeping backend completion ho
  assert.match(SYSTEM1_HTML,/لم يتم تأكيد توليد أو نشر مقالة بعد/);
  assert.doesNotMatch(SYSTEM1_HTML,/id="runOnce">[^<]*GitHub/);
 });
+
+test('live status ribbon is visible before every tab and contains verified stages and publication facts',()=>{
+ assert.ok(SYSTEM1_HTML.indexOf('id="liveStrip"')<SYSTEM1_HTML.indexOf('id="view-overview"'));
+ for(const id of ['liveStrip','liveHeadline','liveReason','liveCheckedAt','liveStageScheduler',
+  'liveStageGeneration','liveStageReady','liveStagePublishing','liveLastPublished',
+  'liveNextPublish','liveReadyCount','liveIssue','liveAttempt'])
+  assert.match(SYSTEM1_HTML,new RegExp('id="'+id+'"'),id);
+ assert.match(SYSTEM1_HTML,/function renderLiveStrip\(s\)/);
+ assert.match(SYSTEM1_HTML,/scheduler\.controlStatus==='POLICY_VERIFIED'/);
+ assert.match(SYSTEM1_HTML,/publicationFresh&&lastHour>0/);
+ assert.match(SYSTEM1_HTML,/s\.stockpile\?\.available===true&&Number\.isSafeInteger/);
+ assert.match(SYSTEM1_HTML,/المجدول غير مفعّل فعليًا/);
+ assert.match(SYSTEM1_HTML,/غير محدد — ليس موعد التوليد/);
+ assert.match(SYSTEM1_HTML,/حالات مستقلة وليس نسبة تقدّم/);
+ assert.match(SYSTEM1_HTML,/function liveStripUnavailable\(message\)/);
+ assert.match(SYSTEM1_HTML,/lastManualDispatch=\{at:new Date\(\)\.toISOString\(\)/);
+ assert.doesNotMatch(SYSTEM1_HTML,/id="liveNextPublish"[^>]*>\d{1,2}:\d{2}/);
+});
