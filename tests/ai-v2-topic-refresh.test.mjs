@@ -176,7 +176,7 @@ test('N6 history remains wired before N7, without changing legacy provider budge
  const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(s,/import \{sixthEditorialTopicWave\} from '\.\/topic-refresh-n6\.mjs'/);
  assert.match(s,/const sixthWaveStart=fifthWaveStart\+fifthEditorialTopicWave\.length/);
- assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,seventhWaveStart,firstWindow,4\)/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,eighthWaveStart,firstWindow,4\)/);
  assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.match(s,/market-queue-v1/);
  assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
@@ -212,9 +212,40 @@ test('new N7 is used in production and keeps the 4+4 bounded reserve without res
  const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(s,/import \{seventhEditorialTopicWave\} from '\.\/topic-refresh-n7\.mjs'/);
  assert.match(s,/const seventhWaveStart=sixthWaveStart\+sixthEditorialTopicWave\.length/);
- assert.match(s,/\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave\]/);
- assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,seventhWaveStart,firstWindow,4\)/);
+ assert.match(s,/\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave\]/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,eighthWaveStart,firstWindow,4\)/);
  assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.match(s,/market-queue-v1/);
+ assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
+});
+
+import {eighthEditorialTopicWave} from '../automation/ai-v2/topic-refresh-n8.mjs';
+test('N8 adds market-safe, distinct concerns while preserving every prior immutable article identity',()=>{
+ const older=[...base,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave,...sixthEditorialTopicWave,...seventhEditorialTopicWave];
+ assert.ok(older.length>=5828,'Existing topic inventory shrank unexpectedly');
+ assert.ok(eighthEditorialTopicWave.length>=350,'N8 needs a substantial fresh reserve');
+ const earlier=new Set(older.map(x=>x.slug)),oldQuestions=new Set([...sixthEditorialTopicWave,...seventhEditorialTopicWave].map(x=>x.queryModifier)),fresh=new Set();
+ for(const topic of eighthEditorialTopicWave){
+  assert.ok(!earlier.has(topic.slug),'Previously scheduled slug reused: '+topic.slug);
+  assert.ok(!fresh.has(topic.slug),'Duplicate N8 slug: '+topic.slug);
+  fresh.add(topic.slug);
+  assert.ok(!oldQuestions.has(topic.queryModifier),'Previous buyer question reused: '+topic.queryModifier);
+  assertTopic(topic,config);
+  assert.ok(publicationReadyTopic(topic));
+  assert.equal(topic.coupon,topic.country==='SA'?'NOV170':'NOV188');
+  assert.ok(topic.topic.includes(topic.coupon));
+  assert.ok(topic.topic.includes(topic.country==='SA'?'نون السعودية':'Noon UAE'));
+  assert.ok(topic.topic.length>=28&&topic.topic.length<=72);
+  assert.equal(topic.sections.length,5);
+  assert.ok(topic.slug.endsWith('-2026-n8'));
+ }
+ assert.ok(eighthEditorialTopicWave.some(x=>x.country==='SA')&&eighthEditorialTopicWave.some(x=>x.country==='AE'));
+ const append=[...older,...eighthEditorialTopicWave];
+ for(let i=0;i<older.length;i++)assert.equal(append[i],older[i],'Prior article positions changed');
+ const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.match(s,/const eighthWaveStart=seventhWaveStart\+seventhEditorialTopicWave\.length/);
+ assert.match(s,/\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave\]/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,eighthWaveStart,firstWindow,4\)/);
+ assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
 });
