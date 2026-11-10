@@ -91,3 +91,51 @@ test('confirmed Cloudflare slot provides next real publishing opportunity, not a
  assert.equal(response.publishing.nextArticleScheduledAt,null);
  assert.equal(response.capabilities.separatePublicationCadence,true);
 });
+
+test('daily pulse includes real target, remaining, pace, verified dates and single click start',()=>{
+ for(const id of ['dailyPulse','dailyGoalTarget','dailyGoalPublished','dailyGoalRemaining',
+  'dailyGoalHour','dailyProgress','dailyProgressFill','dailyGoalStatus','dailyGoalUpdated',
+  'startNowFromRibbon'])assert.match(SYSTEM1_HTML,new RegExp('id="'+id+'"'),id);
+ assert.match(SYSTEM1_HTML,/function renderDailyPulse\(s\)/);
+ assert.match(SYSTEM1_HTML,/dailyGoal\.status|d\.status/);
+ assert.match(SYSTEM1_HTML,/await setControl\(\{enabled:true\}\)/);
+ assert.match(SYSTEM1_HTML,/await runNow\(true\)/);
+ assert.match(SYSTEM1_HTML,/published.*هدف|اتنشر فعلًا اليوم/);
+ assert.match(SYSTEM1_HTML,/NO_RECENT_PUBLICATION/);
+ assert.match(SYSTEM1_HTML,/BEHIND_TARGET/);
+});
+test('verified Cairo-day target shows 1440 at one minute, 288 at five, and no invented counts',async()=>{
+ const snapshot={ledgerAvailable:true,ageMinutes:5,generatedAt:new Date().toISOString(),
+  lastHour:{total:65,SA:30,AE:35},last24Hours:{total:750,SA:360,AE:390},
+  todayCairo:{total:800,SA:375,AE:425},cairoDayKey:'2026-11-10',
+  cairoDayStartUtc:new Date(Date.now()-7*60*60000).toISOString(),
+  lastArticle:{slug:'real-ai',country:'AE',publishedAt:new Date().toISOString()}};
+ const monitor=async()=>({ok:true,status:'published-recently',
+  scheduler:{reachable:true,enabled:true,intervalMinutes:1,controlStatus:'POLICY_VERIFIED'},
+  verified:snapshot,markets:[],providers:{}});
+ const env={CONTENT_FINAL:{get:async()=>null}};
+ const publishGate=async()=>({ok:true,aiV2PublishingIntervalMinutes:1,aiV2Eligible:true});
+ const result=await system1AdminSummary(env,{monitor,
+  control:async()=>({enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),publicationGate});
+ assert.equal(result.publishing.dailyGoal.dayTarget,1440);
+ assert.equal(result.publishing.dailyGoal.hourTarget,60);
+ assert.equal(result.publishing.dailyGoal.todayPublished,800);
+ assert.equal(result.publishing.dailyGoal.todayRemaining,640);
+ assert.equal(result.publishing.dailyGoal.status,'ON_TARGET');
+ assert.equal(result.publishing.dailyGoal.source,'VERIFIED_R2_LEDGER_CAIRO_DAY');
+ const slow=await system1AdminSummary(env,{monitor:async()=>({
+  ...await monitor(),verified:{...snapshot,lastHour:{total:6},todayCairo:{total:20,SA:10,AE:10}}}),
+  control:async()=>({enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),publicationGate});
+ assert.equal(slow.publishing.dailyGoal.status,'BEHIND_TARGET');
+ assert.equal(slow.publishing.dailyGoal.todayRemaining,1420);
+ const unknown=await system1AdminSummary(env,{monitor:async()=>({
+  ...await monitor(),verified:{...snapshot,ageMinutes:31}}),
+  control:async()=>({enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),publicationGate});
+ assert.equal(unknown.publishing.dailyGoal.todayPublished,null);
+ assert.equal(unknown.publishing.dailyGoal.status,'UNVERIFIED');
+ const everyFive=await system1AdminSummary(env,{monitor,
+  control:async()=>({enabled:true,intervalMinutes:5,publishingIntervalMinutes:5}),
+  publicationGate:async()=>({ok:true,aiV2PublishingIntervalMinutes:5,aiV2Eligible:true})});
+ assert.equal(everyFive.publishing.dailyGoal.dayTarget,288);
+ assert.equal(everyFive.publishing.dailyGoal.hourTarget,12);
+});
