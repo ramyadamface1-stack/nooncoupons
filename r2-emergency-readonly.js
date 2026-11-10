@@ -230,7 +230,14 @@ export async function nativeBoundAiV2ArticleFastResponse(req,env){
  if((market==='saudi'&&coupon!=='NOV170')||(market==='uae'&&coupon!=='NOV188'))return null;
  try{
    const article=await env.CONTENT_FINAL.get('articles/'+slug+'.html');
-   if(!article||article.customMetadata?.p!=='ai-v2-native'||
+   // A confirmed R2 miss for an approved N5-N9 URL is a definite 404.
+   // Do not fall through into the CPU-heavy legacy renderer (intermittent
+   // Cloudflare 1102/503 on duplicate prechecks). Never cache the 404:
+   // the exact article can be published safely a moment later.
+   if(!article)return new Response('Not Found',{status:404,headers:{
+     'cache-control':'no-store','x-native-article-absence':'r2-confirmed-v1'
+   }});
+   if(article.customMetadata?.p!=='ai-v2-native'||
       article.customMetadata?.status!=='published')return null;
    // One native R2 get, no remote S3 signing, list(), or generated AI call.
    const body=await article.text();
