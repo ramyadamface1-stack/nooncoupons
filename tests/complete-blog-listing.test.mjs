@@ -195,3 +195,24 @@ test('premium /blog fast path returns complete self-contained R2 markup without 
  assert.match(html,/application\/ld\+json/);
  assert.equal(e.calls.length,1,'First R2 page must require one bounded list call');
 });
+
+
+test('discovery entry avoids heavy secondary R2 discovery on complete blog pages',async()=>{
+ const {default:discovery}=await import('../discovery-entry.js');
+ const env=mockEnv(rows(36));
+ const gets=[];
+ const originalGet=env.CONTENT_FINAL.get;
+ env.CONTENT_FINAL.get=async key=>{gets.push(key);return originalGet(key)};
+ // Non-analytics cookie bypasses the shared cache, so we exercise the real
+ // production rendering path deterministically without mocking caches.default.
+ const req=new Request('https://noondealsnow.com/blog',{headers:{cookie:'pref=test'}});
+ const res=await discovery.fetch(req,env,{waitUntil(){}});
+ assert.equal(res.status,200);
+ assert.equal(res.headers.get('x-full-blog-r2'),'read-only-cursor-v1');
+ assert.equal(res.headers.get('x-blog-cpu-fast-path'),'v1');
+ assert.equal(res.headers.get('x-coupon-allowlist'),'nov-owner-v1');
+ assert.equal(urls(await res.text()).length,15);
+ assert.equal(env.calls.length,1,'One bounded R2 list is sufficient for public blog');
+ assert.ok(!gets.includes('english-canary/public-recent-v1.json'),
+   'Standalone blog does not need a secondary English discovery snapshot');
+});
