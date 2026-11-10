@@ -106,7 +106,7 @@ async function generate(env,market){
   let result=null,chosen=null,calls=0;
   for(let attempt=0;attempt<Math.min(3,pool.length);attempt++){
    const entry=pool[(start+attempt)%pool.length],model=entry.provider==='groq'?'openai/gpt-oss-120b':models[Math.floor(start/Math.max(1,pool.length)+attempt)%models.length];
-   chosen={provider:entry.provider,model};calls++;
+   chosen={provider:entry.provider,model,keyRef:(await fingerprint(entry.key)).slice(0,12)};calls++;
    try{result=await providerRequest(entry.provider,entry.key,model,batchArticlePrompt(topic))}
    catch{
     await jsonPut(env,checkpointKey,{...initial,state:'UNKNOWN_REQUEST_OUTCOME',provider:entry.provider,
@@ -125,11 +125,11 @@ async function generate(env,market){
    await jsonPut(env,checkpointKey,{...initial,state:'QUALITY_REJECTED',reason:parsed.reason,providerCalls:calls,at:utc()});
    return logState(env,{phase:'BATCH_QUALITY_REJECTED',market,calls});
   }
-  let article;
+  let article,finalTopic;
   try{
    const sections=parsed.sections.map((html,i)=>({heading:topic.sections[i],html}));
    const made=market==='SA'?buildSaudiAiV2Article(topic,sections):buildEnglishAiV2Article(topic,sections);
-   article=made.article||made;
+   article=made.article||made;finalTopic=made.topic||topic;
   }catch{
    await jsonPut(env,checkpointKey,{...initial,state:'ASSEMBLY_REJECTED',at:utc()});
    return logState(env,{phase:'ASSEMBLY_REJECTED',market});
@@ -140,9 +140,9 @@ async function generate(env,market){
   }
   const contentHash=await fingerprint(article.html),articleId=(await fingerprint(topic.slug)).slice(0,24);
   const readyKey=READY+Date.now()+'-'+topic.slug+'.json';
-  const prepared={state:'READY',topic,article,
+  const prepared={state:'READY',topic:finalTopic,article,
     checkpoint:{articleId,state:'PREPARED_FOR_NATIVE_AUDIT',contentHash,
-      attribution:{provider:chosen.provider,model:chosen.model}},
+      attribution:{provider:chosen.provider,keyRef:chosen.keyRef,contributors:[{provider:chosen.provider,keyRef:chosen.keyRef,sections:5}],mixed:false}},
     preparedAt:utc(),readyKey};
   const stored=await jsonPut(env,readyKey,prepared,{onlyIf:{etagDoesNotMatch:'*'}});
   if(!stored)throw Error('READY_WRITE_NOT_CONFIRMED');
