@@ -81,7 +81,12 @@ export async function publishAiV2NativeArticle(env,payload){
   cluster=await loadCluster(env,topic,new Map());
   recent=[...originals,...(cluster.entries||[])];
  }catch{return reject('QUALITY_INDEX_UNAVAILABLE')}
- const pre=preflightGlobalGate({...topic,kw:article.primaryKeyword},{entries:recent});
+ // The two global gates inspect the identical full native quality dataset.
+ // Share one container so quality-index.js can reuse its WeakMap CPU index
+ // instead of rebuilding all slug, keyword, intent and bucket sets twice.
+ // This does not reduce the dataset or change any uniqueness thresholds.
+ const recentIndex={entries:recent};
+ const pre=preflightGlobalGate({...topic,kw:article.primaryKeyword},recentIndex);
  if(!pre.pass)return reject('DUPLICATE_INTENT',{violations:pre.reasons});
  const coupon=couponStatus(topic);
  if(!coupon.publishAllowed)return reject('COUPON_FRESHNESS_BLOCK',{detail:coupon.reason});
@@ -91,7 +96,7 @@ export async function publishAiV2NativeArticle(env,payload){
  const audit=topic.country==='SA'?
   auditSeoArticle(article,topic,{minWords:1500,threshold:95,recent:auditRecent,semanticRecent:auditRecent,semanticPreflight:preSemantic}):
   auditEnglishSeoArticle(article,topic,{threshold:95,recent:auditRecent});
- const global=globalGate(article,topic,audit,{entries:recent});
+ const global=globalGate(article,topic,audit,recentIndex);
  const indexation=evaluateIndexation(article,topic,{globalGate:global,contextualLinks:(article.contextualLinks||[]).length,clusterSize:cluster.entries.length,schemaGate:schema,coupon});
  if(!schema.pass||!audit.productionReady||audit.score<95||!global.pass||!indexation.indexable){
   return reject('NATIVE_QUALITY_BLOCKED',{diagnostics:{score:audit.score,words:audit.wordCount,p0:audit.p0,failed:audit.failed,schemas:schema.errors,duplicates:global.reasons,indexation:indexation.reasons}});
