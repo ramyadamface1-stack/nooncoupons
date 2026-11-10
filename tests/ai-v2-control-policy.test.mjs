@@ -8,7 +8,7 @@ const enabledEnv={AI_V2_RUNTIME_ENABLED:'true'};
 const noopFetch=async()=>{throw Error('should not access public policy while runtime is disabled')};
 const policy=(enabled,intervalMinutes)=>async()=>new Response(JSON.stringify({ok:true,enabled,intervalMinutes}),{status:200});
 test('admin control intervals match scheduler and exclude unsafe subminute dispatch',()=>{
-  assert.deepEqual([...AI_V2_INTERVALS],[1,5,10,15,30,60]);
+  assert.deepEqual([...AI_V2_INTERVALS],[...Array.from({length:15},(_,i)=>i+1),30,60]);
 });
 test('requires the explicit production activation secret before contacting control policy',async()=>{
   const inactive=await managedRuntimeConfig(config,{},noopFetch);
