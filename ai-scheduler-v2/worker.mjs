@@ -189,7 +189,7 @@ export default {
     return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:active.enabled,
       intervalMinutes:active.intervalMinutes,source:'admin-do-policy-plus-explicit-runtime-secret',
       controlStatus:active.controlStatus,
-      dispatchPolicy:'one-cron-tick-per-minute-with-serialized-market-jobs',
+      dispatchPolicy:'one-cron-tick-per-minute-parallel-markets-global-atomic-publish',
       globalPublicationSpacingSeconds:30,
       legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:!active.enabled,
       publicationBridgeVerified:active.enabled,freeOnly:true,verifiedMarkets:['SA','AE'],
