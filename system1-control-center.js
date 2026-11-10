@@ -271,7 +271,7 @@ function renderLiveStrip(s){
  const reports=Array.isArray(g.marketReports)?g.marketReports.filter(m=>m&&typeof m==='object'):[];
  const latest=reports.slice().sort((a,b)=>Date.parse(b.generatedAt||'')-Date.parse(a.generatedAt||''))[0]||null;
  const generationFresh=liveFresh(g.lastReportAt||latest?.generatedAt,15);
- const publicationFresh=v.ledgerAvailable===true&&liveFresh(v.generatedAt,15);
+ const publicationFresh=v.ledgerAvailable===true&&liveFresh(v.generatedAt,30);
  let tone='warn',headline='حالة التشغيل غير مؤكدة',reason='لم تصل بيانات كافية لإثبات تشغيل المجدول.';
  if(g.desiredEnabled===false){tone='stop';headline='التوليد متوقف من لوحة التحكم';reason='اضغطي تشغيل / استئناف ثم حدّثي الحالة للتأكد من تفعيل Cloudflare الفعلي.'}
  else if(scheduler.reachable===false){headline='تعذر الاتصال بمجدول Cloudflare';reason='لا يمكن الجزم إن المجدول يعمل. يُرجى مراجعة الاتصال وحالة الخدمة.'}
@@ -316,6 +316,14 @@ function renderLiveStrip(s){
  'آخر طلب «توليد الآن» من هذه الصفحة: لم يتم إرسال طلب في الجلسة الحالية.';
 }
 function liveStripUnavailable(message){
+ $('dailyPulse').dataset.tone='warn';
+ $('dailyGoalStatus').textContent='فشل تحديث بيانات النشر؛ الأرقام السابقة غير موثوقة حتى عودة الاتصال.';
+ for(const id of ['dailyGoalPublished','dailyGoalRemaining','dailyGoalHour'])$(id).textContent='—';
+ $('dailyGoalUpdated').textContent='آخر جرد: تعذر التحديث';
+ $('dailyProgressFill').style.width='0%';
+ $('dailyProgress').removeAttribute('aria-valuenow');
+ $('dailyProgress').setAttribute('aria-valuetext','بيانات التقدم غير متاحة');
+ $('dailyProgressLabel').textContent='بيانات التقدم غير متاحة';
  $('liveStrip').dataset.tone='warn';
  $('liveHeadline').textContent='تعذّر التحقق من حالة التوليد والنشر';
  $('liveReason').textContent='تعذّر تحديث حالة الإنتاج. لا يمكن اعتبار القيم السابقة دليلًا على التشغيل الحالي. '+message;
