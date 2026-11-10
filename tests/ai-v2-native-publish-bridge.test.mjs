@@ -72,3 +72,50 @@ test('rejects old-year seasonal offers presented as current, while keeping histo
   const historical=base.article.html.replace('</article>','<p>In 2024 the laptop launched as a previous generation.</p></article>');
   assert.equal(validateAiV2NativePayload({...base,article:{...base.article,html:historical}}).ok,true);
 });
+
+
+test('closed global AI publication window returns before heavy R2 quality reads or slot claim',async()=>{
+ const {createHash}=await import('node:crypto');
+ const digest=createHash('sha256').update(base.article.html).digest('hex');
+ const input={...base,checkpoint:{...base.checkpoint,contentHash:digest}};
+ const log=[],next='2026-11-10T21:05:00.000Z';
+ const env={
+  CONTENT_FINAL:{
+   async get(){log.push('R2_GET');throw Error('Heavy original quality data must not be read')},
+   async head(){log.push('R2_HEAD');throw Error('No article HEAD before due')},
+   async put(){log.push('R2_WRITE');throw Error('No article write before due')}
+  },
+  GENERATOR_CONTROL:{
+   idFromName(name){assert.equal(name,'primary');return 'id'},
+   get(){return{fetch:async(_,options)=>{
+    log.push(options.method);
+    assert.equal(options.method,'GET','The first slot probe must NEVER claim the slot');
+    return new Response(JSON.stringify({
+     ok:true,aiV2Eligible:false,aiV2NextEligibleAt:next,eligible:true
+    }),{status:200,headers:{'content-type':'application/json'}});
+   }}}
+  }
+ };
+ const result=await publishAiV2NativeArticle(env,input);
+ assert.deepEqual(result,{ok:false,reason:'GLOBAL_PUBLICATION_SLOT_NOT_DUE',nextEligibleAt:next});
+ assert.deepEqual(log,['GET'],'No heavy quality audit, no R2 write and no publication claim');
+});
+
+test('closed publication check remains fail-closed for malformed or missing DO policy',async()=>{
+ const {createHash}=await import('node:crypto');
+ const digest=createHash('sha256').update(base.article.html).digest('hex');
+ const input={...base,checkpoint:{...base.checkpoint,contentHash:digest}};
+ let calls=0;
+ const env={CONTENT_FINAL:{async get(){throw Error('must not read R2')}},
+  GENERATOR_CONTROL:{idFromName:()=> 'id',get:()=>({fetch:async()=>{calls++;return new Response(JSON.stringify({ok:true}),{status:200,headers:{'content-type':'application/json'}})}})}
+ };
+ const result=await publishAiV2NativeArticle(env,input);
+ assert.equal(result.reason,'GLOBAL_PUBLICATION_SLOT_NOT_DUE');
+ assert.equal(calls,1);
+ const source=(await import('node:fs')).readFileSync(new URL('../ai-v2-native-publish-bridge.js',import.meta.url),'utf8');
+ const precheckAt=source.indexOf("const earlySlot=await getPublicationSlotStatus");
+ const auditAt=source.indexOf("const originals=await readFullNativeQualityFeed");
+ const claimAt=source.indexOf("const permit=await claimPublicationSlot");
+ const writeAt=source.indexOf("const saved=await env.CONTENT_FINAL.put");
+ assert.ok(precheckAt>=0&&precheckAt<auditAt&&auditAt<claimAt&&claimAt<writeAt);
+});
