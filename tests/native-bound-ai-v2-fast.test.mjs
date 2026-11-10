@@ -115,3 +115,51 @@ test('missing unapproved or legacy URLs never use the native 404 fast path',asyn
    new Request('https://noondealsnow.com/articles/'+slug),env),null);
  }
 });
+
+
+test('published N10 Saudi and UAE articles use the single-read CPU-safe renderer',async()=>{
+ for(const {country,slug,code,language} of [
+  {country:'SA',slug:'saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n10',code:'NOV170',language:'ar'},
+  {country:'AE',slug:'uae-buyer-xiaomi-phone-nfc-wallet-regional-compatibility-nov188-2026-n10',code:'NOV188',language:'en'}
+ ]){
+  const item=fixture({country});
+  const res=await nativeBoundAiV2ArticleFastResponse(
+   new Request('https://noondealsnow.com/articles/'+slug+'?origin=regression'),item.env);
+  assert.equal(res?.status,200,country);
+  assert.equal(res.headers.get('x-native-article-renderer'),'approved-fast-v1');
+  assert.equal(res.headers.get('content-language'),language);
+  assert.match(await res.text(),new RegExp(code));
+  assert.deepEqual(item.calls(),{gets:1,writes:0},country);
+ }
+});
+
+test('an unpublished N10 slug is a confirmed, uncached native R2 miss rather than a legacy CPU-heavy fallback',async()=>{
+ let calls=0;
+ const slug='saudi-buyer-hp-laptop-privacy-safety-nov170-2026-n10';
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{
+  async get(key){calls++;assert.equal(key,'articles/'+slug+'.html');return null},
+  async put(){throw Error('Native public read must not write')},
+  async list(){throw Error('Native public read must not enumerate')}
+ }};
+ const res=await nativeBoundAiV2ArticleFastResponse(
+  new Request('https://noondealsnow.com/articles/'+slug),env);
+ assert.equal(res.status,404);
+ assert.equal(res.headers.get('cache-control'),'no-store');
+ assert.equal(calls,1);
+});
+
+test('N10 fast path never admits future/unapproved slugs or cross-market coupon codes',async()=>{
+ const item=fixture();
+ for(const slug of [
+  'saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov188-2026-n10',
+  'uae-buyer-xiaomi-phone-nfc-wallet-regional-compatibility-nov170-2026-n10',
+  'saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n11',
+  'saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n100',
+  'saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n4'
+ ]){
+  const res=await nativeBoundAiV2ArticleFastResponse(
+   new Request('https://noondealsnow.com/articles/'+slug),item.env);
+  assert.equal(res,null,slug);
+ }
+ assert.deepEqual(item.calls(),{gets:0,writes:0});
+});
