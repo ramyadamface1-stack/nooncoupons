@@ -56,3 +56,13 @@ export function createProviderCircuitSnapshot(readPersisted,writePersisted){
   }
  };
 }
+
+// Prefer the other already-approved free provider after a definitive quota
+// rejection instead of wasting the entire five-call budget on one provider.
+// No request is repeated with the rejected credential; circuit checks remain.
+export function providerFailoverOrder(priority,lastQuotaRejected=null){
+ const names=Array.isArray(priority)?priority.filter(p=>p==='gemini'||p==='groq'):[];
+ const approved=[...new Set(names)];
+ if(!approved.includes(lastQuotaRejected))return approved;
+ return [...approved.filter(p=>p!==lastQuotaRejected),lastQuotaRejected];
+}

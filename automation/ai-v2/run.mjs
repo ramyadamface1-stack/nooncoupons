@@ -11,7 +11,7 @@ import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
 import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,queueExpansionBridgeWindow,queueRotatingFreshWaveWindow,nextQueueCursor,queueCursorAfterScan,queueCursorAnchorForScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
-import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from './provider-circuit.mjs';
+import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot,providerFailoverOrder} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
@@ -230,8 +230,9 @@ async function run(){
   // another key for the failed model may be tested at the next cron minute.
   // This bounds outage probes while keeping per-model+key cooldown isolated.
   const temporarilyFailedModelsThisRun=new Set();
+  let lastQuotaRejectedProvider=null;
   const chooseCredential=async index=>{
-    const preferred=explicitGroqResume?['groq']:priority;
+    const preferred=explicitGroqResume?['groq']:providerFailoverOrder(priority,lastQuotaRejectedProvider);
     for(const candidateProvider of preferred){
       if(!available[candidateProvider])continue;
       // Legacy Groq quota is global, but Gemini service errors are scoped to
@@ -335,6 +336,9 @@ async function run(){
           ...(invalidAuth?{errorCategory:result.category,lastRequestStatus:result.httpStatus,keyRef}:{}),
           resumeAt:new Date(Date.now()+pauseSec*1000).toISOString(),version:Number(oldPause?.version||0)+1});}
         catch(e){report('BLOCKED','PROVIDER_CIRCUIT_WRITE_FAILED',{provider,articleId});return}
+        // After a confirmed 429, prefer a different approved free provider
+        // before exhausting the entire per-run budget on sibling keys.
+        if(quota)lastQuotaRejectedProvider=provider;
         // No section is regenerated or discarded. On the next iteration the
         // selector skips the paused provider/key and tries another free source
         // in the SAME GitHub run, subject to the strict 5-request maximum.
