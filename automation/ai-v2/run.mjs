@@ -14,7 +14,7 @@ import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
 import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,queueExpansionBridgeWindow,queueRotatingFreshWaveWindow,nextQueueCursor,queueCursorAfterScan,queueCursorAnchorForScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
 import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot,providerFailoverOrder,unknownRequestModelKeyCooldown,recordGeminiModelQuotaRejection} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
-import {confirmedSlotRetryDelay} from './slot-retry.mjs';
+import {retryConfirmedNoWriteSlot} from './slot-retry.mjs';
 import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
 import {scheduledBatchAction,safeBatchReport} from './batch-continuation.mjs';
 import {expandedEditorialTopics} from './topic-expansion.mjs';
@@ -491,23 +491,23 @@ async function run(){
   }
   let response,payload;
   try{
-    ({response,payload}=await requestPublish());
-    const waitMs=confirmedSlotRetryDelay({
-      httpStatus:response.status,reason:payload?.reason,nextEligibleAt:payload?.nextEligibleAt
-    });
-    if(waitMs!==null){
-      // Acknowledged 409 is a definite no-write, so persist the safe resume
-      // point BEFORE waiting. A crash cannot trigger an unverified re-publish.
-      state=await saveCheckpoint(config,checkpointState(state,'PREPARED_FOR_NATIVE_AUDIT',{
-        errorCategory:'GLOBAL_PUBLICATION_SLOT_NOT_DUE',nextEligibleAt:payload.nextEligibleAt
-      }));
-      console.log('AI_V2_CONFIRMED_SLOT_WAIT '+JSON.stringify({articleId,waitMs}));
-      if(waitMs>0)await new Promise(resolve=>setTimeout(resolve,waitMs));
-      state=await saveCheckpoint(config,checkpointState(state,'PUBLISH_REQUEST_SENT',{
-        publishRequestedAt:now(),retryOf:'CONFIRMED_409_NO_WRITE'
-      }));
-      ({response,payload}=await requestPublish());
-    }
+    ({response,payload}=await retryConfirmedNoWriteSlot({
+      initial:await requestPublish(),
+      send:requestPublish,
+      checkpointReady:async({nextEligibleAt,waitMs,attempt})=>{
+        // Every 409 was an acknowledged DO denial before ANY article write.
+        // Preserve the original already-generated draft before waiting.
+        state=await saveCheckpoint(config,checkpointState(state,'PREPARED_FOR_NATIVE_AUDIT',{
+          errorCategory:'GLOBAL_PUBLICATION_SLOT_NOT_DUE',nextEligibleAt
+        }));
+        console.log('AI_V2_CONFIRMED_SLOT_WAIT '+JSON.stringify({articleId,waitMs,attempt}));
+      },
+      checkpointSent:async({attempt})=>{
+        state=await saveCheckpoint(config,checkpointState(state,'PUBLISH_REQUEST_SENT',{
+          publishRequestedAt:now(),retryOf:'CONFIRMED_409_NO_WRITE',slotRetryAttempt:attempt
+        }));
+      }
+    }));
   }catch{
     await saveCheckpoint(config,checkpointState(state,'UNKNOWN_PUBLICATION_OUTCOME',{errorCategory:'PUBLISH_HTTP_OUTCOME_UNKNOWN'}));
     report('BLOCKED','PUBLISH_HTTP_OUTCOME_UNKNOWN',{articleId,livePublished:false});return;
