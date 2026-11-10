@@ -439,6 +439,17 @@ async function run(){
       method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},
       body,signal:AbortSignal.timeout(45000)});
     const responseBody=await response.text();
+    // Classify recurring edge 5xx without emitting HTML, credentials or
+    // article content. This diagnostic never changes retry/write behavior.
+    if(response.status>=500&&response.status<600){
+      console.log('AI_V2_NATIVE_PUBLISH_5XX_DIAGNOSTIC '+JSON.stringify({
+        http:response.status,
+        workerResourceExceeded:/Error\s*1102|Worker exceeded resource limits/i.test(responseBody),
+        edgeDailyLimit:/Error\s*1027|daily limit exceeded/i.test(responseBody),
+        htmlBody:!/^\s*[{[]/.test(responseBody),
+        ray:(response.headers.get('cf-ray')||'').slice(0,35)||null
+      }));
+    }
     let payload;
     try{payload=JSON.parse(responseBody)}
     catch{payload={ok:false,reason:response.status===429&&/1027/.test(responseBody)
