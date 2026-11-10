@@ -35,6 +35,26 @@ export function providerCircuitActive(state,atMs=Date.now()){
  return ['PAUSED_QUOTA','PAUSED_PROVIDER'].includes(state?.state)&&Number.isFinite(Date.parse(state?.resumeAt))&&Date.parse(state.resumeAt)>atMs;
 }
 
+// A network timeout after sending a provider POST may already have consumed
+// a free request. Quarantine that ARTICLE permanently and pause only the
+// exact model/key for 10 minutes, without blaming every key or claiming 429.
+// Other approved free keys remain selectable on a later scheduled job.
+export const AMBIGUOUS_PROVIDER_MODEL_KEY_COOLDOWN_SECONDS=600;
+export function unknownRequestModelKeyCooldown({circuitId,provider,model,keyRef,prior=null,atMs=Date.now()}={}){
+ if(!/^[a-f0-9]{24}$/.test(String(circuitId||''))||
+    !['gemini','groq'].includes(provider)||
+    typeof model!=='string'||!model.trim()||
+    !/^[a-f0-9]{12}$/.test(String(keyRef||''))||
+    !Number.isFinite(atMs)||atMs<0)
+  throw Error('INVALID_AMBIGUOUS_PROVIDER_CIRCUIT');
+ const version=Number(prior?.version||0);
+ return {articleId:circuitId,state:'PAUSED_PROVIDER',provider,model,keyRef,
+   errorCategory:'NETWORK_OR_TIMEOUT_AFTER_REQUEST_SENT',
+   createdAt:new Date(atMs).toISOString(),
+   resumeAt:new Date(atMs+AMBIGUOUS_PROVIDER_MODEL_KEY_COOLDOWN_SECONDS*1000).toISOString(),
+   version:Number.isInteger(version)&&version>=0?version+1:1};
+}
+
 // Cache only provider/model/key cooldown reads within ONE serialized GitHub run.
 // This removes repeated private R2 GETs for five section requests. A successful
 // cooldown write replaces the cached record immediately; failed writes never
