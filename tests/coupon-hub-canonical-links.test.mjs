@@ -71,3 +71,58 @@ test('landing-page canonical links receive a fresh cache key without purging art
   assert.notEqual(publicEdgePolicyRevision('/articles/nov170-tips'),'nov-coupon-detail-links-v1');
   assert.notEqual(publicEdgePolicyRevision('/sitemap-core.xml'),'nov-coupon-detail-links-v1');
 });
+
+
+test('English market coupon pages only list five codes approved for that market and link canonical details',async()=>{
+  const {commerceLanding,ENGLISH_MARKET_COUPON_COPY_SCRIPT}=await import('../commerce-pages-v2.js');
+  for(const [market,key] of [['saudi','SA'],['uae','AE']]){
+    const res=await commerceLanding('/en/'+market+'/noon-coupon-code',origin,{});
+    assert.equal(res.status,200);
+    const html=await res.text();
+    const section=html.split('<h2>Codes to test now</h2>')[1]?.split('</section>')[0];
+    assert.ok(section,market+' has coupon listing');
+    const listed=[...section.matchAll(/data-english-copy="(NOV\d{3})"/g)].map(x=>x[1]);
+    assert.deepEqual(listed,HOMEPAGE_COUPONS_BY_MARKET[key]);
+    assert.equal(listed.length,5,'exactly five market-approved copy controls');
+    assert.ok(!section.includes('onclick='),'no stripped/inert inline copy handlers');
+    assert.ok(section.includes('data-market="'+key+'"'));
+    for(const code of listed)assert.ok(section.includes('href="/coupon/'+code.toLowerCase()+'"'),'canonical detail for '+code);
+    const primary=PRIMARY_COUPON_BY_MARKET[key];
+    assert.ok(html.includes('href="/coupon/'+primary.toLowerCase()+'">Primary '+primary+' coupon details</a>'));
+    assert.ok(html.includes(ENGLISH_MARKET_COUPON_COPY_SCRIPT),'live HTML contains real delegated copy implementation');
+    assert.equal(publicEdgePolicyRevision('/en/'+market+'/noon-coupon-code'),'english-market-coupon-copy-canonical-v1');
+  }
+  assert.equal(publicEdgePolicyRevision('/en/coupons'),'r2-jsonld-dedupe-r16','generic ten-code catalog stays untouched');
+});
+
+test('English coupon copy records success ONLY when the clipboard write succeeds',async()=>{
+  const {runInNewContext}=await import('node:vm');
+  const {ENGLISH_MARKET_COUPON_COPY_SCRIPT}=await import('../commerce-pages-v2.js');
+  const source=ENGLISH_MARKET_COUPON_COPY_SCRIPT.replace(/^<script[^>]*>/,'').replace(/<\/script>$/,'');
+  const run=async success=>{
+    const handlers={}; const events=[]; const pending=[];
+    const btn={
+      textContent:'Copy NOV188',
+      isConnected:true,
+      getAttribute:key=>({'data-english-copy':'NOV188','data-market':'AE'})[key]||null
+    };
+    const document={addEventListener:(event,handler)=>{handlers[event]=handler}};
+    const navigator={clipboard:{async writeText(code){assert.equal(code,'NOV188');if(!success)throw Error('blocked')}}};
+    const window={gtag:(...args)=>events.push(args)};
+    runInNewContext(source,{document,navigator,window,location:{pathname:'/en/uae/noon-coupon-code'},setTimeout:(fn)=>pending.push(fn)});
+    await handlers.click({target:{closest:(selector)=>selector==='button[data-english-copy]'?btn:null}});
+    return{btn,events,pending};
+  };
+  const copied=await run(true);
+  assert.equal(copied.btn.textContent,'Copied NOV188 ✓');
+  const successEvents=copied.events.filter(x=>x[1]==='coupon_copy_success');
+  assert.equal(successEvents.length,1);
+  assert.equal(successEvents[0][2].coupon_code,'NOV188');
+  assert.equal(successEvents[0][2].market,'AE');
+  assert.ok(!copied.events.some(x=>x[1]==='purchase'));
+  copied.pending[0]();
+  assert.equal(copied.btn.textContent,'Copy NOV188');
+  const denied=await run(false);
+  assert.match(denied.btn.textContent,/Copy unavailable/);
+  assert.equal(denied.events.filter(x=>x[1]==='coupon_copy_success').length,0);
+});

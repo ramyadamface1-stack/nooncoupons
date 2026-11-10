@@ -321,18 +321,47 @@ async function englishCouponsIndex(origin,env){
   return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${head}</head><body>${englishHeader('saudi')}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'coupon-index-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-generic-coupon-owner':'v1'});
 }
 
+
+export const ENGLISH_MARKET_COUPON_COPY_SCRIPT = `<script id="english-market-coupon-copy-v1">(function(){
+  if(window.__ndnEnglishMarketCouponCopyBound)return;
+  window.__ndnEnglishMarketCouponCopyBound=true;
+  document.addEventListener('click',async function(e){
+    var b=e.target&&e.target.closest?e.target.closest('button[data-english-copy]'):null;
+    if(!b)return;
+    var code=String(b.getAttribute('data-english-copy')||'').toUpperCase();
+    var market=String(b.getAttribute('data-market')||'');
+    if(!/^NOV[0-9]{3}$/.test(code)||!(/^(SA|AE)$/.test(market)))return;
+    var prior=b.textContent;
+    try{
+      if(!navigator.clipboard||typeof navigator.clipboard.writeText!=='function')throw Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(code);
+      b.textContent='Copied '+code+' ✓';
+      try{if(typeof window.gtag==='function')window.gtag('event','coupon_copy_success',{
+        coupon_code:code,market:market,page_path:location.pathname,
+        placement:'english_market_coupon',source:'confirmed_clipboard_write'
+      })}catch(_){}
+    }catch(_){
+      // A click or a blocked clipboard is never counted as a successful copy.
+      // The full text of the code stays visible in the card for manual copying.
+      b.textContent='Copy unavailable — select '+code+' above';
+    }
+    setTimeout(function(){if(b.isConnected!==false)b.textContent=prior},2400);
+  },false);
+})();</script>`;
+
 async function englishCouponPage(market,origin,env){
   const mk=MARKETS[market];if(!mk)return null;
   const countryName=market==='saudi'?'Saudi Arabia':'UAE',short=market==='saudi'?'KSA':'UAE',path=`/en/${market}/noon-coupon-code`;
   const rows=await englishMarketRows(env,market);
   const title=`Noon Coupon Code ${short} | Current Codes & Checkout Guide`;
   const desc=`Current Noon coupon codes to test in ${countryName}, with clear checkout verification, market-specific navigation and no unverified fixed-discount claims.`;
-  const cards=CODES.map(code=>`<article class="card"><small>Current site-approved test code</small><h3><span class="code">${esc(code)}</span></h3><p>Copy this code and test it on the same Noon ${esc(countryName)} cart. Eligibility and savings are confirmed only by the checkout result.</p><button class="cta" type="button" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(code)}');this.textContent='Code copied'">Copy ${esc(code)}</button></article>`).join('');
-  const hero=`<header class="hero"><div class="w"><div class="crumbs"><a href="/en/${market}">Noon ${countryName}</a> · <a href="${market==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code'}">العربية</a></div><h1>${title}</h1><p>${desc}</p></div></header>`;
+  const marketKey=market==='saudi'?'SA':'AE',marketCodes=HOMEPAGE_COUPONS_BY_MARKET[marketKey],primary=PRIMARY_COUPON_BY_MARKET[marketKey];
+   const cards=marketCodes.map(code=>`<article class="card"><small>Approved for Noon ${esc(countryName)}</small><h3><span class="code">${esc(code)}</span></h3><p>Copy this market-listed code and test it on the same Noon ${esc(countryName)} cart. Eligibility and savings are confirmed only by the checkout result.</p><button class="cta" type="button" data-english-copy="${esc(code)}" data-copy-code="${esc(code)}" data-market="${marketKey}" data-placement="english_market_coupon" aria-live="polite">Copy ${esc(code)}</button><div class="chips"><a href="/coupon/${code.toLowerCase()}">${esc(code)} details and terms</a></div></article>`).join('');
+  const hero=`<header class="hero"><div class="w"><div class="crumbs"><a href="/en/${market}">Noon ${countryName}</a> · <a href="${market==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code'}">العربية</a></div><h1>${title}</h1><p>${desc}</p><div class="chips"><a href="/coupon/${primary.toLowerCase()}">Primary ${primary} coupon details</a></div></div></header>`;
   const answer=`<section class="section"><h2>How do you verify a Noon coupon code in ${countryName}?</h2><div class="check"><div class="box"><strong>Use the correct market</strong><p>Keep the Noon ${esc(countryName)} store and delivery market fixed.</p></div><div class="box"><strong>Keep the cart unchanged</strong><p>Use the same products, quantities and sellers before and after the code.</p></div><div class="box"><strong>Read the checkout message</strong><p>Do not infer eligibility from a code name or a third-party percentage claim.</p></div><div class="box"><strong>Compare the payable total</strong><p>The final checkout total is the practical reference for this cart.</p></div></div></section>`;
   const main=`${answer}<section class="section"><h2>Codes to test now</h2><div class="grid">${cards}</div></section><section class="section">${englishTrust()}${englishFreshness(rows)}</section><section class="section"><h2>Continue shopping</h2><div class="chips"><a href="/en/${market}">Noon ${countryName} shopping hub</a><a href="/en/${market}/category/mobiles">Mobiles</a><a href="/${market}/categories">Arabic categories</a><a href="/coupon-verification">Coupon verification methodology</a></div></section>`;
   const head=englishHead(origin,path,title,desc,market,rows);
-  return htmlResponse(`<!doctype html><html lang="${market==='saudi'?'en-SA':'en-AE'}" dir="ltr"><head>${head}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'coupon-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-coupon-intent-owner':'v1','x-commerce-market':market});
+  return htmlResponse(`<!doctype html><html lang="${market==='saudi'?'en-SA':'en-AE'}" dir="ltr"><head>${head}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}${ENGLISH_MARKET_COUPON_COPY_SCRIPT}</body></html>`,'coupon-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-coupon-intent-owner':'v1','x-commerce-market':market});
 }
 
 async function englishUaeSavingGuide(origin,env){
