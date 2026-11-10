@@ -13,7 +13,7 @@ async function callPublicationGate(env,method,source,market){
       ...(method==='POST'?{headers:{'content-type':'application/json'},body:JSON.stringify({source:String(source||'unknown').slice(0,70),market:String(market||'SA').slice(0,8)})}:{})
     });
     let data={};try{data=await response.json()}catch{}
-    if(response.status===429)return {...data,ok:false,throttled:true};
+    if(response.status===429)return {...data,ok:false,throttled:true,confirmedNoWrite:method==='POST'};
     if(!response.ok||data.ok!==true)return {ok:false,throttled:true,error:data.error||'publication_control_failed'};
     return data;
   }catch(e){return {ok:false,throttled:true,error:'publication_control_unavailable',detail:String(e?.message||e).slice(0,100)}}

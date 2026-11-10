@@ -76,7 +76,9 @@ test('markets generate concurrently but publish through a single atomic global s
  assert.match(publisher,/run: sleep 30/);
  const pub=readFileSync('ai-v2-native-publish-bridge.js','utf8');
  assert.match(pub,/const permit=await claimPublicationSlot\(env,topic.country,'ai-v2-native'\)/);
- assert.match(pub,/if\(!permit.ok\)return reject\('GLOBAL_PUBLICATION_SLOT_NOT_GRANTED'\)/);
+ assert.match(pub,/if\(!permit.ok\)return nativePermitRejection\(permit\)/);
+ assert.match(pub,/permit\?\.confirmedNoWrite===true/);
+ assert.match(pub,/GLOBAL_PUBLICATION_SLOT_NOT_DUE/);
  assert.match(pub,/const saved=await env.CONTENT_FINAL.put/);
  const schedule=readFileSync('ai-scheduler-v2/worker.mjs','utf8');
  assert.match(schedule,/if\(!activeMarketRunners\)for\(const status of/);

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateAiV2NativePayload,publishAiV2NativeArticle} from '../ai-v2-native-publish-bridge.js';
+import {validateAiV2NativePayload,publishAiV2NativeArticle,nativePermitRejection} from '../ai-v2-native-publish-bridge.js';
+import {claimPublicationSlot} from '../publication-rate-limit.js';
 const topic={country:'SA',language:'ar-SA',code:'NOV170',slug:'saudi-samsung-storage-warranty-seller-checklist-2026'};
 const base={topic,checkpoint:{state:'PREPARED_FOR_NATIVE_AUDIT',articleId:'a'.repeat(24),contentHash:'b'.repeat(64)},
 article:{slug:topic.slug,country:'SA',coupon:'NOV170',primaryKeyword:'مقارنة التخزين سامسونج',title:'مقارنة التخزين سامسونج',
@@ -118,4 +119,41 @@ test('closed publication check remains fail-closed for malformed or missing DO p
  const claimAt=source.indexOf("const permit=await claimPublicationSlot");
  const writeAt=source.indexOf("const saved=await env.CONTENT_FINAL.put");
  assert.ok(precheckAt>=0&&precheckAt<auditAt&&auditAt<claimAt&&claimAt<writeAt);
+});
+
+
+test('parallel market collision: DO 429 is definitively no-write and carries its exact next publication minute',async()=>{
+ const now='2026-11-10T20:16:00.000Z',calls=[];
+ const env={GENERATOR_CONTROL:{
+  idFromName:()=> 'primary',
+  get:()=>({fetch:async(_url,req)=>{
+   calls.push(req.method);
+   return new Response(JSON.stringify({ok:false,nextEligibleAt:now,aiV2PublishingIntervalMinutes:1,
+     retryAfterMs:48000}),{status:429,headers:{'content-type':'application/json'}});
+  }})
+ }};
+ const permit=await claimPublicationSlot(env,'SA','ai-v2-native');
+ assert.equal(permit.ok,false);
+ assert.equal(permit.confirmedNoWrite,true);
+ assert.equal(permit.nextEligibleAt,now);
+ assert.deepEqual(nativePermitRejection(permit),
+  {ok:false,reason:'GLOBAL_PUBLICATION_SLOT_NOT_DUE',nextEligibleAt:now});
+ assert.deepEqual(calls,['POST']);
+});
+
+test('network, 5xx, malformed 429 or generic 409 must never authorize a repeated publish POST',async()=>{
+ for(const behavior of [
+  ()=>new Response('temporary error',{status:503}),
+  ()=>new Response('invalid',{status:429}),
+  ()=>new Response(JSON.stringify({ok:false,nextEligibleAt:'2026-11-10T20:16:00Z'}),{status:409}),
+  ()=>{throw Error('outcome unknown')}
+ ]){
+  const env={GENERATOR_CONTROL:{idFromName:()=> 'primary',get:()=>({fetch:async()=>behavior()})}};
+  const permit=await claimPublicationSlot(env,'AE','ai-v2-native');
+  const denial=nativePermitRejection(permit);
+  assert.equal(denial.reason,'GLOBAL_PUBLICATION_SLOT_NOT_GRANTED');
+  assert.equal('nextEligibleAt' in denial,false);
+ }
+ assert.equal(nativePermitRejection({confirmedNoWrite:true,nextEligibleAt:null}).reason,'GLOBAL_PUBLICATION_SLOT_NOT_GRANTED');
+ assert.equal(nativePermitRejection({confirmedNoWrite:false,nextEligibleAt:'2026-11-10T20:16:00Z'}).reason,'GLOBAL_PUBLICATION_SLOT_NOT_GRANTED');
 });
