@@ -124,8 +124,8 @@ test('fifth append-only reserve keeps old checkpoints stable and adds distinct s
 test('N5 identity remains in production queue before appended N6 wave',()=>{
  const source=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(source,/import \{fifthEditorialTopicWave\} from '\.\/topic-refresh-n5\.mjs'/);
- assert.match(source,/\.\.\.fourthEditorialTopicWave,\.\.\.fifthEditorialTopicWave,\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave\]/);
- assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,eighthWaveStart,firstWindow,4\)/);
+ assert.match(source,/\.\.\.fourthEditorialTopicWave,\.\.\.fifthEditorialTopicWave,\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave\]/);
+ assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
  assert.match(source,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  const previous=[...base,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave];
  const next=[...previous,...fifthEditorialTopicWave];
@@ -176,7 +176,7 @@ test('N6 history remains wired before N7, without changing legacy provider budge
  const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(s,/import \{sixthEditorialTopicWave\} from '\.\/topic-refresh-n6\.mjs'/);
  assert.match(s,/const sixthWaveStart=fifthWaveStart\+fifthEditorialTopicWave\.length/);
- assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,eighthWaveStart,firstWindow,4\)/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
  assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.match(s,/market-queue-v1/);
  assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
@@ -212,8 +212,8 @@ test('new N7 is used in production and keeps the 4+4 bounded reserve without res
  const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(s,/import \{seventhEditorialTopicWave\} from '\.\/topic-refresh-n7\.mjs'/);
  assert.match(s,/const seventhWaveStart=sixthWaveStart\+sixthEditorialTopicWave\.length/);
- assert.match(s,/\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave\]/);
- assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,eighthWaveStart,firstWindow,4\)/);
+ assert.match(s,/\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave\]/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
  assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.match(s,/market-queue-v1/);
  assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
@@ -244,8 +244,42 @@ test('N8 adds market-safe, distinct concerns while preserving every prior immuta
  for(let i=0;i<older.length;i++)assert.equal(append[i],older[i],'Prior article positions changed');
  const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(s,/const eighthWaveStart=seventhWaveStart\+seventhEditorialTopicWave\.length/);
- assert.match(s,/\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave\]/);
- assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,eighthWaveStart,firstWindow,4\)/);
+ assert.match(s,/\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave\]/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
  assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
+});
+
+import {ninthEditorialTopicWave} from '../automation/ai-v2/topic-refresh-n9.mjs';
+test('N9 adds a unique fresh SA and AE inventory without changing prior R2 article IDs',()=>{
+ const previous=[...base,...expandedEditorialTopics,...newEditorialTopicWave,
+  ...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave,
+  ...sixthEditorialTopicWave,...seventhEditorialTopicWave,...eighthEditorialTopicWave];
+ const oldSlugs=new Set(previous.map(x=>x.slug));
+ const usedQuestions=new Set([...seventhEditorialTopicWave,...eighthEditorialTopicWave].map(x=>x.queryModifier));
+ const seen=new Set();
+ assert.ok(ninthEditorialTopicWave.length>=250,'N9 reserve too small');
+ for(const item of ninthEditorialTopicWave){
+  assert.ok(!oldSlugs.has(item.slug),'N9 collision with historical slug '+item.slug);
+  assert.ok(!seen.has(item.slug),'N9 duplicate '+item.slug);
+  seen.add(item.slug);
+  assert.ok(!usedQuestions.has(item.queryModifier),'N9 buying question not distinct: '+item.queryModifier);
+  assertTopic(item,config);
+  assert.ok(publicationReadyTopic(item));
+  assert.equal(item.coupon,item.country==='SA'?'NOV170':'NOV188');
+  assert.ok(item.topic.includes(item.country==='SA'?'نون السعودية':'Noon UAE'));
+  assert.ok(item.topic.includes(item.coupon));
+  assert.ok(item.topic.length>=28&&item.topic.length<=72);
+  assert.ok(item.slug.endsWith('-2026-n9'));
+  assert.equal(item.sections.length,5);
+ }
+ assert.ok(ninthEditorialTopicWave.some(x=>x.country==='SA'));
+ assert.ok(ninthEditorialTopicWave.some(x=>x.country==='AE'));
+ const all=[...previous,...ninthEditorialTopicWave];
+ for(let i=0;i<previous.length;i++)assert.equal(all[i],previous[i]);
+ const source=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.match(source,/import \{ninthEditorialTopicWave\} from '\.\/topic-refresh-n9\.mjs'/);
+ assert.match(source,/const ninthWaveStart=eighthWaveStart\+eighthEditorialTopicWave\.length/);
+ assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
+ assert.match(source,/\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave\]/);
 });
