@@ -1,4 +1,5 @@
 import {readFileSync} from 'node:fs';
+import {probeLiveArticleBeforeDraft} from './live-precheck.mjs';
 import {buildSafeMonitor,writeSafeMonitor} from './runtime-telemetry.mjs';
 import {createHash} from 'node:crypto';
 import {cadence,validateConfig,assertTopic,mayCallProvider,qualityPreflight} from './guardrails.mjs';
@@ -201,10 +202,16 @@ async function run(){
     return;
   }
   if(!state){
-    let live;
-    try{live=await fetch(config.domain+'/articles/'+encodeURIComponent(topic.slug),{method:'GET',signal:AbortSignal.timeout(15000)})}
-    catch{report('SKIPPED','LIVE_DUPLICATE_PRECHECK_UNAVAILABLE');return}
-    if(live.status!==404){report('SKIPPED',live.status===200?'POSSIBLE_EXISTING_LIVE_ARTICLE':'LIVE_PRECHECK_HTTP_'+live.status);return}
+    // A transient Cloudflare 5xx must never be interpreted as an absent
+    // article. Retry only bounded public GET reads, never publication writes.
+    const precheck=await probeLiveArticleBeforeDraft(
+      config.domain+'/articles/'+encodeURIComponent(topic.slug));
+    if(precheck.status!==404){
+      report('SKIPPED',precheck.status===200?'POSSIBLE_EXISTING_LIVE_ARTICLE':
+        precheck.status===null?'LIVE_DUPLICATE_PRECHECK_UNAVAILABLE':'LIVE_PRECHECK_HTTP_'+precheck.status,
+        {precheckAttempts:precheck.attempts});
+      return;
+    }
     state=await saveCheckpoint(config,{articleId,topic,createdAt:now(),state:'PLANNED',version:0,sections:[],sectionIndex:0,pendingResponse:null});
   }
   if(state.state==='REQUEST_SENT'){
