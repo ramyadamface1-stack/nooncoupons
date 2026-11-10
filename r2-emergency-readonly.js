@@ -225,13 +225,13 @@ export async function nativeBoundAiV2ArticleFastResponse(req,env){
  if(req.method!=='GET'||String(env?.R2_RESCUE_READONLY_ENABLED||'')!=='false'||
     typeof env?.CONTENT_FINAL?.get!=='function')return null;
  const u=new URL(req.url),p=u.pathname.replace(/\/+$/,'');
- const hit=p.match(/^\/articles\/((saudi|uae)-buyer-[a-z0-9-]+-(nov170|nov188)-2026-n[5-9])$/);
+ const hit=p.match(/^\/articles\/((saudi|uae)-buyer-[a-z0-9-]+-(nov170|nov188)-2026-n(?:[5-9]|10))$/);
  if(!hit)return null;
  const slug=hit[1],market=hit[2],coupon=hit[3].toUpperCase();
  if((market==='saudi'&&coupon!=='NOV170')||(market==='uae'&&coupon!=='NOV188'))return null;
  try{
    const article=await env.CONTENT_FINAL.get('articles/'+slug+'.html');
-   // A confirmed R2 miss for an approved N5-N9 URL is a definite 404.
+   // A confirmed R2 miss for an approved N5-N10 URL is a definite 404.
    // Do not fall through into the CPU-heavy legacy renderer (intermittent
    // Cloudflare 1102/503 on duplicate prechecks). Never cache the 404:
    // the exact article can be published safely a moment later.
