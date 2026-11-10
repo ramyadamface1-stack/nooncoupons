@@ -39,6 +39,10 @@ export function publicEdgePolicyRevision(path,baseRevision='r2-jsonld-dedupe-r16
   if(String(path||'')==='/en/articles/en-iphone-18-pro-max-noon-abu-dhabi-price')
     return 'legacy-1102-cpu-canary-r2-direct-v1';
   if(kind==='article')return 'r2-rescue-security-ga4-topic-links-v21-nativefast-cpu';
+  // Refresh only these two English coupon pages after enforcing market lists,
+  // canonical detail links and real clipboard copy actions.
+  if(/^\/en\/(?:saudi|uae)\/noon-coupon-code$/.test(String(path||'').replace(/\/+$/,'')))
+    return 'english-market-coupon-copy-canonical-v1';
   // Country hubs previously featured a secondary code and omitted direct links to
   // the approved market-primary canonical detail; refresh these four small pages only.
   if(['/saudi','/uae','/en/saudi','/en/uae'].includes(String(path||'').replace(/\/+$/,'')))
