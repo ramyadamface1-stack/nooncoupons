@@ -1,12 +1,10 @@
-// Existing service binding, now powered ENTIRELY by Cloudflare Cron + R2.
-// This file intentionally imports no GitHub dispatch workflow or PAT.
+// This entrypoint is private to the named service binding on the SAME
+// Cloudflare account. /health remains the only externally reachable HTTP path.
 import {WorkerEntrypoint} from 'cloudflare:workers';
-import directEngine,{requestDirectGeneration,directStatus} from '../cloudflare-ai-direct/engine.mjs';
-import {listDirectKeys,importDirectKeys} from '../cloudflare-ai-direct/keys.mjs';
+import scheduler,{adminManualDispatch} from './worker.mjs';
 export class AdminDispatch extends WorkerEntrypoint{
- async dispatchOnce(){return requestDirectGeneration(this.env)}
- async keyInventory(){return listDirectKeys(this.env)}
- async importKeys(payload){return importDirectKeys(this.env,payload)}
- async status(){return directStatus(this.env)}
+ async dispatchOnce(){
+  return adminManualDispatch(this.env);
+ }
 }
-export default directEngine;
+export default scheduler;
