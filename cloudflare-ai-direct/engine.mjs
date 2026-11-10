@@ -247,10 +247,10 @@ export async function directStatus(env){
  const [p,status,ready]=await Promise.all([
   policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),env.CONTENT_FINAL.list({prefix:READY,limit:100})
  ]);
- return {ok:true,schedulerEnabled:p?.enabled===true,intervalMinutes:p?.intervalMinutes||null,
+ return {ok:true,schedulerEnabled:p?.enabled===true&&env.DIRECT_AI_STAGE==='production',intervalMinutes:p?.intervalMinutes||null,
   publishingIntervalMinutes:p?.publishingIntervalMinutes||null,
-  source:'cloudflare-cron-r2-direct',controlStatus:p?'POLICY_VERIFIED':'POLICY_UNAVAILABLE',
-  dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,
+  source:'cloudflare-cron-r2-direct',controlStatus:p?(env.DIRECT_AI_STAGE==='production'?'POLICY_VERIFIED':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
+  dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,directStage:env.DIRECT_AI_STAGE||'unset',
   freeOnly:true,readyCount:ready.objects.filter(x=>!x.key.endsWith('/')).length,
   lastGeneration:status||null,verifiedMarkets:['SA','AE']};
 }
