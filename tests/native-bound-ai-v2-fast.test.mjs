@@ -80,3 +80,38 @@ test('rescue mode and rejected native metadata preserve the existing full legacy
     assert.equal(f.calls().writes,0);
   }
 });
+
+
+test('new approved N9 URL missing from native R2 returns uncached 404 without legacy CPU fallback',async()=>{
+ let gets=0,writes=0;
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{
+  async get(key){gets++;assert.equal(key,'articles/uae-buyer-asus-router-warranty-checklist-nov188-2026-n9.html');return null},
+  async put(){writes++;throw Error('no writes')},
+  async list(){writes++;throw Error('no list')}
+ }};
+ const url='https://noondealsnow.com/articles/uae-buyer-asus-router-warranty-checklist-nov188-2026-n9';
+ const result=await nativeBoundAiV2ArticleFastResponse(new Request(url),env);
+ assert.equal(result.status,404);
+ assert.equal(result.headers.get('cache-control'),'no-store');
+ assert.equal(result.headers.get('x-native-article-absence'),'r2-confirmed-v1');
+ assert.equal(gets,1);
+ assert.equal(writes,0);
+});
+
+test('uncertain native R2 read does not invent an article-absence 404',async()=>{
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{
+  async get(){throw Error('temporary R2 failure')}
+ }};
+ const url='https://noondealsnow.com/articles/saudi-buyer-netgear-router-test-preflight-nov170-2026-n9';
+ assert.equal(await nativeBoundAiV2ArticleFastResponse(new Request(url),env),null);
+});
+
+test('missing unapproved or legacy URLs never use the native 404 fast path',async()=>{
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{
+  async get(){throw Error('R2 must not be read for a non-native slug')}
+ }};
+ for(const slug of ['legacy-store-article-2026','saudi-buyer-router-test-nov188-2026-n9']){
+  assert.equal(await nativeBoundAiV2ArticleFastResponse(
+   new Request('https://noondealsnow.com/articles/'+slug),env),null);
+ }
+});
