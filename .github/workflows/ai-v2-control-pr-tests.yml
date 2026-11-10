@@ -49,6 +49,7 @@ jobs:
           node --check auto-platform.js
           node --check ai-scheduler-v2/worker.mjs
           node --check automation/ai-v2/topic-queue.mjs
+          node --check automation/ai-v2/r2-checkpoints-http.mjs
           node --check automation/ai-v2/run.mjs
           node --check automation/ai-v2/topic-refresh-n7.mjs
           node --check automation/ai-v2/gemini-key-pool.mjs
@@ -59,6 +60,8 @@ jobs:
             tests/ai-v2-gemini-key-pool.test.mjs \
             tests/ai-v2-groq-key-pool.test.mjs \
             tests/ai-v2-topic-queue.test.mjs \
+            tests/ai-v2-r2-checkpoint-http.test.mjs \
+            tests/ai-v2-provider-circuit.test.mjs \
             tests/ai-v2-topic-refresh.test.mjs \
             tests/ai-v2-control-policy.test.mjs \
             tests/ai-v2-scheduler.test.mjs \
