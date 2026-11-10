@@ -21,7 +21,8 @@ test('UTC generator windows are supported but never presented as confirmed artic
  assert.equal(nextGenerationWindowAt(Date.parse('2026-11-09T17:03:12.000Z'),5),'2026-11-09T17:05:00.000Z');
  assert.equal(nextGenerationWindowAt(Date.parse('2026-11-09T17:03:12.000Z'),15),'2026-11-09T17:15:00.000Z');
  assert.equal(nextGenerationWindowAt(NaN,1),null);
- assert.equal(nextGenerationWindowAt(Date.now(),2),null);
+ assert.equal(nextGenerationWindowAt(Date.parse('2026-11-09T17:03:12.000Z'),2),'2026-11-09T17:04:00.000Z');
+ assert.equal(nextGenerationWindowAt(Date.now(),16),null);
 });
 test('dashboard summary distinguishes published article and metrics from unmeasured generation and future publications',async()=>{
  const control=async()=>({enabled:true,intervalMinutes:5,publishingIntervalMinutes:15});
