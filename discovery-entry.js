@@ -1,5 +1,6 @@
 import {enableExistingDestinationR2} from './r2-remote-existing-bucket.js';
 import {publishAiV2NativeArticle} from './ai-v2-native-publish-bridge.js';
+import {refreshLiveTemporalArticleHtml} from './article-temporal-freshness.js';
 import {reconcileAiV2Publication} from './ai-v2-publication-ledger.js';
 import {nativeAiV2SitemapResponse} from './ai-v2-sitemap.js';
 import app from './brand-runtime.js';
@@ -31,10 +32,18 @@ async function sanitizeCouponSurface(req,res){
   const textual=['text/html','application/json','application/ld+json','image/svg+xml','text/plain','application/javascript','text/javascript'].some(x=>type.includes(x));
   if(!textual)return res;
   const body=await res.text();
-  const fixed=replaceUnapprovedCouponTokens(body,couponFallbackForPath(new URL(req.url).pathname));
+  const urlPath=new URL(req.url).pathname;
+  const couponSafe=replaceUnapprovedCouponTokens(body,couponFallbackForPath(urlPath));
+  // Existing global response pass: covers old articles served through the
+  // original Worker, as well as R2 rescue and new native article routes.
+  // Do not process unrelated HTML, sitemaps, JSON or static assets.
+  const isArticle=/^\/(?:en\/)?articles\/[^/]+\/?$/.test(urlPath) && type.includes('text/html');
+  const editorial=isArticle?refreshLiveTemporalArticleHtml(couponSafe,{english:urlPath.startsWith('/en/')}):null;
+  const fixed=editorial?editorial.html:couponSafe;
   const h=new Headers(res.headers);
   h.delete('content-length');
   if(fixed!==body)h.set('x-coupon-surface-sanitized','v1');
+  if(editorial?.corrected)h.set('x-article-seasonal-context-corrections',String(editorial.corrected));
   h.set('x-coupon-allowlist','nov-owner-v1');
   return new Response(fixed,{status:res.status,statusText:res.statusText,headers:h});
 }
