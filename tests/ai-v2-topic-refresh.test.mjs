@@ -124,7 +124,7 @@ test('fifth append-only reserve keeps old checkpoints stable and adds distinct s
 test('N5 identity remains in production queue before appended N6 wave',()=>{
  const source=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(source,/import \{fifthEditorialTopicWave\} from '\.\/topic-refresh-n5\.mjs'/);
- assert.match(source,/\.\.\.fourthEditorialTopicWave,\.\.\.fifthEditorialTopicWave,\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave\]/);
+ assert.match(source,/\.\.\.fourthEditorialTopicWave,\.\.\.fifthEditorialTopicWave,\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave\]/);
  assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
  assert.match(source,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  const previous=[...base,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave];
@@ -212,7 +212,7 @@ test('new N7 is used in production and keeps the 4+4 bounded reserve without res
  const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(s,/import \{seventhEditorialTopicWave\} from '\.\/topic-refresh-n7\.mjs'/);
  assert.match(s,/const seventhWaveStart=sixthWaveStart\+sixthEditorialTopicWave\.length/);
- assert.match(s,/\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave\]/);
+ assert.match(s,/\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave\]/);
  assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
  assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.match(s,/market-queue-v1/);
@@ -244,7 +244,7 @@ test('N8 adds market-safe, distinct concerns while preserving every prior immuta
  for(let i=0;i<older.length;i++)assert.equal(append[i],older[i],'Prior article positions changed');
  const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(s,/const eighthWaveStart=seventhWaveStart\+seventhEditorialTopicWave\.length/);
- assert.match(s,/\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave\]/);
+ assert.match(s,/\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave\]/);
  assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
  assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
