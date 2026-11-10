@@ -9,14 +9,5 @@
   },
   "vars": {
     "SITE_ID": "noondealsnow"
-  },
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
-  "r2_buckets": [
-    {
-      "binding": "CONTENT_FINAL",
-      "bucket_name": "nooncoupons-content-v2"
-    }
-  ]
+  }
 }
