@@ -319,3 +319,61 @@ test('failed or mismatched public read never authorizes duplicate writing',async
   checkpoint:{state:'DEPLOYING'},persist:async()=>{}
  }),/INVALID_READ_ONLY_PUBLICATION_RECONCILIATION/);
 });
+
+
+test('intermittent 503 during ambiguous publish reconciliation retries public GET only',async()=>{
+ const requests=[],pauses=[],states=[];
+ const responses=[503,502,200];
+ const result=await reconcileAmbiguousPublication({
+  domain:'https://noondealsnow.com',
+  topic:{slug:'uae-uncertain-publish-retry-read-2026',coupon:'NOV188'},
+  checkpoint:{state:'UNKNOWN_PUBLICATION_OUTCOME'},
+  fetchFn:async(url,options)=>{
+   requests.push({url,method:options.method});
+   const status=responses[requests.length-1];
+   return {status,text:async()=>'<article>Verified NOV188 shopping guide</article>'};
+  },
+  pause:async ms=>pauses.push(ms),
+  persist:async(phase,patch)=>states.push({phase,patch})
+ });
+ assert.equal(result.status,'LIVE_VERIFIED');
+ assert.equal(result.reason,'RESUMED_AFTER_AMBIGUOUS_PUBLISH');
+ assert.equal(result.livePublished,true);
+ assert.deepEqual(requests.map(x=>x.method),['GET','GET','GET']);
+ assert.deepEqual(pauses,[500,1000]);
+ assert.equal(states.length,1);
+ assert.equal(states[0].phase,'LIVE_VERIFIED');
+});
+
+test('persistent 503 never authorizes publication retry or falsely marks published',async()=>{
+ const methods=[],states=[];
+ const result=await reconcileAmbiguousPublication({
+  domain:'https://noondealsnow.com',
+  topic:{slug:'saudi-uncertain-publish-503-case-2026',coupon:'NOV170'},
+  checkpoint:{state:'UNKNOWN_PUBLICATION_OUTCOME'},
+  fetchFn:async(_,opts)=>{methods.push(opts.method);return {status:503}},
+  pause:async()=>{},
+  persist:async(phase,patch)=>states.push({phase,patch})
+ });
+ assert.equal(result.status,'BLOCKED');
+ assert.equal(result.livePublished,false);
+ assert.deepEqual(methods,['GET','GET','GET']);
+ assert.equal(states[0].phase,'UNKNOWN_PUBLICATION_OUTCOME');
+ assert.equal(states[0].patch.reviewRequired,true);
+});
+
+test('a definitive 404 or 429 stops ambiguous publication inspection immediately',async()=>{
+ for(const status of [404,429]){
+  const methods=[];
+  const result=await reconcileAmbiguousPublication({
+   domain:'https://noondealsnow.com',
+   topic:{slug:'saudi-uncertain-publish-edge-case-2026',coupon:'NOV170'},
+   checkpoint:{state:'PUBLISH_REQUEST_SENT'},
+   fetchFn:async(_,opts)=>{methods.push(opts.method);return {status}},
+   pause:async()=>{throw Error('unexpected_retry')},
+   persist:async()=>{}
+  });
+  assert.equal(result.status,'BLOCKED');
+  assert.deepEqual(methods,['GET']);
+ }
+});
