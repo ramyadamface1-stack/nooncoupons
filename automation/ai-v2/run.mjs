@@ -16,6 +16,7 @@ import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKe
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
+import {scheduledBatchAction} from './batch-continuation.mjs';
 import {expandedEditorialTopics} from './topic-expansion.mjs';
 import {newEditorialTopicWave} from './topic-refresh.mjs';
 import {thirdEditorialTopicWave} from './topic-refresh-n3.mjs';
@@ -535,8 +536,19 @@ async function runScheduledBatch(){
     runStartedAt=Date.now();
     lastReportStatus=null;
     await run();
-    if(lastReportStatus!=='LIVE_VERIFIED')break;
-    published++;
+    const action=scheduledBatchAction(lastReportStatus,lastSafeReport?.reason);
+    if(action==='PUBLISHED'){published++;continue}
+    if(action==='NEXT_TOPIC'){
+      // One definitively invalid draft is permanently BLOCKED_REVIEW; never
+      // replay it or its provider request. Move to another topic, under the
+      // existing maximum-three-attempts and 150s job time guard.
+      console.log('AI_V2_JOB_BATCH_SKIP '+JSON.stringify({market:process.env.AI_QUEUE_MARKET,
+        reason:'BATCH_CONTENT_INVALID',attempt:i+1}));
+      continue;
+    }
+    // Any publication ambiguity, quota, transient provider problem or
+    // infrastructure failure stops; never amplify uncertain operations.
+    break;
   }
   console.log('AI_V2_JOB_BATCH '+JSON.stringify({market:process.env.AI_QUEUE_MARKET||null,
     verifiedArticles:published,maxArticles:maximum,elapsedMs:Date.now()-jobStarted}));
