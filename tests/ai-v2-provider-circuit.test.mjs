@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot,providerFailoverOrder} from '../automation/ai-v2/provider-circuit.mjs';
+import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot,providerFailoverOrder,unknownRequestModelKeyCooldown,AMBIGUOUS_PROVIDER_MODEL_KEY_COOLDOWN_SECONDS} from '../automation/ai-v2/provider-circuit.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 test('confirmed Groq 429 pauses across topics with bounded cooldown',()=>{
  assert.equal(quotaCooldownSeconds('30'),900);
@@ -72,4 +72,46 @@ test('confirmed 429 switches to the other already-approved free provider before 
  assert.deepEqual(providerFailoverOrder(['gemini'],'gemini'),['gemini']);
  assert.deepEqual(providerFailoverOrder(['groq','gemini','groq'],'groq'),['gemini','groq']);
  assert.deepEqual(providerFailoverOrder(['gemini','groq'],'unapproved-paid'),['gemini','groq']);
+});
+
+
+test('ambiguous Gemini timeout pauses exactly one free model/key without inventing a quota response',()=>{
+ const at=Date.parse('2026-11-10T19:20:00Z'),model='gemini-3.8-flash',key='aaaaaaaaaaaa';
+ const id=providerModelKeyCircuitId('gemini',model,key,sha);
+ const record=unknownRequestModelKeyCooldown({circuitId:id,provider:'gemini',model,keyRef:key,atMs:at,prior:{version:4}});
+ assert.equal(AMBIGUOUS_PROVIDER_MODEL_KEY_COOLDOWN_SECONDS,600);
+ assert.deepEqual(record,{
+  articleId:id,state:'PAUSED_PROVIDER',provider:'gemini',model,keyRef:key,
+  errorCategory:'NETWORK_OR_TIMEOUT_AFTER_REQUEST_SENT',
+  createdAt:'2026-11-10T19:20:00.000Z',
+  resumeAt:'2026-11-10T19:30:00.000Z',version:5
+ });
+ assert.ok(providerCircuitActive(record,at+599000));
+ assert.equal(providerCircuitActive(record,at+600000),false);
+ assert.notEqual(id,providerModelKeyCircuitId('gemini',model,'bbbbbbbbbbbb',sha));
+ assert.notEqual(id,providerModelKeyCircuitId('gemini','gemini-3.5-flash-lite',key,sha));
+ assert.notEqual(id,providerCircuitId('gemini',sha));
+ assert.equal(record.lastRequestStatus,undefined,'Do not fake a definite 429');
+ assert.equal(record.key,undefined,'Never persist the real credential');
+});
+
+test('invalid unknown-timeout circuit identifiers fail closed and a failed write never poisons unrelated free keys',async()=>{
+ const at=Date.parse('2026-11-10T19:20:00Z');
+ for(const patch of [{circuitId:'bad'}, {provider:'paid'}, {keyRef:'raw-secret'}, {model:''}]){
+  assert.throws(()=>unknownRequestModelKeyCooldown({
+   circuitId:'f'.repeat(24),provider:'gemini',model:'gemini-3.8-flash',keyRef:'a'.repeat(12),atMs:at,
+   ...patch
+  }),/INVALID_AMBIGUOUS_PROVIDER_CIRCUIT/);
+ }
+ const id=providerModelKeyCircuitId('gemini','gemini-3.8-flash','a'.repeat(12),sha);
+ const other=providerModelKeyCircuitId('gemini','gemini-3.8-flash','b'.repeat(12),sha);
+ const snap=createProviderCircuitSnapshot(async()=>null,async()=>{throw Error('R2_DOWN')});
+ const record=unknownRequestModelKeyCooldown({circuitId:id,provider:'gemini',
+  model:'gemini-3.8-flash',keyRef:'a'.repeat(12),atMs:at});
+ await assert.rejects(()=>snap.write(record),/R2_DOWN/);
+ assert.equal(await snap.read(id),null);
+ assert.equal(await snap.read(other),null);
+ const source=(await import('node:fs')).readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.match(source,/await saveCheckpoint\(config,checkpointState\(state,'UNKNOWN_REQUEST_OUTCOME',\{errorCategory:'NETWORK_OR_TIMEOUT_AFTER_REQUEST_SENT'\}\)\);\s*try\{\s*await providerCircuits\.write\(unknownRequestModelKeyCooldown\(/);
+ assert.match(source,/console\.warn\('AI_V2_UNKNOWN_MODEL_KEY_COOLDOWN_PERSIST_FAILED'\)/);
 });
