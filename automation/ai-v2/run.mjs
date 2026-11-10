@@ -12,7 +12,7 @@ import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
 import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,queueExpansionBridgeWindow,queueRotatingFreshWaveWindow,nextQueueCursor,queueCursorAfterScan,queueCursorAnchorForScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
-import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot,providerFailoverOrder,unknownRequestModelKeyCooldown} from './provider-circuit.mjs';
+import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot,providerFailoverOrder,unknownRequestModelKeyCooldown,recordGeminiModelQuotaRejection} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
@@ -240,6 +240,7 @@ async function run(){
   // another key for the failed model may be tested at the next cron minute.
   // This bounds outage probes while keeping per-model+key cooldown isolated.
   const temporarilyFailedModelsThisRun=new Set();
+  const geminiQuotaRejectedByModelThisRun=new Map();
   let lastQuotaRejectedProvider=null;
   const chooseCredential=async index=>{
     const preferred=explicitGroqResume?['groq']:providerFailoverOrder(priority,lastQuotaRejectedProvider);
@@ -361,6 +362,23 @@ async function run(){
         // After a confirmed 429, prefer a different approved free provider
         // before exhausting the entire per-run budget on sibling keys.
         if(quota)lastQuotaRejectedProvider=provider;
+        if(quota&&provider==='gemini'){
+          // Two different keys rejecting the SAME model within this job
+          // are a hint to test a different existing free model, not proof of
+          // account-wide exhaustion. Do not pause the model across jobs.
+          const freeModels=[...new Set([config.models.gemini,
+            config.models.geminiFallback,config.models.geminiTertiary].filter(Boolean))];
+          if(freeModels.some(m=>m!==model)){
+            const signal=recordGeminiModelQuotaRejection(
+              geminiQuotaRejectedByModelThisRun,model,keyRef);
+            if(signal.preferOtherFreeModel){
+              temporarilyFailedModelsThisRun.add(provider+'|'+model);
+              console.log('AI_V2_GEMINI_FREE_MODEL_ROTATION '+JSON.stringify({
+                model,confirmedDistinct429Keys:signal.distinctRejectedKeys,
+                scope:'this-job-only',calls}));
+            }
+          }
+        }
         // No section is regenerated or discarded. On the next iteration the
         // selector skips the paused provider/key and tries another free source
         // in the SAME GitHub run, subject to the strict 5-request maximum.
