@@ -71,6 +71,17 @@ export function validateAiV2NativePayload(payload){
  if(!html.includes(rule.code)||!/https:\/\/www\.noon\.com\//i.test(html))return reject('COUPON_OR_OFFICIAL_STORE_MISSING');
  return {ok:true};
 }
+// A DO HTTP 429 is a definite denial before the article R2 write.
+// Return the exact next slot only when the denial is provably no-write.
+// Infrastructure failures do not imply this and cannot authorize re-POST.
+export function nativePermitRejection(permit){
+ const stamp=permit?.nextEligibleAt;
+ const due=Date.parse(String(stamp||''));
+ if(permit?.confirmedNoWrite===true&&Number.isFinite(due)&&due>=0)
+   return reject('GLOBAL_PUBLICATION_SLOT_NOT_DUE',{nextEligibleAt:stamp});
+ return reject('GLOBAL_PUBLICATION_SLOT_NOT_GRANTED');
+}
+
 export async function publishAiV2NativeArticle(env,payload){
  const shape=validateAiV2NativePayload(payload);
  if(!shape.ok)return shape;
@@ -116,7 +127,7 @@ export async function publishAiV2NativeArticle(env,payload){
  // A concurrent publisher may acquire the slot while the native audits
  // run. Only this atomic claim may authorize the article's R2 write.
  const permit=await claimPublicationSlot(env,topic.country,'ai-v2-native');
- if(!permit.ok)return reject('GLOBAL_PUBLICATION_SLOT_NOT_GRANTED');
+ if(!permit.ok)return nativePermitRejection(permit);
  const at=new Date().toISOString();
  const attribution=checkpoint.attribution?normalizeAttribution(checkpoint.attribution):null;
  try{
