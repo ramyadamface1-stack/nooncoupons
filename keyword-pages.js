@@ -1,4 +1,6 @@
-const UPDATED='2026-10-01';
+// This date means the keyword map/template itself was edited, not that a
+// coupon or a historical article was re-tested. Keep original article dates.
+const UPDATED='2026-11-10';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
 
