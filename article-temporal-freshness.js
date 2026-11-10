@@ -27,8 +27,29 @@ export function refreshCurrentSeasonLabel(text,{date=new Date()}={}){
     return y>=2020&&y<=d.year+2&&y!==d.year?String(d.year):match;
   });
 }
-export function staleCurrentClaims(html,year=context(new Date()).year){
-  return [...String(html||'').matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].filter(m=>oldClaim(m[1],year)).map(m=>m[1].slice(0,150));
+// Audit the ORIGINAL article across all categories without changing HTML or timestamps.
+const currentGuide=/(?:دليل (?:شراء|اختيار)|أفضل|أحدث|احدث|عروض|خصومات|تخفيضات|موسم|رمضان|كود خصم|buying guide|shopping guide|best|offers?|discounts?|deals?|coupon)/i;
+const archive=/(?:أرشيف|الأرشيف|تاريخي|historical|archived?|released|launched|تاريخ الإطلاق)/i;
+function normalizedAuditText(s){
+  return visible(s).replace(/[٠-٩۰-۹]/g,c=>{
+    const n=c.charCodeAt(0);return String(n>=0x6F0?n-0x6F0:n-0x660);
+  }).replace(/\s+/g,' ').trim();
+}
+function staleMonth(text,year,month){
+  const months=[['يناير','january'],['فبراير','february'],['مارس','march'],['أبريل','ابريل','april'],['مايو','may'],['يونيو','june'],['يوليو','july'],['أغسطس','اغسطس','august'],['سبتمبر','september'],['أكتوبر','اكتوبر','october'],['نوفمبر','november'],['ديسمبر','december']];
+  return months.some((names,i)=>i+1<month&&names.some(n=>new RegExp('(?:^|\\s)'+n+'\\s+'+year+'(?:$|\\W)','i').test(text)));
+}
+export function staleCurrentClaims(html,year=context(new Date()).year,month=context(new Date()).month){
+  const found=[];
+  for(const m of String(html||'').matchAll(/<(title|h[1-6]|p|li|td|th|figcaption)\b[^>]*>([\s\S]*?)<\/\1>/gi)){
+    const tag=m[1].toLowerCase(),text=normalizedAuditText(m[2]);
+    if(!text||past.test(text)||forecast.test(text)||archive.test(text))continue;
+    const heading=tag==='title'||/^h[1-6]$/.test(tag);
+    if(oldClaim(text,year)||(heading&&mismatched(text,year)&&currentGuide.test(text))||
+      (staleMonth(text,year,month)&&currentGuide.test(text)&&(heading||active.test(text))))
+      found.push(text.slice(0,180));
+  }
+  return found;
 }
 function refreshTextParts(inner,{year,seasonal,english}){
   let inAnchor=false,inTime=false;
