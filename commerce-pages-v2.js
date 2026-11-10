@@ -15,6 +15,43 @@ import {readRecentPublicManifest} from './r2-public-manifest.js';
 import {APPROVED_COUPON_CODES,PRIMARY_COUPON_BY_MARKET,HOMEPAGE_COUPONS_BY_MARKET} from './approved-coupons.js';
 
 const CODES = APPROVED_COUPON_CODES;
+
+/**
+ * Verified model references for editorial navigation as of 10 November 2026.
+ * Official release/announcement pages were checked by editors; do not infer
+ * availability, prices, coupon eligibility or stock at Noon from these names.
+ * NEVER overwrite historical article titles, slugs, dates, or product reviews.
+ * Add further brands only after checking their latest official model release.
+ */
+export const EDITORIAL_DEVICE_REFERENCES_2026=Object.freeze({
+  apple:Object.freeze({brand:'Apple',models:Object.freeze(['iPhone 18 Pro Max','iPhone 18 Pro']),source:'https://www.apple.com/newsroom/2026/09/apple-debuts-iphone-18-pro-and-iphone-18-pro-max/',status:'released'}),
+  samsung:Object.freeze({brand:'Samsung',models:Object.freeze(['Galaxy S26 Ultra','Galaxy Z Fold8 Ultra','Galaxy Z Fold8','Galaxy Z Flip8']),source:'https://news.samsung.com/global/samsung-galaxy-z-fold8-ultra-fold8-and-flip8foldables-perfected-for-every-way-of-living',status:'released'}),
+  oppo:Object.freeze({brand:'OPPO',models:Object.freeze(['Find X10 Pro Max','Find X10']),source:'https://www.oppo.com/ae/newsroom/press/oppo-find-x10-series-coming-to-the-uae/',status:'released-in-uae-check-other-markets'}),
+  xiaomi:Object.freeze({brand:'Xiaomi',models:Object.freeze(['Xiaomi 18 Pro Series']),source:'https://www.mi.com/global/launch/xiaomi-launch-november-2026/',status:'official-launch-page-check-market-availability'}),
+  honor:Object.freeze({brand:'HONOR',models:Object.freeze(['Magic9 Pro Max']),source:'https://www.honor.com/global/news/honor-magic9-launch/',status:'china-announced-availability-unverified'})
+});
+export function currentDevicesEditorialPanel(market,brandKey=null,lang='ar'){
+  const keys=brandKey?[brandKey]:Object.keys(EDITORIAL_DEVICE_REFERENCES_2026);
+  const en=lang==='en',marketName=market==='saudi'?'Saudi Arabia':'UAE';
+  const cards=keys.map(key=>{
+    const entry=EDITORIAL_DEVICE_REFERENCES_2026[key];
+    if(!entry)return '';
+    const status=entry.status==='china-announced-availability-unverified'
+      ?(en?'Announced in China; local market availability unverified':'أُعلن عنه في الصين؛ توافره المحلي غير مؤكد')
+      :entry.status==='official-launch-page-check-market-availability'
+      ?(en?'Official launch page; check regional availability':'صفحة إطلاق رسمية؛ راجع الإتاحة المحلية')
+      :(en?'Officially announced; confirm Noon stock and seller':'موديلات معلنة رسميًا؛ تحقق من مخزون نون والبائع');
+    const modelList=entry.models.map(model=>'<li>'+esc(model)+'</li>').join('');
+    return '<article class="card"><h3><a href="/'+market+'/brand/'+key+'">'+esc(entry.brand)+'</a></h3><ul>'+modelList+'</ul><p>'+status+'</p><a class="read" href="/'+market+'/brand/'+key+'">'+(en?'Browse brand guides':'أدلة البراند')+'</a></article>';
+  }).filter(Boolean);
+  if(!cards.length)return '';
+  const title=en?'Verified 2026 device generations — reviewed 10 November 2026':'موديلات 2026 المُعلنة رسميًا — مراجعة 10 نوفمبر 2026';
+  const note=en
+    ?'This is an editorial model-reference list, not proof that any specific model is sold on Noon '+marketName+'. Earlier devices remain valid subjects for price and comparison articles. Never treat an older model as the newest generation.'
+    :'دي قائمة مراجع موديلات مُعلنة رسميًا، وليست إثباتًا لتوفرها على نون '+(market==='saudi'?'السعودية':'الإمارات')+'. المقالات عن أجهزة قديمة تظل مفيدة للمقارنة والأسعار، لكن لا نعرضها بوصف «الأحدث».';
+  return '<section class="section" data-current-device-evidence="2026-11-10"><h2>'+title+'</h2><p class="lead">'+note+'</p><div class="grid">'+cards.join('')+'</div></section>';
+}
+
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const enc = (s) => encodeURI(String(s || ''));
 const safeJson = (x) => JSON.stringify(x).replace(/</g, '\\u003c');
@@ -259,7 +296,7 @@ async function englishCategoryPage(market,key,origin,env){
  const brands=Object.entries(BRANDS).filter(([,b])=>b.categories?.includes(key)).map(([bk,b])=>`<article class="card"><h3>${esc(b.label)}</h3><p>Brand navigation within the ${esc(label)} category.</p><a class="read" href="/${market}/brand/${bk}">View Arabic brand hub →</a></article>`).join('');
  const evidence=saudiMobiles?true:groceryUae?rows.length>=2:rows.length>=3;
  const opportunityAnswer=groceryUae?`<section class="section"><h2>How should you test a Noon Grocery coupon in the UAE?</h2><div class="box"><p><strong>Quick answer:</strong> keep the grocery cart, quantities and seller stable, apply one code, then use the final Noon UAE checkout total as the reference for eligibility and savings.</p><p>This category hub is the broad owner for Noon Grocery coupon searches; individual articles below cover narrower checkout and product scenarios.</p></div></section>`:saudiMobiles?`<section class="section"><h2>Where should you start with Noon mobile offers in KSA?</h2><div class="box"><p><strong>Quick answer:</strong> use this page to compare mobile brands and buying routes in Noon Saudi Arabia, then test a coupon only after the exact phone, seller, storage and quantity are fixed.</p><p>This page owns the broad “Noon mobile offer KSA” intent; model-specific articles and brand pages handle narrower searches.</p></div></section>`:'';
- const main=`${coupon}<section class="section">${englishTrust()}${englishFreshness(rows)}</section>${opportunityAnswer}<section class="section"><h2>${esc(label)} shopping guidance</h2><div class="check"><div class="box"><strong>Before copying a code</strong><p>Check seller, product eligibility, minimum cart rules and account status.</p></div><div class="box"><strong>At checkout</strong><p>The final Noon total is the source of truth for whether a coupon applies.</p></div></div></section><section class="section"><h2>Relevant brands</h2><div class="grid4">${brands||'<div class="empty">Brand hubs will be added only where they are relevant to this category.</div>'}</div></section><section class="section"><h2>Eligible guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">This English category stays out of search until it has enough supporting content.</div>'}</section>`;
+ const main=`${coupon}<section class="section">${englishTrust()}${englishFreshness(rows)}</section>${opportunityAnswer}${key==='mobiles'?currentDevicesEditorialPanel(market,null,'en'):''}<section class="section"><h2>${esc(label)} shopping guidance</h2><div class="check"><div class="box"><strong>Before copying a code</strong><p>Check seller, product eligibility, minimum cart rules and account status.</p></div><div class="box"><strong>At checkout</strong><p>The final Noon total is the source of truth for whether a coupon applies.</p></div></div></section><section class="section"><h2>Relevant brands</h2><div class="grid4">${brands||'<div class="empty">Brand hubs will be added only where they are relevant to this category.</div>'}</div></section><section class="section"><h2>Eligible guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">This English category stays out of search until it has enough supporting content.</div>'}</section>`;
  const robots=evidence?'index,follow,max-image-preview:large':'noindex,follow';
  const head=englishHead(origin,path,title,desc,market,rows).replace('content="index,follow,max-image-preview:large"',`content="${robots}"`);
  return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${head}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}${ENGLISH_MARKET_COUPON_COPY_SCRIPT}</body></html>`,'category-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-evidence':saudiMobiles?'gsc-demand-backed':evidence?'content-backed':'insufficient','x-robots-tag':robots});
@@ -464,7 +501,7 @@ async function categoryPage(market, key, origin, env) {
   const eligibleBrandCount=Object.values(BRANDS).filter(b=>b.categories?.includes(key)).length;
   const mobileBrands = eligibleBrandCount ? `<section class="section"><h2>براندات ${c.label}</h2><p class="lead">اختر البراند ثم انتقل إلى عائلة المنتج والمقالات والعروض المرتبطة.</p>${brandGrid(market,'',key)}</section>` : '';
   const opportunityAnswer=isSaudiMobiles?`<section class="section"><h2>أين تجد عروض نون للموبايلات؟</h2><div class="box"><p><strong>الإجابة المختصرة:</strong> ابدأ من هذه الصفحة لمقارنة براندات وموديلات الموبايلات على نون السعودية، ثم جرّب الكود على نفس السلة وراجع السعر النهائي داخل نون قبل الدفع.</p><p>نربط هنا الموبايلات بالبراند والموديل والمقالات المتخصصة حتى لا تضطر للبحث بين صفحات منفصلة وغير مترابطة.</p></div></section>`:gscCategoryIntent?`<section class="section"><h2>${esc(gscCategoryIntent.title.split('|')[0].trim())}</h2><div class="box"><p><strong>الإجابة المختصرة:</strong> هذه الصفحة هي نقطة التجميع العامة لهذا القسم على نون السعودية. استخدم المقالات للمواقف التفصيلية، وجرّب الكود فقط على السلة نفسها ثم اعتمد على إجمالي نون النهائي.</p></div></section>`:'';
-  const main = `${couponBox(market,key,c.label)}${opportunityAnswer}<section class="section"><h2>خطوات قرار الشراء</h2><div class="check"><div class="box"><strong>1. حدد الاستخدام</strong><br>اختيار المنتج يسبق اختيار الكوبون.</div><div class="box"><strong>2. ثبت النسخة</strong><br>قارن نفس السعة أو المقاس أو الإصدار.</div><div class="box"><strong>3. راجع البائع</strong><br>الضمان والإرجاع والشحن جزء من القرار.</div><div class="box"><strong>4. اختبر الكود</strong><br>قارن الإجمالي النهائي بعد تطبيقه.</div></div></section>${mobileBrands}<section class="section"><h2>مقالات ${c.label}</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">ستظهر المقالات المتخصصة هنا عندما تتوفر أدلة مراجعة ومناسبة لهذا القسم.</div>'}</section><section class="section"><h2>أقسام مرتبطة</h2>${categoryGrid(market,key)}</section>`;
+  const main = `${couponBox(market,key,c.label)}${opportunityAnswer}<section class="section"><h2>خطوات قرار الشراء</h2><div class="check"><div class="box"><strong>1. حدد الاستخدام</strong><br>اختيار المنتج يسبق اختيار الكوبون.</div><div class="box"><strong>2. ثبت النسخة</strong><br>قارن نفس السعة أو المقاس أو الإصدار.</div><div class="box"><strong>3. راجع البائع</strong><br>الضمان والإرجاع والشحن جزء من القرار.</div><div class="box"><strong>4. اختبر الكود</strong><br>قارن الإجمالي النهائي بعد تطبيقه.</div></div></section>${key==='mobiles'?currentDevicesEditorialPanel(market):''}${mobileBrands}<section class="section"><h2>مقالات ${c.label}</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">ستظهر المقالات المتخصصة هنا عندما تتوفر أدلة مراجعة ومناسبة لهذا القسم.</div>'}</section><section class="section"><h2>أقسام مرتبطة</h2>${categoryGrid(market,key)}</section>`;
   return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market,key), 'category', {'x-commerce-category':key});
 }
 
@@ -488,7 +525,7 @@ async function brandPage(market, key, origin, env) {
   const comps = Object.entries(COMPARISONS).filter(([,c]) => c.a === key || c.b === key).map(([k,c]) => `<article class="card"><h3><a href="/${market}/compare/${k}">${esc(c.title)}</a></h3><a class="read" href="/${market}/compare/${k}">افتح المقارنة ←</a></article>`).join('');
   const aliasText=(b.aliases||[]).filter(Boolean).slice(0,3).join(' / ');
   const answer = `<section class="section"><h2>هل يوجد كود أو قسيمة خصم ${esc(b.label)} على نون؟</h2><div class="box"><p><strong>الإجابة المختصرة:</strong> استخدم الكود الظاهر في هذه الصفحة كتجربة داخل سلة نون ${esc(mk.name)}، ثم اعتبر رسالة نون والإجمالي النهائي المرجع الفعلي للأهلية والتوفير.</p><p>هذه الصفحة هي نقطة التجميع الأساسية لبحث ${esc(b.label)} العام${aliasText?'، بما في ذلك الصيغ: '+esc(aliasText):''}؛ أما المقالات أدناه فمخصصة لموديلات أو سيناريوهات شراء أكثر تحديدًا.</p></div></section>`;
-  const main = `${couponBox(market,'brand:'+key,b.label)}${answer}<section class="section"><h2>عائلات ${b.label}</h2><div class="grid">${models}</div></section><section class="section"><h2>مقارنات مرتبطة</h2><div class="grid">${comps || '<div class="empty">ستضاف المقارنات المناسبة هنا.</div>'}</div></section><section class="section"><h2>مقالات ${b.label}</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">تظهر المقالات تلقائيًا عند تطابق البراند بوضوح.</div>'}</section><section class="section"><h2>براندات أخرى</h2>${brandGrid(market,key,primaryCategory)}</section>`;
+  const main = `${couponBox(market,'brand:'+key,b.label)}${answer}${currentDevicesEditorialPanel(market,key)}<section class="section"><h2>عائلات ${b.label}</h2><div class="grid">${models}</div></section><section class="section"><h2>مقارنات مرتبطة</h2><div class="grid">${comps || '<div class="empty">ستضاف المقارنات المناسبة هنا.</div>'}</div></section><section class="section"><h2>مقالات ${b.label}</h2>${rows.length ? `<div class="grid">${rows.map(articleCard).join('')}</div>` : '<div class="empty">تظهر المقالات تلقائيًا عند تطابق البراند بوضوح.</div>'}</section><section class="section"><h2>براندات أخرى</h2>${brandGrid(market,key,primaryCategory)}</section>`;
   return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market,primaryCategory), 'brand', {'x-commerce-brand':key,'x-brand-intent-owner':'v2','x-brand-primary-category':primaryCategory,'x-gsc-brand-intent':gscBrandIntent?'observed':'generic'});
 }
 
