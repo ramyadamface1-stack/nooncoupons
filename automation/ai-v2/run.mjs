@@ -26,6 +26,7 @@ import {sixthEditorialTopicWave} from './topic-refresh-n6.mjs';
 import {seventhEditorialTopicWave} from './topic-refresh-n7.mjs';
 import {eighthEditorialTopicWave} from './topic-refresh-n8.mjs';
 import {ninthEditorialTopicWave} from './topic-refresh-n9.mjs';
+import {tenthEditorialTopicWave} from './topic-refresh-n10.mjs';
 const config=JSON.parse(readFileSync(new URL('./config.json',import.meta.url)));
 const baseTopics=JSON.parse(readFileSync(new URL('./topics.json',import.meta.url)));
 const existingTopicCount=baseTopics.length+expandedEditorialTopics.length+newEditorialTopicWave.length+thirdEditorialTopicWave.length;
@@ -35,7 +36,8 @@ const sixthWaveStart=fifthWaveStart+fifthEditorialTopicWave.length;
 const seventhWaveStart=sixthWaveStart+sixthEditorialTopicWave.length;
 const eighthWaveStart=seventhWaveStart+seventhEditorialTopicWave.length;
 const ninthWaveStart=eighthWaveStart+eighthEditorialTopicWave.length;
-const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave,...sixthEditorialTopicWave,...seventhEditorialTopicWave,...eighthEditorialTopicWave,...ninthEditorialTopicWave];
+const tenthWaveStart=ninthWaveStart+ninthEditorialTopicWave.length;
+const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave,...sixthEditorialTopicWave,...seventhEditorialTopicWave,...eighthEditorialTopicWave,...ninthEditorialTopicWave,...tenthEditorialTopicWave];
 let runStartedAt=Date.now();
 let lastReportStatus=null,lastSafeReport=null,lastSelectedCredential=null,jobBatchOrdinal=0;
 const report=(status,reason,data={})=>{
@@ -115,7 +117,7 @@ async function run(){
   // rotate as the durable cursor progresses. Existing topic IDs never change.
   const positions=[...firstWindow,...(oneOffCanary?[]:[
     ...queueExpansionBridgeWindow(topics.length,existingTopicCount,firstWindow,4),
-    ...queueRotatingFreshWaveWindow(topics.length,ninthWaveStart,firstWindow,4)
+    ...queueRotatingFreshWaveWindow(topics.length,tenthWaveStart,firstWindow,4)
   ])];
   let checked=0,lastChecked=null,checkpointStates={},reconciliationAttempts=0,reconciledLive=0;
   // If all free sources are cooling down, do not pin the global queue to an
