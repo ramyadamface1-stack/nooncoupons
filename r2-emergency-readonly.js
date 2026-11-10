@@ -1,4 +1,5 @@
 import {completeBlogResponse} from './complete-blog-listing.js';
+import {refreshLiveTemporalArticleHtml} from './article-temporal-freshness.js';
 import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
 // Temporary, READ-ONLY fallback for public pages when the old account's R2 is NotEntitled (10042).
 // Source of article bytes: existing mirrored R2 in destination Cloudflare account.
@@ -184,7 +185,7 @@ export function removeRedundantSourceArticleJsonLd(content){
 export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  const md=obj?.meta||{},country=english?'AE':String(md.c||'').toUpperCase()==='AE'?'AE':'SA';
  const code=country==='AE'?'NOV188':'NOV170';
- const source=String(obj?.body||'');
+ const source=refreshLiveTemporalArticleHtml(String(obj?.body||''),{english}).html;
  if(md.p!=='ai-v2-native'||md.status!=='published'||md.c!==country||
     md.cp!==code||Number(md.q)<95||Number(md.w)<1500||
     source.length<4000||source.length>240000||!source.includes(code)||
@@ -260,7 +261,7 @@ async function serveArticle(env,u,english){
   const fast=renderApprovedNativeAiV2Fast(obj,slug,u,english);
   if(fast)return fast;
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
-  const body=repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country),country),country),country,english);
+  const body=refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country),country),country),country,english),{english}).html;
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
   const description=cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'')).slice(0,170),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1);
