@@ -43,6 +43,12 @@ export function publicEdgePolicyRevision(path,baseRevision='r2-jsonld-dedupe-r16
   // canonical detail links and real clipboard copy actions.
   if(/^\/en\/(?:saudi|uae)\/noon-coupon-code$/.test(String(path||'').replace(/\/+$/,'')))
     return 'english-market-coupon-copy-canonical-v1';
+  // Refresh country mobiles and verifiable brand hubs after editorial device
+  // model references were reviewed (no mutation of published R2 articles).
+  if(/^\/(?:saudi|uae)\/category\/mobiles$/.test(String(path||'').replace(/\/+$/,'')) ||
+     /^\/en\/(?:saudi|uae)\/category\/mobiles$/.test(String(path||'').replace(/\/+$/,'')) ||
+     /^\/(?:saudi|uae)\/brand\/(?:apple|samsung|oppo|xiaomi|honor)$/.test(String(path||'').replace(/\/+$/,'')))
+    return 'editorial-verified-device-20261110-v1';
   // Country, category, product, and saving-guide copy controls had inert inline
   // handlers. Also enforce coupon selection from the country allowlist only.
   // Scope cache invalidation to exactly the changed public English pages.
