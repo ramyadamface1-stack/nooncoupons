@@ -2,7 +2,7 @@
 // Never rewrite stored article JSON, coupon values, dates, slugs, historic years or links.
 const sale=/عروض|خصومات|خصم|كوبون|كود\s*خصم|بروموكود|تخفيضات|موسم|رمضان|الجمعة البيضاء|sale|offers?|discounts?|season|deals?|coupon|promo/i;
 const active=/الآن|حاليًا|حاليا|اليوم|ساري|متاح(?:ة)?|current|today|this year|available now|active/i;
-const past=/كان|كانت|في عام|تاريخي|سابق|انتهى|expired|historical|previous|was|were|in 20\d{2}/i;
+const past=/كان|كانت|في عام|تاريخي|أرشيف|الأرشيف|سابق|انتهى|expired|historical|previous|was|were|in 20\d{2}/i;
 const forecast=/توقعات|متوقع|القادم|العام المقبل|معاينة|preview|upcoming|forecast|prediction|next year/i;
 const oldPhone=/iPhone\s*1[0-7]|(?:آيفون|ايفون)\s*1[0-7]|Galaxy\s*S2[0-5]|\bS2[0-5]\b/i;
 const newest=/الأحدث|أحدث|احدث|latest|newest|current generation/i;
