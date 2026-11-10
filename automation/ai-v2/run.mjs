@@ -3,6 +3,7 @@ import {buildSafeMonitor,writeSafeMonitor} from './runtime-telemetry.mjs';
 import {createHash} from 'node:crypto';
 import {cadence,validateConfig,assertTopic,mayCallProvider,qualityPreflight} from './guardrails.mjs';
 import {checkpointState} from './r2-checkpoints.mjs';
+import {ambiguousPublicationState,reconcileAmbiguousPublication,MAX_READ_ONLY_RECONCILIATIONS_PER_RUN} from './publication-reconciliation.mjs';
 import {readCheckpointRest as readCheckpoint,saveCheckpointRest as saveCheckpoint} from './r2-checkpoints-http.mjs';
 import {callProvider} from './providers.mjs';
 import {geminiKeyInventory,selectGeminiKey} from './gemini-key-pool.mjs';
@@ -112,7 +113,7 @@ async function run(){
     ...queueExpansionBridgeWindow(topics.length,existingTopicCount,firstWindow,4),
     ...queueRotatingFreshWaveWindow(topics.length,eighthWaveStart,firstWindow,4)
   ])];
-  let checked=0,lastChecked=null,checkpointStates={};
+  let checked=0,lastChecked=null,checkpointStates={},reconciliationAttempts=0,reconciledLive=0;
   // If all free sources are cooling down, do not pin the global queue to an
   // unfinished article. Its immutable R2 checkpoint survives; later cycles
   // can find it again, while another ready draft may publish without AI.
@@ -139,6 +140,22 @@ async function run(){
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
       saved?.state==='BLOCKED_REVIEW'&&saved?.errorCategory==='INCOMPLETE_RESPONSE';
     if(!resumableCheckpoint(saved,{savedOnly,manualGroqResume:explicitGroqResume,manualIncompleteRetry:explicitIncompleteRetry,nativeGateRepair:safeSaudiCanary&&savedOnly,autoSafeSaudiRecovery:!oneOffCanary,autoSafeSaudiFilesystemRecovery:!oneOffCanary,autoSafeEnglishRecovery:!oneOffCanary,autoReadOnlyReconcile:!oneOffCanary,topic}))continue;
+    // Reconcile a bounded number of old uncertain writes without letting
+    // them monopolize this minute's generation/publishing opportunity.
+    // Only GET the public URL; NEVER replay an ambiguous publish POST.
+    if(!oneOffCanary&&ambiguousPublicationState(saved)){
+      if(reconciliationAttempts>=MAX_READ_ONLY_RECONCILIATIONS_PER_RUN)continue;
+      const outcome=await reconcileAmbiguousPublication({
+        domain:config.domain,topic,checkpoint:saved,
+        persist:(phase,patch)=>saveCheckpoint(config,checkpointState(saved,phase,patch))
+      });
+      reconciliationAttempts++;
+      if(outcome.status==='LIVE_VERIFIED')reconciledLive++;
+      console.log('AI_V2_READ_ONLY_RECONCILE '+JSON.stringify({
+        market:topic.country,articleId,status:outcome.status,reason:outcome.reason
+      }));
+      continue;
+    }
     selected={topic,articleId,saved};break;
   }
   if(!oneOffCanary&&lastChecked!==null){
@@ -154,7 +171,7 @@ async function run(){
   }
   if(!selected){
     report('SKIPPED',oneOffCanary?'NO_ELIGIBLE_TOPIC':'QUEUE_WINDOW_EMPTY',
-      {queue:queueInventory(topics),checked,scanLimit:positions.length,checkpointStates,nextCursor:oneOffCanary?null:nextQueueCursor(topics.length,queueCursorAnchorForScan(firstWindow,lastChecked,false))});
+      {queue:queueInventory(topics),checked,scanLimit:positions.length,checkpointStates,reconciliationAttempts,reconciledLive,nextCursor:oneOffCanary?null:nextQueueCursor(topics.length,queueCursorAnchorForScan(firstWindow,lastChecked,false))});
     return;
   }
   const {topic,articleId}=selected;
@@ -168,36 +185,17 @@ async function run(){
       ...(filesystemRescue?{filesystemRecoveryRevision:SA_FILESYSTEM_RECOVERY_REVISION}:{})};
   }
   if(savedOnly&&(!state||state.sectionIndex!==topic.sections.length)){report('BLOCKED','SAVED_DRAFT_NOT_READY_FOR_NO_AI_REPROCESS',{articleId});return}
-  // An uncertain publish is never automatically retried. Inspect only the
-  // public URL; do not spend AI tokens or repeat potentially committed writes.
-  if(['PUBLISH_REQUEST_SENT','UNKNOWN_PUBLICATION_OUTCOME','DEPLOYING'].includes(state?.state)){
-    const url=config.domain+'/articles/'+encodeURIComponent(topic.slug);
-    let live=false;
-    try{const res=await fetch(url,{signal:AbortSignal.timeout(18000),headers:{'cache-control':'no-cache'}});
-      live=res.status===200&&(await res.text()).includes(topic.coupon);
-    }catch{}
-    if(live){
-      await saveCheckpoint(config,checkpointState(state,'LIVE_VERIFIED',{liveVerifiedAt:now(),liveUrl:url}));
-      report('LIVE_VERIFIED','RESUMED_AFTER_AMBIGUOUS_PUBLISH',{articleId,url});
-    }else{
-      // The write may have committed even when the network response was lost.
-      // Preserve it as an ambiguous quarantine record; the queue excludes it
-      // from future unattended attempts, while manual reconciliation remains
-      // possible from its immutable R2 checkpoint and public URL.
-      if(state.state!=='UNKNOWN_PUBLICATION_OUTCOME'){
-        state=await saveCheckpoint(config,checkpointState(state,'UNKNOWN_PUBLICATION_OUTCOME',{
-          errorCategory:'PUBLISH_PUBLIC_URL_NOT_VERIFIED',reviewRequired:true,
-          lastPublicVerificationAt:now(),candidateLiveUrl:url
-        }));
-      }else{
-        // The delayed URL check was definitive: no second automatic attempt.
-        state=await saveCheckpoint(config,checkpointState(state,'UNKNOWN_PUBLICATION_OUTCOME',{
-          publicationReconciliationAttemptedAt:now(),lastPublicVerificationAt:now(),
-          reviewRequired:true,candidateLiveUrl:url
-        }));
-      }
-      report('BLOCKED','PUBLISH_OUTCOME_QUARANTINED_FOR_REVIEW',{articleId,formerState:state.state,livePublished:false});
-    }
+  // This path is retained for targeted one-off canaries. Scheduled runs
+  // reconcile ambiguous writes in the queue scan and keep looking for work.
+  if(ambiguousPublicationState(state)){
+    const outcome=await reconcileAmbiguousPublication({
+      domain:config.domain,topic,checkpoint:state,
+      persist:(phase,patch)=>saveCheckpoint(config,checkpointState(state,phase,patch))
+    });
+    report(outcome.status,outcome.reason,{
+      articleId,url:outcome.url,formerState:outcome.formerState,
+      livePublished:outcome.livePublished
+    });
     return;
   }
   if(!state){

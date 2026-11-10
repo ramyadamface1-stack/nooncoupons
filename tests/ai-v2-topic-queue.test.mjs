@@ -4,6 +4,7 @@ import config from '../automation/ai-v2/config.json' with {type:'json'};
 import topics from '../automation/ai-v2/topics.json' with {type:'json'};
 import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,nextQueueCursor,queueCursorAfterScan,queueCursorAnchorForScan,pausedProviderNextCursor,QUEUE_SCAN_LIMIT,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from '../automation/ai-v2/topic-queue.mjs';
 import {assertTopic} from '../automation/ai-v2/guardrails.mjs';
+import {ambiguousPublicationState,reconcileAmbiguousPublication,MAX_READ_ONLY_RECONCILIATIONS_PER_RUN} from '../automation/ai-v2/publication-reconciliation.mjs';
 test('curated queue has unique topic slugs, stable IDs, country and approved coupon',()=>{
  const ids=topics.map(t=>assertTopic(t,config));
  assert.equal(ids.length,new Set(ids).size);
@@ -255,4 +256,66 @@ test('empty NoonDealsNow queue window preserves primary cursor instead of jumpin
  const lastOfQueue=queueCursorAnchorForScan([5800,5827],7,false);
  assert.equal(queueCursorAfterScan(total,lastOfQueue,false),0);
  assert.throws(()=>queueCursorAnchorForScan([],123,false),/INVALID_PRIMARY_SCAN_WINDOW/);
+});
+
+test('ambiguous public write is reconciled via exactly one read-only GET, never POST', async()=>{
+ const calls=[],states=[];
+ const topic={slug:'saudi-native-quality-example-2026',coupon:'NOV170'};
+ const result=await reconcileAmbiguousPublication({
+  domain:'https://noondealsnow.com',topic,
+  checkpoint:{state:'PUBLISH_REQUEST_SENT'},
+  fetchFn:async(url,options)=>{calls.push({url,method:options.method});return {status:200,text:async()=>'<article>NOV170</article>'}},
+  persist:async(phase,patch)=>states.push({phase,patch}),
+  now:()=> '2026-11-10T05:30:00.000Z'
+ });
+ assert.equal(ambiguousPublicationState({state:'PUBLISH_REQUEST_SENT'}),true);
+ assert.equal(MAX_READ_ONLY_RECONCILIATIONS_PER_RUN,2);
+ assert.equal(result.status,'LIVE_VERIFIED');
+ assert.equal(result.livePublished,true);
+ assert.deepEqual(calls,[{url:'https://noondealsnow.com/articles/saudi-native-quality-example-2026',method:'GET'}]);
+ assert.equal(states[0].phase,'LIVE_VERIFIED');
+ assert.equal(states[0].patch.liveUrl,result.url);
+});
+
+test('unverified URL quarantines an ambiguous write without retrying publication',async()=>{
+ const methods=[],states=[];
+ const result=await reconcileAmbiguousPublication({
+  domain:'https://noondealsnow.com',
+  topic:{slug:'uae-native-uncertain-example-2026',coupon:'NOV188'},
+  checkpoint:{state:'UNKNOWN_PUBLICATION_OUTCOME'},
+  fetchFn:async(_,options)=>{methods.push(options.method);return {status:404,text:async()=>''}},
+  persist:async(phase,patch)=>states.push({phase,patch}),
+  now:()=> '2026-11-10T05:30:00.000Z'
+ });
+ assert.equal(result.status,'BLOCKED');
+ assert.equal(result.livePublished,false);
+ assert.deepEqual(methods,['GET']);
+ assert.equal(states.length,1);
+ assert.equal(states[0].phase,'UNKNOWN_PUBLICATION_OUTCOME');
+ assert.equal(states[0].patch.reviewRequired,true);
+ assert.equal(states[0].patch.publicationReconciliationAttemptedAt,'2026-11-10T05:30:00.000Z');
+});
+
+test('failed or mismatched public read never authorizes duplicate writing',async()=>{
+ for(const fetchFn of [
+  async()=>{throw Error('timeout')},
+  async()=>({status:200,text:async()=>'<html>wrong coupon</html>'})
+ ]){
+  const persisted=[];
+  const result=await reconcileAmbiguousPublication({
+   domain:'https://noondealsnow.com',
+   topic:{slug:'saudi-native-ambiguous-case-2026',coupon:'NOV170'},
+   checkpoint:{state:'DEPLOYING'},
+   fetchFn,
+   persist:async(phase,patch)=>persisted.push({phase,patch})
+  });
+  assert.equal(result.status,'BLOCKED');
+  assert.equal(persisted[0].phase,'UNKNOWN_PUBLICATION_OUTCOME');
+  assert.equal(persisted[0].patch.errorCategory,'PUBLISH_PUBLIC_URL_NOT_VERIFIED');
+ }
+ assert.equal(ambiguousPublicationState({state:'UNKNOWN_REQUEST_OUTCOME'}),false);
+ await assert.rejects(()=>reconcileAmbiguousPublication({
+  domain:'https://noondealsnow.com',topic:{slug:'bad',coupon:'NOV170'},
+  checkpoint:{state:'DEPLOYING'},persist:async()=>{}
+ }),/INVALID_READ_ONLY_PUBLICATION_RECONCILIATION/);
 });
