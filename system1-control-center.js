@@ -97,7 +97,7 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 <button type="button" class="navbtn" data-tab="quality" aria-selected="false" role="tab">الجودة والتصميمات</button>
 <button type="button" class="navbtn" data-tab="articles" aria-selected="false" role="tab">المقالات</button>
 <button type="button" class="navbtn" data-tab="diagnostics" aria-selected="false" role="tab">الأخطاء والتحليلات</button>
-</div><div class="asideBottom"><a href="/admin/legacy">الإدارة المتقدمة القديمة</a><a href="/blog" target="_blank" rel="noopener">عرض المدونة</a><a href="https://github.com/ramyadamface1-stack/nooncoupons/actions/workflows/noondealsnow-ai-v2.yml" target="_blank" rel="noopener">سجلات GitHub</a></div></aside>
+</div><div class="asideBottom"><a href="/admin/legacy">الإدارة المتقدمة القديمة</a><a href="/blog" target="_blank" rel="noopener">عرض المدونة</a><a href="https://noondealsnow-ai-direct-r2.ndn-e4c35f8a50.workers.dev/health" target="_blank" rel="noopener">حالة محرك Cloudflare المباشر</a></div></aside>
 <main><header class="header"><div><h1>SYSTEM1 — مركز التحكم</h1><div class="dim">لوحة واحدة · بيانات إنتاج حقيقية فقط · توقيت القاهرة</div></div><button type="button" class="action secondary" id="refresh">تحديث البيانات</button></header>
 <div class="live-strip" id="liveStrip" data-tone="unknown" role="region" aria-label="شريط متابعة التوليد والنشر">
  <div class="live-strip-top"><div>
@@ -123,7 +123,7 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
   <div class="daily-track" role="progressbar" id="dailyProgress" aria-label="نسبة إنجاز هدف اليوم" aria-valuemin="0" aria-valuemax="100" aria-valuetext="القياس لم يكتمل"><div class="daily-fill" id="dailyProgressFill"></div></div>
   <div class="daily-caption"><span id="dailyProgressLabel">النسبة غير متاحة حتى وصول جرد اليوم</span><span id="dailyGoalUpdated">آخر جرد: غير متاح</span></div>
   <div class="daily-actions"><button class="action" type="button" id="startNowFromRibbon">تشغيل التوليد والنشر تلقائيًا الآن</button><span class="subtle">يستخدم طابور الكلمات المفتاحية المؤهلة الحالي؛ لا يعيد نشر المقالات السابقة.</span></div>
-  <p class="live-footnote">الأرقام من سجل المقالات المنشورة الموثّقة في R2، ويُحدّث الجرد تقريبًا كل 15 دقيقة. الهدف ليس ضمانًا لنشر مقالة عند كل دقيقة؛ تُحسب فقط المقالات التي تم نشرها فعليًا.</p>
+  <p class="live-footnote">الأرقام من سجل المقالات المنشورة الموثّقة في R2، ويُحدّث الجرد كل 5 دقائق تقريبًا. الهدف ليس ضمانًا لنشر مقالة عند كل دقيقة؛ تُحسب فقط المقالات التي تم نشرها فعليًا.</p>
  </div>
  <div class="live-facts">
   <div class="live-fact"><span class="live-fact-label">آخر مقالة منشورة مؤكدًا</span><strong class="live-fact-value" id="liveLastPublished">غير متاح</strong></div>
@@ -159,11 +159,11 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 <div class="panel"><h3>مراحل المقالة المطلوبة</h3><p class="subtle">الكلمة → مخطط → كتابة → مراجعة → SEO → 5 تصميمات → روابط → جودة → مخزون READY → موعد النشر. عرض مراحل قديمة مؤكد؛ مخزون READY منفصل غير مثبت حتى تُستكمل البنية.</p></div>
 </section>
 <section class="section" id="view-keys" role="tabpanel" hidden>
-<h2>مفاتيح Gemini وGroq</h2><p class="dim">إضافة مفتاح أو Bulk بطريقة مشفرة داخل GitHub Actions Secrets؛ القيم القديمة لا يمكن استرجاعها من GitHub.</p>
-<div class="panel"><div class="row"><button type="button" class="action secondary" id="keysGemini">Gemini</button><button type="button" class="action secondary" id="keysGroq">Groq</button><button type="button" class="action secondary" id="viewGithubSecrets">عرض خانات GitHub</button></div><h3 id="keysTitle">Gemini</h3><div id="keyRows" class="smalllist"></div></div>
-<div class="panel"><h3>إضافة آمنة</h3><div class="row"><div class="field"><label for="keyProvider">المزود</label><select id="keyProvider"><option value="gemini">Gemini</option><option value="groq">Groq</option></select></div><div class="field long"><label for="githubToken">رمز GitHub بصلاحية Secrets وActions</label><input id="githubToken" type="password" autocomplete="off" spellcheck="false" placeholder="لا يُحفظ في المتصفح"></div></div>
+<h2>مفاتيح Gemini وGroq</h2><p class="dim">إضافة مفتاح أو Bulk بتشفير AES-256-GCM داخل Cloudflare R2؛ لا يُطلب منك رمز GitHub.</p>
+<div class="panel"><div class="row"><button type="button" class="action secondary" id="keysGemini">Gemini</button><button type="button" class="action secondary" id="keysGroq">Groq</button><button type="button" class="action secondary" id="viewGithubSecrets">عرض مفاتيح Cloudflare</button></div><h3 id="keysTitle">Gemini</h3><div id="keyRows" class="smalllist"></div></div>
+<div class="panel"><h3>إضافة آمنة</h3><div class="row"><div class="field"><label for="keyProvider">المزود</label><select id="keyProvider"><option value="gemini">Gemini</option><option value="groq">Groq</option></select></div></div>
 <label for="keyBulk">مفتاح واحد أو مفاتيح في أسطر منفصلة</label><textarea id="keyBulk" autocomplete="off" spellcheck="false" placeholder="مفتاح واحد لكل سطر"></textarea>
-<div class="row"><div class="field"><label for="keyFile">ملف TXT / CSV / JSON بحد أقصى 22KB</label><input id="keyFile" type="file" accept=".txt,.csv,.json,text/plain,application/json"></div><button class="action" id="saveKeys">حفظ مشفر على GitHub</button><button class="action secondary" id="clearKeys">مسح المدخلات الحساسة</button></div>
+<div class="row"><div class="field"><label for="keyFile">ملف TXT / CSV / JSON بحد أقصى 22KB</label><input id="keyFile" type="file" accept=".txt,.csv,.json,text/plain,application/json"></div><button class="action" id="saveKeys">حفظ مشفر في R2</button><button class="action secondary" id="clearKeys">مسح المدخلات الحساسة</button></div>
 <p class="subtle">الحفظ وحده لا يثبت صلاحية المفتاح أو حصته؛ اختبار اتصال فعلي بكل مفتاح غير مفعل قبل موافقة مستقلة على استهلاك طلبات API.</p></div>
 </section>
 <section class="section" id="view-quota" role="tabpanel" hidden>
@@ -409,10 +409,10 @@ function renderKeys(){const el=$('keyRows');el.replaceChildren();$('keysTitle').
 const provider=snapshot?.providers?.[shownProvider];const entries=provider?.entries||[];
 const group=gh?.groups?.[shownProvider]||[];
 if(group.length){for(const slot of group){const x=entries.filter(y=>y.source===slot.name);
- item(el,slot.name+' · '+(slot.configured?'محفوظ في GitHub':'غير موجود'),
- x.length?x.map(y=>'#'+y.id+' ('+y.status+')').join(' · '):'لا يمكن استرجاع قيمة Secret أو معرفة عدد مفاتيحه من GitHub');}}
+ item(el,slot.name+' · '+(slot.configured?'محفوظ في Cloudflare':'غير موجود'),
+ x.length?x.map(y=>'#'+y.id+' ('+y.status+')').join(' · '):'عدد المفاتيح: '+fmt(slot.keyCount)+' · القيم مخفية ومشفرة');}}
 else if(entries.length){for(const x of entries)item(el,x.source+' · #'+x.id,'حالة السجل: '+x.status+(x.resumeAt?' · إعادة محاولة: '+local(x.resumeAt):''));}
-else item(el,'لا توجد بيانات مفصلة للمفاتيح','لعرض أسماء GitHub Secrets يلزم رمز بصلاحية Secrets Read، ولا يتم حفظه على المتصفح');}
+else item(el,'لا توجد بيانات مفصلة للمفاتيح','اضغطي عرض مفاتيح Cloudflare لرؤية الأعداد والحالة بدون كشف القيم');}
 async function post(path,value){return api(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(value)})}
 async function setControl(patch){try{const value=await post('/api/admin/ai-v2-control',patch);note('حُفظ الطلب بنجاح. التحقق من حالة المجدول الفعلية بعد التحديث.');await load();return value}catch(e){note('تعذر تغيير إعداد التوليد: '+e.message);return null}}
 async function runNow(skipConfirm=false){
@@ -442,11 +442,11 @@ async function runNow(skipConfirm=false){
    note(messages[e.message]||'تعذر إرسال المحاولة: '+e.message);
  }finally{btn.disabled=false}
 }
-async function githubSecrets(){try{gh=await post('/api/admin/ai-v2-keys',{githubToken:$('githubToken').value});renderKeys();note('عرض أسماء الخانات فقط؛ قيم المفاتيح مشفرة وغير قابلة للقراءة')}catch(e){note('تعذر قراءة خانات GitHub: '+e.message)}}
+async function githubSecrets(){try{gh=await post('/api/admin/ai-v2-keys',{});renderKeys();note('بيانات مفاتيح Cloudflare وR2؛ القيم مشفرة ومخفية')}catch(e){note('تعذر قراءة مفاتيح Cloudflare: '+e.message)}}
 async function importKeys(){const text=$('keyBulk').value.trim();if(!text){note('الصقي المفاتيح أو ارفعي ملفًا أولًا');return}
- if(!confirm('سيتم تشفير وحفظ المفاتيح في خانة GitHub Secret جديدة دون الكتابة فوق القديمة. متابعة؟'))return;
- try{const res=await post('/api/admin/ai-v2-key-import',{provider:$('keyProvider').value,keys:text,githubToken:$('githubToken').value});
- $('keyBulk').value='';$('keyFile').value='';note('حُفظ '+res.addedCount+' مفتاح في '+res.secretName+'. هذا لا يثبت صلاحية الحصص.');
+ if(!confirm('سيتم تشفير وحفظ المفاتيح في R2 بدون الكتابة فوق المفاتيح القديمة. متابعة؟'))return;
+ try{const res=await post('/api/admin/ai-v2-key-import',{provider:$('keyProvider').value,keys:text});
+ $('keyBulk').value='';$('keyFile').value='';note('اتحفظ '+res.addedCount+' مفتاح مشفر في Cloudflare R2. هذا لا يثبت صلاحية الحصة.');
  await githubSecrets()}catch(e){note('تعذر حفظ المفاتيح: '+e.message)}}
 for(const tab of tabs)tab.onclick=()=>show(tab.dataset.tab);
 for(const link of document.querySelectorAll('[data-jump]'))link.onclick=e=>{e.preventDefault();show(link.dataset.jump)};
@@ -479,8 +479,8 @@ $('keysGemini').onclick=()=>{shownProvider='gemini';$('keyProvider').value='gemi
 $('keysGroq').onclick=()=>{shownProvider='groq';$('keyProvider').value='groq';renderKeys()};
 $('viewGithubSecrets').onclick=githubSecrets;
 $('saveKeys').onclick=importKeys;
-$('clearKeys').onclick=()=>{$('githubToken').value='';$('keyBulk').value='';$('keyFile').value='';gh=null;renderKeys();note('اتمسحت البيانات الحساسة من الحقول')};
-$('keyFile').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>22000){note('الملف أكبر من 22KB');return}try{$('keyBulk').value=await file.text();note('تم تحميل الملف في النموذج، ولم يُرفع إلى GitHub بعد')}catch{note('تعذر قراءة الملف')}};
+$('clearKeys').onclick=()=>{$('keyBulk').value='';$('keyFile').value='';gh=null;renderKeys();note('اتمسحت البيانات الحساسة من الحقول')};
+$('keyFile').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;if(file.size>22000){note('الملف أكبر من 22KB');return}try{$('keyBulk').value=await file.text();note('تم تحميل الملف محليًا في النموذج، ولم يُرفع إلى Cloudflare بعد')}catch{note('تعذر قراءة الملف')}};
 const initial=(location.hash||'').slice(1);
 show(initial==='aiV2Panel'?'generation':initial);
 load();
