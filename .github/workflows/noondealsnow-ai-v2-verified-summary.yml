@@ -30,6 +30,7 @@ jobs:
           python3 -m pip install --quiet --disable-pip-version-check boto3
           python3 - <<'PY'
           import os,json,datetime,collections
+          from zoneinfo import ZoneInfo
           import boto3
           from botocore.config import Config
           now=datetime.datetime.now(datetime.timezone.utc)
@@ -44,10 +45,15 @@ jobs:
           if ledger.get('version')!=1 or not isinstance(ledger.get('articles'),list) or len(ledger['articles'])>100000:
             raise ValueError('INVALID_R2_LEDGER_SCHEMA')
           items=ledger['articles']
+          cairo=ZoneInfo('Africa/Cairo')
+          cairo_today=now.astimezone(cairo).date()
+          day_start=datetime.datetime.combine(cairo_today,datetime.time.min,tzinfo=cairo).astimezone(datetime.timezone.utc)
+          day_key=cairo_today.isoformat()
           windows={}
           seen=set()
           for hours in [1,24]:
             windows[str(hours)+'h']={'total':0,'SA':0,'AE':0,'byProvider':{'gemini':0,'groq':0,'unknown':0}}
+          windows['todayCairo']={'total':0,'SA':0,'AE':0}
           newest=None
           for item in items:
             if not isinstance(item,dict):continue
@@ -63,6 +69,9 @@ jobs:
             if newest is None or at>newest[0]:
               newest=(at,{'slug':slug,'country':country,'publishedAt':stamp})
             if age<0:continue
+            if at>=day_start:
+              windows['todayCairo']['total']+=1
+              windows['todayCairo'][country]+=1
             provider=item.get('provider')
             provider=provider if provider in ('gemini','groq') else 'unknown'
             for hours in (1,24):
@@ -71,13 +80,15 @@ jobs:
                 w['total']+=1;w[country]+=1;w['byProvider'][provider]+=1
           summary={'version':1,'site':'noondealsnow','generatedAt':now.isoformat().replace('+00:00','Z'),
             'source':'verified-ai-v2-publication-ledger','ledgerItems':len(items),'windows':windows,
+            'dayKeyCairo':day_key,'dayStartUtc':day_start.isoformat().replace('+00:00','Z'),
             'lastArticle':newest[1] if newest else None,'containsRawKeys':False}
           payload=json.dumps(summary,ensure_ascii=False,separators=(',',':')).encode('utf-8')
           assert len(payload)<3000
           client.put_object(Bucket=bucket,Key='_ops/ai-v2-verified-summary-v1.json',Body=payload,ContentType='application/json')
           print('VERIFIED_PUBLICATION_SUMMARY='+json.dumps({
             'ok':True,'ledgerItems':len(items),'lastHour':windows['1h']['total'],
-            'last24Hours':windows['24h']['total'],'hasLastPublished':bool(newest),
+            'last24Hours':windows['24h']['total'],'todayCairo':windows['todayCairo']['total'],
+            'dayKeyCairo':day_key,'hasLastPublished':bool(newest),
             'source':'real-R2-verified-ledger','providerCalls':0,'articleWrites':0
           },ensure_ascii=False),flush=True)
           PY

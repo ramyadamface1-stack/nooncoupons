@@ -90,6 +90,28 @@ export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=
   const nextPublicationWindowAt=publishingGateVerified&&enable&&
     scheduler?.reachable===true&&scheduler?.enabled===true?
     nextPublicationOpportunityAt(Date.now(),scheduler.intervalMinutes,gate.aiV2NextEligibleAt):null;
+  const hourTarget=60/requestedMinutes,dayTarget=Math.ceil(1440/requestedMinutes);
+  const snapshotAge=Number(verified?.ageMinutes);
+  const verifiedFresh=verified.ledgerAvailable===true&&Number.isFinite(snapshotAge)&&
+    snapshotAge>=0&&snapshotAge<=30;
+  const cairoToday=verifiedFresh&&Number.isSafeInteger(verified?.todayCairo?.total)?
+    verified.todayCairo:null;
+  const todayPublished=cairoToday?cairoToday.total:null;
+  const todayRemaining=todayPublished===null?null:Math.max(0,dayTarget-todayPublished);
+  const startMs=Date.parse(verified?.cairoDayStartUtc||'');
+  const elapsedMin=Number.isFinite(startMs)?
+    Math.max(0,Math.min(1440,(Date.now()-startMs)/60000)):null;
+  const expectedByNow=elapsedMin===null?null:Math.min(dayTarget,Math.floor(elapsedMin/requestedMinutes));
+  const lastPublishedMs=Date.parse(verified?.lastArticle?.publishedAt||'');
+  const noRecentPublication=verifiedFresh&&Number.isFinite(lastPublishedMs)&&
+    Date.now()-lastPublishedMs>20*60000;
+  const underTarget=verifiedFresh&&Number.isSafeInteger(verified?.lastHour?.total)&&
+    verified.lastHour.total<hourTarget;
+  const liveTargetStatus=!enable||scheduler?.enabled===false?'STOPPED':
+    !scheduler?.reachable?'SCHEDULER_UNVERIFIED':
+    !verifiedFresh||!cairoToday?'UNVERIFIED':
+    noRecentPublication?'NO_RECENT_PUBLICATION':
+    underTarget||todayPublished<expectedByNow?'BEHIND_TARGET':'ON_TARGET';
   const verifiedMarketTotals=verified?.last24Hours&&Number.isSafeInteger(verified.last24Hours.SA)&&Number.isSafeInteger(verified.last24Hours.AE)?
     {SA:verified.last24Hours.SA,AE:verified.last24Hours.AE}:null;
   const effectiveInterval=scheduler?.enabled&&enable&&[1,5,10,15,30,60].includes(scheduler.intervalMinutes)?scheduler.intervalMinutes:null;
@@ -104,6 +126,17 @@ export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=
       draftsGeneratedLast24Hours:null,generatedCounterReason:'NO_INDEPENDENT_DRAFT_LEDGER',
       nextGenerationCheckAt, nextGenerationCheckNote:'COMPUTED_CRON_WINDOW_NOT_CONFIRMED_JOB'},
     publishing:{status:publishing,verified,publicationIntervalMinutes,verifiedMarketTotals,
+      dailyGoal:{hourTarget,dayTarget,todayPublished,todayRemaining,
+        expectedByNow,progressPercent:todayPublished===null?null:
+         Math.min(100,Math.round(todayPublished/dayTarget*100)),
+        status:liveTargetStatus,asOf:verifiedFresh?verified.generatedAt:null,
+        lastHourVerified:verifiedFresh?verified.lastHour?.total:null,
+        dayKeyCairo:cairoToday?verified.cairoDayKey:null,
+        publishedSA:cairoToday?cairoToday.SA:null,
+        publishedAE:cairoToday?cairoToday.AE:null,
+        source:'VERIFIED_R2_LEDGER_CAIRO_DAY',
+        complete:false,
+        note:'الهدف 60 مقالة/ساعة عند فاصل دقيقة، وليس ضمانًا. الأرقام تتحدث حسب أحدث جرد موثق في R2 كل 15 دقيقة.'},
       desiredIntervalMinutes:requestedMinutes,intervalVerified:publishingGateVerified,
       nextPublicationWindowAt,permitNextEligibleAt:publishingGateVerified?gate.aiV2NextEligibleAt:null,
       permitEligibleNow:publishingGateVerified?gate.aiV2Eligible:null,

@@ -15,6 +15,11 @@ async function fromR2(env,market){
  }catch{return null}
 }
 const VERIFIED_SUMMARY='_ops/ai-v2-verified-summary-v1.json';
+function cairoDayKey(ms=Date.now()){
+ const p=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'Africa/Cairo',
+  year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(ms)).map(x=>[x.type,x.value]));
+ return p.year+'-'+p.month+'-'+p.day;
+}
 async function verifiedSnapshot(env){
  try{
    const obj=await env.CONTENT_FINAL?.get(VERIFIED_SUMMARY);
@@ -24,7 +29,16 @@ async function verifiedSnapshot(env){
    if(s?.version!==1||!Number.isFinite(Date.parse(s.generatedAt||''))||
       !Number.isSafeInteger(one?.total)||!Number.isSafeInteger(day?.total)||
       one.total<0||day.total<0)return {available:false,reason:'SUMMARY_INVALID'};
+   const calendar=s?.windows?.todayCairo;
+   const calendarVerified=s?.dayKeyCairo===cairoDayKey()&&
+     Number.isSafeInteger(calendar?.total)&&calendar.total>=0&&
+     Number.isSafeInteger(calendar?.SA)&&Number.isSafeInteger(calendar?.AE)&&
+     calendar.SA+calendar.AE===calendar.total&&
+     Number.isFinite(Date.parse(s.dayStartUtc||''));
    return {available:true,generatedAt:s.generatedAt,lastHour:one,last24Hours:day,
+     todayCairo:calendarVerified?calendar:null,
+     cairoDayKey:calendarVerified?s.dayKeyCairo:null,
+     cairoDayStartUtc:calendarVerified?s.dayStartUtc:null,
      lastArticle:s.lastArticle||null,
      ageMinutes:Math.max(0,Math.round((Date.now()-Date.parse(s.generatedAt))/60000))};
  }catch{return {available:false,reason:'SUMMARY_READ_UNAVAILABLE'}}
@@ -101,7 +115,9 @@ export async function aiV2AdminMonitor(env,fetchFn=fetch){
    latestSelected:freshest?.selected||null,
    lastReportAt:freshest?.generatedAt||null,
    verified:{ledgerAvailable:verified.available===true,lastHour:verified.lastHour||null,
-     last24Hours:verified.last24Hours||null,lastArticle:verified.lastArticle||null,
+     last24Hours:verified.last24Hours||null,todayCairo:verified.todayCairo||null,
+     cairoDayKey:verified.cairoDayKey||null,cairoDayStartUtc:verified.cairoDayStartUtc||null,
+     lastArticle:verified.lastArticle||null,
      generatedAt:verified.generatedAt||null,ageMinutes:verified.ageMinutes??null,
      reason:verified.available?null:verified.reason},
    safety:{rawKeysExposed:false,configuredDoesNotMeanValidated:true,
