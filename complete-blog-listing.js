@@ -1,3 +1,4 @@
+import {refreshCurrentSeasonLabel} from './article-temporal-freshness.js';
 // Read-only, bounded all-article browser for /blog, /blog/saudi and /blog/uae.
 // Uses the existing R2 bucket. No deletion, migration, new resources or full-corpus scan.
 // R2 uses lexicographic key order; the newest-publication feed remains a separate
@@ -29,7 +30,7 @@ export function fullBlogRowFromObject(o,market=null){
  const slug=key.slice(9,-5),english=String(md.lang||md.language||'').toLowerCase().startsWith('en')||slug.startsWith('en-');
  let rawTitle=md.t||md.title||slug;
  try{rawTitle=decodeURIComponent(String(rawTitle))}catch{}
- const title=String(rawTitle).replace(/[-_]+/g,' ').replace(/\s+/g,' ').trim().slice(0,230);
+ const title=refreshCurrentSeasonLabel(String(rawTitle).replace(/[-_]+/g,' ').replace(/\s+/g,' ').trim()).slice(0,230);
  const href=(english?'/en/articles/':'/articles/')+encodeURIComponent(slug);
  return {key,slug,title: title||slug,country,english,href,uploaded:o.uploaded||null};
 }
@@ -105,7 +106,7 @@ export async function completeBlogResponse(env,url){
  const latest=Array.isArray(recent?.articles)?recent.articles.filter(a=>a?.status==='published'&&a?.slug&&a?.indexable!==false).slice(0,3):[];
  const quick=latest.length?'<aside class="latest"><h2>أحدث المقالات المنشورة</h2><div>'+latest.map(a=>{
    const slug=String(a.slug),english=slug.startsWith('en-')||String(a.language||'').startsWith('en');
-   const text=String(a.title||slug),href=(english?'/en/articles/':'/articles/')+encodeURIComponent(slug);
+   const text=refreshCurrentSeasonLabel(String(a.title||slug)),href=(english?'/en/articles/':'/articles/')+encodeURIComponent(slug);
    return '<a href="'+esc(href)+'">'+esc(text)+'</a>';
  }).join('')+'</div></aside>':'';
  const next=page.nextAfter?'<a rel="next" href="'+esc(newLink(path,page.nextAfter))+'">المقالات التالية ←</a>':'';
