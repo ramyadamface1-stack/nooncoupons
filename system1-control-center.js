@@ -63,6 +63,23 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 .live-fact-label{font-size:11px;color:#607186}.live-fact-value{font-size:13px;font-weight:800;color:#243950;overflow-wrap:anywhere;display:block}
 .live-attempt{margin-top:12px;padding:9px 11px;border:1px solid #dde6f0;border-radius:9px;background:#f8fafc;color:#36506a;font-size:12px}
 .live-footnote{margin:9px 0 0;color:#67768a;font-size:11px}
+.daily-pulse{margin:15px 0 10px;border:1px solid #dce5ee;border-radius:12px;padding:14px;background:#fbfdff}
+.daily-pulse h3{margin:0 0 4px;font-size:16px;color:#172f4c}
+.daily-status{font-size:13px;color:#465a70;line-height:1.7;margin:4px 0 12px}
+.daily-pulse[data-tone="stop"] .daily-status{color:#ab3131;font-weight:700}
+.daily-pulse[data-tone="warn"] .daily-status{color:#8a5b00;font-weight:700}
+.daily-pulse[data-tone="ok"] .daily-status{color:#136b51;font-weight:700}
+.daily-numbers{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:8px 0 10px}
+.daily-num{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px;min-width:0}
+.daily-num-label{font-size:11px;color:#607286}.daily-num-value{font-size:21px;font-weight:800;color:#142e4c;font-variant-numeric:tabular-nums}
+.daily-track{background:#e6edf5;height:15px;border-radius:10px;overflow:hidden}
+.daily-fill{height:100%;background:#1e8060;min-width:0;max-width:100%;width:0%;transition:width .35s}
+.daily-pulse[data-tone="warn"] .daily-fill{background:#ad842c}
+.daily-pulse[data-tone="stop"] .daily-fill{background:#bc4b4b}
+.daily-caption{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;color:#536981;font-size:12px;margin-top:6px}
+.daily-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:13px}
+@media(max-width:800px){.daily-numbers{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
 @media(max-width:1070px){.live-steps,.live-facts{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:470px){.live-strip{padding:13px}.live-heading{font-size:16px}.live-step{padding:9px}.live-steps,.live-facts{gap:7px}}
 </style></head><body><div class="shell">
@@ -94,6 +111,20 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
   <div class="live-step" id="liveStageReady" data-tone="unknown"><div class="live-step-label">3 — المخزون الجاهز READY</div><div class="live-step-value">جارٍ الفحص</div></div>
   <div class="live-step" id="liveStagePublishing" data-tone="unknown"><div class="live-step-label">4 — النشر المؤكد</div><div class="live-step-value">جارٍ الفحص</div></div>
  </div>
+ <div class="daily-pulse" id="dailyPulse" data-tone="unknown" role="region" aria-label="هدف النشر اليومي وحالة النشر">
+  <h3>هدف النشر اليوم — بتوقيت القاهرة</h3>
+  <p class="daily-status" id="dailyGoalStatus" role="status" aria-live="polite">جارٍ التحقق من منشورات اليوم والهدف المطلوب…</p>
+  <div class="daily-numbers">
+    <div class="daily-num"><div class="daily-num-label">المستهدف اليوم</div><div class="daily-num-value" id="dailyGoalTarget">1,440</div></div>
+    <div class="daily-num"><div class="daily-num-label">اتنشر فعلًا اليوم</div><div class="daily-num-value" id="dailyGoalPublished">—</div></div>
+    <div class="daily-num"><div class="daily-num-label">المتبقي من الهدف</div><div class="daily-num-value" id="dailyGoalRemaining">—</div></div>
+    <div class="daily-num"><div class="daily-num-label">المنشور آخر ساعة / الهدف</div><div class="daily-num-value" id="dailyGoalHour">— / 60</div></div>
+  </div>
+  <div class="daily-track" role="progressbar" id="dailyProgress" aria-label="نسبة إنجاز هدف اليوم" aria-valuemin="0" aria-valuemax="100" aria-valuetext="القياس لم يكتمل"><div class="daily-fill" id="dailyProgressFill"></div></div>
+  <div class="daily-caption"><span id="dailyProgressLabel">النسبة غير متاحة حتى وصول جرد اليوم</span><span id="dailyGoalUpdated">آخر جرد: غير متاح</span></div>
+  <div class="daily-actions"><button class="action" type="button" id="startNowFromRibbon">تشغيل التوليد والنشر تلقائيًا الآن</button><span class="subtle">يستخدم طابور الكلمات المفتاحية المؤهلة الحالي؛ لا يعيد نشر المقالات السابقة.</span></div>
+  <p class="live-footnote">الأرقام من سجل المقالات المنشورة الموثّقة في R2، ويُحدّث الجرد تقريبًا كل 15 دقيقة. الهدف ليس ضمانًا لنشر مقالة عند كل دقيقة؛ تُحسب فقط المقالات التي تم نشرها فعليًا.</p>
+ </div>
  <div class="live-facts">
   <div class="live-fact"><span class="live-fact-label">آخر مقالة منشورة مؤكدًا</span><strong class="live-fact-value" id="liveLastPublished">غير متاح</strong></div>
   <div class="live-fact"><span class="live-fact-label">نافذة النشر المستهدفة التالية</span><strong class="live-fact-value" id="liveNextPublish">غير محدد</strong></div>
@@ -122,7 +153,7 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 <section class="section" id="view-generation" role="tabpanel" hidden>
 <h2>التوليد والطابور</h2><p class="dim">ابدئي التوليد من الموقع نفسه دون فتح GitHub. خدمة الخلفية تتابع الطلب حتى لو قفلتي المتصفح. الإيقاف اليدوي يحافظ على المهام المحفوظة.</p>
 <div class="panel"><h3>التحكم في تشغيل Gemini / Groq</h3><div id="genDetails" class="state">جارٍ القراءة</div>
-<div class="row"><button class="action" id="startGeneration">1 — تشغيل / استئناف</button><button class="action secondary" id="runOnce">2 — توليد الآن من الموقع</button><button class="action danger" id="pauseGeneration">إيقاف مؤقت</button></div>
+<div class="row"><button class="action" id="startGeneration">تشغيل تلقائي الآن</button><button class="action secondary" id="runOnce">2 — توليد الآن من الموقع</button><button class="action danger" id="pauseGeneration">إيقاف مؤقت</button></div>
 <p class="subtle">زر التوليد يتصل مباشرة بالخدمة الداخلية الآمنة على Cloudflare دون مطالبتك برمز GitHub. تنفيذ المولد يجري في الخلفية. قبول الطلب لا يعني توليد مقال أو نشره؛ تحققي من النتائج والعدادات.</p></div>
 <div class="panel"><h3>حالة الطابور</h3><div id="queueDetail" class="smalllist">جارٍ القراءة</div><p class="data-note">وجود آلاف الموضوعات في الملف لا يعني أنها لم تُنجز. لا نعيد توليد مقال مؤكد النشر أو محجوز للفحص.</p></div>
 <div class="panel"><h3>مراحل المقالة المطلوبة</h3><p class="subtle">الكلمة → مخطط → كتابة → مراجعة → SEO → 5 تصميمات → روابط → جودة → مخزون READY → موعد النشر. عرض مراحل قديمة مؤكد؛ مخزون READY منفصل غير مثبت حتى تُستكمل البنية.</p></div>
@@ -203,6 +234,37 @@ function liveOutcome(m){
  if(status==='BLOCKED')return 'آخر محاولة: محجوبة — راجعي الأخطاء';
  return 'لا توجد نتيجة توليد مؤكدة';
 }
+
+function renderDailyPulse(s){
+ const d=s?.publishing?.dailyGoal||{},enabled=s?.generation?.desiredEnabled===true;
+ const asNumber=x=>Number.isSafeInteger(x)&&x>=0?x:null;
+ const goal=asNumber(d.dayTarget),published=asNumber(d.todayPublished),
+   remaining=asNumber(d.todayRemaining),hour=asNumber(d.lastHourVerified);
+ const hourly=Number.isFinite(d.hourTarget)?Number(d.hourTarget.toFixed(1)):60;
+ $('dailyGoalTarget').textContent=goal===null?'—':fmt(goal);
+ $('dailyGoalPublished').textContent=published===null?'—':fmt(published);
+ $('dailyGoalRemaining').textContent=remaining===null?'—':fmt(remaining);
+ $('dailyGoalHour').textContent=(hour===null?'—':fmt(hour))+' / '+fmt(hourly);
+ const percent=asNumber(d.progressPercent);
+ $('dailyProgressFill').style.width=(percent===null?0:Math.min(100,percent))+'%';
+ const bar=$('dailyProgress');
+ if(percent!==null){bar.setAttribute('aria-valuenow',String(percent));bar.setAttribute('aria-valuetext',percent+'% من هدف اليوم')}
+ else{bar.removeAttribute('aria-valuenow');bar.setAttribute('aria-valuetext','معلومات النشر اليومي غير متاحة')}
+ $('dailyProgressLabel').textContent=percent===null?'الإنجاز غير مقاس بعد':percent+'% من هدف اليوم';
+ $('dailyGoalUpdated').textContent=d.asOf?'آخر جرد موثق: '+local(d.asOf)+' (القاهرة)':'آخر جرد موثق: غير متاح';
+ const messages={
+  STOPPED:'متوقف: تشغيل التوليد والنشر متوقف من البانل أو على Cloudflare.',
+  SCHEDULER_UNVERIFIED:'تعذر التحقق من المجدول؛ لا نعتبر التوليد شغالًا قبل تأكيده.',
+  UNVERIFIED:'الجرد اليومي غير حديث أو غير مكتمل — لا نستطيع تأكيد عدد المنشورات اليوم.',
+  NO_RECENT_PUBLICATION:'تحذير: لم يظهر نشر مؤكد خلال أكثر من 20 دقيقة في آخر جرد. راجعي أخطاء الجودة والمزود.',
+  BEHIND_TARGET:'النشر شغال لكن أقل من الهدف: راجعي آخر ساعة ونقص المقالات أو أخطاء الجودة.',
+  ON_TARGET:'النشر مؤكد والمعدل حاليًا يواكب المستهدف في آخر جرد.'
+ };
+ const tone=d.status==='STOPPED'?'stop':
+   ['BEHIND_TARGET','NO_RECENT_PUBLICATION','SCHEDULER_UNVERIFIED','UNVERIFIED'].includes(d.status)?'warn':'ok';
+ $('dailyPulse').dataset.tone=tone;
+ $('dailyGoalStatus').textContent=messages[d.status]||'حالة النشر غير مؤكدة';
+}
 function renderLiveStrip(s){
  const g=s.generation||{},p=s.publishing||{},v=p.verified||{},scheduler=g.actualScheduler||{};
  const verifiedScheduler=g.desiredEnabled===true&&scheduler.reachable===true&&scheduler.enabled===true&&scheduler.controlStatus==='POLICY_VERIFIED';
@@ -217,6 +279,14 @@ function renderLiveStrip(s){
  else if(!verifiedScheduler){headline='تفعيل المجدول غير متحقق';reason='وصلت استجابة من Cloudflare، لكن سياسة تشغيل المجدول لم تُؤكَّد بعد.'}
  else if(g.status==='PAUSED_QUOTA_EXHAUSTED'){headline='المجدول مفعّل — انتظار تجدد الحصة';reason='المفاتيح المتاحة في انتظار حصة Gemini/Groq وفق آخر تقرير. لا يوجد توليد ناجح مؤكد الآن.'}
  else if(g.status==='WAITING_ELIGIBLE_TOPIC'){headline='المجدول مفعّل — لا توجد مهمة مؤهلة';reason='آخر فحص لم يجد موضوعًا مؤهلًا؛ هذا ليس دليلًا على نشر مقال جديد.'}
+ else if(p.dailyGoal?.status==='NO_RECENT_PUBLICATION'){
+   tone='warn';headline='المجدول مفعّل لكن النشر متعثر';
+   reason='آخر جرد مؤكد لا يُظهر نشرًا حديثًا. افحصي الجودة والحدود والأخطاء.'
+ }
+ else if(p.dailyGoal?.status==='BEHIND_TARGET'){
+   tone='warn';headline='المجدول مفعّل — معدل النشر أقل من 60 مقالة/ساعة';
+   reason='تشغيل المجدول لا يضمن بلوغ العدد المستهدف. راقبي المقالات المنشورة وأسباب الرفض.'
+ }
  else if(!generationFresh){headline='المجدول مفعّل — ننتظر تقرير توليد حديث';reason='تشغيل المجدول لا يثبت أن Gemini/Groq يولّد مقالة الآن.'}
  else {tone='ok';headline='المجدول مفعّل — ورد تقرير تشغيل حديث';reason='نستقبل بيانات التوليد؛ نجاح النشر يُقاس بشكل منفصل بسجل المنشورات المؤكدة.'}
  $('liveStrip').dataset.tone=tone;
@@ -252,9 +322,14 @@ function liveStripUnavailable(message){
  $('liveCheckedAt').textContent='آخر فحص: فشل التحديث';
  for(const id of ['liveStageScheduler','liveStageGeneration','liveStageReady','liveStagePublishing'])liveStage(id,'غير متاح حاليًا','warn');
  for(const id of ['liveLastPublished','liveNextPublish','liveReadyCount','liveIssue'])$(id).textContent='غير متاح';
+ $('dailyPulse').dataset.tone='warn';$('dailyGoalStatus').textContent='تعذر تحديث بيانات اليوم؛ لا يمكن إثبات النشر الحالي.';
+ for(const id of ['dailyGoalPublished','dailyGoalRemaining'])$(id).textContent='—';
+ $('dailyGoalHour').textContent='— / 60';$('dailyProgressFill').style.width='0%';
+ $('dailyProgress').removeAttribute('aria-valuenow');
+ $('dailyGoalUpdated').textContent='آخر جرد: غير متاح';
 }
 function update(){
-const s=snapshot;if(!s)return;renderLiveStrip(s);const g=s.generation||{},p=s.publishing||{},v=p.verified||{};
+const s=snapshot;if(!s)return;renderLiveStrip(s);renderDailyPulse(s);const g=s.generation||{},p=s.publishing||{},v=p.verified||{};
 setState('genState','التوليد — '+(statusNames[g.status]||g.status||'غير معروف'),
  'آخر تقرير: '+local(g.lastReportAt)+' | تشغيل كل '+fmt(g.actualScheduler?.intervalMinutes||g.dispatchIntervalMinutes)+' دقيقة',statusTone(g.status));
 setState('pubState','النشر — '+(publishNames[p.status]||p.status||'غير معروف'),
@@ -332,11 +407,11 @@ else if(entries.length){for(const x of entries)item(el,x.source+' · #'+x.id,'ح
 else item(el,'لا توجد بيانات مفصلة للمفاتيح','لعرض أسماء GitHub Secrets يلزم رمز بصلاحية Secrets Read، ولا يتم حفظه على المتصفح');}
 async function post(path,value){return api(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(value)})}
 async function setControl(patch){try{const value=await post('/api/admin/ai-v2-control',patch);note('حُفظ الطلب بنجاح. التحقق من حالة المجدول الفعلية بعد التحديث.');await load();return value}catch(e){note('تعذر تغيير إعداد التوليد: '+e.message);return null}}
-async function runNow(){
+async function runNow(skipConfirm=false){
  const g=snapshot?.generation||{};
  if(g.desiredEnabled===false){note('ابدئي بالضغط على تشغيل / استئناف، ثم تحديث البيانات للتأكد أن المجدول مفعل.');return}
  if(g.actualScheduler?.enabled===false){note('المجدول متوقف فعليًا. اضغطي تشغيل / استئناف أولًا ثم حدّثي الحالة. لو ظل متوقفًا يحتاج تفعيل Cloudflare.');return}
- if(!confirm('تشغيل محاولة توليد من لوحة الموقع؟ سيعمل المحرك في الخلفية وقد يستخدم حصة Gemini/Groq إذا وجد موضوعًا مؤهلًا. هل تريدين المتابعة؟'))return;
+ if(!skipConfirm&&!confirm('تشغيل محاولة توليد من لوحة الموقع؟ سيعمل المحرك في الخلفية وقد يستخدم حصة Gemini/Groq إذا وجد موضوعًا مؤهلًا. هل تريدين المتابعة؟'))return;
  const btn=$('runOnce');btn.disabled=true;
  try{
    const result=await post('/api/admin/ai-v2-run-now',{});
@@ -371,7 +446,17 @@ $('refresh').onclick=load;$('kwLoad').onclick=loadKeywords;
 // Refresh the bounded overview every two minutes only while this page is visible.
 window.setInterval(()=>{if(!document.hidden)load()},120000);
 $('kwSearch').onkeydown=e=>{if(e.key==='Enter')loadKeywords()};
-$('startGeneration').onclick=()=>setControl({enabled:true});
+async function startAndDispatch(){
+ const buttons=[$('startGeneration'),$('startNowFromRibbon')];
+ buttons.forEach(btn=>btn.disabled=true);
+ try{
+  const saved=await setControl({enabled:true});
+  if(!saved)return;
+  await runNow(true);
+ }finally{buttons.forEach(btn=>btn.disabled=false)}
+}
+$('startGeneration').onclick=startAndDispatch;
+$('startNowFromRibbon').onclick=startAndDispatch;
 $('pauseGeneration').onclick=()=>setControl({enabled:false});
 $('saveInterval').onclick=()=>setControl({intervalMinutes:Number($('genInterval').value)});
 $('savePublishingInterval').onclick=async()=>{
