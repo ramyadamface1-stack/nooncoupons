@@ -14,18 +14,18 @@ function context(date){
 }
 const visible=s=>String(s||'').replace(/<[^>]+>/g,' ');
 const mismatched=(s,year)=>[...String(s).matchAll(/\b(20\d{2})\b/g)].some(m=>+m[1]>=2020&&+m[1]<=year+2&&+m[1]!==year);
-function oldClaim(html,year){
-  const t=visible(html);
-  return !past.test(t)&&!forecast.test(t)&&((mismatched(t,year)&&sale.test(t)&&active.test(t))||(oldPhone.test(t)&&newest.test(t)));
+function oldClaim(html,year,month){
+  const t=normalizedAuditText(html);
+  return !past.test(t)&&!forecast.test(t)&&((((mismatched(t,year)||staleMonth(t,year,month))&&sale.test(t)&&active.test(t)))||(oldPhone.test(t)&&newest.test(t)));
 }
 // Titles and headings describe CURRENT coupons, unless expressly historical or a forecast.
 export function refreshCurrentSeasonLabel(text,{date=new Date()}={}){
   const d=context(date),raw=String(text||'');
-  if(!sale.test(raw)||past.test(raw)||forecast.test(raw))return raw;
+  if(!(sale.test(raw)||currentGuide.test(raw))||past.test(raw)||forecast.test(raw))return raw;
   const normalized=raw.replace(/[٠-٩۰-۹]/g,c=>{
     const n=c.charCodeAt(0);return String(n>=0x6F0?n-0x6F0:n-0x660);
   });
-  return normalized.replace(/\b20\d{2}\b/g,match=>{
+  return refreshCampaignMonth(normalized,d.year,d.month).replace(/\b20\d{2}\b/g,match=>{
     const y=+match;
     return y>=2020&&y<=d.year+2&&y!==d.year?String(d.year):match;
   });
@@ -42,6 +42,20 @@ function staleMonth(text,year,month){
   const months=[['يناير','january'],['فبراير','february'],['مارس','march'],['أبريل','ابريل','april'],['مايو','may'],['يونيو','june'],['يوليو','july'],['أغسطس','اغسطس','august'],['سبتمبر','september'],['أكتوبر','اكتوبر','october'],['نوفمبر','november'],['ديسمبر','december']];
   return months.some((names,i)=>i+1<month&&names.some(n=>new RegExp('(?:^|\\s)'+n+'\\s+'+year+'(?:$|\\W)','i').test(text)));
 }
+// Refresh only present-tense commercial MONTH/YEAR labels. Historical article
+// metadata, launch years and archived campaign references remain unmodified.
+const monthYearPattern=new RegExp('('+[...arMonths,...enMonths,'ابريل','اغسطس','اكتوبر'].join('|')+')\\s+(20\\d{2})','giu');
+function refreshCampaignMonth(text,year,month){
+  return String(text).replace(monthYearPattern,(match,label,found)=>{
+    const normalized=label.toLowerCase().replace(/^ابريل$/,'أبريل').replace(/^اغسطس$/,'أغسطس').replace(/^اكتوبر$/,'أكتوبر');
+    const originalMonth=arMonths.findIndex(m=>m===normalized)+1 ||
+      enMonths.findIndex(m=>m.toLowerCase()===normalized)+1;
+    const oldYear=Number(found);
+    if(!originalMonth||oldYear<2020||oldYear>year+2||
+      !(oldYear!==year||originalMonth<month))return match;
+    return (/^[a-z]/i.test(label)?enMonths[month-1]:arMonths[month-1])+' '+year;
+  });
+}
 export function staleCurrentClaims(html,year=context(new Date()).year,month=context(new Date()).month){
   const found=[];
   for(const m of String(html||'').matchAll(/<(title|h[1-6]|p|li|td|th|figcaption)\b[^>]*>([\s\S]*?)<\/\1>/gi)){
@@ -54,7 +68,7 @@ export function staleCurrentClaims(html,year=context(new Date()).year,month=cont
   }
   return found;
 }
-function refreshTextParts(inner,{year,seasonal,english}){
+function refreshTextParts(inner,{year,month,seasonal,english}){
   let inAnchor=false,inTime=false;
   return inner.split(/(<[^>]*>)/g).map(piece=>{
     if(/^<\s*a\b/i.test(piece))inAnchor=true;
@@ -67,7 +81,7 @@ function refreshTextParts(inner,{year,seasonal,english}){
     if(inAnchor||inTime)return piece;
     let value=piece;
     if(seasonal){
-      value=value.replace(/\b20\d{2}\b/g,found=>{
+      value=refreshCampaignMonth(value,year,month).replace(/\b20\d{2}\b/g,found=>{
         const y=+found;
         return y>=2020&&y<=year+2&&y!==year?String(year):found;
       }).replace(/متاح(?:ة)?\s*الآن|ساري(?:ة)?\s*الآن|available\s+now|currently\s+active/gi,
@@ -87,10 +101,10 @@ export function refreshLiveTemporalArticleHtml(html,{date=new Date(),english=fal
     return a+fresh+c;
   });
   out=out.replace(/(<(p|li|td|th|figcaption)\b[^>]*>)([\s\S]*?)(<\/\2>)/gi,(full,a,tag,inner,c)=>{
-    if(!oldClaim(inner,d.year))return full;
+    if(!oldClaim(inner,d.year,d.month))return full;
     const t=visible(inner);
-    const seasonal=mismatched(t,d.year)&&sale.test(t)&&active.test(t);
-    const safe=refreshTextParts(inner,{year:d.year,seasonal,english});
+    const seasonal=(mismatched(normalizedAuditText(t),d.year)||staleMonth(normalizedAuditText(t),d.year,d.month))&&sale.test(t)&&active.test(t);
+    const safe=refreshTextParts(inner,{year:d.year,month:d.month,seasonal,english});
     const month=english?enMonths[d.month-1]:arMonths[d.month-1];
     const note=english?
       ' For '+month+' '+d.year+', confirm current offers, models and coupon terms at Noon checkout.':
