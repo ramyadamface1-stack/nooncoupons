@@ -1,0 +1,55 @@
+name: Deploy NoonDealsNow Direct R2 Canary (Cloudflare only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cloudflare-ai-direct/**'
+      - '.github/workflows/deploy-noondealsnow-cloudflare-direct-r2.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: noondealsnow-direct-ai-canary
+  cancel-in-progress: false
+jobs:
+  deploy-canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify separate no-cron source and destination API token
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 20
+          node -e "const c=require('./cloudflare-ai-direct/wrangler.jsonc'); if(c.name!=='noondealsnow-ai-direct-r2'||c.vars.DIRECT_AI_STAGE!=='canary-no-cron'||c.triggers.crons.length)process.exit(21)"
+          node --check cloudflare-ai-direct/engine.mjs
+          node --check cloudflare-ai-direct/keys.mjs
+          node --check cloudflare-ai-direct/rpc-entry.mjs
+          if grep -Eq 'api.github.com|GITHUB_DISPATCH_TOKEN|actions/workflows' cloudflare-ai-direct/engine.mjs cloudflare-ai-direct/keys.mjs cloudflare-ai-direct/rpc-entry.mjs; then exit 22; fi
+          echo 'CLOUDFLARE_DIRECT_R2_PREFLIGHT=PASS'
+      - name: Build and deploy isolated direct R2 Worker
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --config cloudflare-ai-direct/wrangler.jsonc --outdir /tmp/ndn-direct
+          npx wrangler deploy --config cloudflare-ai-direct/wrangler.jsonc
+      - name: Validate canary stage and no runtime GitHub usage
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            code=$(curl -sS --max-time 20 -o /tmp/direct-r2-health.json -w '%{http_code}' 'https://noondealsnow-ai-direct-r2.ndn-e4c35f8a50.workers.dev/health' || true)
+            if [ "$code" = 200 ] && jq -e '.ok==true and .schedulerEnabled==false and .githubRuntime==false and .directStage=="canary-no-cron"' /tmp/direct-r2-health.json >/dev/null; then
+              echo 'DIRECT_CLOUDFLARE_R2_CANARY=VERIFIED'
+              exit 0
+            fi
+            sleep 4
+          done
+          echo 'DIRECT_CLOUDFLARE_R2_CANARY=NOT_VERIFIED'
+          exit 31
