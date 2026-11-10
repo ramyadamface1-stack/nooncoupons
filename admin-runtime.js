@@ -260,7 +260,7 @@ export async function bulkTick(env){
 
 // Non-secret publication scheduling policy. Gemini/Groq credentials must NEVER
 // be saved in this Durable Object or returned to the browser.
-export const AI_V2_INTERVALS=Object.freeze([1,5,10,15,30,60]);
+export const AI_V2_INTERVALS=Object.freeze([...Array.from({length:15},(_,i)=>i+1),30,60]);
 export const AI_V2_PUBLISH_INTERVALS=Object.freeze(Array.from({length:15},(_,i)=>i+1));
 export async function getAiV2Control(env){
  const response=await gctl(env,'/ai-v2-control',{method:'GET'});
