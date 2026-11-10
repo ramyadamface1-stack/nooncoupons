@@ -77,6 +77,13 @@ export async function publishAiV2NativeArticle(env,payload){
  if(!env?.CONTENT_FINAL||!env?.GENERATOR_CONTROL)return reject('NATIVE_BINDINGS_MISSING');
  const {topic,article,checkpoint}=payload,expected=String(checkpoint.contentHash||''),digest=await hash(article.html);
  if(!/^[a-f0-9]{64}$/.test(expected)||expected!==digest)return reject('CHECKPOINT_HASH_MISMATCH');
+ // The non-claiming DO slot check is cheap. On a closed publication window,
+ // avoid loading and auditing the full quality corpus on Workers Free.
+ // Every accepted article still runs ALL native quality gates below, and the
+ // separate atomic POST claim remains authoritative before any R2 article write.
+ const earlySlot=await getPublicationSlotStatus(env,{aiV2:true});
+ if(!earlySlot.ok||earlySlot.eligible!==true)
+   return reject('GLOBAL_PUBLICATION_SLOT_NOT_DUE',{nextEligibleAt:earlySlot.nextEligibleAt||null});
  let recent,cluster;
  try{
   const originals=await readFullNativeQualityFeed(env);
@@ -106,8 +113,8 @@ export async function publishAiV2NativeArticle(env,payload){
  const key='articles/'+article.slug+'.html';
  let old;try{old=await env.CONTENT_FINAL.head(key)}catch{return reject('DUPLICATE_CHECK_UNAVAILABLE')}
  if(old)return reject('ARTICLE_ALREADY_PUBLISHED');
- const status=await getPublicationSlotStatus(env,{aiV2:true});
- if(!status.ok||status.eligible===false)return reject('GLOBAL_PUBLICATION_SLOT_NOT_DUE',{nextEligibleAt:status.nextEligibleAt||null});
+ // A concurrent publisher may acquire the slot while the native audits
+ // run. Only this atomic claim may authorize the article's R2 write.
  const permit=await claimPublicationSlot(env,topic.country,'ai-v2-native');
  if(!permit.ok)return reject('GLOBAL_PUBLICATION_SLOT_NOT_GRANTED');
  const at=new Date().toISOString();
