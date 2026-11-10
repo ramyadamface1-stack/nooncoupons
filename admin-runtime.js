@@ -517,40 +517,36 @@ export async function handleAdminApi(req,env){
     let payload;
     try{payload=JSON.parse(raw)}catch{return json({ok:false,error:'invalid_json'},400)}
     if(!payload||typeof payload!=='object'||Array.isArray(payload))return json({ok:false,error:'invalid_payload'},400);
-    const token=String(env.NOON_GITHUB_SECRETS_ADMIN_TOKEN||payload.githubToken||'').trim();
-    if(p!=='/api/admin/ai-v2-run-now'&&!token)return json({ok:false,error:'github_token_required',
-      hint:'Use a fine-grained GitHub PAT with Secrets read/write; Actions read/write for manual dispatch.'},409);
+    // The authenticated panel now manages encrypted R2 key batches through
+    // a Cloudflare-only service binding. No GitHub PAT or GitHub Secrets API.
     try{
       if(p==='/api/admin/ai-v2-keys'){
-        const {listGithubKeySecrets}=await import('./ai-v2-github-secrets.js');
-        return json(await listGithubKeySecrets(token));
+        if(!env.AI_V2_DIRECT_ADMIN?.keyInventory)
+          return json({ok:false,error:'direct_cloudflare_binding_missing'},503);
+        return json(await env.AI_V2_DIRECT_ADMIN.keyInventory());
       }
       if(p==='/api/admin/ai-v2-key-import'){
-        // One request may append to the GitHub pool at a time. GitHub Secrets
-        // PUT overwrites by default, so a Durable Object lease is mandatory.
-        const leaseResponse=await gctl(env,'/ai-v2-key-import-lease',{method:'POST'});
-        if(leaseResponse.status===409)return json({ok:false,error:'key_import_in_progress'},409);
-        if(!leaseResponse.ok)return json({ok:false,error:'key_import_lock_unavailable'},503);
-        const lease=await leaseResponse.json();
-        if(!lease?.ok||typeof lease.ticket!=='string')return json({ok:false,error:'key_import_lock_unavailable'},503);
-        try{
-          const {importGithubKeySecret}=await import('./ai-v2-github-secrets.js');
-          const result=await importGithubKeySecret({provider:payload.provider,input:payload.keys,token});
-          return json(result,201);
-        }finally{
-          try{await gctl(env,'/ai-v2-key-import-lease',{method:'DELETE',
-            headers:{'content-type':'application/json'},body:JSON.stringify({ticket:lease.ticket})})}catch{}
-        }
+        if(!env.AI_V2_DIRECT_ADMIN?.importKeys)
+          return json({ok:false,error:'direct_cloudflare_binding_missing'},503);
+        const result=await env.AI_V2_DIRECT_ADMIN.importKeys({
+          provider:payload.provider,keys:payload.keys
+        });
+        return json(result,201);
       }
       if(p==='/api/admin/ai-v2-run-now'){
         const cfg=await getAiV2Control(env);
         if(!cfg.enabled)return json({ok:false,error:'scheduler_paused',
           hint:'Enable Gemini/Groq generation in the control panel before running.'},409);
-        // Only the scheduler Worker holds the GitHub Dispatch Secret.
-        // This named RPC method is never exposed as a public URL.
-        if(!env.AI_V2_ADMIN_DISPATCH?.dispatchOnce)
-          return json({ok:false,error:'internal_dispatch_not_configured'},503);
-        const result=await env.AI_V2_ADMIN_DISPATCH.dispatchOnce();
+        // Do not dispatch Github from the new Cloudflare panel. The direct
+        // Cron must be activated and provisioned separately before accepting
+        // a manual generation request. Never claim a canary accepted work.
+        if(!env.AI_V2_DIRECT_ADMIN?.status||!env.AI_V2_DIRECT_ADMIN?.dispatchOnce)
+          return json({ok:false,error:'direct_cloudflare_binding_missing'},503);
+        const engine=await env.AI_V2_DIRECT_ADMIN.status();
+        if(!engine?.schedulerEnabled||engine?.githubRuntime!==false)
+          return json({ok:false,error:'direct_engine_canary_not_active',
+            hint:'Cloudflare direct engine is deployed but its production Cron is not enabled yet.'},409);
+        const result=await env.AI_V2_DIRECT_ADMIN.dispatchOnce();
         if(!result?.dispatched){
           const reason=String(result?.reason||'INTERNAL_DISPATCH_FAILED');
           const known={
@@ -568,11 +564,11 @@ export async function handleAdminApi(req,env){
             reason:reason.slice(0,90),published:false},409);
         }
         return json({ok:true,dispatched:true,published:false,
-          message:'GitHub accepted the run. This is not an article-publication confirmation.'},202);
+          message:'Cloudflare direct Cron accepted the request for the next minute. No article has been falsely counted.'},202);
       }
     }catch(e){
       const code=String(e?.message||'unknown');
-      const permitted=/^(GITHUB_[A-Z0-9_]+|INVALID_[A-Z0-9_]+|EMPTY_IMPORT|IMPORT_TOO_LARGE|UNSUPPORTED_KEY_PROVIDER)$/;
+      const permitted=/^(DIRECT_[A-Z0-9_]+|INVALID_[A-Z0-9_]+|EMPTY_IMPORT|IMPORT_TOO_LARGE|UNSUPPORTED_KEY_PROVIDER)$/;
       return json({ok:false,error:permitted.test(code)?code:'secure_operation_failed'},502);
     }
   }
