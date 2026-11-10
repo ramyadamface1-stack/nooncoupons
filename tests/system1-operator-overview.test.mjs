@@ -8,7 +8,7 @@ test('SYSTEM1 operator overview displays real separate generation and publicatio
   'lastArticleSummary','nextArticleSummary','nextGenerationSchedule','nextPublishingSchedule',
   'lastHour','lastDay','geminiCount','groqCount','genInterval','saveInterval','publishInterval','savePublishingInterval','publishingIntervalHint','saveKeys','keyBulk','keyFile'])
   assert.ok(SYSTEM1_HTML.includes('id="'+id+'"'),id);
- assert.match(SYSTEM1_HTML,/window\.setInterval\(\(\)=>\{if\(!document\.hidden\)load\(\)\},120000\)/);
+ assert.match(SYSTEM1_HTML,/window\.setInterval\(\(\)=>\{if\(!document\.hidden\)load\(\)\},60000\)/);
  assert.match(SYSTEM1_HTML,/نافذة النشر المستهدفة التالية/);
  assert.match(SYSTEM1_HTML,/العدد غير مقاس بعد، وليس صفرًا/);
  assert.match(SYSTEM1_HTML,/توقيت حسابي متوقع للفحص، وليس ضمان تشغيل GitHub/);
