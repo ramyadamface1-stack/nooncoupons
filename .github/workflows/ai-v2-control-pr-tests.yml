@@ -19,6 +19,7 @@ on:
       - 'tests/ai-v2-*.test.mjs'
       - '.github/workflows/ai-v2-control-pr-tests.yml'
       - '.github/workflows/noondealsnow-ai-v2.yml'
+      - '.github/workflows/noondealsnow-native-quality-compact.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -61,6 +62,7 @@ jobs:
             tests/ai-v2-groq-key-pool.test.mjs \
             tests/ai-v2-topic-queue.test.mjs \
             tests/ai-v2-r2-checkpoint-http.test.mjs \
+            tests/ai-v2-quality-snapshot-workflow.test.mjs \
             tests/ai-v2-provider-circuit.test.mjs \
             tests/ai-v2-topic-refresh.test.mjs \
             tests/ai-v2-control-policy.test.mjs \
