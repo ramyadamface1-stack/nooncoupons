@@ -5,6 +5,10 @@ on:
     paths:
       - '.github/workflows/noondealsnow-native-quality-compact.yml'
   workflow_dispatch:
+  # Low-frequency, non-provider reconciliation for R2 bulk-source changes.
+  # HEAD-only no-op when the previously verified source ETag is unchanged.
+  schedule:
+    - cron: '23 0,12 * * *'
 permissions: {contents: read}
 concurrency:
   group: ndn-native-quality-snapshot
@@ -34,8 +38,27 @@ jobs:
           s=boto3.client('s3',region_name='auto',endpoint_url=f'https://{account}.r2.cloudflarestorage.com',
             aws_access_key_id=key,aws_secret_access_key=secret,
             config=Config(connect_timeout=10,read_timeout=25,retries={'max_attempts':2,'mode':'standard'}))
+          sourceHead=s.head_object(Bucket=bucket,Key=source)
+          sourceEtag=sourceHead['ETag'].strip('"')
+          # New snapshots carry their verified source identity as S3 user
+          # metadata. This HEAD-only path avoids parsing the huge legacy
+          # bulk/latest.json on routine no-change runs.
+          try:
+            prior=s.head_object(Bucket=bucket,Key=target)
+            priorMeta=prior.get('Metadata') or {}
+            if (priorMeta.get('source-etag')==sourceEtag and
+                priorMeta.get('source-count','').isdigit() and
+                int(prior.get('ContentLength',0))>0):
+              print('NATIVE_QUALITY_SNAPSHOT=UNCHANGED_SOURCE_ETAG;R2_WRITES=0;PROVIDER_CALLS=0',flush=True)
+              raise SystemExit(0)
+          except s.exceptions.ClientError as e:
+            if e.response.get('Error',{}).get('Code') not in ('404','NoSuchKey','NotFound'):
+              raise
+          print('NATIVE_QUALITY_SNAPSHOT=REBUILDING_SOURCE_CHANGED_OR_METADATA_MISSING',flush=True)
           sourceObj=s.get_object(Bucket=bucket,Key=source)
           original=sourceObj['Body'].read()
+          if sourceObj['ETag'].strip('"')!=sourceEtag:
+            raise RuntimeError('SOURCE_CHANGED_BETWEEN_HEAD_AND_GET')
           payload=json.loads(original)
           if not isinstance(payload,dict) or not isinstance(payload.get('articles'),list):
             raise RuntimeError('SOURCE_QUALITY_INDEX_INVALID')
@@ -54,7 +77,6 @@ jobs:
             if isinstance(orig,dict):
               for k in fields:
                 if k in orig and sub.get(k)!=orig[k]:raise RuntimeError('QUALITY_FIELD_CHANGED')
-          sourceEtag=sourceObj['ETag'].strip('"')
           out={'version':1,'sourceKey':source,'sourceEtag':sourceEtag,
             'sourceCount':len(slim),'articles':slim}
           raw=json.dumps(out,ensure_ascii=False,separators=(',',':')).encode('utf-8')
@@ -63,12 +85,16 @@ jobs:
           if len(raw)>=len(original):
             raise RuntimeError('COMPACT_QUALITY_PROJECTION_NOT_SMALLER')
           s.put_object(Bucket=bucket,Key=target,Body=raw,ContentType='application/json; charset=utf-8',
-            CacheControl='private,max-age=0')
+            CacheControl='private,max-age=0',
+            Metadata={'source-etag':sourceEtag,'source-count':str(len(slim))})
           stored=s.get_object(Bucket=bucket,Key=target)
           after=stored['Body'].read()
           if hashlib.sha256(raw).digest()!=hashlib.sha256(after).digest():
             raise RuntimeError('COMPACT_QUALITY_CHECKSUM_MISMATCH')
           verifying=json.loads(after)
+          verifiedHead=stored.get('Metadata') or {}
+          if verifiedHead.get('source-etag')!=sourceEtag or verifiedHead.get('source-count')!=str(len(slim)):
+            raise RuntimeError('COMPACT_QUALITY_METADATA_VERIFY_FAILED')
           if verifying['sourceEtag']!=sourceEtag or len(verifying['articles'])!=len(slim):
             raise RuntimeError('COMPACT_QUALITY_VERIFY_FAILED')
           print('NATIVE_QUALITY_PROJECTION_VERIFIED=true;FULL_SIGNATURE_FIELDS_RETAINED=true',flush=True)
