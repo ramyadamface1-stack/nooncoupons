@@ -9,7 +9,7 @@ const config=JSON.parse(readFileSync(new URL('../automation/ai-v2/config.json',i
 const topics=JSON.parse(readFileSync(new URL('../automation/ai-v2/topics.json',import.meta.url)));
 test('safe no-cost defaults, unified one-minute cadence and market policy',()=>{
  assert.equal(validateConfig(config),true);assert.equal(config.enabled,false);
- assert.equal(config.targetPerHour,100);assert.equal(config.targetPerDay,2400);
+ assert.equal(config.targetPerHour,60);assert.equal(config.targetPerDay,1440);
  assert.equal(config.publicationMode,'checkpoint_only');assert.equal(config.maxConcurrent,2);
  assert.equal(config.models.gemini,'gemini-3.1-flash-lite');
  assert.equal(config.models.geminiFallback,'gemini-3.5-flash-lite');
@@ -170,10 +170,10 @@ test('Cloudflare 503 does not blindly retry a checkpoint that is absent or chang
  }
 });
 
-test('100 articles/hour target needs isolated parallel market jobs, never unlocks unbounded concurrency',()=>{
+test('60 articles/hour target permits 1 or 2 isolated generator lanes while rejecting unbounded concurrency',()=>{
  const c={...config,enabled:true};
  assert.equal(validateConfig(c),true);
- assert.throws(()=>validateConfig({...c,maxConcurrent:1}),/CADENCE_TARGET_MISMATCH/);
+ assert.equal(validateConfig({...c,maxConcurrent:1}),true);
  assert.throws(()=>validateConfig({...c,maxConcurrent:3}),/UNSAFE_CONCURRENCY/);
  assert.throws(()=>validateConfig({...c,targetPerHour:121,targetPerDay:2904}),/CADENCE_TARGET_MISMATCH/);
  assert.throws(()=>validateConfig({...c,intervalMinutes:5,targetPerHour:12,targetPerDay:288}),/UNSAFE_CONCURRENCY/);
