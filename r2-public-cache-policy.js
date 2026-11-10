@@ -43,6 +43,12 @@ export function publicEdgePolicyRevision(path,baseRevision='r2-jsonld-dedupe-r16
   // canonical detail links and real clipboard copy actions.
   if(/^\/en\/(?:saudi|uae)\/noon-coupon-code$/.test(String(path||'').replace(/\/+$/,'')))
     return 'english-market-coupon-copy-canonical-v1';
+  // Country, category, product, and saving-guide copy controls had inert inline
+  // handlers. Also enforce coupon selection from the country allowlist only.
+  // Scope cache invalidation to exactly the changed public English pages.
+  if(/^\/en\/(?:saudi|uae)(?:\/(?:category|product)\/[a-z0-9-]+)?$/.test(String(path||'').replace(/\/+$/,'')) ||
+     String(path||'').replace(/\/+$/,'')==='/en/uae/saving-guide')
+    return 'english-market-copy-approved-v1';
   // Country hubs previously featured a secondary code and omitted direct links to
   // the approved market-primary canonical detail; refresh these four small pages only.
   if(['/saudi','/uae','/en/saudi','/en/uae'].includes(String(path||'').replace(/\/+$/,'')))
