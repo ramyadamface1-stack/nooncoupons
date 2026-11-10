@@ -1,6 +1,6 @@
 import {enableExistingDestinationR2} from './r2-remote-existing-bucket.js';
 import {publishAiV2NativeArticle} from './ai-v2-native-publish-bridge.js';
-import {refreshLiveTemporalArticleHtml} from './article-temporal-freshness.js';
+import {refreshLiveTemporalArticleHtml,refreshCurrentSeasonLabel} from './article-temporal-freshness.js';
 import {reconcileAiV2Publication} from './ai-v2-publication-ledger.js';
 import {nativeAiV2SitemapResponse} from './ai-v2-sitemap.js';
 import app from './brand-runtime.js';
@@ -212,8 +212,8 @@ function discoveryHtml(path,articles){
   const country=market==='AE'?'الإمارات':market==='SA'?'السعودية':'السعودية والإمارات';
   const cards=rows.map(a=>{
     const m=a.country==='AE'?'الإمارات':'السعودية';
-    const title=esc(a.title||a.primaryKeyword||a.slug);
-    const desc=esc((a.metaDescription||'دليل عملي قبل الشراء واستخدام الكوبون.').slice(0,115));
+    const title=esc(refreshCurrentSeasonLabel(a.title||a.primaryKeyword||a.slug));
+    const desc=esc(refreshCurrentSeasonLabel(a.metaDescription||'دليل عملي قبل الشراء واستخدام الكوبون.').slice(0,115));
     const href=articleHref(a);
     return `<article class="dl-card"><small>${m}</small><h3><a href="${href}">${title}</a></h3><p>${desc}</p><a class="dl-read" href="${href}">اقرأ المقال ←</a></article>`;
   }).join('');
@@ -391,7 +391,7 @@ export async function imageSitemap(env,origin){
   const source=[...(data.articles||[]),...(english||[])].filter(discoveryEligible)
     .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,500);
   const rows=source.map(a=>{
-    const page=origin+articleHref(a),coupon=String(a.coupon||a.code||''),country=a.country==='AE'?'AE':'SA',title=String(a.title||a.primaryKeyword||a.slug);
+    const page=origin+articleHref(a),coupon=String(a.coupon||a.code||''),country=a.country==='AE'?'AE':'SA',title=refreshCurrentSeasonLabel(String(a.title||a.primaryKeyword||a.slug));
     const images=[2,3].map(v=>origin+'/assets/coupon-svg/'+enc(a.slug)+'/'+v+'.svg?v=9&coupon='+encodeURIComponent(coupon)+'&country='+country);
     return `<url><loc>${esc(page)}</loc>${images.map(src=>`<image:image><image:loc>${esc(src)}</image:loc><image:title>${esc(title)}</image:title></image:image>`).join('')}</url>`;
   }).join('');

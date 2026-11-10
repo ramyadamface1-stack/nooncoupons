@@ -216,3 +216,14 @@ test('discovery entry avoids heavy secondary R2 discovery on complete blog pages
  assert.ok(!gets.includes('english-canary/public-recent-v1.json'),
    'Standalone blog does not need a secondary English discovery snapshot');
 });
+
+test('R2 blog list labels use current 2026 but never modify underlying file keys',async()=>{
+ const env=mockEnv([
+  {key:'articles/000-sale-2027-saudi.html',customMetadata:{status:'published',t:'كود خصم نون السعودية 2027'}},
+  {key:'articles/001-archive-2024-saudi.html',customMetadata:{status:'published',t:'أرشيف عروض رمضان 2024'}}
+ ]);
+ const html=await (await go(env)).text();
+ assert.match(html,/كود خصم نون السعودية 2026/);
+ assert.match(html,/أرشيف عروض رمضان 2024/);
+ assert.match(html,/href="\/articles\/000-sale-2027-saudi"/);
+});

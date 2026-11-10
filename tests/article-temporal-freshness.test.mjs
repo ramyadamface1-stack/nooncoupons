@@ -46,3 +46,17 @@ test('content corrections retain subject, timestamps, links and both heading and
   assert.match(revised,/datetime="2024-05-12"/);
   assert.match(revised,/نوفمبر 2026/);
 });
+
+test('cross-sector list and table claims get current-year context without touching dates',()=>{
+ const html='<article data-published="2024-05-12"><ul><li>عروض الملابس 2024 متاحة الآن <a href="/coupon/nov170">NOV170</a></li></ul><table><tr><td>Beauty offers 2025 are available now</td></tr></table><time datetime="2024-05-12">2024</time></article>';
+ const result=refreshLiveTemporalArticleHtml(html,{date}).html;
+ assert.match(result,/عروض الملابس 2026/);
+ assert.match(result,/Beauty offers 2026/);
+ assert.match(result,/href="\/coupon\/nov170"/);
+ assert.match(result,/data-published="2024-05-12"/);
+ assert.match(result,/datetime="2024-05-12"/);
+});
+test('Arabic-Indic digits current coupon titles are corrected, history untouched',()=>{
+ assert.equal(refreshCurrentSeasonLabel('كود خصم نون ٢٠٢٧',{date}),'كود خصم نون 2026');
+ assert.equal(refreshCurrentSeasonLabel('أرشيف عروض رمضان ٢٠٢٤',{date}),'أرشيف عروض رمضان ٢٠٢٤');
+});
