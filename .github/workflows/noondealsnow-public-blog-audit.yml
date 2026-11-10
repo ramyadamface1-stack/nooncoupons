@@ -1,0 +1,74 @@
+name: NoonDealsNow Public Blog Ledger — Read-only Visibility Audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-public-blog-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      R2_KEY: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Install read-only R2 client
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Compare verified live ledger to public blog latest index (NO WRITES)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import boto3,os,json
+          from botocore.exceptions import ClientError
+          from botocore.config import Config
+          key=os.getenv('R2_KEY','').strip()
+          secret=os.getenv('R2_SECRET','').strip()
+          if not key or not secret:
+              raise RuntimeError('AUDIT_CREDENTIALS_UNAVAILABLE')
+          bucket='nooncoupons-content-v2'
+          account='e4c35f8a50a7b2e4cfb9d6c534962603'
+          client=boto3.client('s3',region_name='auto',
+              endpoint_url=f'https://{account}.r2.cloudflarestorage.com',
+              aws_access_key_id=key,aws_secret_access_key=secret,
+              config=Config(connect_timeout=10,read_timeout=25,retries={'max_attempts':2}))
+          def read(key):
+              try:
+                  response=client.get_object(Bucket=bucket,Key=key)
+              except ClientError as error:
+                  code=error.response.get('Error',{}).get('Code','UNKNOWN')
+                  if code in ('NoSuchKey','404','NotFound'):
+                      return None
+                  raise RuntimeError('R2_READ_FAILED:'+code) from None
+              body=response['Body'].read()
+              if len(body)>15000000:
+                  raise RuntimeError('AUDIT_DOCUMENT_TOO_LARGE')
+              return json.loads(body)
+          ledger=read('_ops/ai-v2-publication-ledger-v1.json')
+          journal=read('blog/latest-live-v1.json')
+          if ledger is not None and (ledger.get('version')!=1 or not isinstance(ledger.get('articles'),list)):
+              raise RuntimeError('CANONICAL_LEDGER_SCHEMA_INVALID')
+          if journal is not None and (journal.get('version')!=1 or not isinstance(journal.get('articles'),list)):
+              raise RuntimeError('PUBLIC_BLOG_JOURNAL_SCHEMA_INVALID')
+          all_rows=ledger.get('articles',[]) if ledger else []
+          published=journal.get('articles',[]) if journal else []
+          public_set={str(x.get('slug','')) for x in published if isinstance(x,dict)}
+          newest=sorted((x for x in all_rows if isinstance(x,dict)),
+              key=lambda x:x.get('publishedAt',''),reverse=True)[:12]
+          missing=[x for x in newest if x.get('slug') not in public_set]
+          print('AUDIT_READ_ONLY=TRUE;R2_PUT_CALLS=0;ARTICLE_WRITES=0;BROWSER_STATE_UNCHANGED=TRUE')
+          print('CANONICAL_LEDGER_PRESENT='+str(ledger is not None).lower())
+          print('PUBLIC_LATEST_JOURNAL_PRESENT='+str(journal is not None).lower())
+          print('CANONICAL_LEDGER_ARTICLES='+str(len(all_rows)))
+          print('PUBLIC_JOURNAL_ARTICLES='+str(len(published)))
+          print('LATEST_TWELVE_MISSING_FROM_PUBLIC_JOURNAL='+str(len(missing)))
+          for item in newest[:5]:
+              print('RECENT_PUBLISH country='+str(item.get('country',''))+
+                  ' slug='+str(item.get('slug',''))+
+                  ' in_public_blog='+str(item.get('slug') in public_set).lower())
+          print('PUBLIC_BLOG_VISIBILITY_AUDIT=COMPLETE')
+          PY
