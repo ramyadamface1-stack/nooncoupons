@@ -71,4 +71,30 @@ jobs:
                   ' slug='+str(item.get('slug',''))+
                   ' in_public_blog='+str(item.get('slug') in public_set).lower())
           print('PUBLIC_BLOG_VISIBILITY_AUDIT=COMPLETE')
+          # HEAD plus a small byte-range GET only: diagnose cold Worker 503
+          # when the verified compact quality index is stale or unavailable.
+          import re
+          source_head=client.head_object(Bucket=bucket,Key='bulk/latest.json')
+          source_etag=source_head['ETag'].strip('"')
+          projection_key='_ops/ai-v2-native-quality-index-v1.json'
+          try:
+              projection_head=client.head_object(Bucket=bucket,Key=projection_key)
+              first=client.get_object(Bucket=bucket,Key=projection_key,Range='bytes=0-4095')
+              opening=first['Body'].read().decode('utf-8','replace')
+              match=re.search(r'"sourceEtag"\\s*:\\s*"([^"]+)"',opening)
+              count=re.search(r'"sourceCount"\\s*:\\s*(\\d+)',opening)
+              matches=bool(match and match.group(1)==source_etag)
+              print('NATIVE_QUALITY_PROJECTION_PRESENT=true')
+              print('NATIVE_QUALITY_PROJECTION_SOURCE_ETAG_MATCH='+str(matches).lower())
+              print('NATIVE_QUALITY_PROJECTION_SOURCE_COUNT='+str(count.group(1) if count else 'unknown'))
+              print('NATIVE_QUALITY_PROJECTION_BYTES='+str(projection_head['ContentLength']))
+              print('NATIVE_QUALITY_SOURCE_LAST_MODIFIED='+source_head['LastModified'].isoformat())
+              print('NATIVE_QUALITY_PROJECTION_LAST_MODIFIED='+projection_head['LastModified'].isoformat())
+          except ClientError as error:
+              code=error.response.get('Error',{}).get('Code','UNKNOWN')
+              if code not in ('NoSuchKey','404','NotFound'):
+                  raise RuntimeError('QUALITY_PROJECTION_READ_FAILED:'+code) from None
+              print('NATIVE_QUALITY_PROJECTION_PRESENT=false')
+              print('NATIVE_QUALITY_PROJECTION_SOURCE_ETAG_MATCH=false')
+          print('NATIVE_QUALITY_PROJECTION_AUDIT=COMPLETE')
           PY
