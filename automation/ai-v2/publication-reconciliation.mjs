@@ -11,7 +11,8 @@ export function ambiguousPublicationState(checkpoint) {
 
 export async function reconcileAmbiguousPublication({
   domain, topic, checkpoint, fetchFn = fetch, persist,
-  now = () => new Date().toISOString()
+  now = () => new Date().toISOString(),
+  pause = ms => new Promise(resolve => setTimeout(resolve, ms))
 }) {
   if (!ambiguousPublicationState(checkpoint) ||
       !topic || typeof topic.slug !== 'string' ||
@@ -22,14 +23,27 @@ export async function reconcileAmbiguousPublication({
   }
   const url = domain + '/articles/' + encodeURIComponent(topic.slug);
   let live = false;
-  try {
-    const response = await fetchFn(url, {
-      method: 'GET', headers: { 'cache-control': 'no-cache' },
-      signal: AbortSignal.timeout(18000)
-    });
-    live = response.status === 200 && (await response.text()).includes(topic.coupon);
-  } catch {
-    // A failed read is not permission to repeat a possibly committed POST.
+  // Recheck an intermittent read-only Cloudflare 5xx at most twice. The
+  // publication POST is NEVER repeated, and a 404/200/429/403 ends the probe.
+  // This bounded read happens within the ONE authorized reconciliation attempt.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let transientReadFailure = false;
+    try {
+      const response = await fetchFn(url, {
+        method: 'GET', headers: { 'cache-control': 'no-cache' },
+        signal: AbortSignal.timeout(18000)
+      });
+      if (response.status === 200) {
+        live = (await response.text()).includes(topic.coupon);
+      } else {
+        transientReadFailure = response.status >= 500 && response.status < 600;
+      }
+    } catch {
+      // A network/response-read failure proves neither presence nor absence.
+      transientReadFailure = true;
+    }
+    if (live || !transientReadFailure || attempt === 2) break;
+    await pause(500 * (attempt + 1));
   }
   if (live) {
     await persist('LIVE_VERIFIED', { liveVerifiedAt: now(), liveUrl: url });
