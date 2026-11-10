@@ -124,8 +124,8 @@ test('fifth append-only reserve keeps old checkpoints stable and adds distinct s
 test('N5 identity remains in production queue before appended N6 wave',()=>{
  const source=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(source,/import \{fifthEditorialTopicWave\} from '\.\/topic-refresh-n5\.mjs'/);
- assert.match(source,/\.\.\.fourthEditorialTopicWave,\.\.\.fifthEditorialTopicWave,\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave\]/);
- assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
+ assert.match(source,/\.\.\.fourthEditorialTopicWave,\.\.\.fifthEditorialTopicWave,\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave,\.\.\.tenthEditorialTopicWave\]/);
+ assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,tenthWaveStart,firstWindow,4\)/);
  assert.match(source,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  const previous=[...base,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave];
  const next=[...previous,...fifthEditorialTopicWave];
@@ -176,7 +176,7 @@ test('N6 history remains wired before N7, without changing legacy provider budge
  const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(s,/import \{sixthEditorialTopicWave\} from '\.\/topic-refresh-n6\.mjs'/);
  assert.match(s,/const sixthWaveStart=fifthWaveStart\+fifthEditorialTopicWave\.length/);
- assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,tenthWaveStart,firstWindow,4\)/);
  assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.match(s,/market-queue-v1/);
  assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
@@ -212,8 +212,8 @@ test('new N7 is used in production and keeps the 4+4 bounded reserve without res
  const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(s,/import \{seventhEditorialTopicWave\} from '\.\/topic-refresh-n7\.mjs'/);
  assert.match(s,/const seventhWaveStart=sixthWaveStart\+sixthEditorialTopicWave\.length/);
- assert.match(s,/\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave\]/);
- assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
+ assert.match(s,/\.\.\.sixthEditorialTopicWave,\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave,\.\.\.tenthEditorialTopicWave\]/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,tenthWaveStart,firstWindow,4\)/);
  assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.match(s,/market-queue-v1/);
  assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
@@ -244,8 +244,8 @@ test('N8 adds market-safe, distinct concerns while preserving every prior immuta
  for(let i=0;i<older.length;i++)assert.equal(append[i],older[i],'Prior article positions changed');
  const s=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(s,/const eighthWaveStart=seventhWaveStart\+seventhEditorialTopicWave\.length/);
- assert.match(s,/\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave\]/);
- assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
+ assert.match(s,/\.\.\.seventhEditorialTopicWave,\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave,\.\.\.tenthEditorialTopicWave\]/);
+ assert.match(s,/queueRotatingFreshWaveWindow\(topics\.length,tenthWaveStart,firstWindow,4\)/);
  assert.match(s,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
  assert.doesNotMatch(s,/removeCheckpoint|deleteCheckpoint/);
 });
@@ -280,6 +280,47 @@ test('N9 adds a unique fresh SA and AE inventory without changing prior R2 artic
  const source=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(source,/import \{ninthEditorialTopicWave\} from '\.\/topic-refresh-n9\.mjs'/);
  assert.match(source,/const ninthWaveStart=eighthWaveStart\+eighthEditorialTopicWave\.length/);
- assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,ninthWaveStart,firstWindow,4\)/);
- assert.match(source,/\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave\]/);
+ assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,tenthWaveStart,firstWindow,4\)/);
+ assert.match(source,/\.\.\.eighthEditorialTopicWave,\.\.\.ninthEditorialTopicWave,\.\.\.tenthEditorialTopicWave\]/);
+});
+
+
+import {tenthEditorialTopicWave} from '../automation/ai-v2/topic-refresh-n10.mjs';
+test('N10 adds new SA and AE buying intents while keeping every historic checkpoint immutable',()=>{
+ const old=[...base,...expandedEditorialTopics,...newEditorialTopicWave,
+  ...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave,
+  ...sixthEditorialTopicWave,...seventhEditorialTopicWave,...eighthEditorialTopicWave,
+  ...ninthEditorialTopicWave];
+ const oldSlugs=new Set(old.map(x=>x.slug));
+ const existingQuestions=new Set([...seventhEditorialTopicWave,...eighthEditorialTopicWave,
+  ...ninthEditorialTopicWave].map(x=>x.queryModifier));
+ const seen=new Set(),questions=new Set();
+ assert.ok(tenthEditorialTopicWave.length>=250,'N10 reserve too small');
+ for(const item of tenthEditorialTopicWave){
+  assert.ok(!oldSlugs.has(item.slug),'N10 collision with immutable old slug '+item.slug);
+  assert.ok(!seen.has(item.slug),'N10 duplicate slug '+item.slug);
+  seen.add(item.slug);
+  assert.ok(!existingQuestions.has(item.queryModifier),'N10 query overlaps earlier current editorial wave: '+item.queryModifier);
+  questions.add(item.queryModifier);
+  assertTopic(item,config);
+  assert.ok(publicationReadyTopic(item));
+  assert.equal(item.coupon,item.country==='SA'?'NOV170':'NOV188');
+  assert.ok(item.topic.includes(item.country==='SA'?'نون السعودية':'Noon UAE'));
+  assert.ok(item.topic.includes(item.coupon));
+  assert.ok(item.topic.length>=28&&item.topic.length<=72);
+  assert.equal(item.sections.length,5);
+  assert.ok(item.slug.endsWith('-2026-n10'));
+ }
+ assert.ok(questions.size>=60,'Need original varied questions, not mass copies');
+ assert.ok(tenthEditorialTopicWave.some(x=>x.country==='SA'));
+ assert.ok(tenthEditorialTopicWave.some(x=>x.country==='AE'));
+ const all=[...old,...tenthEditorialTopicWave];
+ for(let i=0;i<old.length;i++)assert.equal(all[i],old[i],'Prior identity or order changed');
+ const source=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.match(source,/import \{tenthEditorialTopicWave\} from '\.\/topic-refresh-n10\.mjs'/);
+ assert.match(source,/const tenthWaveStart=ninthWaveStart\+ninthEditorialTopicWave\.length/);
+ assert.match(source,/queueRotatingFreshWaveWindow\(topics\.length,tenthWaveStart,firstWindow,4\)/);
+ assert.match(source,/\.\.\.ninthEditorialTopicWave,\.\.\.tenthEditorialTopicWave\]/);
+ assert.match(source,/queueExpansionBridgeWindow\(topics\.length,existingTopicCount,firstWindow,4\)/);
+ assert.doesNotMatch(source,/removeCheckpoint|deleteCheckpoint/);
 });
