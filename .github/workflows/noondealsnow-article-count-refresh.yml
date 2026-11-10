@@ -1,0 +1,95 @@
+name: NoonDealsNow — Refresh Exact R2 Article Inventory (No Article Writes)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/noondealsnow-article-count-refresh.yml']
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: ndn-article-count-r2-verified
+  cancel-in-progress: false
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      R2_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - name: Install R2 client
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: List every article HTML key and safely refresh only the count snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import boto3, os, json, datetime
+          from botocore.config import Config
+          from botocore.exceptions import ClientError
+
+          access=os.getenv('R2_ACCESS','').strip()
+          secret=os.getenv('R2_SECRET','').strip()
+          if not access or not secret:
+              raise RuntimeError('R2_CREDENTIALS_NOT_CONFIGURED')
+          bucket='nooncoupons-content-v2'
+          client=boto3.client('s3',region_name='auto',
+              endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+              aws_access_key_id=access,aws_secret_access_key=secret,
+              config=Config(connect_timeout=12,read_timeout=30,retries={'max_attempts':3,'mode':'standard'}))
+          # This count represents actual articles/*.html objects, never a guessed
+          # cached manifest value or the AI V2 subset of the full article corpus.
+          count=0
+          pages=0
+          other=0
+          cursor=None
+          while True:
+              params={'Bucket':bucket,'Prefix':'articles/','MaxKeys':1000}
+              if cursor:params['ContinuationToken']=cursor
+              response=client.list_objects_v2(**params)
+              pages+=1
+              if pages>1500:
+                  raise RuntimeError('R2_ARTICLE_INVENTORY_EXCEEDED_SAFE_PAGE_CAP')
+              for obj in response.get('Contents',[]):
+                  key=str(obj.get('Key',''))
+                  if key.startswith('articles/') and key.endswith('.html') and len(key)>len('articles/.html'):
+                      count+=1
+                  else:
+                      other+=1
+              if not response.get('IsTruncated'):break
+              cursor=response.get('NextContinuationToken')
+              if not cursor:raise RuntimeError('R2_PAGINATION_CURSOR_MISSING')
+          if count<1000:
+              raise RuntimeError('R2_ARTICLE_COUNT_IMPLAUSIBLY_LOW')
+          previous=None
+          snapshot_key='_ops/article-count.json'
+          try:
+              obj=client.get_object(Bucket=bucket,Key=snapshot_key)
+              prior=json.loads(obj['Body'].read(12000))
+              if isinstance(prior,dict) and isinstance(prior.get('count'),int):
+                  previous=prior['count']
+          except ClientError as exc:
+              if exc.response.get('Error',{}).get('Code') not in ('NoSuchKey','NotFound','404'):
+                  raise
+          # A surprise drop can indicate a partial migration or missing R2 data.
+          # Keep the previously visible count intact instead of silently hiding loss.
+          if previous is not None and count<previous:
+              print('INVENTORY_DROP_DETECTED;PREVIOUS='+str(previous)+';CURRENT='+str(count))
+              raise RuntimeError('ARTICLE_COUNT_DECREASE_REQUIRES_MANUAL_R2_REVIEW')
+          stamp=datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')
+          payload={'count':count,'countedAt':stamp,'source':'exact-r2-list-objects-v2',
+                   'prefix':'articles/','objectSuffix':'.html','previousCount':previous}
+          raw=json.dumps(payload,ensure_ascii=False,separators=(',',':')).encode('utf-8')
+          # This is the ONLY write. Never PUT or DELETE any articles, blog
+          # journal, publication ledger, coupon, or indexing source.
+          client.put_object(Bucket=bucket,Key=snapshot_key,Body=raw,
+              ContentType='application/json; charset=utf-8',CacheControl='private,max-age=0')
+          check=json.loads(client.get_object(Bucket=bucket,Key=snapshot_key)['Body'].read())
+          if check!=payload:raise RuntimeError('R2_COUNT_SNAPSHOT_READBACK_MISMATCH')
+          print('EXACT_R2_HTML_ARTICLES='+str(count))
+          print('R2_LIST_PAGES='+str(pages)+';NON_HTML_KEYS='+str(other))
+          print('PREVIOUS_COUNT='+str(previous)+';COUNTED_AT='+stamp)
+          print('COUNT_SNAPSHOT_VERIFIED=true;ARTICLE_OBJECT_WRITES=0;ARTICLE_DELETES=0;NO_PAID_CRON=TRUE')
+          PY
