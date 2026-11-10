@@ -1,3 +1,4 @@
+import {refreshLiveTemporalArticleHtml} from './article-temporal-freshness.js';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const count=(s,re)=>(String(s||'').match(re)||[]).length;
 const visibleWords=s=>String(s||'').replace(/<script\b[\s\S]*?<\/script>/gi,' ').replace(/<style\b[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/&nbsp;|&#160;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim().split(/\s+/).filter(Boolean).length;
@@ -88,6 +89,8 @@ function imageBlock({slug,coupon,country,keyword},start,countNeeded){
 
 export function ensureRuntimeArticleQuality(html,{slug='',coupon='',country='SA',keyword='',title=''}={}){
   let out=String(html||''),added=[];
+  const temporal=refreshLiveTemporalArticleHtml(out);
+  if(temporal.corrected){out=temporal.html;added.push('stale-current-season-context-corrected')}
   const market=country==='AE'?'الإمارات':'السعودية',currency=country==='AE'?'الدرهم الإماراتي (AED)':'الريال السعودي (SAR)';
   const safeCoupon=String(coupon||'').trim()||(country==='AE'?'NOV188':'NOV170');
   const safeKeyword=String(keyword||title||'دليل كوبونات نون').trim();

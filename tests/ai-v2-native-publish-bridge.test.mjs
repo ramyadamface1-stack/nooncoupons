@@ -64,3 +64,11 @@ test('native publisher falls back to unabridged quality set on changed source ET
  assert.deepEqual(actual,full);
  assert.deepEqual(getKeys,['_ops/ai-v2-native-quality-index-v1.json','bulk/latest.json']);
 });
+
+
+test('rejects old-year seasonal offers presented as current, while keeping historical dates',()=>{
+  const old=base.article.html.replace('</article>','<p>Beauty offers 2024 are available now</p></article>');
+  assert.equal(validateAiV2NativePayload({...base,article:{...base.article,html:old}}).reason,'STALE_CURRENT_SEASON_CLAIM');
+  const historical=base.article.html.replace('</article>','<p>In 2024 the laptop launched as a previous generation.</p></article>');
+  assert.equal(validateAiV2NativePayload({...base,article:{...base.article,html:historical}}).ok,true);
+});
