@@ -13,7 +13,7 @@ assert.equal(decideTick(c,start+60000,start+60000).reason,'DUE');
 test('clock-skew and unsupported intervals are rejected',()=>{
 const c={...config,enabled:true};
 assert.equal(decideTick(c,start,start+181000).reason,'CLOCK_SKEW');
-assert.equal(decideTick({...c,intervalMinutes:7},start,start).reason,'INVALID_INTERVAL');
+assert.equal(decideTick({...c,intervalMinutes:16},start,start).reason,'INVALID_INTERVAL');
 });
 
 test('dispatch cannot run when disabled, even with a token',async()=>{
