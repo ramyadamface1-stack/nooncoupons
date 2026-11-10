@@ -1,0 +1,22 @@
+{
+  "name": "noondealsnow-ai-direct-r2",
+  "main": "rpc-entry.mjs",
+  "compatibility_date": "2026-11-10",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "triggers": {
+    "crons": []
+  },
+  "vars": {
+    "SITE_ID": "noondealsnow",
+    "DIRECT_AI_STAGE": "canary-no-cron"
+  },
+  "r2_buckets": [
+    {
+      "binding": "CONTENT_FINAL",
+      "bucket_name": "nooncoupons-content-v2"
+    }
+  ]
+}
