@@ -59,6 +59,7 @@ jobs:
         run: |
           node --test \
             tests/ai-v2-gemini-key-pool.test.mjs \
+            tests/ai-v2-60h-target-contract.test.mjs \
             tests/ai-v2-groq-key-pool.test.mjs \
             tests/ai-v2-topic-queue.test.mjs \
             tests/ai-v2-r2-checkpoint-http.test.mjs \
