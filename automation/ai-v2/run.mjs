@@ -536,14 +536,14 @@ async function runScheduledBatch(){
     runStartedAt=Date.now();
     lastReportStatus=null;
     await run();
-    const action=scheduledBatchAction(lastReportStatus,lastSafeReport?.reason);
+    const action=scheduledBatchAction(lastReportStatus,lastSafeReport?.reason,lastSafeReport?.http);
     if(action==='PUBLISHED'){published++;continue}
     if(action==='NEXT_TOPIC'){
-      // One definitively invalid draft is permanently BLOCKED_REVIEW; never
-      // replay it or its provider request. Move to another topic, under the
-      // existing maximum-three-attempts and 150s job time guard.
+      // A rejected draft or definite HTTP 409 native quality denial remains
+      // BLOCKED_REVIEW. Never replay provider calls, lower quality gates or
+      // re-POST; move to another topic under the existing batch limits.
       console.log('AI_V2_JOB_BATCH_SKIP '+JSON.stringify({market:process.env.AI_QUEUE_MARKET,
-        reason:'BATCH_CONTENT_INVALID',attempt:i+1}));
+        reason:lastSafeReport?.reason,attempt:i+1}));
       continue;
     }
     // Any publication ambiguity, quota, transient provider problem or
