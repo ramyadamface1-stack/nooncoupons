@@ -8,8 +8,8 @@
   "publicationMode": "checkpoint_only",
   "intervalMinutes": 1,
   "cronHeartbeat": "* * * * *",
-  "targetPerHour": 100,
-  "targetPerDay": 2400,
+  "targetPerHour": 60,
+  "targetPerDay": 1440,
   "maxConcurrent": 2,
   "checkpoint": {
     "backend": "private-r2",

@@ -14,7 +14,7 @@ export function decideTick(config,scheduledTime,actualTime){
     return {due:false,reason:'SCHEDULER_DISABLED'};
   }
   const interval=Number(config.intervalMinutes),minute=Math.floor(ms/60000);
-  if(![1,5,10,15,30,60].includes(interval))return {due:false,reason:'INVALID_INTERVAL'};
+  if(![...Array.from({length:15},(_,i)=>i+1),30,60].includes(interval))return {due:false,reason:'INVALID_INTERVAL'};
   if(minute%interval!==0)return {due:false,reason:'INTERVAL_NOT_ELAPSED'};
   return {due:true,reason:'DUE'};
 }
@@ -126,7 +126,7 @@ export async function managedRuntimeConfig(cfg,env,fetchFn=fetch){
     if(!res.ok)return {...active,enabled:false,controlStatus:'POLICY_HTTP_'+res.status};
     const policy=await res.json();
     if(policy?.ok!==true||typeof policy.enabled!=='boolean'||
-      ![1,5,10,15,30,60].includes(policy.intervalMinutes))
+      ![...Array.from({length:15},(_,i)=>i+1),30,60].includes(policy.intervalMinutes))
       return {...active,enabled:false,controlStatus:'POLICY_INVALID'};
     return {...active,enabled:policy.enabled,intervalMinutes:policy.intervalMinutes,controlStatus:'POLICY_VERIFIED'};
   }catch{return {...active,enabled:false,controlStatus:'POLICY_UNAVAILABLE'}}
@@ -189,7 +189,7 @@ export default {
     return Response.json({ok:true,site:'noondealsnow',schedulerEnabled:active.enabled,
       intervalMinutes:active.intervalMinutes,source:'admin-do-policy-plus-explicit-runtime-secret',
       controlStatus:active.controlStatus,
-      dispatchPolicy:'one-cron-tick-per-minute-with-serialized-market-jobs',
+      dispatchPolicy:'one-cron-tick-per-minute-parallel-markets-global-atomic-publish',
       globalPublicationSpacingSeconds:30,
       legacyPublisherUntouched:true,noActiveDispatchUntilEnabled:!active.enabled,
       publicationBridgeVerified:active.enabled,freeOnly:true,verifiedMarkets:['SA','AE'],

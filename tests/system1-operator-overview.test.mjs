@@ -8,7 +8,7 @@ test('SYSTEM1 operator overview displays real separate generation and publicatio
   'lastArticleSummary','nextArticleSummary','nextGenerationSchedule','nextPublishingSchedule',
   'lastHour','lastDay','geminiCount','groqCount','genInterval','saveInterval','publishInterval','savePublishingInterval','publishingIntervalHint','saveKeys','keyBulk','keyFile'])
   assert.ok(SYSTEM1_HTML.includes('id="'+id+'"'),id);
- assert.match(SYSTEM1_HTML,/window\.setInterval\(\(\)=>\{if\(!document\.hidden\)load\(\)\},120000\)/);
+ assert.match(SYSTEM1_HTML,/window\.setInterval\(\(\)=>\{if\(!document\.hidden\)load\(\)\},60000\)/);
  assert.match(SYSTEM1_HTML,/نافذة النشر المستهدفة التالية/);
  assert.match(SYSTEM1_HTML,/العدد غير مقاس بعد، وليس صفرًا/);
  assert.match(SYSTEM1_HTML,/توقيت حسابي متوقع للفحص، وليس ضمان تشغيل GitHub/);
@@ -21,7 +21,8 @@ test('UTC generator windows are supported but never presented as confirmed artic
  assert.equal(nextGenerationWindowAt(Date.parse('2026-11-09T17:03:12.000Z'),5),'2026-11-09T17:05:00.000Z');
  assert.equal(nextGenerationWindowAt(Date.parse('2026-11-09T17:03:12.000Z'),15),'2026-11-09T17:15:00.000Z');
  assert.equal(nextGenerationWindowAt(NaN,1),null);
- assert.equal(nextGenerationWindowAt(Date.now(),2),null);
+ assert.equal(nextGenerationWindowAt(Date.parse('2026-11-09T17:03:12.000Z'),2),'2026-11-09T17:04:00.000Z');
+ assert.equal(nextGenerationWindowAt(Date.now(),16),null);
 });
 test('dashboard summary distinguishes published article and metrics from unmeasured generation and future publications',async()=>{
  const control=async()=>({enabled:true,intervalMinutes:5,publishingIntervalMinutes:15});

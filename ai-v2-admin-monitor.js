@@ -52,7 +52,7 @@ async function schedulerHealth(request){
    const s=await response.json();
    if(s?.ok!==true||typeof s.schedulerEnabled!=='boolean'||
       s.source!=='admin-do-policy-plus-explicit-runtime-secret'||
-      ![1,5,10,15,30,60].includes(s.intervalMinutes))
+      ![...Array.from({length:15},(_,i)=>i+1),30,60].includes(s.intervalMinutes))
       return {reachable:false,http:200,reason:'UNVERIFIED_HEALTH_RESPONSE'};
    return {reachable:true,enabled:s.schedulerEnabled,intervalMinutes:s.intervalMinutes,
      controlStatus:s.controlStatus||null,globalPublicationSpacingSeconds:s.globalPublicationSpacingSeconds||null,

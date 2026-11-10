@@ -208,9 +208,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      # One global Durable Object admits an article every 30s across BOTH
-      # markets. Stagger market jobs to avoid costly quality/slot 409 races.
-      max-parallel: 1
+      # Prepare SA and AE on separate GitHub runners: the old serial matrix
+      # withheld a new dispatch for 4-8 minutes despite one-minute Cron.
+      # The site Durable Object remains the ONLY atomic publication permit,
+      # enforcing the operator's 1-15 minute publication interval globally.
+      # Stagger AE by 30s to reduce worker CPU and slot contention.
+      max-parallel: 2
       matrix:
         market: [SA, AE]
     name: preflight-or-generate (${{ matrix.market }})
@@ -263,6 +266,10 @@ jobs:
           node-version: '22'
       # Scheduled path uses built-in Node fetch with verified R2 REST readback;
       # do not spend ~5s reinstalling Wrangler every one-minute dispatch.
+      - name: Offset UAE publisher from Saudi by one global lease
+        if: ${{ matrix.market == 'AE' && inputs.preflight_only == false }}
+        shell: bash
+        run: sleep 30
       - name: Safe preflight or checkpointed draft run
         shell: bash
         run: |
