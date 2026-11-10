@@ -1,3 +1,12 @@
+// Report only the small, non-secret fields needed for safe batch control.
+// In particular, retain an integer HTTP 409 from the native no-write quality
+// gate; an unknown/ambiguous response must NEVER look like a confirmed 409.
+export function safeBatchReport(status,reason,data={}){
+  return {status,reason,
+    http:Number.isInteger(data?.http)?data.http:null,
+    url:typeof data?.url==='string'?data.url:null};
+}
+
 // A failed single-call AI draft is safe to abandon, not retry. Keep the
 // checkpoint BLOCKED_REVIEW and try the next distinct topic while the existing
 // per-job article-attempt and elapsed-time limits still apply. Any uncertainty

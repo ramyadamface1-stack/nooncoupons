@@ -16,7 +16,7 @@ import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKe
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
-import {scheduledBatchAction} from './batch-continuation.mjs';
+import {scheduledBatchAction,safeBatchReport} from './batch-continuation.mjs';
 import {expandedEditorialTopics} from './topic-expansion.mjs';
 import {newEditorialTopicWave} from './topic-refresh.mjs';
 import {thirdEditorialTopicWave} from './topic-refresh-n3.mjs';
@@ -42,7 +42,7 @@ let runStartedAt=Date.now();
 let lastReportStatus=null,lastSafeReport=null,lastSelectedCredential=null,jobBatchOrdinal=0;
 const report=(status,reason,data={})=>{
   lastReportStatus=status;
-  lastSafeReport={status,reason,url:typeof data?.url==='string'?data.url:null};
+  lastSafeReport=safeBatchReport(status,reason,data);
   console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,elapsedMs:Date.now()-runStartedAt,...data}));
 };
 const now=()=>new Date().toISOString();

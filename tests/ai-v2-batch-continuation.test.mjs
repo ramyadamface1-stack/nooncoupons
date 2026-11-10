@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {scheduledBatchAction} from '../automation/ai-v2/batch-continuation.mjs';
+import {scheduledBatchAction,safeBatchReport} from '../automation/ai-v2/batch-continuation.mjs';
+import {readFileSync} from 'node:fs';
 
 test('a verified article counts toward the bounded market batch',()=>{
   assert.equal(scheduledBatchAction('LIVE_VERIFIED','NATIVE_QUALITY_AND_PUBLIC_URL_VERIFIED'),'PUBLISHED');
@@ -26,4 +27,20 @@ test('native quality rejection may skip to a distinct topic only after definite 
  }
  assert.equal(scheduledBatchAction('CHECKPOINTED','NATIVE_QUALITY_BLOCKED',409),'STOP');
  assert.equal(scheduledBatchAction('BLOCKED','PUBLISH_5XX_OUTCOME_QUARANTINED',409),'STOP');
+});
+
+test('native 409 reaches batch continuation via a redacted, numeric result',()=>{
+ const definitive=safeBatchReport('BLOCKED','NATIVE_QUALITY_BLOCKED',
+  {http:409,articleId:'private-article',secret:'never-log',url:null});
+ assert.deepEqual(definitive,{status:'BLOCKED',reason:'NATIVE_QUALITY_BLOCKED',http:409,url:null});
+ assert.equal(scheduledBatchAction(definitive.status,definitive.reason,definitive.http),'NEXT_TOPIC');
+ for(const http of [undefined,null,400,429,500,503,'409']){
+  const ambiguous=safeBatchReport('BLOCKED','NATIVE_QUALITY_BLOCKED',{http});
+  assert.equal(scheduledBatchAction(ambiguous.status,ambiguous.reason,ambiguous.http),'STOP',String(http));
+ }
+ const uncertain=safeBatchReport('BLOCKED','UNKNOWN_REQUEST_OUTCOME',{http:409});
+ assert.equal(scheduledBatchAction(uncertain.status,uncertain.reason,uncertain.http),'STOP');
+ const src=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.match(src,/lastSafeReport=safeBatchReport\(status,reason,data\)/);
+ assert.match(src,/scheduledBatchAction\(lastReportStatus,lastSafeReport\?\.reason,lastSafeReport\?\.http\)/);
 });
