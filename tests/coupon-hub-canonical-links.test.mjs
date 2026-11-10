@@ -148,7 +148,7 @@ test('English country/category/product/savings CTAs are functional and never exp
     assert.ok(HOMEPAGE_COUPONS_BY_MARKET[market].includes(btn[0][1]),path+' cannot offer a code belonging to the other market');
     assert.ok(html.includes(ENGLISH_MARKET_COUPON_COPY_SCRIPT),path+' must embed the tested copy handler');
     assert.ok(!html.includes('onclick="navigator.clipboard'),path+' must not depend on stripped handlers');
-    assert.equal(publicEdgePolicyRevision(path),'english-market-copy-approved-v1');
+    assert.equal(publicEdgePolicyRevision(path),path.endsWith('/category/mobiles')?'editorial-verified-device-20261110-v1':'english-market-copy-approved-v1');
   }
   assert.equal(publicEdgePolicyRevision('/en/uae/noon-coupon-code'),'english-market-coupon-copy-canonical-v1','PR #136 pages retain their own cache revision');
 });
