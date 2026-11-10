@@ -126,3 +126,43 @@ test('English coupon copy records success ONLY when the clipboard write succeeds
   assert.match(denied.btn.textContent,/Copy unavailable/);
   assert.equal(denied.events.filter(x=>x[1]==='coupon_copy_success').length,0);
 });
+
+
+
+test('English country/category/product/savings CTAs are functional and never expose opposite-market approved codes',async()=>{
+  const {commerceLanding,ENGLISH_MARKET_COUPON_COPY_SCRIPT}=await import('../commerce-pages-v2.js');
+  const paths=[
+    ['/en/saudi','SA'],['/en/uae','AE'],
+    ['/en/saudi/category/mobiles','SA'],['/en/uae/category/mobiles','AE'],
+    ['/en/uae/product/iphone-duo','AE'],['/en/uae/saving-guide','AE']
+  ];
+  for(const [path,market] of paths){
+    const response=await commerceLanding(path,origin,{});
+    assert.equal(response.status,200,path);
+    const html=await response.text();
+    const btn=[...html.matchAll(/<button class="cta" type="button" data-english-copy="(NOV\d{3})" data-copy-code="\1" data-market="(SA|AE)"/g)];
+    assert.equal(btn.length,1,path+' has one live-market Copy control');
+    assert.equal(btn[0][2],market,path+' must label market accurately');
+    assert.ok(HOMEPAGE_COUPONS_BY_MARKET[market].includes(btn[0][1]),path+' cannot offer a code belonging to the other market');
+    assert.ok(html.includes(ENGLISH_MARKET_COUPON_COPY_SCRIPT),path+' must embed the tested copy handler');
+    assert.ok(!html.includes('onclick="navigator.clipboard'),path+' must not depend on stripped handlers');
+    assert.equal(publicEdgePolicyRevision(path),'english-market-copy-approved-v1');
+  }
+  assert.equal(publicEdgePolicyRevision('/en/uae/noon-coupon-code'),'english-market-coupon-copy-canonical-v1','PR #136 pages retain their own cache revision');
+});
+
+test('Arabic country commerce guides choose only approved coupons belonging to that country',async()=>{
+  const {commerceLanding}=await import('../commerce-pages-v2.js');
+  const paths=[
+    ['/saudi/categories','SA'],['/uae/categories','AE'],
+    ['/saudi/category/mobiles','SA'],['/uae/category/mobiles','AE']
+  ];
+  for(const [path,market] of paths){
+    const response=await commerceLanding(path,origin,{});
+    assert.equal(response.status,200,path);
+    const html=await response.text();
+    const cards=[...html.matchAll(/<aside class="coupon">[\s\S]*?<span class="code">(NOV\d{3})<\/span>/g)].map(x=>x[1]);
+    assert.ok(cards.length>=1,path+' displays a source-approved offer');
+    assert.ok(cards.every(code=>HOMEPAGE_COUPONS_BY_MARKET[market].includes(code)),path+' shows no cross-market code');
+  }
+});
