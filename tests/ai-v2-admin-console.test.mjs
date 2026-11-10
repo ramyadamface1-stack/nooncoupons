@@ -43,14 +43,14 @@ test('admin API rejects cross-origin key submissions before GitHub network reque
  assert.equal(res.status,403);
  assert.equal((await res.json()).error,'invalid_origin');
 });
-test('admin GitHub operations require explicit scoped secret credential',async()=>{
+test('direct Cloudflare key inventory fails closed when private service binding is unavailable',async()=>{
  const res=await handleAdminApi(new Request(origin+'/api/admin/ai-v2-keys',{
   method:'POST',headers:{cookie:'nc_admin=fake-valid-cookie',origin,'content-type':'application/json'},
   body:'{}'
  }),env());
- assert.equal(res.status,409);
+ assert.equal(res.status,503);
  const json=await res.json();
- assert.equal(json.error,'github_token_required');
+ assert.equal(json.error,'direct_cloudflare_binding_missing');
 });
 
 test('served admin dashboard JavaScript parses successfully in browser syntax',async()=>{
@@ -63,7 +63,7 @@ test('served admin dashboard JavaScript parses successfully in browser syntax',a
 
 test('manual action requires enabled admin policy, but NOT a browser GitHub PAT',async()=>{
  const base=env(),calls=[];
- base.AI_V2_ADMIN_DISPATCH={dispatchOnce:async()=>{calls.push('rpc');return {ok:true,dispatched:true,reason:'DISPATCH_ACCEPTED'}}};
+ base.AI_V2_DIRECT_ADMIN={status:async()=>({schedulerEnabled:true,githubRuntime:false}),dispatchOnce:async()=>{calls.push('rpc');return {ok:true,dispatched:true,reason:'DIRECT_REQUEST_QUEUED'}}};
  const req=new Request(origin+'/api/admin/ai-v2-run-now',{method:'POST',
     headers:{cookie:'nc_admin=fake-valid-cookie',origin,'content-type':'application/json'},
     body:'{}'});
@@ -77,21 +77,20 @@ test('manual action requires enabled admin policy, but NOT a browser GitHub PAT'
 
 test('admin cannot bypass a scheduler that is not verified: private RPC refuses',async()=>{
  const base=env(),calls=[];
- base.AI_V2_ADMIN_DISPATCH={dispatchOnce:async()=>{
-   calls.push('rpc');
-   return {ok:false,dispatched:false,reason:'SCHEDULER_POLICY_UNVERIFIED'};
+ base.AI_V2_DIRECT_ADMIN={status:async()=>({schedulerEnabled:false,githubRuntime:false}),dispatchOnce:async()=>{
+   calls.push('rpc');return {dispatched:false,reason:'SCHEDULER_PAUSED'};
  }};
  const req=new Request(origin+'/api/admin/ai-v2-run-now',{method:'POST',
    headers:{cookie:'nc_admin=fake-valid-cookie',origin,'content-type':'application/json'},
    body:'{}'});
  const res=await handleAdminApi(req,base);
  assert.equal(res.status,409);
- assert.equal((await res.json()).error,'scheduler_not_verified');
- assert.deepEqual(calls,['rpc']);
+ assert.equal((await res.json()).error,'direct_engine_canary_not_active');
+ assert.deepEqual(calls,[]);
 });
 test('manual action never starts concurrent generation if scheduler reports busy',async()=>{
  const base=env(),calls=[];
- base.AI_V2_ADMIN_DISPATCH={dispatchOnce:async()=>{
+ base.AI_V2_DIRECT_ADMIN={status:async()=>({schedulerEnabled:true,githubRuntime:false}),dispatchOnce:async()=>{
    calls.push('rpc');return {ok:false,dispatched:false,reason:'PUBLISHER_BUSY_SKIP_DISPATCH'};
  }};
  const res=await handleAdminApi(new Request(origin+'/api/admin/ai-v2-run-now',{method:'POST',
@@ -106,7 +105,7 @@ test('manual action fails closed when scheduler RPC is not configured, never ask
    headers:{cookie:'nc_admin=fake-valid-cookie',origin,'content-type':'application/json'},
    body:'{}'}),env());
  assert.equal(res.status,503);
- assert.equal((await res.json()).error,'internal_dispatch_not_configured');
+ assert.equal((await res.json()).error,'direct_cloudflare_binding_missing');
 });
 test('old generator button visibly routes to Gemini/Groq and never triggers legacy generation',async()=>{
  const response=await renderAdmin(new Request(origin+'/admin',{headers:{cookie:'nc_admin=fake-valid-cookie'}}),env());
