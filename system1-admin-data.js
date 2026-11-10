@@ -37,7 +37,7 @@ export async function readSystem1Keywords(env,{market='ALL',q='',limit=60}={}){
     note:'هذه أفكار من طابور GitHub الموجود بالفعل، وليست كلمات جديدة أو عدد مهام تنتظر التنفيذ'};
 }
 export function nextGenerationWindowAt(atMs,minutes){
-  if(!Number.isFinite(atMs)||![1,5,10,15,30,60].includes(minutes))return null;
+  if(!Number.isFinite(atMs)||![...Array.from({length:15},(_,i)=>i+1),30,60].includes(minutes))return null;
   const gap=minutes*60000;
   return new Date((Math.floor(atMs/gap)+1)*gap).toISOString();
 }
@@ -49,7 +49,7 @@ function snapshotView(raw,name){
   return {available:true,...s};
 }
 export function nextPublicationOpportunityAt(atMs,generationMinutes,nextAiEligibleAt){
- if(!Number.isFinite(atMs)||![1,5,10,15,30,60].includes(generationMinutes))return null;
+ if(!Number.isFinite(atMs)||![...Array.from({length:15},(_,i)=>i+1),30,60].includes(generationMinutes))return null;
  const gateMs=Date.parse(nextAiEligibleAt||'');
  if(nextAiEligibleAt&&(!Number.isFinite(gateMs)||gateMs<0))return null;
  // Earliest possible generation attempt on/after the publication permit.
@@ -114,7 +114,7 @@ export async function system1AdminSummary(env,{monitor=aiV2AdminMonitor,control=
     underTarget||todayPublished<expectedByNow?'BEHIND_TARGET':'ON_TARGET';
   const verifiedMarketTotals=verified?.last24Hours&&Number.isSafeInteger(verified.last24Hours.SA)&&Number.isSafeInteger(verified.last24Hours.AE)?
     {SA:verified.last24Hours.SA,AE:verified.last24Hours.AE}:null;
-  const effectiveInterval=scheduler?.enabled&&enable&&[1,5,10,15,30,60].includes(scheduler.intervalMinutes)?scheduler.intervalMinutes:null;
+  const effectiveInterval=scheduler?.enabled&&enable&&[...Array.from({length:15},(_,i)=>i+1),30,60].includes(scheduler.intervalMinutes)?scheduler.intervalMinutes:null;
   const nextGenerationCheckAt=effectiveInterval?nextGenerationWindowAt(Date.now(),effectiveInterval):null;
   const publishing=verified?.lastHour?.total>0?'RECENT_VERIFIED':
     verified.ledgerAvailable?'NO_VERIFIED_PUBLICATION_LAST_HOUR':'UNVERIFIED';
