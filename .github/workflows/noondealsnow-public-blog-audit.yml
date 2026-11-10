@@ -97,4 +97,49 @@ jobs:
               print('NATIVE_QUALITY_PROJECTION_PRESENT=false')
               print('NATIVE_QUALITY_PROJECTION_SOURCE_ETAG_MATCH=false')
           print('NATIVE_QUALITY_PROJECTION_AUDIT=COMPLETE')
+          # Read-only spot check of known ambiguous HTTP 503 publication cases:
+          # only private checkpoint GET plus public GET of the *same* exact URL.
+          # No R2 PUT, no article POST, no AI provider requests.
+          import urllib.request,urllib.error
+          known_ambiguous_ids=[
+              'cddc26881338634aae3e72ec',
+              '723d334b23e46bfdaab81252',
+              '434074ab2de8bfbfb70425b6',
+              'fde2f31c8656704f46fdf5c6',
+              '2c84c8b4a39cc1cf7a2a0790',
+          ]
+          print('AMBIGUOUS_CHECKPOINT_AUDIT=START;READ_ONLY=true')
+          for article_id in known_ambiguous_ids:
+              state=read('_ops/ai-v2-checkpoints/'+article_id+'.json')
+              if not state:
+                  print('AMBIGUOUS_CASE id='+article_id+' checkpoint=MISSING')
+                  continue
+              topic=state.get('topic') or state.get('nativeTopic') or {}
+              slug=str(topic.get('slug') or '')
+              country=str(topic.get('country') or '')
+              status=str(state.get('state') or 'UNKNOWN')
+              if not re.fullmatch(r'[a-z0-9-]{16,120}',slug):
+                  print('AMBIGUOUS_CASE id='+article_id+' checkpoint='+status+' public=NOT_CHECKED_INVALID_SLUG')
+                  continue
+              expected='NOV170' if country=='SA' else 'NOV188' if country=='AE' else ''
+              if not expected:
+                  print('AMBIGUOUS_CASE id='+article_id+' checkpoint='+status+' public=NOT_CHECKED_INVALID_MARKET')
+                  continue
+              url='https://noondealsnow.com/articles/'+slug
+              try:
+                  req=urllib.request.Request(url,headers={'Cache-Control':'no-cache','User-Agent':'NoonDealsNow-ReadOnly-Reconciliation-Audit/1'})
+                  with urllib.request.urlopen(req,timeout=16) as response:
+                      live_http=response.status
+                      content=response.read(150000).decode('utf-8','replace')
+                      coupon_seen=(expected in content)
+              except urllib.error.HTTPError as error:
+                  live_http=error.code;coupon_seen=False
+              except Exception:
+                  live_http='UNKNOWN';coupon_seen=False
+              print('AMBIGUOUS_CASE id='+article_id+' checkpoint='+status+
+                    ' country='+country+' public_http='+str(live_http)+
+                    ' coupon_seen='+str(coupon_seen).lower()+
+                    ' prior_reconciled='+str(bool(state.get('publicationReconciliationAttemptedAt'))).lower()+
+                    ' review_required='+str(bool(state.get('reviewRequired'))).lower())
+          print('AMBIGUOUS_CHECKPOINT_AUDIT=COMPLETE;PUBLISH_POSTS=0;R2_WRITES=0')
           PY
