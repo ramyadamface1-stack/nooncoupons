@@ -65,13 +65,19 @@ test('one dispatch runs two disjoint market queues with separate private checkpo
  assert.match(runtime,/INVALID_QUEUE_MARKET/);
 });
 
-test('markets execute sequentially within one dispatch while the global slot stays atomic',()=>{
+test('markets generate concurrently but publish through a single atomic global slot',()=>{
  const y=readFileSync('.github/workflows/noondealsnow-ai-v2.yml','utf8');
  assert.doesNotMatch(y,/^concurrency:/m,'workflow-wide lock would suppress the next UTC minute');
  const publisher=y.split('  preflight-or-generate:')[1];
  assert.match(publisher,/group: noondealsnow-ai-v2-publisher-\$\{\{ matrix\.market \}\}/);
  assert.match(publisher,/cancel-in-progress: false/);
- assert.match(publisher,/max-parallel:\s*1/);
+ assert.match(publisher,/max-parallel:\s*2/);
+ assert.match(publisher,/if:\s*\$\{\{ matrix.market == 'AE' && inputs.preflight_only == false \}\}/);
+ assert.match(publisher,/run: sleep 30/);
+ const pub=readFileSync('ai-v2-native-publish-bridge.js','utf8');
+ assert.match(pub,/const permit=await claimPublicationSlot\(env,topic.country,'ai-v2-native'\)/);
+ assert.match(pub,/if\(!permit.ok\)return reject\('GLOBAL_PUBLICATION_SLOT_NOT_GRANTED'\)/);
+ assert.match(pub,/const saved=await env.CONTENT_FINAL.put/);
  const schedule=readFileSync('ai-scheduler-v2/worker.mjs','utf8');
  assert.match(schedule,/if\(!activeMarketRunners\)for\(const status of/);
  assert.match(schedule,/cfg\.publicationMode==='live_verified'/);
