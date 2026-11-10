@@ -1,4 +1,5 @@
 import {isApprovedMarketCoupon} from './approved-coupons.js';
+import {staleCurrentClaims} from './article-temporal-freshness.js';
 import {auditSeoArticle,auditEnglishSeoArticle,preAuditSemanticGate} from './quality-audit.js';
 import {loadCluster,preflightGlobalGate,globalGate} from './quality-index.js';
 import {validateStructuredData} from './schema-validator.js';
@@ -62,6 +63,7 @@ export function validateAiV2NativePayload(payload){
  if(!article.title||!article.primaryKeyword||!article.metaDescription)return reject('INCOMPLETE_SEO');
  const html=article.html;
  if(typeof html!=='string'||html.length<4000||html.length>240000)return reject('INVALID_HTML_SIZE');
+ if(staleCurrentClaims(html).length)return reject('STALE_CURRENT_SEASON_CLAIM');
  // JSON-LD is permitted; executable scripts and event handlers are rejected.
  const noSchema=html.replace(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script\s*>/gi,'');
  if(/<\s*(?:script|iframe|form|object|embed|style|svg|base)\b|\son[a-z]+\s*=|javascript\s*:/i.test(noSchema))return reject('UNSAFE_MARKUP');
