@@ -78,11 +78,18 @@ export function publicationReadyTopic(topic,markets=READY_NATIVE_RENDERERS){
 export function resumableCheckpoint(checkpoint,{savedOnly=false,manualGroqResume=false,manualIncompleteRetry=false,nativeGateRepair=false,autoSafeSaudiRecovery=false,autoSafeSaudiFilesystemRecovery=false,autoSafeEnglishRecovery=false,autoReadOnlyReconcile=false,nowMs=Date.now(),topic=null}={}){
  const state=checkpoint?.state;
  if(!checkpoint)return true;
- // The POST outcome may be uncertain. At most one delayed public-URL
- // reconciliation is authorized; never retry the POST or regenerate AI text.
+ // A 5xx/network error from a public GET does NOT determine whether an
+ // earlier POST wrote the article. Permit up to three delayed GET-only
+ // reconciliations *only* when the preceding read attempts were transient.
+ // Definitive 404, 200 with wrong coupon, 429 or prior legacy one-off
+ // reconciliation remain quarantined; never replay POST or call a provider.
  if(state==='UNKNOWN_PUBLICATION_OUTCOME'){
   const last=Date.parse(String(checkpoint.lastPublicVerificationAt||checkpoint.updatedAt||''));
-  return autoReadOnlyReconcile===true&&!checkpoint.publicationReconciliationAttemptedAt&&
+  const attempts=Number(checkpoint.publicationReconciliationAttempts);
+  const first=!checkpoint.publicationReconciliationAttemptedAt;
+  const transientFollowup=checkpoint.publicationReconciliationTransient===true&&
+   Number.isInteger(attempts)&&attempts>=1&&attempts<3;
+  return autoReadOnlyReconcile===true&&(first||transientFollowup)&&
    Number.isFinite(last)&&Number.isFinite(nowMs)&&nowMs-last>=15*60000;
  }
  if(['LIVE_VERIFIED','QUALITY_PASSED','COMMITTED','FAILED_FINAL'].includes(state))return false;
