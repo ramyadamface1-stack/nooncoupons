@@ -13,6 +13,7 @@ on:
       - 'tests/ai-v2-ssd-filesystem-recovery.test.mjs'
       - 'tests/ai-v2-native-arabic-article.test.mjs'
       - 'tests/ai-v2-provider-circuit.test.mjs'
+      - 'tests/ai-v2-live-precheck.test.mjs'
       - 'tests/ai-v2-groq-key-pool.test.mjs'
       - 'automation/ai-v2/groq-key-pool.mjs'
       - 'automation/ai-v2/topic-refresh-n8.mjs'
@@ -84,6 +85,7 @@ jobs:
           node --check automation/ai-v2/r2-checkpoints.mjs
           node --check automation/ai-v2/topic-expansion.mjs
           node --check automation/ai-v2/topic-refresh.mjs
+          node --check automation/ai-v2/live-precheck.mjs
           node --check automation/ai-v2/run.mjs
           node --check automation/ai-v2/slot-retry.mjs
           node --check automation/ai-v2/native-article.mjs
@@ -92,7 +94,7 @@ jobs:
           node --check automation/ai-v2/provider-circuit.mjs
           node --check automation/ai-v2/attribution.mjs
           node --check ai-scheduler-v2/worker.mjs
-          node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-article-batch.test.mjs tests/ai-v2-scheduler.test.mjs tests/ai-v2-gemini-key-pool.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-topic-queue.test.mjs tests/ai-v2-ssd-filesystem-recovery.test.mjs tests/ai-v2-topic-expansion.test.mjs tests/ai-v2-topic-refresh.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-provider-circuit.test.mjs tests/ai-v2-groq-key-pool.test.mjs tests/ai-v2-workflow-wiring.test.mjs tests/ai-v2-attribution.test.mjs tests/ai-v2-slot-retry.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-topic-refresh.test.mjs
+          node --test tests/ai-v2-guardrails.test.mjs tests/ai-v2-article-batch.test.mjs tests/ai-v2-scheduler.test.mjs tests/ai-v2-gemini-key-pool.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-topic-queue.test.mjs tests/ai-v2-ssd-filesystem-recovery.test.mjs tests/ai-v2-topic-expansion.test.mjs tests/ai-v2-topic-refresh.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-provider-circuit.test.mjs tests/ai-v2-live-precheck.test.mjs tests/ai-v2-groq-key-pool.test.mjs tests/ai-v2-workflow-wiring.test.mjs tests/ai-v2-attribution.test.mjs tests/ai-v2-slot-retry.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-topic-refresh.test.mjs
       - name: Inspect Gemini secret pool types without exposing any key values
         env:
           GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
