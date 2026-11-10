@@ -104,7 +104,7 @@ jobs:
       - name: Install dependencies for approved source and test suite
         run: npm install --no-audit --no-fund --ignore-scripts
       - name: Check native gate and authenticated secret manager regressions
-        run: node --test tests/ai-v2-global-capacity.test.mjs tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs
+        run: node --test tests/native-bound-ai-v2-fast.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs
       - name: Prevent incorrect AI-readable NOV coupon market mappings
         run: node --test tests/nov-llms-canonical-source.test.mjs
 
@@ -182,9 +182,12 @@ jobs:
           slugs=(
             'saudi-buyer-baseus-powerbank-multiport-power-budget-sharing-nov170-2026-n6'
             'uae-buyer-baseus-powerbank-multiport-power-budget-sharing-nov188-2026-n6'
+            'saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n10'
+            'uae-buyer-xiaomi-phone-nfc-wallet-regional-compatibility-nov188-2026-n10'
           )
-          for market in SA AE; do
-            if [ "$market" = SA ]; then slug="${slugs[0]}"; coupon='NOV170'; else slug="${slugs[1]}"; coupon='NOV188'; fi
+          for index in 0 1 2 3; do
+            slug="${slugs[$index]}"
+            if [ "$index" = 0 ] || [ "$index" = 2 ]; then market=SA; coupon='NOV170'; else market=AE; coupon='NOV188'; fi
             passed=0
             for attempt in 1 2 3 4 5 6; do
               # Query bypasses prior edge cache, checking the actual deployed Worker
@@ -199,7 +202,7 @@ jobs:
               fi
               sleep 3
             done
-            echo "NATIVE_ARTICLE_MARKET=$market;HTTP=$code;FAST_RENDER=$passed"
+            echo "NATIVE_ARTICLE_MARKET=$market;SLUG=$slug;HTTP=$code;FAST_RENDER=$passed"
             test "$passed" = 1
           done
           echo 'SA_AE_NATIVE_FAST_RENDER=PASS;PUBLIC_HTTP_200=TRUE;R2_WRITES=0'
