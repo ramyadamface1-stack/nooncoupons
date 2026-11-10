@@ -39,6 +39,18 @@ jobs:
           npm install --no-audit --no-fund --ignore-scripts
           npx wrangler deploy --dry-run --config cloudflare-ai-direct/wrangler.jsonc --outdir /tmp/ndn-direct
           npx wrangler deploy --config cloudflare-ai-direct/wrangler.jsonc
+      - name: Preserve existing encryption master or create a new master for new R2 key imports
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx wrangler secret list --config cloudflare-ai-direct/wrangler.jsonc > /tmp/ndn-direct-secret-names.json
+          if jq -e 'any(.[]; .name=="NDN_KEYS_MASTER")' /tmp/ndn-direct-secret-names.json >/dev/null; then
+            echo 'R2_ENCRYPTION_KEY=PRESERVED'
+          else
+            openssl rand -base64 32 | tr -d '\n' |
+              npx wrangler secret put NDN_KEYS_MASTER --config cloudflare-ai-direct/wrangler.jsonc >/dev/null
+            echo 'R2_ENCRYPTION_KEY=CONFIGURED'
+          fi
       - name: Validate canary stage and no runtime GitHub usage
         shell: bash
         run: |

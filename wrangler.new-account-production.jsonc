@@ -71,8 +71,24 @@
     }
   ],
   "services": [
-    {"binding": "AI_V2_SCHEDULER", "service": "noondealsnow-ai-scheduler-v2"},
-    {"binding": "AI_V2_ADMIN_DISPATCH", "service": "noondealsnow-ai-scheduler-v2", "entrypoint": "AdminDispatch"}
+    {
+      "binding": "AI_V2_SCHEDULER",
+      "service": "noondealsnow-ai-scheduler-v2"
+    },
+    {
+      "binding": "AI_V2_ADMIN_DISPATCH",
+      "service": "noondealsnow-ai-scheduler-v2",
+      "entrypoint": "AdminDispatch"
+    },
+    {
+      "binding": "AI_V2_DIRECT_ADMIN",
+      "service": "noondealsnow-ai-direct-r2",
+      "entrypoint": "AdminDispatch"
+    },
+    {
+      "binding": "AI_V2_DIRECT_HEALTH",
+      "service": "noondealsnow-ai-direct-r2"
+    }
   ],
   "durable_objects": {
     "bindings": [
