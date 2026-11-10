@@ -5,7 +5,7 @@ on:
     paths:
       - '.github/workflows/noondealsnow-ai-v2-verified-summary.yml'
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
