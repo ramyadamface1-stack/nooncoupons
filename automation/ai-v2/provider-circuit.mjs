@@ -77,6 +77,22 @@ export function createProviderCircuitSnapshot(readPersisted,writePersisted){
  };
 }
 
+// A quota denial may be key-specific, not a global Gemini model outage.
+// After two DISTINCT confirmed HTTP 429s for the same model in ONE job,
+// prefer another already-approved free model for the remaining call budget.
+// Never persist or globally pause the model based on this weak signal.
+export const GEMINI_MODEL_FALLBACK_DISTINCT_429_KEYS=2;
+export function recordGeminiModelQuotaRejection(byModel,model,keyRef){
+ if(!(byModel instanceof Map)||typeof model!=='string'||!model.trim()||
+    !/^[a-f0-9]{12}$/.test(String(keyRef||'')))
+   throw Error('INVALID_GEMINI_QUOTA_ROTATION_SIGNAL');
+ const label=model.trim();
+ const keys=byModel.get(label)||new Set();
+ keys.add(keyRef);byModel.set(label,keys);
+ return {distinctRejectedKeys:keys.size,
+   preferOtherFreeModel:keys.size>=GEMINI_MODEL_FALLBACK_DISTINCT_429_KEYS};
+}
+
 // Prefer the other already-approved free provider after a definitive quota
 // rejection instead of wasting the entire five-call budget on one provider.
 // No request is repeated with the rejected credential; circuit checks remain.

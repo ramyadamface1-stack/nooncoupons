@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot,providerFailoverOrder,unknownRequestModelKeyCooldown,AMBIGUOUS_PROVIDER_MODEL_KEY_COOLDOWN_SECONDS} from '../automation/ai-v2/provider-circuit.mjs';
+import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot,providerFailoverOrder,unknownRequestModelKeyCooldown,AMBIGUOUS_PROVIDER_MODEL_KEY_COOLDOWN_SECONDS,recordGeminiModelQuotaRejection,GEMINI_MODEL_FALLBACK_DISTINCT_429_KEYS} from '../automation/ai-v2/provider-circuit.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 test('confirmed Groq 429 pauses across topics with bounded cooldown',()=>{
  assert.equal(quotaCooldownSeconds('30'),900);
@@ -114,4 +114,37 @@ test('invalid unknown-timeout circuit identifiers fail closed and a failed write
  const source=(await import('node:fs')).readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
  assert.match(source,/await saveCheckpoint\(config,checkpointState\(state,'UNKNOWN_REQUEST_OUTCOME',\{errorCategory:'NETWORK_OR_TIMEOUT_AFTER_REQUEST_SENT'\}\)\);\s*try\{\s*await providerCircuits\.write\(unknownRequestModelKeyCooldown\(/);
  assert.match(source,/console\.warn\('AI_V2_UNKNOWN_MODEL_KEY_COOLDOWN_PERSIST_FAILED'\)/);
+});
+
+
+test('two distinct definite 429 keys suggest free Gemini model rotation only within the same job',()=>{
+ const byModel=new Map(),first='gemini-3.1-flash-lite',alternate='gemini-3.5-flash-lite';
+ assert.equal(GEMINI_MODEL_FALLBACK_DISTINCT_429_KEYS,2);
+ let signal=recordGeminiModelQuotaRejection(byModel,first,'aaaaaaaaaaaa');
+ assert.deepEqual(signal,{distinctRejectedKeys:1,preferOtherFreeModel:false});
+ signal=recordGeminiModelQuotaRejection(byModel,first,'aaaaaaaaaaaa');
+ assert.deepEqual(signal,{distinctRejectedKeys:1,preferOtherFreeModel:false},
+   'Repeated aliases of a single exhausted key do not prove distinct key exhaustion');
+ signal=recordGeminiModelQuotaRejection(byModel,alternate,'aaaaaaaaaaaa');
+ assert.deepEqual(signal,{distinctRejectedKeys:1,preferOtherFreeModel:false},
+   'Different model does not share the original model rejection count');
+ signal=recordGeminiModelQuotaRejection(byModel,first,'bbbbbbbbbbbb');
+ assert.deepEqual(signal,{distinctRejectedKeys:2,preferOtherFreeModel:true});
+ assert.equal(recordGeminiModelQuotaRejection(new Map(),first,'bbbbbbbbbbbb').preferOtherFreeModel,false,
+   'New job has no inherited model-wide ban');
+ assert.throws(()=>recordGeminiModelQuotaRejection({},first,'aaaaaaaaaaaa'),/INVALID_GEMINI_QUOTA_ROTATION_SIGNAL/);
+ assert.throws(()=>recordGeminiModelQuotaRejection(new Map(),first,'raw-key'),/INVALID_GEMINI_QUOTA_ROTATION_SIGNAL/);
+});
+
+test('same-run 429 fallback retains per-key quota circuits and strict request budget',async()=>{
+ const source=(await import('node:fs')).readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.match(source,/const geminiQuotaRejectedByModelThisRun=new Map\(\)/);
+ assert.match(source,/if\(quota&&provider==='gemini'\)/);
+ assert.match(source,/recordGeminiModelQuotaRejection\(\s*geminiQuotaRejectedByModelThisRun,model,keyRef\)/);
+ assert.match(source,/temporarilyFailedModelsThisRun\.add\(provider\+'\|'\+model\)/);
+ assert.match(source,/if\(calls>=config\.limits\.maxProviderCallsPerRun\)/);
+ assert.match(source,/if\(quota\)lastQuotaRejectedProvider=provider/);
+ assert.match(source,/pauseCircuitId=temporary\?modelKeyCircuitId:circuitId/,
+   'Confirmed quota remains persisted against the exact failing credential');
+ assert.doesNotMatch(source,/AI_V2_GEMINI_FREE_MODEL_ROTATION.*GEMINI_API_KEY/);
 });
