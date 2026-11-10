@@ -65,8 +65,10 @@ test('production commerce country hubs lead with the owner-primary NOV and link 
 
 test('landing-page canonical links receive a fresh cache key without purging article or blog caches',()=>{
   assert.equal(publicEdgePolicyRevision('/coupons'),'nov-coupon-detail-links-v1');
-  for(const path of ['/saudi','/uae','/en/saudi','/en/uae'])
+  for(const path of ['/saudi','/uae'])
     assert.equal(publicEdgePolicyRevision(path),'primary-market-nov-canonical-v1');
+  for(const path of ['/en/saudi','/en/uae'])
+    assert.equal(publicEdgePolicyRevision(path),'english-market-copy-approved-v1');
   assert.notEqual(publicEdgePolicyRevision('/blog'),'nov-coupon-detail-links-v1');
   assert.notEqual(publicEdgePolicyRevision('/articles/nov170-tips'),'nov-coupon-detail-links-v1');
   assert.notEqual(publicEdgePolicyRevision('/sitemap-core.xml'),'nov-coupon-detail-links-v1');
