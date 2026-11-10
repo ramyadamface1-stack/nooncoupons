@@ -12,7 +12,7 @@ import {groqKeyInventory,selectGroqKey} from './groq-key-pool.mjs';
 import {buildEnglishAiV2Article} from './native-article.mjs';
 import {buildSaudiAiV2Article} from './native-arabic-article.mjs';
 import {publicationReadyTopic,resumableCheckpoint,queueInventory,queueScanWindow,marketQueueScanWindow,queueExpansionBridgeWindow,queueRotatingFreshWaveWindow,nextQueueCursor,queueCursorAfterScan,queueCursorAnchorForScan,pausedProviderNextCursor,safeSaudiDeterministicRecovery,SA_SAFE_RECOVERY_REVISION,safeSaudiFilesystemRecovery,SA_FILESYSTEM_RECOVERY_REVISION,safeEnglishDeterministicRecovery,AE_SAFE_RECOVERY_REVISION} from './topic-queue.mjs';
-import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot,providerFailoverOrder} from './provider-circuit.mjs';
+import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot,providerFailoverOrder,unknownRequestModelKeyCooldown} from './provider-circuit.mjs';
 import {summarizeSectionAttribution} from './attribution.mjs';
 import {confirmedSlotRetryDelay} from './slot-retry.mjs';
 import {batchArticlePrompt,parseArticleBatch} from './article-batch.mjs';
@@ -317,7 +317,19 @@ async function run(){
     let result;
     try{result=await callProvider({provider,model,key:credential.key,prompt,maxOutputTokens:batching?5800:null})}
     catch{
+      // The section request may have been billed; never send it again.
+      // Keep its checkpoint quarantined and prevent repeated 105s stalls on
+      // the very same model/key. Other free keys/models remain eligible.
       await saveCheckpoint(config,checkpointState(state,'UNKNOWN_REQUEST_OUTCOME',{errorCategory:'NETWORK_OR_TIMEOUT_AFTER_REQUEST_SENT'}));
+      try{
+        await providerCircuits.write(unknownRequestModelKeyCooldown({
+          circuitId:modelKeyCircuitId,provider,model,keyRef,prior:modelKeyCircuit
+        }));
+      }catch{
+        // Unknown article outcome remains quarantined even if a separate
+        // R2 cooldown write fails; no sensitive request values are logged.
+        console.warn('AI_V2_UNKNOWN_MODEL_KEY_COOLDOWN_PERSIST_FAILED');
+      }
       report('BLOCKED','UNKNOWN_REQUEST_OUTCOME',{articleId,sectionIndex:index,provider,calls});return;
     }
     if(!result.ok){
