@@ -30,6 +30,7 @@ jobs:
           python3 - <<'PY'
           import boto3,os,json,hashlib
           from botocore.config import Config
+          from botocore.exceptions import ClientError
           account='e4c35f8a50a7b2e4cfb9d6c534962603'
           source='bulk/latest.json';target='_ops/ai-v2-native-quality-index-v1.json'
           bucket='nooncoupons-content-v2'
@@ -51,7 +52,7 @@ jobs:
                 int(prior.get('ContentLength',0))>0):
               print('NATIVE_QUALITY_SNAPSHOT=UNCHANGED_SOURCE_ETAG;R2_WRITES=0;PROVIDER_CALLS=0',flush=True)
               raise SystemExit(0)
-          except s.exceptions.ClientError as e:
+          except ClientError as e:
             if e.response.get('Error',{}).get('Code') not in ('404','NoSuchKey','NotFound'):
               raise
           print('NATIVE_QUALITY_SNAPSHOT=REBUILDING_SOURCE_CHANGED_OR_METADATA_MISSING',flush=True)
@@ -84,6 +85,8 @@ jobs:
              ';COMPACT_BYTES='+str(len(raw)),flush=True)
           if len(raw)>=len(original):
             raise RuntimeError('COMPACT_QUALITY_PROJECTION_NOT_SMALLER')
+          if s.head_object(Bucket=bucket,Key=source)['ETag'].strip('"')!=sourceEtag:
+            raise RuntimeError('SOURCE_CHANGED_BEFORE_COMPACT_PUT')
           s.put_object(Bucket=bucket,Key=target,Body=raw,ContentType='application/json; charset=utf-8',
             CacheControl='private,max-age=0',
             Metadata={'source-etag':sourceEtag,'source-count':str(len(slim))})
