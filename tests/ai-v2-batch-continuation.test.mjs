@@ -18,3 +18,12 @@ test('quota/provider/site-health and unverified publication stop rather than ret
     assert.equal(scheduledBatchAction(status,'BATCH_CONTENT_INVALID'),'STOP',status);
   }
 });
+
+test('native quality rejection may skip to a distinct topic only after definite no-write HTTP 409',()=>{
+ assert.equal(scheduledBatchAction('BLOCKED','NATIVE_QUALITY_BLOCKED',409),'NEXT_TOPIC');
+ for(const status of [200,400,403,429,500,503,null]){
+  assert.equal(scheduledBatchAction('BLOCKED','NATIVE_QUALITY_BLOCKED',status),'STOP');
+ }
+ assert.equal(scheduledBatchAction('CHECKPOINTED','NATIVE_QUALITY_BLOCKED',409),'STOP');
+ assert.equal(scheduledBatchAction('BLOCKED','PUBLISH_5XX_OUTCOME_QUARANTINED',409),'STOP');
+});
