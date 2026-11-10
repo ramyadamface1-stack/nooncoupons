@@ -503,6 +503,12 @@ export async function handleAdminApi(req,env){
       return json({ok:false,error:'monitor_temporarily_unavailable'},503);
     }
   }
+  if(p==='/api/admin/ai-v2-direct/status'&&req.method==='GET'){
+    try{
+      if(!env.AI_V2_DIRECT_ADMIN?.status)return json({ok:false,error:'direct_cloudflare_binding_missing'},503);
+      return json(await env.AI_V2_DIRECT_ADMIN.status());
+    }catch{return json({ok:false,error:'direct_cloudflare_status_unavailable'},503)}
+  }
   const aiV2SecretEndpoint=['/api/admin/ai-v2-keys','/api/admin/ai-v2-key-import','/api/admin/ai-v2-run-now'].includes(p);
   if(aiV2SecretEndpoint&&req.method==='POST'){
     const origin=req.headers.get('origin');
