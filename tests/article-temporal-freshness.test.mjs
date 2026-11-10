@@ -60,3 +60,24 @@ test('Arabic-Indic digits current coupon titles are corrected, history untouched
  assert.equal(refreshCurrentSeasonLabel('كود خصم نون ٢٠٢٧',{date}),'كود خصم نون 2026');
  assert.equal(refreshCurrentSeasonLabel('أرشيف عروض رمضان ٢٠٢٤',{date}),'أرشيف عروض رمضان ٢٠٢٤');
 });
+
+
+test('old commercial month/year corrected across 12 verticals but historic launches and dates remain',()=>{
+  for(const sector of ['phones','fashion','perfumes','beauty','appliances','kitchen','furniture','baby','sports','grocery','cars','gaming']){
+    assert.equal(refreshCurrentSeasonLabel('Noon '+sector+' offers April 2026',{date}),
+      'Noon '+sector+' offers November 2026');
+    assert.equal(refreshCurrentSeasonLabel('Noon '+sector+' offers December 2025',{date}),
+      'Noon '+sector+' offers November 2026');
+  }
+  assert.equal(refreshCurrentSeasonLabel('عروض نون أكتوبر 2026',{date}),'عروض نون نوفمبر 2026');
+  assert.equal(refreshCurrentSeasonLabel('أرشيف عروض رمضان 2024',{date}),'أرشيف عروض رمضان 2024');
+  assert.equal(refreshCurrentSeasonLabel('توقعات عروض ديسمبر 2026',{date}),'توقعات عروض ديسمبر 2026');
+  assert.equal(refreshCurrentSeasonLabel('دليل شراء أفضل أجهزة المطبخ 2024',{date}),'دليل شراء أفضل أجهزة المطبخ 2026');
+  const original='<article data-published="2024-04-12"><h2>عروض أكتوبر 2026</h2><ul><li>عروض أبريل 2026 متاحة الآن</li></ul><table><tr><td>Beauty offers April 2026 are available now</td></tr></table><p>انتهت عروض مايو 2024</p><time datetime="2024-04-12">2024</time></article>';
+  const revised=refreshLiveTemporalArticleHtml(original,{date}).html;
+  assert.match(revised,/عروض نوفمبر 2026/);
+  assert.match(revised,/Beauty offers November 2026/);
+  assert.match(revised,/انتهت عروض مايو 2024/);
+  assert.match(revised,/data-published="2024-04-12"/);
+  assert.match(revised,/datetime="2024-04-12"/);
+});
