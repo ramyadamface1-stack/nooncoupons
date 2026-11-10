@@ -22,7 +22,7 @@ export async function reconcileAmbiguousPublication({
     throw Error('INVALID_READ_ONLY_PUBLICATION_RECONCILIATION');
   }
   const url = domain + '/articles/' + encodeURIComponent(topic.slug);
-  let live = false;
+  let live = false, lastReadTransient = false;
   // Recheck an intermittent read-only Cloudflare 5xx at most twice. The
   // publication POST is NEVER repeated, and a 404/200/429/403 ends the probe.
   // This bounded read happens within the ONE authorized reconciliation attempt.
@@ -42,6 +42,7 @@ export async function reconcileAmbiguousPublication({
       // A network/response-read failure proves neither presence nor absence.
       transientReadFailure = true;
     }
+    lastReadTransient = transientReadFailure;
     if (live || !transientReadFailure || attempt === 2) break;
     await pause(500 * (attempt + 1));
   }
@@ -51,12 +52,21 @@ export async function reconcileAmbiguousPublication({
       url, livePublished: true };
   }
   const formerState = checkpoint.state;
-  const patch = formerState === 'UNKNOWN_PUBLICATION_OUTCOME'
-    ? { publicationReconciliationAttemptedAt: now(), lastPublicVerificationAt: now(),
-        reviewRequired: true, candidateLiveUrl: url }
-    : { errorCategory: 'PUBLISH_PUBLIC_URL_NOT_VERIFIED', reviewRequired: true,
-        lastPublicVerificationAt: now(), candidateLiveUrl: url };
-  await persist('UNKNOWN_PUBLICATION_OUTCOME', patch);
-  return { status: 'BLOCKED', reason: 'PUBLISH_OUTCOME_QUARANTINED_FOR_REVIEW',
-    url, formerState, livePublished: false };
+  const priorCount = Number(checkpoint.publicationReconciliationAttempts);
+  const count = Number.isInteger(priorCount) && priorCount>=0 ? Math.min(3,priorCount+1) : 1;
+  // Explicitly record why a later GET may be allowed, without treating a
+  // Cloudflare error as definitive 404. An old one-off checkpoint with only
+  // publicationReconciliationAttemptedAt remains terminal by design.
+  const patch = {
+    ...(formerState==='UNKNOWN_PUBLICATION_OUTCOME'?{}:{
+      errorCategory:'PUBLISH_PUBLIC_URL_NOT_VERIFIED'}),
+    publicationReconciliationAttemptedAt:now(),
+    publicationReconciliationAttempts:count,
+    publicationReconciliationTransient:lastReadTransient,
+    lastPublicVerificationAt:now(),reviewRequired:true,candidateLiveUrl:url
+  };
+  await persist('UNKNOWN_PUBLICATION_OUTCOME',patch);
+  return {status:'BLOCKED',reason:lastReadTransient?'PUBLIC_READ_TRANSIENT_DEFERRED':
+    'PUBLISH_OUTCOME_QUARANTINED_FOR_REVIEW',
+    url,formerState,livePublished:false};
 }

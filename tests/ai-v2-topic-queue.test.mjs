@@ -377,3 +377,70 @@ test('a definitive 404 or 429 stops ambiguous publication inspection immediately
   assert.deepEqual(methods,['GET']);
  }
 });
+
+
+test('transient 503 after an ambiguous POST allows only three 15-minute-spaced GET checks',async()=>{
+ const baseMs=Date.parse('2026-11-10T14:00:00.000Z');
+ let checkpoint={state:'UNKNOWN_PUBLICATION_OUTCOME',lastPublicVerificationAt:new Date(baseMs).toISOString()};
+ const methods=[],topic={slug:'saudi-buyer-readonly-reconcile-503-nov170-2026',coupon:'NOV170'};
+ for(let i=1;i<=3;i++){
+  const ms=baseMs+i*15*60000;
+  assert.equal(resumableCheckpoint(checkpoint,{autoReadOnlyReconcile:true,nowMs:ms-1}),false);
+  assert.equal(resumableCheckpoint(checkpoint,{autoReadOnlyReconcile:true,nowMs:ms}),true);
+  let phase,patch;
+  const result=await reconcileAmbiguousPublication({
+   domain:'https://noondealsnow.com',topic,checkpoint,
+   now:()=>new Date(ms).toISOString(),
+   pause:async()=>{},
+   fetchFn:async(_,opts)=>{methods.push(opts.method);return{status:503}},
+   persist:async(p,x)=>{phase=p;patch=x}
+  });
+  assert.equal(result.status,'BLOCKED');
+  assert.equal(result.reason,'PUBLIC_READ_TRANSIENT_DEFERRED');
+  assert.equal(phase,'UNKNOWN_PUBLICATION_OUTCOME');
+  assert.equal(patch.publicationReconciliationAttempts,i);
+  assert.equal(patch.publicationReconciliationTransient,true);
+  checkpoint={...checkpoint,...patch,state:phase};
+ }
+ assert.deepEqual(methods,Array(9).fill('GET'));
+ assert.equal(resumableCheckpoint(checkpoint,{autoReadOnlyReconcile:true,nowMs:baseMs+24*3600000}),false);
+ assert.equal(resumableCheckpoint({...checkpoint,state:'UNKNOWN_REQUEST_OUTCOME'},{autoReadOnlyReconcile:true,nowMs:baseMs+24*3600000}),false);
+});
+
+test('definitive 404 after temporary 503 ends repeat inspections permanently',async()=>{
+ const ms=Date.parse('2026-11-10T14:15:00.000Z');
+ const checkpoint={state:'UNKNOWN_PUBLICATION_OUTCOME',publicationReconciliationAttempts:1,
+  publicationReconciliationTransient:true,publicationReconciliationAttemptedAt:'2026-11-10T14:00:00.000Z',
+  lastPublicVerificationAt:'2026-11-10T14:00:00.000Z'};
+ assert.equal(resumableCheckpoint(checkpoint,{autoReadOnlyReconcile:true,nowMs:ms}),true);
+ let patch;
+ const result=await reconcileAmbiguousPublication({
+  domain:'https://noondealsnow.com',topic:{slug:'uae-buyer-final-404-after-503-nov188-2026',coupon:'NOV188'},
+  checkpoint,fetchFn:async()=>({status:404}),pause:async()=>{throw Error('unexpected pause')},
+  now:()=>new Date(ms).toISOString(),persist:async(_,p)=>{patch=p}
+ });
+ assert.equal(result.reason,'PUBLISH_OUTCOME_QUARANTINED_FOR_REVIEW');
+ assert.equal(patch.publicationReconciliationAttempts,2);
+ assert.equal(patch.publicationReconciliationTransient,false);
+ assert.equal(resumableCheckpoint({...checkpoint,...patch},{autoReadOnlyReconcile:true,nowMs:ms+86400000}),false);
+ assert.equal(resumableCheckpoint({state:'UNKNOWN_PUBLICATION_OUTCOME',lastPublicVerificationAt:checkpoint.lastPublicVerificationAt,
+  publicationReconciliationAttemptedAt:checkpoint.publicationReconciliationAttemptedAt},
+  {autoReadOnlyReconcile:true,nowMs:ms+86400000}),false,'legacy one-off attempts stay terminal');
+});
+
+test('a later verified 200 after previous 503 safely resolves old publication without another POST',async()=>{
+ const topic={slug:'saudi-buyer-recovered-n10-native-public-2026',coupon:'NOV170'},states=[],methods=[];
+ const checkpoint={state:'UNKNOWN_PUBLICATION_OUTCOME',lastPublicVerificationAt:'2026-11-10T14:00:00.000Z',
+  publicationReconciliationAttemptedAt:'2026-11-10T14:00:00.000Z',
+  publicationReconciliationAttempts:1,publicationReconciliationTransient:true};
+ assert.equal(resumableCheckpoint(checkpoint,{autoReadOnlyReconcile:true,nowMs:Date.parse('2026-11-10T14:15:00.000Z')}),true);
+ const outcome=await reconcileAmbiguousPublication({
+  domain:'https://noondealsnow.com',topic,checkpoint,
+  fetchFn:async(_,opts)=>{methods.push(opts.method);return{status:200,text:async()=>'<article>NOV170</article>'}},
+  persist:async(phase,patch)=>states.push({phase,patch})
+ });
+ assert.equal(outcome.status,'LIVE_VERIFIED');
+ assert.equal(outcome.livePublished,true);
+ assert.deepEqual(methods,['GET']);
+ assert.equal(states[0].phase,'LIVE_VERIFIED');
+});
