@@ -597,7 +597,7 @@ export default{
         'x-llms-source':'canonical-approved-market-codes-v1'
       }});
     // Direct destination R2 binding: bypass CPU-intensive legacy HTML layers
-    // ONLY for the same native QA-approved N5-N9 articles; old URLs, R2
+    // ONLY for the same native QA-approved N5-N10 articles; old URLs, R2
     // writes, crawler directives and authenticated routes are unaffected.
     const boundFast=await nativeBoundAiV2ArticleFastResponse(req,env);
     if(boundFast)return edgePageCachePut(req,u,boundFast,ctx);
