@@ -20,9 +20,12 @@ function oldClaim(html,year){
 }
 // Titles and headings describe CURRENT coupons, unless expressly historical or a forecast.
 export function refreshCurrentSeasonLabel(text,{date=new Date()}={}){
-  const d=context(date);
-  if(!sale.test(text)||past.test(text)||forecast.test(text))return String(text||'');
-  return String(text||'').replace(/\b20\d{2}\b/g,match=>{
+  const d=context(date),raw=String(text||'');
+  if(!sale.test(raw)||past.test(raw)||forecast.test(raw))return raw;
+  const normalized=raw.replace(/[٠-٩۰-۹]/g,c=>{
+    const n=c.charCodeAt(0);return String(n>=0x6F0?n-0x6F0:n-0x660);
+  });
+  return normalized.replace(/\b20\d{2}\b/g,match=>{
     const y=+match;
     return y>=2020&&y<=d.year+2&&y!==d.year?String(d.year):match;
   });
@@ -83,7 +86,7 @@ export function refreshLiveTemporalArticleHtml(html,{date=new Date(),english=fal
     if(fresh!==label)corrected++;
     return a+fresh+c;
   });
-  out=out.replace(/(<p\b[^>]*>)([\s\S]*?)(<\/p>)/gi,(full,a,inner,c)=>{
+  out=out.replace(/(<(p|li|td|th|figcaption)\b[^>]*>)([\s\S]*?)(<\/\2>)/gi,(full,a,tag,inner,c)=>{
     if(!oldClaim(inner,d.year))return full;
     const t=visible(inner);
     const seasonal=mismatched(t,d.year)&&sale.test(t)&&active.test(t);
