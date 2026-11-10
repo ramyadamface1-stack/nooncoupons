@@ -56,7 +56,9 @@ test('two separate market generators have a 30-second UAE offset and a still-ato
  const publisher=repoText('ai-v2-native-publish-bridge.js');
  assert.match(publisher,/const earlySlot=await getPublicationSlotStatus\(env,\{aiV2:true\}\)/);
  assert.match(publisher,/const permit=await claimPublicationSlot\(env,topic.country,'ai-v2-native'\)/);
- assert.match(publisher,/if\(!permit.ok\)return reject\('GLOBAL_PUBLICATION_SLOT_NOT_GRANTED'\)/);
+ assert.match(publisher,/if\(!permit.ok\)return nativePermitRejection\(permit\)/);
+ assert.match(publisher,/permit\?\.confirmedNoWrite===true/);
+ assert.match(publisher,/GLOBAL_PUBLICATION_SLOT_NOT_DUE/);
  assert.match(publisher,/onlyIf:\{etagDoesNotMatch:'\*'\}/);
  const scheduler=repoText('ai-scheduler-v2/worker.mjs');
  assert.match(scheduler,/PUBLISHER_BUSY_SKIP_DISPATCH/);
