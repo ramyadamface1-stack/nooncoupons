@@ -444,9 +444,9 @@ async function run(){
     if(response.status>=500&&response.status<600){
       console.log('AI_V2_NATIVE_PUBLISH_5XX_DIAGNOSTIC '+JSON.stringify({
         http:response.status,
-        workerResourceExceeded:/Error\\s*1102|Worker exceeded resource limits/i.test(responseBody),
-        edgeDailyLimit:/Error\\s*1027|daily limit exceeded/i.test(responseBody),
-        htmlBody:!/^\\s*[{[]/.test(responseBody),
+        workerResourceExceeded:/Error\s*1102|Worker exceeded resource limits/i.test(responseBody),
+        edgeDailyLimit:/Error\s*1027|daily limit exceeded/i.test(responseBody),
+        htmlBody:!/^\s*[{[]/.test(responseBody),
         ray:(response.headers.get('cf-ray')||'').slice(0,35)||null
       }));
     }
