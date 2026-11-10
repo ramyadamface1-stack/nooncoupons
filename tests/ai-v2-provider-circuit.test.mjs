@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
-import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot} from '../automation/ai-v2/provider-circuit.mjs';
+import {quotaCooldownSeconds,temporaryCooldown,providerCircuitId,providerModelKeyCircuitId,providerCircuitActive,createProviderCircuitSnapshot,providerFailoverOrder} from '../automation/ai-v2/provider-circuit.mjs';
 const sha=x=>createHash('sha256').update(x).digest('hex');
 test('confirmed Groq 429 pauses across topics with bounded cooldown',()=>{
  assert.equal(quotaCooldownSeconds('30'),900);
@@ -63,4 +63,13 @@ test('confirmed 503 is scoped to the exact model and opaque key, not a global lo
  const c=providerModelKeyCircuitId('gemini','gemini-3.8-flash','aaaaaaaaaaaa',sha);
  assert.notEqual(a,b);assert.notEqual(a,c);assert.notEqual(a,providerCircuitId('gemini',sha));
  assert.throws(()=>providerModelKeyCircuitId('gemini','', 'aaaaaaaaaaaa',sha),/INVALID_MODEL_KEY_CIRCUIT/);
+});
+
+test('confirmed 429 switches to the other already-approved free provider before trying more rejected provider keys',()=>{
+ assert.deepEqual(providerFailoverOrder(['gemini','groq']),['gemini','groq']);
+ assert.deepEqual(providerFailoverOrder(['gemini','groq'],'gemini'),['groq','gemini']);
+ assert.deepEqual(providerFailoverOrder(['gemini','groq'],'groq'),['gemini','groq']);
+ assert.deepEqual(providerFailoverOrder(['gemini'],'gemini'),['gemini']);
+ assert.deepEqual(providerFailoverOrder(['groq','gemini','groq'],'groq'),['gemini','groq']);
+ assert.deepEqual(providerFailoverOrder(['gemini','groq'],'unapproved-paid'),['gemini','groq']);
 });
