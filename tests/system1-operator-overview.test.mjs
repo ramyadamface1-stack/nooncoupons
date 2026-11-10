@@ -114,7 +114,7 @@ test('verified Cairo-day target shows 1440 at one minute, 288 at five, and no in
   scheduler:{reachable:true,enabled:true,intervalMinutes:1,controlStatus:'POLICY_VERIFIED'},
   verified:snapshot,markets:[],providers:{}});
  const env={CONTENT_FINAL:{get:async()=>null}};
- const publishGate=async()=>({ok:true,aiV2PublishingIntervalMinutes:1,aiV2Eligible:true});
+ const publicationGate=async()=>({ok:true,aiV2PublishingIntervalMinutes:1,aiV2Eligible:true});
  const result=await system1AdminSummary(env,{monitor,
   control:async()=>({enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),publicationGate});
  assert.equal(result.publishing.dailyGoal.dayTarget,1440);
