@@ -1,0 +1,30 @@
+name: Cloudflare Direct R2 Engine Safety Tests
+on:
+  pull_request:
+    paths:
+      - 'cloudflare-ai-direct/**'
+      - 'tests/cloudflare-ai-direct-canary.test.mjs'
+      - '.github/workflows/deploy-noondealsnow-cloudflare-direct-r2.yml'
+      - '.github/workflows/cloudflare-ai-direct-pr-tests.yml'
+permissions:
+  contents: read
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify Cloudflare direct engine does not require any secrets in CI
+        run: |
+          node --check cloudflare-ai-direct/engine.mjs
+          node --check cloudflare-ai-direct/keys.mjs
+          node --check cloudflare-ai-direct/rpc-entry.mjs
+          node --check cloudflare-ai-direct/pack-existing-keys.mjs
+          node --test tests/cloudflare-ai-direct-canary.test.mjs
+      - name: Bundle independent R2 Worker without deploying
+        run: |
+          npm install --no-audit --no-fund --ignore-scripts
+          npx wrangler deploy --dry-run --config cloudflare-ai-direct/wrangler.jsonc --outdir /tmp/ndn-direct-preview
