@@ -168,3 +168,33 @@ test('Arabic country commerce guides choose only approved coupons belonging to t
     assert.ok(cards.every(code=>HOMEPAGE_COUPONS_BY_MARKET[market].includes(code)),path+' shows no cross-market code');
   }
 });
+
+
+
+test('2026 current-device navigation cites only evidence-backed models without rewriting article dates',async()=>{
+  const {currentDevicesEditorialPanel,EDITORIAL_DEVICE_REFERENCES_2026,commerceLanding}=await import('../commerce-pages-v2.js');
+  assert.ok(EDITORIAL_DEVICE_REFERENCES_2026.apple.source.includes('apple.com'));
+  assert.ok(EDITORIAL_DEVICE_REFERENCES_2026.samsung.source.includes('samsung.com'));
+  assert.ok(EDITORIAL_DEVICE_REFERENCES_2026.oppo.source.includes('oppo.com'));
+  assert.ok(EDITORIAL_DEVICE_REFERENCES_2026.xiaomi.source.includes('mi.com'));
+  const onlyApple=currentDevicesEditorialPanel('saudi','apple');
+  assert.match(onlyApple,/iPhone 18 Pro Max/);
+  assert.doesNotMatch(onlyApple,/iPhone 15/);
+  assert.doesNotMatch(onlyApple,/Galaxy S26/);
+  assert.match(onlyApple,/مراجعة 10 نوفمبر 2026/);
+  const countries=['saudi','uae'];
+  for(const country of countries){
+    for(const path of ['/'+country+'/category/mobiles','/en/'+country+'/category/mobiles','/'+country+'/brand/apple','/'+country+'/brand/samsung']){
+      const res=await commerceLanding(path,origin,{});
+      assert.equal(res.status,200,path);
+      const html=await res.text();
+      assert.ok(html.includes('data-current-device-evidence="2026-11-10"'),path);
+      assert.ok(html.includes('iPhone 18 Pro Max') || html.includes('Galaxy S26 Ultra'));
+      assert.equal(publicEdgePolicyRevision(path),'editorial-verified-device-20261110-v1',path);
+    }
+  }
+  for(const key of ['honor','xiaomi']){
+    const panel=currentDevicesEditorialPanel('uae',key);
+    assert.match(panel,/الإتاحة المحلية|توافره المحلي/);
+  }
+});
