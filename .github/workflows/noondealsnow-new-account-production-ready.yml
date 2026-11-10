@@ -33,6 +33,8 @@ on:
       - 'r2-public-manifest.js'
       - 'commerce-pages-v2.js'
       - 'discovery-entry.js'
+      - 'article-temporal-freshness.js'
+      - 'tests/article-temporal-freshness.test.mjs'
       - 'seo-layer.js'
       - 'tests/mobile-coupon-copy.test.mjs'
       - 'ai-v2-sitemap.js'
