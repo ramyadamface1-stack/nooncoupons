@@ -773,6 +773,18 @@ export default{
       return new Response(JSON.stringify(result),{status:result.ok?200:409,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
     }
     let res=await app.fetch(req,env,ctx);
+    // The R2 complete-blog renderer already returns standalone, canonical,
+    // bounded 15-card HTML. Avoid the additional discovery manifest reads and
+    // HTML re-processing on Workers Free; these can exhaust CPU on cold visits.
+    // Still enforce the canonical coupon allowlist and the existing edge cache.
+    if(req.method==='GET'&&res.headers.get('x-full-blog-r2')==='read-only-cursor-v1'){
+      res=await sanitizeCouponSurface(req,res);
+      res=edgePageCachePut(req,u,res,ctx);
+      const h=new Headers(res.headers);
+      h.set('x-runtime-revision',DISCOVERY_RELEASE);
+      h.set('x-blog-cpu-fast-path','v1');
+      return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
+    }
     res=await enrichHomepageSchema(req,res);
     if(req.method==='GET'&&u.pathname==='/sitemap.xml')res=await augmentRootSitemap(res,origin,env);
     if(req.method==='GET'&&u.pathname==='/robots.txt')res=await augmentRobots(res,origin);
