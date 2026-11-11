@@ -103,3 +103,55 @@ test('direct status tracks SA and AE separately, and never reports a truncated R
  assert.match(engine,/marketGeneration:\{SA:saStatus\|\|null,AE:aeStatus\|\|null\}/);
  assert.match(engine,/readyCountExact:ready\.truncated!==true/);
 });
+
+test('expired R2 lease can be taken by a new owner without stale owner releasing it',async()=>{
+ const {withDirectLease}=await import('../cloudflare-ai-direct/lease.mjs');
+ const objects=new Map();let serial=0;
+ const bucket={
+  async get(key){
+   const current=objects.get(key);
+   return current?{etag:current.etag,json:async()=>JSON.parse(current.body)}:null;
+  },
+  async put(key,body,options={}){
+   const prior=objects.get(key),cond=options.onlyIf||{};
+   if(cond.etagDoesNotMatch==='*'&&prior)return null;
+   if(cond.etagMatches&&prior?.etag!==cond.etagMatches)return null;
+   const etag='etag-'+(++serial);
+   objects.set(key,{etag,body});return {etag};
+  },
+  async delete(){throw Error('DANGEROUS_DELETE_SHOULD_NEVER_RUN')}
+ };
+ const env={CONTENT_FINAL:bucket};
+ let enterA,releaseA,enterB,releaseB;
+ const startedA=new Promise(resolve=>enterA=resolve);
+ const heldA=new Promise(resolve=>releaseA=resolve);
+ const startedB=new Promise(resolve=>enterB=resolve);
+ const heldB=new Promise(resolve=>releaseB=resolve);
+ const a=withDirectLease(env,'publisher',async()=>{enterA();await heldA;return 'a'},
+  {clock:()=>1000,ttlMs:50});
+ await startedA;
+ const b=withDirectLease(env,'publisher',async()=>{enterB();await heldB;return 'b'},
+  {clock:()=>2000,ttlMs:500});
+ await startedB;
+ releaseA();assert.equal(await a,'a');
+ const active=await bucket.get('_ops/noondealsnow-direct-ai-v1/lease/publisher.json');
+ assert.equal((await active.json()).until,2500,'A must not release owner B');
+ assert.deepEqual(await withDirectLease(env,'publisher',async()=>{throw Error('should not enter')},
+   {clock:()=>2100,ttlMs:50}),{ok:false,reason:'LEASE_ACTIVE'});
+ releaseB();assert.equal(await b,'b');
+ const released=await bucket.get('_ops/noondealsnow-direct-ai-v1/lease/publisher.json');
+ assert.equal((await released.json()).until,0);
+ assert.equal(await withDirectLease(env,'publisher',async()=>42,{clock:()=>2100,ttlMs:50}),42);
+});
+test('corrupted direct lease fails closed without write or dangerous delete',async()=>{
+ const {withDirectLease}=await import('../cloudflare-ai-direct/lease.mjs');
+ let puts=0;
+ const b={get:async()=>({etag:'etag1',json:async()=>({until:NaN})}),
+  put:async()=>{puts++;return null},delete:async()=>{throw Error('DELETE_NEVER_ALLOWED')}};
+ assert.deepEqual(await withDirectLease({CONTENT_FINAL:b},'generate-SA',async()=>false),
+  {ok:false,reason:'LEASE_STATE_INVALID'});
+ assert.equal(puts,0);
+ const source=read('cloudflare-ai-direct/lease.mjs');
+ assert.match(source,/onlyIf:\{etagMatches:latest\.etag\}/);
+ assert.doesNotMatch(source,/\.delete\(/);
+});
