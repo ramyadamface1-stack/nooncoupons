@@ -42,8 +42,11 @@ const eleventhWaveStart=tenthWaveStart+tenthEditorialTopicWave.length;
 const topics=[...baseTopics,...expandedEditorialTopics,...newEditorialTopicWave,...thirdEditorialTopicWave,...fourthEditorialTopicWave,...fifthEditorialTopicWave,...sixthEditorialTopicWave,...seventhEditorialTopicWave,...eighthEditorialTopicWave,...ninthEditorialTopicWave,...tenthEditorialTopicWave,...eleventhEditorialTopicWave];
 let runStartedAt=Date.now();
 let lastReportStatus=null,lastSafeReport=null,lastSelectedCredential=null,jobBatchOrdinal=0;
+let lastReportArticleId=null;
+const batchSuppressedArticles=new Set(); // per process / market batch only
 const report=(status,reason,data={})=>{
   lastReportStatus=status;
+  lastReportArticleId=/^[a-f0-9]{24}$/.test(String(data?.articleId||''))?data.articleId:null;
   lastSafeReport=safeBatchReport(status,reason,data);
   console.log('AI_V2_REPORT '+JSON.stringify({site:'noondealsnow',status,reason,elapsedMs:Date.now()-runStartedAt,...data}));
 };
@@ -141,8 +144,13 @@ async function run(){
     // An explicitly targeted zero-provider recovery must never select another
     // draft from the queue or accidentally spend a different topic's quota.
     if(oneOffCanary&&process.env.AI_CANARY_SLUG&&topic.slug!==process.env.AI_CANARY_SLUG)continue;
+    const articleId=assertTopic(topic,config);
+    // A confirmed no-write quality rejection must not select the same
+    // draft twice inside one bounded job. The next Cron can still run the
+    // existing one-time deterministic recovery under its original policy.
+    if(batchSuppressedArticles.has(articleId))continue;
     checked++;
-    const articleId=assertTopic(topic,config),saved=await readCheckpoint(config,articleId);
+    const saved=await readCheckpoint(config,articleId);
     const checkpointStatus=String(saved?.state||'UNSTARTED');
     checkpointStates[checkpointStatus]=(checkpointStates[checkpointStatus]||0)+1;
     const explicitIncompleteRetry=explicitGroqResume&&process.env.AI_RESUME_INCOMPLETE==='true'&&
@@ -569,6 +577,7 @@ async function runScheduledBatch(){
     jobBatchOrdinal=i;
     runStartedAt=Date.now();
     lastReportStatus=null;
+    lastReportArticleId=null;
     await run();
     const action=scheduledBatchAction(lastReportStatus,lastSafeReport?.reason,lastSafeReport?.http);
     if(action==='PUBLISHED'){published++;continue}
@@ -576,6 +585,8 @@ async function runScheduledBatch(){
       // A rejected draft or definite HTTP 409 native quality denial remains
       // BLOCKED_REVIEW. Never replay provider calls, lower quality gates or
       // re-POST; move to another topic under the existing batch limits.
+      if(lastSafeReport?.reason==='NATIVE_QUALITY_BLOCKED'&&lastSafeReport?.http===409&&lastReportArticleId)
+        batchSuppressedArticles.add(lastReportArticleId);
       console.log('AI_V2_JOB_BATCH_SKIP '+JSON.stringify({market:process.env.AI_QUEUE_MARKET,
         reason:lastSafeReport?.reason,attempt:i+1}));
       continue;
