@@ -44,3 +44,15 @@ test('dashboard independently displays Cloudflare direct canary stage and refuse
  assert.match(ui,/d\.schedulerEnabled===true&&d\.githubRuntime===false&&d\.directStage==='production'/);
  assert.doesNotMatch(ui,/github_token_expired|github_token_permissions/);
 });
+
+test('SYSTEM1 displays private direct readiness without confusing old GitHub generator with Cloudflare engine',()=>{
+ const ui=read('system1-control-center.js');
+ const admin=read('admin-runtime.js');
+ for(const name of ['direct_provider_keys_missing','direct_key_storage_unavailable','native_publish_token_missing'])
+  assert.ok(ui.includes(name),'Missing Arabic UI blocker '+name);
+ assert.match(ui,/d\.credentials\|\|\{\}/);
+ assert.match(ui,/d\.readyForActivation===true/);
+ assert.match(admin,/DIRECT_PROVIDER_KEYS_MISSING:'direct_provider_keys_missing'/);
+ assert.match(admin,/NATIVE_PUBLISH_TOKEN_MISSING:'native_publish_token_missing'/);
+ assert.doesNotMatch(admin,/GITHUB_TOKEN_INVALID_OR_EXPIRED:'github_token_expired'/);
+});

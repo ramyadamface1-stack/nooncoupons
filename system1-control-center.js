@@ -398,11 +398,23 @@ async function loadDirectState(){
  try{
   const d=await api('/api/admin/ai-v2-direct/status');
   const active=d.schedulerEnabled===true&&d.githubRuntime===false&&d.directStage==='production';
-  const ready=Number.isSafeInteger(d.readyCount)?' | READY: '+fmt(d.readyCount):' | READY غير مقاس';
-  el.dataset.tone=active?'ok':'warn';
-  el.textContent=active?
-   'محرك Cloudflare المباشر: نشط بدون توليد GitHub'+ready+' | الجدولة: '+fmt(d.intervalMinutes)+' دقيقة | النشر: '+fmt(d.publishingIntervalMinutes)+' دقيقة':
-   'محرك Cloudflare المباشر: تجريبي غير مفعل (Cron متوقف)'+ready+' | تشغيلات GitHub القديمة ما زالت منفصلة. الضغط على توليد الآن لا يبدأ محرك Cloudflare حتى تفعيله بأمان.';
+  const ready=Number.isSafeInteger(d.readyCount)?'READY: '+fmt(d.readyCount):'READY غير مقاس';
+  const c=d.credentials||{};
+  const counts=c.readable===true?'Gemini: '+fmt(c.geminiCount||0)+' · Groq: '+fmt(c.groqCount||0):
+   'تعذر التحقق من مفاتيح Cloudflare';
+  const labels={
+   DIRECT_ENGINE_CANARY_NOT_ACTIVE:'المحرك مباشر لكنه تجريبي، وCron لم يتم تفعيله',
+   DIRECT_PROVIDER_KEYS_MISSING:'مفاتيح Gemini/Groq غير موجودة داخل Cloudflare؛ أضيفيها من قسم المفاتيح',
+   DIRECT_KEY_STORAGE_UNAVAILABLE:'تعذر قراءة المفاتيح المشفرة؛ يلزم فحص إعداد التشفير',
+   NATIVE_PUBLISH_TOKEN_MISSING:'رمز النشر الداخلي لم يتم تهيئته على Cloudflare',
+   CONTROL_POLICY_UNAVAILABLE:'تعذر التحقق من إعدادات النشر'
+  };
+  const blockers=(Array.isArray(d.activationBlockers)?d.activationBlockers:[])
+   .map(code=>labels[code]||'شرط تشغيل غير مستوفى').join('؛ ');
+  el.dataset.tone=active&&d.readyForActivation===true?'ok':'warn';
+  el.textContent=(active?'محرك Cloudflare المباشر مفعل':'محرك Cloudflare المباشر غير مفعل للإنتاج')+
+   ' | '+ready+' | '+counts+' | رمز النشر: '+(c.publishTokenConfigured===true?'موجود':'غير مجهز')+
+   (blockers?' | المطلوب: '+blockers:' | متطلبات المحرك جاهزة');
  }catch(e){el.dataset.tone='warn';el.textContent='محرك Cloudflare المباشر: تعذر تأكيد حالته ('+e.message+')؛ لا نفترض أنه نشط.'}
 }
 async function load(){try{snapshot=await api('/api/admin/system1/summary');update()}catch(e){liveStripUnavailable('تعذر قراءة بيانات الإنتاج');setState('genState','المراقبة غير متاحة',e.message,'warn');setState('pubState','النشر غير متاح','الرقم مجهول، وليس صفرًا','warn');note('تعذر قراءة بيانات الإنتاج: '+e.message)}await loadDirectState()}
@@ -447,7 +459,10 @@ async function runNow(skipConfirm=false){
     scheduler_not_verified:'المجدول غير مفعّل أو لم تُتحقق سياسة تشغيله على Cloudflare.',
     direct_engine_canary_not_active:'محرك Cloudflare المباشر تجريبي حتى الآن؛ لم يتم قبول طلب التوليد. لا يُستخدم GitHub لتنفيذ طلبات التوليد من هذه الشاشة.',
      direct_cloudflare_binding_missing:'ربط البانل بخدمة Cloudflare المباشرة غير متاح حاليًا؛ لم يبدأ التوليد.',
-     direct_cloudflare_status_unavailable:'تعذر فحص حالة محرك Cloudflare؛ لم يتم تشغيل توليد جديد.'
+     direct_cloudflare_status_unavailable:'تعذر فحص حالة محرك Cloudflare؛ لم يتم تشغيل توليد جديد.',
+     direct_provider_keys_missing:'لا توجد مفاتيح Gemini/Groq مهيأة وقابلة للقراءة داخل Cloudflare؛ أضيفيها من قسم المفاتيح.',
+     direct_key_storage_unavailable:'تعذر قراءة مفاتيح Cloudflare المشفرة. لم يتم بدء التوليد.',
+     native_publish_token_missing:'رمز النشر الداخلي غير مجهز داخل محرك Cloudflare؛ لم يتم بدء التوليد.'
    };
    lastManualDispatch={at:new Date().toISOString(),message:messages[e.message]||'تعذر إرسال الطلب'};
    if(snapshot)renderLiveStrip(snapshot);

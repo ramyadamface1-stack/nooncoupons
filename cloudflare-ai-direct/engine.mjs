@@ -239,8 +239,19 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  return {ok:true,engine:'cloudflare-direct-r2-v1',market,generation:result,publishing:published};
 }
 export async function requestDirectGeneration(env){
- if(env.DIRECT_AI_STAGE!=='production')return {dispatched:false,reason:'DIRECT_ENGINE_CANARY_NOT_ACTIVE',githubUsed:false};
- const p=await policy(env);if(!p.enabled)return {dispatched:false,reason:'SCHEDULER_PAUSED'};
+ if(env.DIRECT_AI_STAGE!=='production')
+  return {dispatched:false,reason:'DIRECT_ENGINE_CANARY_NOT_ACTIVE',githubUsed:false};
+ const p=await policy(env);
+ if(!p.enabled)return {dispatched:false,reason:'SCHEDULER_PAUSED',githubUsed:false};
+ // An accepted button must actually have the prerequisites to produce and
+ // publish. Never claim the request was queued if all Cloudflare keys are gone.
+ if(!env.SITE_PUBLISH_TOKEN)
+  return {dispatched:false,reason:'NATIVE_PUBLISH_TOKEN_MISSING',githubUsed:false};
+ let keys;
+ try{keys=await listDirectKeys(env,{includePlain:true})}
+ catch{return {dispatched:false,reason:'DIRECT_KEY_STORAGE_UNAVAILABLE',githubUsed:false}}
+ if(!keys.gemini.length&&!keys.groq.length)
+  return {dispatched:false,reason:'DIRECT_PROVIDER_KEYS_MISSING',githubUsed:false};
  await jsonPut(env,ROOT+'manual-request.json',{pending:true,createdAt:utc()});
  return {dispatched:true,scheduledVia:'cloudflare-cron-next-minute',githubUsed:false};
 }
@@ -255,6 +266,29 @@ export async function directStatus(env){
   freeOnly:true,readyCount:ready.objects.filter(x=>!x.key.endsWith('/')).length,
   lastGeneration:status||null,verifiedMarkets:['SA','AE']};
 }
+// Authenticated service-binding RPC only: never include these credential
+// counts on public /health, and never serialize actual Gemini/Groq key values.
+export async function directAdminStatus(env){
+ const base=await directStatus(env);
+ let keysReadable=false,geminiCount=0,groqCount=0;
+ try{
+  const keys=await listDirectKeys(env,{includePlain:true});
+  geminiCount=keys.gemini.length;groqCount=keys.groq.length;
+  keysReadable=true;
+ }catch{}
+ const publishTokenConfigured=Boolean(env.SITE_PUBLISH_TOKEN);
+ const activationBlockers=[];
+ if(!keysReadable)activationBlockers.push('DIRECT_KEY_STORAGE_UNAVAILABLE');
+ else if(geminiCount+groqCount===0)activationBlockers.push('DIRECT_PROVIDER_KEYS_MISSING');
+ if(!publishTokenConfigured)activationBlockers.push('NATIVE_PUBLISH_TOKEN_MISSING');
+ if(env.DIRECT_AI_STAGE!=='production')activationBlockers.push('DIRECT_ENGINE_CANARY_NOT_ACTIVE');
+ if(base.controlStatus==='POLICY_UNAVAILABLE')activationBlockers.push('CONTROL_POLICY_UNAVAILABLE');
+ return {...base,
+  credentials:{geminiCount,groqCount,readable:keysReadable,publishTokenConfigured},
+  readyForActivation:activationBlockers.length===0,
+  activationBlockers};
+}
+
 export default {
  async fetch(request,env){
   if(new URL(request.url).pathname!=='/health')return out({ok:false,error:'not_found'},404);
