@@ -7,11 +7,13 @@
   ],
   "workers_dev": true,
   "triggers": {
-    "crons": []
+    "crons": [
+      "* * * * *"
+    ]
   },
   "vars": {
     "SITE_ID": "noondealsnow",
-    "DIRECT_AI_STAGE": "canary-no-cron"
+    "DIRECT_AI_STAGE": "canary-generation"
   },
   "r2_buckets": [
     {

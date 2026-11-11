@@ -28,7 +28,7 @@ jobs:
         run: |
           set -euo pipefail
           test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 20
-          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('cloudflare-ai-direct/wrangler.jsonc','utf8')); if(c.name!=='noondealsnow-ai-direct-r2'||c.vars.DIRECT_AI_STAGE!=='canary-no-cron'||c.triggers.crons.length)process.exit(21)"
+          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('cloudflare-ai-direct/wrangler.jsonc','utf8')); if(c.name!=='noondealsnow-ai-direct-r2'||c.vars.DIRECT_AI_STAGE!=='canary-generation'||c.triggers.crons.length!==1||c.triggers.crons[0]!=='* * * * *')process.exit(21)"
           node --check cloudflare-ai-direct/engine.mjs
           node --check cloudflare-ai-direct/keys.mjs
           node --check cloudflare-ai-direct/pack-existing-keys.mjs
@@ -121,14 +121,14 @@ jobs:
             jq -e --arg n "$name" 'any(.[]; .name == $n)' /tmp/ndn-direct-secret-after.json >/dev/null || { echo "DIRECT_REQUIRED_SECRET_MISSING=$name"; exit 44; }
           done
           echo 'DIRECT_CLOUDFLARE_CREDENTIAL_NAMES=VERIFIED;GITHUB_GENERATION=DISABLED_IN_DIRECT_ENGINE'
-          echo 'DIRECT_CRON=STILL_DISABLED_UNTIL_SAFE_CUTOVER'
+          echo 'DIRECT_PUBLISHING=STILL_DISABLED_UNTIL_SAFE_CUTOVER'
       - name: Validate canary stage and no runtime GitHub usage
         shell: bash
         run: |
           set -euo pipefail
           for i in 1 2 3; do
             code=$(curl -sS --max-time 20 -o /tmp/direct-r2-health.json -w '%{http_code}' 'https://noondealsnow-ai-direct-r2.ndn-e4c35f8a50.workers.dev/health' || true)
-            if [ "$code" = 200 ] && jq -e '.ok==true and .schedulerEnabled==false and .githubRuntime==false and .directStage=="canary-no-cron"' /tmp/direct-r2-health.json >/dev/null; then
+            if [ "$code" = 200 ] && jq -e '.ok==true and .schedulerEnabled==false and .githubRuntime==false and .directStage=="canary-generation" and .canaryGenerationEnabled==true' /tmp/direct-r2-health.json >/dev/null; then
               echo 'DIRECT_CLOUDFLARE_R2_CANARY=VERIFIED'
               exit 0
             fi
@@ -136,3 +136,15 @@ jobs:
           done
           echo 'DIRECT_CLOUDFLARE_R2_CANARY=NOT_VERIFIED'
           exit 31
+      - name: Verify Cloudflare-only generation Cron is configured and legacy scheduler remains untouched
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS --max-time 20 -o /tmp/ndn-direct-cron.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/noondealsnow-ai-direct-r2/schedules")
+          test "$code" = 200 || { echo "DIRECT_CANARY_CRON_READ_FAILED"; exit 51; }
+          jq -e '.success==true and any(.result.schedules[]?; .cron=="* * * * *")' /tmp/ndn-direct-cron.json >/dev/null || { echo "DIRECT_CANARY_CRON_MISSING"; exit 52; }
+          echo 'DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_GENERATION_ONLY'
+          echo 'DIRECT_PUBLICATION=DISABLED;LEGACY_PUBLISHER=UNCHANGED'
+          echo 'CANARY_GENERATION=AWAITING_NEXT_CLOUDFLARE_CRON_TICK'
