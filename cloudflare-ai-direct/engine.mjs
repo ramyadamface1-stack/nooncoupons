@@ -290,10 +290,19 @@ export async function requestDirectGeneration(env){
  return {dispatched:true,scheduledVia:'cloudflare-cron-next-minute',githubUsed:false};
 }
 export async function directStatus(env){
- const [p,status,ready,saStatus,aeStatus]=await Promise.all([
+ const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE]=await Promise.all([
   policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),env.CONTENT_FINAL.list({prefix:READY,limit:100}),
-  jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json')
+  jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json'),
+  env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once/SA.json'):null,
+  env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once/AE.json'):null
  ]);
+ const canaryAttempt=row=>{
+  if(!row||typeof row!=='object')return null;
+  const state=['STARTED','READY_CREATED','BLOCKED'].includes(row.state)?row.state:'UNKNOWN';
+  const phase=typeof row.reason==='string'&&/^[A-Z_]{3,70}$/.test(row.reason)?row.reason:null;
+  const at=typeof row.at==='string'&&Number.isFinite(Date.parse(row.at))?row.at:null;
+  return {state,phase,at};
+ };
  return {ok:true,schedulerEnabled:p?.enabled===true&&env.DIRECT_AI_STAGE==='production',
   canaryGenerationEnabled:env.DIRECT_AI_STAGE==='canary-generation',canaryMaxAttemptsPerMarket:1,
   intervalMinutes:p?.intervalMinutes||null,
@@ -303,6 +312,7 @@ export async function directStatus(env){
   dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,directStage:env.DIRECT_AI_STAGE||'unset',
   freeOnly:true,readyCount:ready.objects.filter(x=>!x.key.endsWith('/')).length,
   readyCountExact:ready.truncated!==true,
+  canaryAttempts:env.DIRECT_AI_STAGE==='canary-generation'?{SA:canaryAttempt(canarySA),AE:canaryAttempt(canaryAE)}:null,
   lastGeneration:status||null,
   marketGeneration:{SA:saStatus||null,AE:aeStatus||null},
   verifiedMarkets:['SA','AE']};

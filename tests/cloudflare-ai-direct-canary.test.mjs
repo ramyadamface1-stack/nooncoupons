@@ -170,3 +170,31 @@ test('corrupted direct lease fails closed without write or dangerous delete',asy
  assert.match(source,/onlyIf:\{etagMatches:latest\.etag\}/);
  assert.doesNotMatch(source,/\.delete\(/);
 });
+
+test('canary health reads each attempt marker without exposing keys or performing generation',async()=>{
+ const {directStatus}=await import('../cloudflare-ai-direct/engine.mjs');
+ const originalFetch=globalThis.fetch;
+ let providerCalls=0;
+ globalThis.fetch=async url=>{
+  if(String(url)!=='https://noondealsnow.com/api/ai-v2-control-policy'){providerCalls++;throw Error('UNEXPECTED_PROVIDER_CALL')}
+  return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),{status:200});
+ };
+ const records={
+  '_ops/noondealsnow-direct-ai-v1/canary-once/SA.json':{state:'READY_CREATED',reason:'READY_CREATED',at:'2026-11-11T20:10:00.000Z',credential:'SECRET_MUST_NOT_LEAK'},
+  '_ops/noondealsnow-direct-ai-v1/canary-once/AE.json':{state:'STARTED',at:'2026-11-11T20:11:00.000Z'}
+ };
+ const env={DIRECT_AI_STAGE:'canary-generation',CONTENT_FINAL:{
+  list:async()=>({objects:[],truncated:false}),
+  get:async key=>records[key]?{json:async()=>records[key]}:null
+ }};
+ try{
+  const status=await directStatus(env);
+  assert.equal(status.schedulerEnabled,false);
+  assert.equal(status.canaryGenerationEnabled,true);
+  assert.equal(status.readyCount,0);
+  assert.deepEqual(status.canaryAttempts.SA,{state:'READY_CREATED',phase:'READY_CREATED',at:'2026-11-11T20:10:00.000Z'});
+  assert.deepEqual(status.canaryAttempts.AE,{state:'STARTED',phase:null,at:'2026-11-11T20:11:00.000Z'});
+  assert.equal(providerCalls,0);
+  assert.doesNotMatch(JSON.stringify(status),/SECRET_MUST_NOT_LEAK/);
+ }finally{globalThis.fetch=originalFetch}
+});
