@@ -300,7 +300,7 @@ export async function directStatus(env){
   if(!row||typeof row!=='object')return null;
   const state=['STARTED','READY_CREATED','BLOCKED'].includes(row.state)?row.state:'UNKNOWN';
   const phase=typeof row.reason==='string'&&/^[A-Z_]{3,70}$/.test(row.reason)?row.reason:null;
-  const at=typeof row.at==='string'&&/^20\\d\\d-/.test(row.at)?row.at:null;
+  const at=typeof row.at==='string'&&Number.isFinite(Date.parse(row.at))?row.at:null;
   return {state,phase,at};
  };
  return {ok:true,schedulerEnabled:p?.enabled===true&&env.DIRECT_AI_STAGE==='production',
