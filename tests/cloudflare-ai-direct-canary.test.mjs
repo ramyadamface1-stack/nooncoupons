@@ -49,3 +49,13 @@ test('the live scheduler remains untouched until canary proof',()=>{
  assert.match(release,/wrangler deploy --config cloudflare-ai-direct\/wrangler\.jsonc/);
  assert.doesNotMatch(release,/GEMINI_API_KEY|GROQ_API_KEY/);
 });
+
+test('direct canary uses unused N11 topics, and missing keys cannot burn an article checkpoint',()=>{
+ const source=read('cloudflare-ai-direct/engine.mjs');
+ assert.match(source,/topicByMarket=.*eleventhEditorialTopicWave/s);
+ assert.match(source,/if\(!pool\.length\)return logState\(env,\{phase:'KEYS_MISSING',market\}\)/);
+ assert.doesNotMatch(source,/state:'NO_KEYS'/);
+ assert.match(source,/env\.DIRECT_AI_STAGE!=='production'/);
+ assert.match(source,/reason:'DIRECT_ENGINE_CANARY_NOT_ACTIVE'/);
+ assert.doesNotMatch(source,/api\.github\.com|actions\/workflows|GITHUB_DISPATCH_TOKEN/);
+});
