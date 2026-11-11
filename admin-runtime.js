@@ -557,14 +557,12 @@ export async function handleAdminApi(req,env){
           const reason=String(result?.reason||'INTERNAL_DISPATCH_FAILED');
           const known={
             SCHEDULER_PAUSED:'scheduler_paused',
-            SCHEDULER_POLICY_UNVERIFIED:'scheduler_not_verified',
-            DISPATCH_SECRET_MISSING:'dispatch_secret_missing',
+            DIRECT_ENGINE_CANARY_NOT_ACTIVE:'direct_engine_canary_not_active',
+            DIRECT_PROVIDER_KEYS_MISSING:'direct_provider_keys_missing',
+            DIRECT_KEY_STORAGE_UNAVAILABLE:'direct_key_storage_unavailable',
+            NATIVE_PUBLISH_TOKEN_MISSING:'native_publish_token_missing',
             PUBLISHER_BUSY_SKIP_DISPATCH:'generation_already_running',
-            WORKFLOW_ALREADY_RUNNING:'generation_already_running',
-            DISPATCH_TOKEN_MISSING:'dispatch_secret_missing',
-            GITHUB_TOKEN_INVALID_OR_EXPIRED:'github_token_expired',
-            GITHUB_TOKEN_FORBIDDEN:'github_token_permissions',
-            GITHUB_WORKFLOW_NOT_FOUND_OR_UNAUTHORIZED:'github_workflow_unavailable'
+            WORKFLOW_ALREADY_RUNNING:'generation_already_running'
           };
           return json({ok:false,dispatched:false,error:known[reason]||'dispatch_not_accepted',
             reason:reason.slice(0,90),published:false},409);
