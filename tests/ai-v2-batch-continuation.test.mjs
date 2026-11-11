@@ -44,3 +44,17 @@ test('native 409 reaches batch continuation via a redacted, numeric result',()=>
  assert.match(src,/lastSafeReport=safeBatchReport\(status,reason,data\)/);
  assert.match(src,/scheduledBatchAction\(lastReportStatus,lastSafeReport\?\.reason,lastSafeReport\?\.http\)/);
 });
+
+test('one definitive native 409 cannot select the identical rejected article again within a bounded batch',()=>{
+ const source=readFileSync(new URL('../automation/ai-v2/run.mjs',import.meta.url),'utf8');
+ assert.match(source,/const batchSuppressedArticles=new Set\(\)/);
+ assert.match(source,/if\(batchSuppressedArticles\.has\(articleId\)\)continue/);
+ assert.match(source,/batchSuppressedArticles\.add\(lastReportArticleId\)/);
+ assert.match(source,/lastSafeReport\?\.reason==='NATIVE_QUALITY_BLOCKED'&&lastSafeReport\?\.http===409/);
+ assert.match(source,/lastReportArticleId=\/\^\[a-f0-9\]\{24\}\$\//);
+ const rejected='a'.repeat(24),next='b'.repeat(24),suppressed=new Set([rejected]);
+ assert.equal(suppressed.has(rejected),true);
+ assert.equal(suppressed.has(next),false);
+ assert.equal(scheduledBatchAction('BLOCKED','NATIVE_QUALITY_BLOCKED',409),'NEXT_TOPIC');
+ assert.equal(scheduledBatchAction('BLOCKED','GLOBAL_PUBLICATION_SLOT_NOT_DUE',409),'STOP');
+});
