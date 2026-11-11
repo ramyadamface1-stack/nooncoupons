@@ -42,6 +42,13 @@ test('dashboard independently displays Cloudflare direct canary stage and refuse
  assert.match(ui,/\/api\/admin\/ai-v2-direct\/status/);
  assert.match(ui,/direct_engine_canary_not_active/);
  assert.match(ui,/d\.schedulerEnabled===true&&d\.githubRuntime===false&&d\.directStage==='production'/);
+ assert.match(ui,/d\.canaryGenerationEnabled===true&&d\.directStage==='canary-generation'/);
+ assert.match(ui,/d\.canaryAttempts&&d\.canaryAttempts\[market\]/);
+ assert.match(ui,/STARTED:'بدأت المحاولة'/);
+ assert.match(ui,/READY_CREATED:'مقال جاهز'/);
+ assert.match(ui,/BLOCKED:'المحاولة لم تنجح'/);
+ assert.match(ui,/تجربة توليد عبر Cron كل دقيقة/);
+ assert.doesNotMatch(ui,/Cron لم يتم تفعيله/);
  assert.doesNotMatch(ui,/github_token_expired|github_token_permissions/);
 });
 

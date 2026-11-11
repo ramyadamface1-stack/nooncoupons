@@ -398,12 +398,20 @@ async function loadDirectState(){
  try{
   const d=await api('/api/admin/ai-v2-direct/status');
   const active=d.schedulerEnabled===true&&d.githubRuntime===false&&d.directStage==='production';
+  const canary=d.canaryGenerationEnabled===true&&d.directStage==='canary-generation';
   const ready=Number.isSafeInteger(d.readyCount)?'READY: '+fmt(d.readyCount):'READY غير مقاس';
+  const marketState=market=>{
+   const row=d.canaryAttempts&&d.canaryAttempts[market];
+   const names={SA:'السعودية',AE:'الإمارات'};
+   const labels={STARTED:'بدأت المحاولة',READY_CREATED:'مقال جاهز',BLOCKED:'المحاولة لم تنجح',UNKNOWN:'حالة غير معروفة'};
+   return names[market]+': '+(row?(labels[row.state]||'حالة غير معروفة'):'لم تبدأ بعد')+
+    (row&&row.at?' · '+local(row.at):'');
+  };
   const c=d.credentials||{};
   const counts=c.readable===true?'Gemini: '+fmt(c.geminiCount||0)+' · Groq: '+fmt(c.groqCount||0):
    'تعذر التحقق من مفاتيح Cloudflare';
   const labels={
-   DIRECT_ENGINE_CANARY_NOT_ACTIVE:'المحرك مباشر لكنه تجريبي، وCron لم يتم تفعيله',
+   DIRECT_ENGINE_CANARY_NOT_ACTIVE:'محرك Cloudflare في مرحلة الاختبار؛ النشر المباشر مؤجل حتى نجاح التجربة',
    DIRECT_PROVIDER_KEYS_MISSING:'مفاتيح Gemini/Groq غير موجودة داخل Cloudflare؛ أضيفيها من قسم المفاتيح',
    DIRECT_KEY_STORAGE_UNAVAILABLE:'تعذر قراءة المفاتيح المشفرة؛ يلزم فحص إعداد التشفير',
    NATIVE_PUBLISH_TOKEN_MISSING:'رمز النشر الداخلي لم يتم تهيئته على Cloudflare',
@@ -412,8 +420,11 @@ async function loadDirectState(){
   const blockers=(Array.isArray(d.activationBlockers)?d.activationBlockers:[])
    .map(code=>labels[code]||'شرط تشغيل غير مستوفى').join('؛ ');
   el.dataset.tone=active&&d.readyForActivation===true?'ok':'warn';
-  el.textContent=(active?'محرك Cloudflare المباشر مفعل':'محرك Cloudflare المباشر غير مفعل للإنتاج')+
+  el.textContent=(active?'محرك Cloudflare المباشر مفعل للإنتاج':canary?
+   'محرك Cloudflare: تجربة توليد عبر Cron كل دقيقة (النشر المباشر متوقف)':
+   'محرك Cloudflare المباشر غير مفعل للإنتاج')+
    ' | '+ready+' | '+counts+' | رمز النشر: '+(c.publishTokenConfigured===true?'موجود':'غير مجهز')+
+   (canary?' | '+marketState('SA')+'؛ '+marketState('AE'):'')+
    (blockers?' | المطلوب: '+blockers:' | متطلبات المحرك جاهزة');
  }catch(e){el.dataset.tone='warn';el.textContent='محرك Cloudflare المباشر: تعذر تأكيد حالته ('+e.message+')؛ لا نفترض أنه نشط.'}
 }
