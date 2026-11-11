@@ -216,6 +216,6 @@ test('direct provider key selection uses disjoint initial SA/AE windows and adva
  const source=read('cloudflare-ai-direct/engine.mjs');
  assert.match(source,/planDirectKeyRotation\(pool\.length,previousKeys,market\)/);
  assert.match(source,/const advanced=await jsonPut\(env,keyCursor/);
- assert.match(source,/for\(let attempt=0;attempt<rotation\.indices\.length;attempt\+\+\)/);
+ assert.match(source,/for\(let attempt=0;attempt<Math\.min\(rotation\.indices\.length,maxProviderAttempts\);attempt\+\+\)/);
  assert.doesNotMatch(source,/pool\[\(start\+attempt\)%pool\.length\]/);
 });
