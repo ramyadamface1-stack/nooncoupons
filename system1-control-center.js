@@ -99,6 +99,7 @@ th,td{padding:10px;text-align:right;border-bottom:1px solid #e7edf5;vertical-ali
 <button type="button" class="navbtn" data-tab="diagnostics" aria-selected="false" role="tab">الأخطاء والتحليلات</button>
 </div><div class="asideBottom"><a href="/admin/legacy">الإدارة المتقدمة القديمة</a><a href="/blog" target="_blank" rel="noopener">عرض المدونة</a><a href="https://noondealsnow-ai-direct-r2.ndn-e4c35f8a50.workers.dev/health" target="_blank" rel="noopener">حالة محرك Cloudflare المباشر</a></div></aside>
 <main><header class="header"><div><h1>SYSTEM1 — مركز التحكم</h1><div class="dim">لوحة واحدة · بيانات إنتاج حقيقية فقط · توقيت القاهرة</div></div><button type="button" class="action secondary" id="refresh">تحديث البيانات</button></header>
+<div class="state" id="directEngineBanner" role="status" aria-live="polite">محرك Cloudflare المباشر: جارٍ التحقق من مرحلة التشغيل والمخزون الفعلي.</div>
 <div class="live-strip" id="liveStrip" data-tone="unknown" role="region" aria-label="شريط متابعة التوليد والنشر">
  <div class="live-strip-top"><div>
   <div class="live-kicker">حالة التشغيل والنشر — بيانات حقيقية</div>
@@ -392,7 +393,19 @@ $(provider+'Quota').textContent=count?'إجمالي محمل: '+fmt(s.providers?
 }
 renderKeys();
 }
-async function load(){try{snapshot=await api('/api/admin/system1/summary');update()}catch(e){liveStripUnavailable('تعذر قراءة بيانات الإنتاج');setState('genState','المراقبة غير متاحة',e.message,'warn');setState('pubState','النشر غير متاح','الرقم مجهول، وليس صفرًا','warn');note('تعذر قراءة بيانات الإنتاج: '+e.message)}}
+async function loadDirectState(){
+ const el=$('directEngineBanner');
+ try{
+  const d=await api('/api/admin/ai-v2-direct/status');
+  const active=d.schedulerEnabled===true&&d.githubRuntime===false&&d.directStage==='production';
+  const ready=Number.isSafeInteger(d.readyCount)?' | READY: '+fmt(d.readyCount):' | READY غير مقاس';
+  el.dataset.tone=active?'ok':'warn';
+  el.textContent=active?
+   'محرك Cloudflare المباشر: نشط بدون توليد GitHub'+ready+' | الجدولة: '+fmt(d.intervalMinutes)+' دقيقة | النشر: '+fmt(d.publishingIntervalMinutes)+' دقيقة':
+   'محرك Cloudflare المباشر: تجريبي غير مفعل (Cron متوقف)'+ready+' | تشغيلات GitHub القديمة ما زالت منفصلة. الضغط على توليد الآن لا يبدأ محرك Cloudflare حتى تفعيله بأمان.';
+ }catch(e){el.dataset.tone='warn';el.textContent='محرك Cloudflare المباشر: تعذر تأكيد حالته ('+e.message+')؛ لا نفترض أنه نشط.'}
+}
+async function load(){try{snapshot=await api('/api/admin/system1/summary');update()}catch(e){liveStripUnavailable('تعذر قراءة بيانات الإنتاج');setState('genState','المراقبة غير متاحة',e.message,'warn');setState('pubState','النشر غير متاح','الرقم مجهول، وليس صفرًا','warn');note('تعذر قراءة بيانات الإنتاج: '+e.message)}await loadDirectState()}
 async function loadKeywords(){const rows=$('keywordRows');rows.replaceChildren();try{
  const params=new URLSearchParams({market:$('kwMarket').value,q:$('kwSearch').value.slice(0,120),limit:'100'});
  keywords=await api('/api/admin/system1/keywords?'+params.toString());
@@ -432,10 +445,9 @@ async function runNow(skipConfirm=false){
     generation_already_running:'يوجد تشغيل توليد جارٍ بالفعل. انتظري نتيجة نفس التشغيل بدل محاولة مكررة.',
     scheduler_paused:'التوليد متوقف يدويًا. اضغطي تشغيل / استئناف أولًا.',
     scheduler_not_verified:'المجدول غير مفعّل أو لم تُتحقق سياسة تشغيله على Cloudflare.',
-    dispatch_secret_missing:'رمز إرسال GitHub غير موجود في أسرار مجدول Cloudflare؛ يجب إعادة ربطه بشكل آمن.',
-    internal_dispatch_not_configured:'الاتصال الداخلي بالمجدول غير جاهز بعد. راجعي آخر نشر Cloudflare.',
-    github_token_expired:'رمز GitHub المحفوظ في Cloudflare انتهت صلاحيته؛ يجب تجديده.',
-    github_token_permissions:'رمز GitHub المحفوظ لا يملك صلاحية Actions المطلوبة.'
+    direct_engine_canary_not_active:'محرك Cloudflare المباشر تجريبي حتى الآن؛ لم يتم قبول طلب التوليد. لا يُستخدم GitHub لتنفيذ طلبات التوليد من هذه الشاشة.',
+     direct_cloudflare_binding_missing:'ربط البانل بخدمة Cloudflare المباشرة غير متاح حاليًا؛ لم يبدأ التوليد.',
+     direct_cloudflare_status_unavailable:'تعذر فحص حالة محرك Cloudflare؛ لم يتم تشغيل توليد جديد.'
    };
    lastManualDispatch={at:new Date().toISOString(),message:messages[e.message]||'تعذر إرسال الطلب'};
    if(snapshot)renderLiveStrip(snapshot);
