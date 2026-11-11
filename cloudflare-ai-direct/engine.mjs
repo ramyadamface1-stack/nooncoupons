@@ -223,8 +223,39 @@ async function publishOne(env,p){
   return {ok:false,reason:'NO_ELIGIBLE_READY'};
  });
 }
+// Cloudflare-only smoke stage: one attempt per market, at most two AI
+// generation requests in total (apart from bounded definite 429 key fallback).
+// Never publish from canary; leave legacy publishing safely in place.
+async function canaryGenerateOnce(env,scheduledAt){
+ let p;
+ try{p=await policy(env)}catch(e){return logState(env,{phase:'CANARY_POLICY_UNAVAILABLE',reason:String(e?.message||'UNKNOWN').slice(0,65)})}
+ if(!p.enabled)return logState(env,{phase:'CANARY_PAUSED'});
+ if(!env.SITE_PUBLISH_TOKEN)return logState(env,{phase:'CANARY_NATIVE_PUBLISH_TOKEN_MISSING'});
+ const market=Math.floor(Number(scheduledAt)/60000)%2?'AE':'SA';
+ const attemptKey=ROOT+'canary-once/'+market+'.json';
+ const prior=await jsonGet(env,attemptKey,null);
+ if(prior)return {ok:prior.state==='READY_CREATED',market,phase:'CANARY_ATTEMPT_ALREADY_RECORDED',
+  recordedState:prior.state,articleSlug:prior.slug||null};
+ let keys;
+ try{keys=await listDirectKeys(env,{includePlain:true})}
+ catch{return logState(env,{phase:'CANARY_KEY_STORAGE_UNAVAILABLE',market})}
+ if(!keys.gemini.length&&!keys.groq.length)return logState(env,{phase:'CANARY_KEYS_MISSING',market});
+ // Record BEFORE provider POST: if Worker CPU/time limits terminate this
+ // invocation, a repeated Cron tick must not silently spend more quota.
+ const reservation=await jsonPut(env,attemptKey,{state:'STARTED',market,at:utc()},
+  {onlyIf:{etagDoesNotMatch:'*'}});
+ if(!reservation)return {ok:false,market,phase:'CANARY_RESERVATION_RACE'};
+ let result;
+ try{result=await generate(env,market)}
+ catch(e){result={phase:'CANARY_GENERATION_EXCEPTION',reason:String(e?.message||'UNKNOWN').slice(0,65)}}
+ const completed=result?.phase==='READY_CREATED',state=completed?'READY_CREATED':'BLOCKED';
+ await jsonPut(env,attemptKey,{state,market,reason:result?.phase||'UNKNOWN',slug:result?.slug||null,at:utc()});
+ return {ok:completed,market,phase:completed?'CANARY_READY_CREATED':'CANARY_GENERATION_BLOCKED',
+  reason:result?.phase||'UNKNOWN',slug:result?.slug||null};
+}
 export async function directTick(env,{scheduledAt=Date.now()}={}){
  if(!env.CONTENT_FINAL)return {ok:false,reason:'R2_BINDING_MISSING'};
+ if(env.DIRECT_AI_STAGE==='canary-generation')return canaryGenerateOnce(env,scheduledAt);
  if(env.DIRECT_AI_STAGE!=='production')return {ok:false,reason:'CANARY_NOT_ACTIVE'};
  let p;
  try{p=await policy(env)}catch(e){return logState(env,{phase:String(e?.message||'POLICY_UNAVAILABLE')})}
@@ -263,9 +294,12 @@ export async function directStatus(env){
   policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),env.CONTENT_FINAL.list({prefix:READY,limit:100}),
   jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json')
  ]);
- return {ok:true,schedulerEnabled:p?.enabled===true&&env.DIRECT_AI_STAGE==='production',intervalMinutes:p?.intervalMinutes||null,
+ return {ok:true,schedulerEnabled:p?.enabled===true&&env.DIRECT_AI_STAGE==='production',
+  canaryGenerationEnabled:env.DIRECT_AI_STAGE==='canary-generation',canaryMaxAttemptsPerMarket:1,
+  intervalMinutes:p?.intervalMinutes||null,
   publishingIntervalMinutes:p?.publishingIntervalMinutes||null,
-  source:'cloudflare-cron-r2-direct',controlStatus:p?(env.DIRECT_AI_STAGE==='production'?'POLICY_VERIFIED':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
+  source:'cloudflare-cron-r2-direct',controlStatus:p?(env.DIRECT_AI_STAGE==='production'?'POLICY_VERIFIED':
+   env.DIRECT_AI_STAGE==='canary-generation'?'CANARY_GENERATION_ONLY':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
   dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,directStage:env.DIRECT_AI_STAGE||'unset',
   freeOnly:true,readyCount:ready.objects.filter(x=>!x.key.endsWith('/')).length,
   readyCountExact:ready.truncated!==true,
