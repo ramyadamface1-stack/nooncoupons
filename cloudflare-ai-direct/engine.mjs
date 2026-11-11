@@ -1,6 +1,6 @@
 // Direct Cloudflare Cron → Gemini/Groq → encrypted/private R2 → native publish.
 // No GitHub URL, token, workflow, dispatch or browser-held generation loop.
-import {tenthEditorialTopicWave} from '../automation/ai-v2/topic-refresh-n10.mjs';
+import {eleventhEditorialTopicWave} from '../automation/ai-v2/topic-refresh-n11.mjs';
 import {batchArticlePrompt,parseArticleBatch} from '../automation/ai-v2/article-batch.mjs';
 import {buildSaudiAiV2Article} from '../automation/ai-v2/native-arabic-article.mjs';
 import {buildEnglishAiV2Article} from '../automation/ai-v2/native-article.mjs';
@@ -10,8 +10,8 @@ const ROOT='_ops/noondealsnow-direct-ai-v1/',READY=ROOT+'ready/';
 const headers={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
 const out=(value,status=200)=>new Response(JSON.stringify(value),{status,headers});
 const utc=()=>new Date().toISOString();
-const topicByMarket={SA:tenthEditorialTopicWave.filter(x=>x.country==='SA'),
-  AE:tenthEditorialTopicWave.filter(x=>x.country==='AE')};
+const topicByMarket={SA:eleventhEditorialTopicWave.filter(x=>x.country==='SA'),
+  AE:eleventhEditorialTopicWave.filter(x=>x.country==='AE')};
 async function jsonGet(env,key,fallback=null){
  try{const obj=await env.CONTENT_FINAL.get(key);return obj?await obj.json():fallback}catch{return fallback}
 }
@@ -74,6 +74,13 @@ async function generate(env,market){
  return withLease(env,'generate-'+market,async()=>{
   const topics=topicByMarket[market],cursorKey=ROOT+'cursor/'+market+'.json';
   if(!topics.length)return logState(env,{phase:'WAITING_TOPICS',market});
+  // Verify Cloudflare-side credentials BEFORE reserving any topic/checkpoint.
+  // Without keys, a canary must not permanently burn an article identity.
+  let keys;
+  try{keys=await listDirectKeys(env,{includePlain:true})}
+  catch{return logState(env,{phase:'KEY_STORAGE_UNAVAILABLE',market})}
+  const pool=[...keys.gemini.map(key=>({provider:'gemini',key})),...keys.groq.map(key=>({provider:'groq',key}))];
+  if(!pool.length)return logState(env,{phase:'KEYS_MISSING',market});
   const previous=await jsonGet(env,cursorKey,{next:0});
   const start=Math.max(0,Number(previous?.next||0));
   let topic=null,position=null,slot=null;
@@ -94,14 +101,6 @@ async function generate(env,market){
   const initial={state:'REQUEST_SENT',slug:topic.slug,market,createdAt:utc(),providerCalls:0};
   const reserved=await jsonPut(env,checkpointKey,initial,{onlyIf:{etagDoesNotMatch:'*'}});
   if(!reserved)return logState(env,{phase:'RESERVATION_COLLISION',market});
-  let keys;
-  try{keys=await listDirectKeys(env,{includePlain:true})}
-  catch{return logState(env,{phase:'KEY_STORAGE_UNAVAILABLE',market})}
-  const pool=[...keys.gemini.map(key=>({provider:'gemini',key})),...keys.groq.map(key=>({provider:'groq',key}))];
-  if(!pool.length){
-   await jsonPut(env,checkpointKey,{...initial,state:'NO_KEYS',at:utc()});
-   return logState(env,{phase:'KEYS_MISSING',market});
-  }
   const models=['gemini-3.1-flash-lite','gemini-3.5-flash-lite','gemini-3.8-flash'];
   let result=null,chosen=null,calls=0;
   for(let attempt=0;attempt<Math.min(3,pool.length);attempt++){
@@ -223,6 +222,7 @@ async function publishOne(env,p){
 }
 export async function directTick(env,{scheduledAt=Date.now()}={}){
  if(!env.CONTENT_FINAL)return {ok:false,reason:'R2_BINDING_MISSING'};
+ if(env.DIRECT_AI_STAGE!=='production')return {ok:false,reason:'CANARY_NOT_ACTIVE'};
  let p;
  try{p=await policy(env)}catch(e){return logState(env,{phase:String(e?.message||'POLICY_UNAVAILABLE')})}
  if(!p.enabled)return logState(env,{phase:'PAUSED_MANUALLY'});
@@ -239,6 +239,7 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  return {ok:true,engine:'cloudflare-direct-r2-v1',market,generation:result,publishing:published};
 }
 export async function requestDirectGeneration(env){
+ if(env.DIRECT_AI_STAGE!=='production')return {dispatched:false,reason:'DIRECT_ENGINE_CANARY_NOT_ACTIVE',githubUsed:false};
  const p=await policy(env);if(!p.enabled)return {dispatched:false,reason:'SCHEDULER_PAUSED'};
  await jsonPut(env,ROOT+'manual-request.json',{pending:true,createdAt:utc()});
  return {dispatched:true,scheduledVia:'cloudflare-cron-next-minute',githubUsed:false};
