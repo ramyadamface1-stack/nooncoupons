@@ -198,3 +198,20 @@ test('canary health reads each attempt marker without exposing keys or performin
   assert.doesNotMatch(JSON.stringify(status),/SECRET_MUST_NOT_LEAK/);
  }finally{globalThis.fetch=originalFetch}
 });
+
+test('direct provider key selection uses disjoint initial SA/AE windows and advances before POST',async()=>{
+ const {planDirectKeyRotation}=await import('../cloudflare-ai-direct/key-rotation.mjs');
+ const sa=planDirectKeyRotation(44,null,'SA'),ae=planDirectKeyRotation(44,null,'AE');
+ assert.deepEqual(sa,{indices:[0,1,2],next:3,market:'SA'});
+ assert.deepEqual(ae,{indices:[22,23,24],next:25,market:'AE'});
+ assert.equal(sa.indices.some(index=>ae.indices.includes(index)),false);
+ assert.deepEqual(planDirectKeyRotation(44,{next:sa.next},'SA').indices,[3,4,5]);
+ assert.deepEqual(planDirectKeyRotation(4,{next:3},'SA').indices,[3,0,1]);
+ assert.deepEqual(planDirectKeyRotation(1,null,'AE').indices,[0]);
+ assert.throws(()=>planDirectKeyRotation(0,null,'SA'),/INVALID_KEY_ROTATION_ARGUMENT/);
+ const source=read('cloudflare-ai-direct/engine.mjs');
+ assert.match(source,/planDirectKeyRotation\(pool\.length,previousKeys,market\)/);
+ assert.match(source,/const advanced=await jsonPut\(env,keyCursor/);
+ assert.match(source,/for\(let attempt=0;attempt<rotation\.indices\.length;attempt\+\+\)/);
+ assert.doesNotMatch(source,/pool\[\(start\+attempt\)%pool\.length\]/);
+});

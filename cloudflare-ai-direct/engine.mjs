@@ -6,6 +6,7 @@ import {buildSaudiAiV2Article} from '../automation/ai-v2/native-arabic-article.m
 import {buildEnglishAiV2Article} from '../automation/ai-v2/native-article.mjs';
 import {listDirectKeys} from './keys.mjs';
 import {providerOutcomeAction} from './provider-response.mjs';
+import {planDirectKeyRotation} from './key-rotation.mjs';
 import {withDirectLease} from './lease.mjs';
 
 const ROOT='_ops/noondealsnow-direct-ai-v1/',READY=ROOT+'ready/';
@@ -92,10 +93,17 @@ async function generate(env,market){
   const initial={state:'REQUEST_SENT',slug:topic.slug,market,createdAt:utc(),providerCalls:0};
   const reserved=await jsonPut(env,checkpointKey,initial,{onlyIf:{etagDoesNotMatch:'*'}});
   if(!reserved)return logState(env,{phase:'RESERVATION_COLLISION',market});
+  // Never tie key selection to the article topic cursor. Distinct SA/AE initial
+  // windows and durable, advanced-before-POST rotation avoid repeat 429 loops.
+  const keyCursor=ROOT+'provider-rotation/'+market+'.json';
+  const previousKeys=await jsonGet(env,keyCursor);
+  const rotation=planDirectKeyRotation(pool.length,previousKeys,market);
+  const advanced=await jsonPut(env,keyCursor,{next:rotation.next,at:utc()});
+  if(!advanced)return logState(env,{phase:'KEY_ROTATION_WRITE_UNCONFIRMED',market});
   const models=['gemini-3.1-flash-lite','gemini-3.5-flash-lite','gemini-3.8-flash'];
   let result=null,chosen=null,calls=0;
-  for(let attempt=0;attempt<Math.min(3,pool.length);attempt++){
-   const entry=pool[(start+attempt)%pool.length],model=entry.provider==='groq'?'openai/gpt-oss-120b':models[Math.floor(start/Math.max(1,pool.length)+attempt)%models.length];
+  for(let attempt=0;attempt<rotation.indices.length;attempt++){
+   const entry=pool[rotation.indices[attempt]],model=entry.provider==='groq'?'openai/gpt-oss-120b':models[Math.floor(start/Math.max(1,pool.length)+attempt)%models.length];
    chosen={provider:entry.provider,model,keyRef:(await fingerprint(entry.key)).slice(0,12)};calls++;
    try{result=await providerRequest(entry.provider,entry.key,model,batchArticlePrompt(topic))}
    catch{
