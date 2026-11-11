@@ -5,6 +5,7 @@ import {batchArticlePrompt,parseArticleBatch} from '../automation/ai-v2/article-
 import {buildSaudiAiV2Article} from '../automation/ai-v2/native-arabic-article.mjs';
 import {buildEnglishAiV2Article} from '../automation/ai-v2/native-article.mjs';
 import {listDirectKeys} from './keys.mjs';
+import {providerOutcomeAction} from './provider-response.mjs';
 
 const ROOT='_ops/noondealsnow-direct-ai-v1/',READY=ROOT+'ready/';
 const headers={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
@@ -46,7 +47,10 @@ async function policy(env){
  return p;
 }
 async function logState(env,patch){
+ // Last-any-market and per-market status are independent.
  const data={...patch,at:utc(),engine:'cloudflare-direct-r2-v1'};
+ if(['SA','AE'].includes(data.market))
+  await jsonPut(env,ROOT+'status-'+data.market.toLowerCase()+'.json',data);
  await jsonPut(env,ROOT+'status.json',data);
  return data;
 }
@@ -112,7 +116,19 @@ async function generate(env,market){
       model,providerCalls:calls,at:utc()});
     return logState(env,{phase:'PROVIDER_NETWORK_UNKNOWN',market,provider:entry.provider,calls});
    }
-   if(result.ok||![429,500,502,503,504].includes(result.http))break;
+   const action=providerOutcomeAction(result);
+   if(action==='ACCEPT')break;
+   // A definitive 429 had no completed output: another free key is safe.
+   if(action==='NEXT_FREE_KEY')continue;
+   // A 5xx may follow a model completion or quota consumption. Never
+   // automatically resend the same prompt with a different key/provider.
+   if(action==='QUARANTINE_UNKNOWN'){
+    await jsonPut(env,checkpointKey,{...initial,state:'UNKNOWN_REQUEST_OUTCOME',
+     provider:entry.provider,model,providerCalls:calls,lastRequestStatus:result.http,at:utc()});
+    return logState(env,{phase:'PROVIDER_HTTP_OUTCOME_UNKNOWN',market,
+     provider:entry.provider,http:result.http,calls});
+   }
+   break;
   }
   if(!result?.ok){
    await jsonPut(env,checkpointKey,{...initial,state:result?.reason||'PROVIDER_BLOCKED',
@@ -256,15 +272,19 @@ export async function requestDirectGeneration(env){
  return {dispatched:true,scheduledVia:'cloudflare-cron-next-minute',githubUsed:false};
 }
 export async function directStatus(env){
- const [p,status,ready]=await Promise.all([
-  policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),env.CONTENT_FINAL.list({prefix:READY,limit:100})
+ const [p,status,ready,saStatus,aeStatus]=await Promise.all([
+  policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),env.CONTENT_FINAL.list({prefix:READY,limit:100}),
+  jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json')
  ]);
  return {ok:true,schedulerEnabled:p?.enabled===true&&env.DIRECT_AI_STAGE==='production',intervalMinutes:p?.intervalMinutes||null,
   publishingIntervalMinutes:p?.publishingIntervalMinutes||null,
   source:'cloudflare-cron-r2-direct',controlStatus:p?(env.DIRECT_AI_STAGE==='production'?'POLICY_VERIFIED':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
   dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,directStage:env.DIRECT_AI_STAGE||'unset',
   freeOnly:true,readyCount:ready.objects.filter(x=>!x.key.endsWith('/')).length,
-  lastGeneration:status||null,verifiedMarkets:['SA','AE']};
+  readyCountExact:ready.truncated!==true,
+  lastGeneration:status||null,
+  marketGeneration:{SA:saStatus||null,AE:aeStatus||null},
+  verifiedMarkets:['SA','AE']};
 }
 // Authenticated service-binding RPC only: never include these credential
 // counts on public /health, and never serialize actual Gemini/Groq key values.
