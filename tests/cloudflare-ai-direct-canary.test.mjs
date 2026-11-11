@@ -81,3 +81,25 @@ test('private direct RPC checks actual decrypted keys and publish token without 
  assert.match(rpc,/async status\(\)\{return directAdminStatus\(this.env\)\}/);
  assert.doesNotMatch(engine.split('export async function directStatus')[1].split('export async function directAdminStatus')[0],/geminiCount|groqCount|publishTokenConfigured/);
 });
+
+test('direct provider outcome guard never retries ambiguous 5xx or transport errors',async()=>{
+ const {providerOutcomeAction}=await import('../cloudflare-ai-direct/provider-response.mjs');
+ assert.equal(providerOutcomeAction({ok:true,http:200}),'ACCEPT');
+ assert.equal(providerOutcomeAction({ok:false,http:429}),'NEXT_FREE_KEY');
+ for(const status of [500,502,503,504,520,524])
+  assert.equal(providerOutcomeAction({ok:false,http:status}),'QUARANTINE_UNKNOWN');
+ for(const status of [400,401,403,404,null])
+  assert.equal(providerOutcomeAction({ok:false,http:status}),'STOP');
+ const code=read('cloudflare-ai-direct/engine.mjs');
+ assert.match(code,/providerOutcomeAction\(result\)/);
+ assert.match(code,/state:'UNKNOWN_REQUEST_OUTCOME'/);
+ assert.match(code,/phase:'PROVIDER_HTTP_OUTCOME_UNKNOWN'/);
+ assert.doesNotMatch(code,/\[429,500,502,503,504\]\.includes\(result\.http\)/);
+});
+test('direct status tracks SA and AE separately, and never reports a truncated READY list as exact',()=>{
+ const engine=read('cloudflare-ai-direct/engine.mjs');
+ assert.match(engine,/status-sa\.json/);
+ assert.match(engine,/status-ae\.json/);
+ assert.match(engine,/marketGeneration:\{SA:saStatus\|\|null,AE:aeStatus\|\|null\}/);
+ assert.match(engine,/readyCountExact:ready\.truncated!==true/);
+});
