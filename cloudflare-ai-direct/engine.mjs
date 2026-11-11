@@ -6,6 +6,7 @@ import {buildSaudiAiV2Article} from '../automation/ai-v2/native-arabic-article.m
 import {buildEnglishAiV2Article} from '../automation/ai-v2/native-article.mjs';
 import {listDirectKeys} from './keys.mjs';
 import {providerOutcomeAction} from './provider-response.mjs';
+import {withDirectLease} from './lease.mjs';
 
 const ROOT='_ops/noondealsnow-direct-ai-v1/',READY=ROOT+'ready/';
 const headers={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
@@ -21,20 +22,6 @@ async function jsonPut(env,key,value,options){
   httpMetadata:{contentType:'application/json; charset=utf-8'},...options});
 }
 async function fingerprint(value){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(value)));return [...new Uint8Array(b)].map(v=>v.toString(16).padStart(2,'0')).join('')}
-async function withLease(env,name,run){
- const key=ROOT+'lease/'+name+'.json',id=crypto.randomUUID(),now=Date.now();
- let existing=await env.CONTENT_FINAL.get(key),older=null,conditional;
- if(existing){
-  older=await existing.json().catch(()=>null);
-  if(Number(older?.until||0)>now)return {ok:false,reason:'LEASE_ACTIVE'};
-  conditional={etagMatches:existing.etag};
- }else conditional={etagDoesNotMatch:'*'};
- const acquired=await jsonPut(env,key,{id,until:now+8*60000}, {onlyIf:conditional});
- if(!acquired)return {ok:false,reason:'LEASE_RACE'};
- try{return await run()}finally{
-  try{const current=await jsonGet(env,key);if(current?.id===id)await env.CONTENT_FINAL.delete(key)}catch{}
- }
-}
 async function policy(env){
  const response=await fetch('https://noondealsnow.com/api/ai-v2-control-policy',{
   headers:{'cache-control':'no-store'},signal:AbortSignal.timeout(9000)});
@@ -75,7 +62,7 @@ async function providerRequest(provider,key,model,prompt){
  return content.length>1200?{ok:true,content}:{ok:false,reason:'PROVIDER_INCOMPLETE'};
 }
 async function generate(env,market){
- return withLease(env,'generate-'+market,async()=>{
+ return withDirectLease(env,'generate-'+market,async()=>{
   const topics=topicByMarket[market],cursorKey=ROOT+'cursor/'+market+'.json';
   if(!topics.length)return logState(env,{phase:'WAITING_TOPICS',market});
   // Verify Cloudflare-side credentials BEFORE reserving any topic/checkpoint.
@@ -179,7 +166,7 @@ async function publishOne(env,p){
  if(!p.enabled)return {ok:false,reason:'PAUSED'};
  const minute=Math.floor(Date.now()/60000);
  if(minute%p.publishingIntervalMinutes!==0)return {ok:false,reason:'PUBLICATION_INTERVAL_NOT_DUE'};
- return withLease(env,'publisher',async()=>{
+ return withDirectLease(env,'publisher',async()=>{
   const ready=await env.CONTENT_FINAL.list({prefix:READY,limit:12});
   if(!ready.objects.length)return {ok:false,reason:'NO_READY_STOCK'};
   for(const item of ready.objects){
