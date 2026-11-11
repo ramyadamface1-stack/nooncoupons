@@ -45,7 +45,17 @@ export async function importDirectKeys(env,{provider,keys}={}){
    secretName:'Cloudflare R2 (encrypted batch)',encrypted:true,source:'cloudflare-r2',
    githubSaved:false,existingSecretsPreserved:true};
 }
-const legacyKeys=(env,p)=>{try{return inputKeys(p,JSON.parse(String(p==='gemini'?env.GEMINI_KEYS_JSON:env.GROQ_KEYS_JSON)||'[]'))}catch{return []}};
+// One-time migration may place long existing GitHub pools into bounded
+// Cloudflare Worker Secret shards. Each shard is <=4.2KB; no key reaches logs.
+// Panel-added encrypted R2 batches remain additive, so nothing is overwritten.
+const legacyKeys=(env,p)=>{
+ const prefix=p==='gemini'?'GEMINI_KEYS_JSON':'GROQ_KEYS_JSON',all=[];
+ for(let i=1;i<=8;i++){
+  const name=i===1?prefix:prefix+'_'+String(i).padStart(2,'0');
+  try{all.push(...inputKeys(p,JSON.parse(String(env[name]||'[]'))))}catch{}
+ }
+ return [...new Set(all)];
+};
 export async function listDirectKeys(env,{includePlain=false}={}){
  const groups={},keys={gemini:[...legacyKeys(env,'gemini')],groq:[...legacyKeys(env,'groq')]};
  for(const provider of ['gemini','groq']){
