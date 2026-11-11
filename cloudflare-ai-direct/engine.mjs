@@ -62,7 +62,7 @@ async function providerRequest(provider,key,model,prompt){
   :String(j.choices?.[0]?.message?.content||'');
  return content.length>1200?{ok:true,content}:{ok:false,reason:'PROVIDER_INCOMPLETE'};
 }
-async function generate(env,market){
+async function generate(env,market,{maxProviderAttempts=3,initialKeyOffset=null}={}){
  return withDirectLease(env,'generate-'+market,async()=>{
   const topics=topicByMarket[market],cursorKey=ROOT+'cursor/'+market+'.json';
   if(!topics.length)return logState(env,{phase:'WAITING_TOPICS',market});
@@ -97,12 +97,13 @@ async function generate(env,market){
   // windows and durable, advanced-before-POST rotation avoid repeat 429 loops.
   const keyCursor=ROOT+'provider-rotation/'+market+'.json';
   const previousKeys=await jsonGet(env,keyCursor);
-  const rotation=planDirectKeyRotation(pool.length,previousKeys,market);
+  const seed=previousKeys||(Number.isSafeInteger(initialKeyOffset)&&initialKeyOffset>=0?{next:initialKeyOffset}:null);
+  const rotation=planDirectKeyRotation(pool.length,seed,market);
   const advanced=await jsonPut(env,keyCursor,{next:rotation.next,at:utc()});
   if(!advanced)return logState(env,{phase:'KEY_ROTATION_WRITE_UNCONFIRMED',market});
   const models=['gemini-3.1-flash-lite','gemini-3.5-flash-lite','gemini-3.8-flash'];
   let result=null,chosen=null,calls=0;
-  for(let attempt=0;attempt<rotation.indices.length;attempt++){
+  for(let attempt=0;attempt<Math.min(rotation.indices.length,maxProviderAttempts);attempt++){
    const entry=pool[rotation.indices[attempt]],model=entry.provider==='groq'?'openai/gpt-oss-120b':models[Math.floor(start/Math.max(1,pool.length)+attempt)%models.length];
    chosen={provider:entry.provider,model,keyRef:(await fingerprint(entry.key)).slice(0,12)};calls++;
    try{result=await providerRequest(entry.provider,entry.key,model,batchArticlePrompt(topic))}
@@ -240,7 +241,7 @@ async function canaryGenerateOnce(env,scheduledAt){
  if(!p.enabled)return logState(env,{phase:'CANARY_PAUSED'});
  if(!env.SITE_PUBLISH_TOKEN)return logState(env,{phase:'CANARY_NATIVE_PUBLISH_TOKEN_MISSING'});
  const market=Math.floor(Number(scheduledAt)/60000)%2?'AE':'SA';
- const attemptKey=ROOT+'canary-once/'+market+'.json';
+ const attemptKey=ROOT+'canary-once-v2/'+market+'.json';
  const prior=await jsonGet(env,attemptKey,null);
  if(prior)return {ok:prior.state==='READY_CREATED',market,phase:'CANARY_ATTEMPT_ALREADY_RECORDED',
   recordedState:prior.state,articleSlug:prior.slug||null};
@@ -254,7 +255,7 @@ async function canaryGenerateOnce(env,scheduledAt){
   {onlyIf:{etagDoesNotMatch:'*'}});
  if(!reservation)return {ok:false,market,phase:'CANARY_RESERVATION_RACE'};
  let result;
- try{result=await generate(env,market)}
+ try{result=await generate(env,market,{maxProviderAttempts:1,initialKeyOffset:market==='SA'?3:Math.floor(keys.gemini.length/2)+1})}
  catch(e){result={phase:'CANARY_GENERATION_EXCEPTION',reason:String(e?.message||'UNKNOWN').slice(0,65)}}
  const completed=result?.phase==='READY_CREATED',state=completed?'READY_CREATED':'BLOCKED';
  await jsonPut(env,attemptKey,{state,market,reason:result?.phase||'UNKNOWN',slug:result?.slug||null,at:utc()});
@@ -301,8 +302,8 @@ export async function directStatus(env){
  const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE]=await Promise.all([
   policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),env.CONTENT_FINAL.list({prefix:READY,limit:100}),
   jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json'),
-  env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once/SA.json'):null,
-  env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once/AE.json'):null
+  env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
+  env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null
  ]);
  const canaryAttempt=row=>{
   if(!row||typeof row!=='object')return null;
@@ -312,7 +313,7 @@ export async function directStatus(env){
   return {state,phase,at};
  };
  return {ok:true,schedulerEnabled:p?.enabled===true&&env.DIRECT_AI_STAGE==='production',
-  canaryGenerationEnabled:env.DIRECT_AI_STAGE==='canary-generation',canaryMaxAttemptsPerMarket:1,
+  canaryGenerationEnabled:env.DIRECT_AI_STAGE==='canary-generation',canaryMaxAttemptsPerMarket:1,canaryWave:2,
   intervalMinutes:p?.intervalMinutes||null,
   publishingIntervalMinutes:p?.publishingIntervalMinutes||null,
   source:'cloudflare-cron-r2-direct',controlStatus:p?(env.DIRECT_AI_STAGE==='production'?'POLICY_VERIFIED':
