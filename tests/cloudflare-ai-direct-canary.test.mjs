@@ -11,14 +11,20 @@ function bucket(){
   async list({prefix}){return{objects:[...values.keys()].filter(x=>x.startsWith(prefix)).map(key=>({key}))}}
  };
 }
-test('the direct Worker has no GitHub runtime and canary has no active Cron',()=>{
+test('the direct Worker has no GitHub runtime and canary publishes nothing',()=>{
  for(const path of ['cloudflare-ai-direct/engine.mjs','cloudflare-ai-direct/keys.mjs',
   'cloudflare-ai-direct/rpc-entry.mjs'])
   assert.doesNotMatch(read(path),/api\.github\.com|actions\/workflows|GITHUB_DISPATCH_TOKEN|repository_dispatch/);
  const cfg=JSON.parse(read('cloudflare-ai-direct/wrangler.jsonc'));
  assert.equal(cfg.r2_buckets[0].bucket_name,'nooncoupons-content-v2');
- assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-no-cron');
- assert.deepEqual(cfg.triggers.crons,[]);
+ assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-generation');
+ assert.deepEqual(cfg.triggers.crons,['* * * * *']);
+ const engine=read('cloudflare-ai-direct/engine.mjs');
+ assert.match(engine,/async function canaryGenerateOnce\(env,scheduledAt\)/);
+ assert.match(engine,/canaryGenerateOnce\(env,scheduledAt\)/);
+ assert.match(engine,/const reservation=await jsonPut\(env,attemptKey,\{state:'STARTED'/);
+ assert.match(engine,/if\(prior\)return \{ok:prior.state==='READY_CREATED'/);
+ assert.doesNotMatch(engine.split('async function canaryGenerateOnce')[1].split('export async function directTick')[0],/publishOne\(/);
 });
 test('panel import encrypts bulk keys and returns metadata only',async()=>{
  const b=bucket(),master=crypto.getRandomValues(new Uint8Array(32));
@@ -54,7 +60,8 @@ test('the live scheduler remains untouched until canary proof',()=>{
  assert.match(release,/wrangler secret put GEMINI_KEYS_JSON/);
  assert.match(release,/wrangler secret put GROQ_KEYS_JSON/);
  assert.match(release,/wrangler secret put SITE_PUBLISH_TOKEN/);
- assert.match(release,/DIRECT_CRON=STILL_DISABLED_UNTIL_SAFE_CUTOVER/);
+ assert.match(release,/DIRECT_PUBLISHING=STILL_DISABLED_UNTIL_SAFE_CUTOVER/);
+ assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_GENERATION_ONLY/);
  assert.doesNotMatch(release,/wrangler deploy --config ai-scheduler-v2\/wrangler\.jsonc/);
 });
 
@@ -72,7 +79,7 @@ test('canary manual request explicitly declines before any provider or R2 access
  const {requestDirectGeneration}=await import('../cloudflare-ai-direct/engine.mjs');
  let touched=0;
  const result=await requestDirectGeneration({
-  DIRECT_AI_STAGE:'canary-no-cron',
+  DIRECT_AI_STAGE:'canary-generation',
   CONTENT_FINAL:{get(){touched++},put(){touched++},list(){touched++}}
  });
  assert.deepEqual(result,{dispatched:false,reason:'DIRECT_ENGINE_CANARY_NOT_ACTIVE',githubUsed:false});
