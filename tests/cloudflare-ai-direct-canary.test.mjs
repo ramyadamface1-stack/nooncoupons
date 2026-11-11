@@ -59,3 +59,25 @@ test('direct canary uses unused N11 topics, and missing keys cannot burn an arti
  assert.match(source,/reason:'DIRECT_ENGINE_CANARY_NOT_ACTIVE'/);
  assert.doesNotMatch(source,/api\.github\.com|actions\/workflows|GITHUB_DISPATCH_TOKEN/);
 });
+
+test('canary manual request explicitly declines before any provider or R2 access',async()=>{
+ const {requestDirectGeneration}=await import('../cloudflare-ai-direct/engine.mjs');
+ let touched=0;
+ const result=await requestDirectGeneration({
+  DIRECT_AI_STAGE:'canary-no-cron',
+  CONTENT_FINAL:{get(){touched++},put(){touched++},list(){touched++}}
+ });
+ assert.deepEqual(result,{dispatched:false,reason:'DIRECT_ENGINE_CANARY_NOT_ACTIVE',githubUsed:false});
+ assert.equal(touched,0,'canary must not access keys, request a provider or reserve a topic');
+});
+test('private direct RPC checks actual decrypted keys and publish token without displaying values in public health',()=>{
+ const engine=read('cloudflare-ai-direct/engine.mjs');
+ const rpc=read('cloudflare-ai-direct/rpc-entry.mjs');
+ assert.match(engine,/export async function directAdminStatus/);
+ assert.match(engine,/listDirectKeys\(env,\{includePlain:true\}\)/);
+ assert.match(engine,/activationBlockers/);
+ assert.match(engine,/DIRECT_PROVIDER_KEYS_MISSING/);
+ assert.match(engine,/NATIVE_PUBLISH_TOKEN_MISSING/);
+ assert.match(rpc,/async status\(\)\{return directAdminStatus\(this.env\)\}/);
+ assert.doesNotMatch(engine.split('export async function directStatus')[1].split('export async function directAdminStatus')[0],/geminiCount|groqCount|publishTokenConfigured/);
+});
