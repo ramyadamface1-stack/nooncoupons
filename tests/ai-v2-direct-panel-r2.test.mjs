@@ -35,3 +35,12 @@ test('stable master key is created once, never put in code or R2',()=>{
  assert.match(engine,/AES-GCM/);
  assert.doesNotMatch(engine,/console\.log\(.*key/);
 });
+
+test('dashboard independently displays Cloudflare direct canary stage and refuses false manual-run success',()=>{
+ const ui=read('system1-control-center.js');
+ assert.match(ui,/id="directEngineBanner"/);
+ assert.match(ui,/\/api\/admin\/ai-v2-direct\/status/);
+ assert.match(ui,/direct_engine_canary_not_active/);
+ assert.match(ui,/d\.schedulerEnabled===true&&d\.githubRuntime===false&&d\.directStage==='production'/);
+ assert.doesNotMatch(ui,/github_token_expired|github_token_permissions/);
+});
