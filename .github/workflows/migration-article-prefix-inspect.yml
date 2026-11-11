@@ -1,0 +1,36 @@
+name: Inspect Conflicting HTML Prefixes Read Only
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-article-prefix-inspect.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OLD_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      OLD_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      NEW_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NEW_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Read 3 known divergent article prefixes from both sides
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import boto3,os,json
+          names=[
+            'articles/شراء-الجوالات-من-نون-الإمارات-باستخدام-كوبون-مع-سلة-من-عدة-بائعين.html',
+            'articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-لشراء-ذكي.html',
+            'articles/شراء-الجوالات-من-نون-السعودية-باستخدام-كوبون-من-المتصفح.html']
+          for label,aid in [('OLD','c82274152a942dea53044eae7153cfd7'),('NEW','e4c35f8a50a7b2e4cfb9d6c534962603')]:
+            c=boto3.client('s3',region_name='auto',endpoint_url='https://'+aid+'.r2.cloudflarestorage.com',aws_access_key_id=os.environ[label+'_ID'].strip(),aws_secret_access_key=os.environ[label+'_KEY'].strip())
+            for k in names:
+              obj=c.get_object(Bucket='nooncoupons-content-v2',Key=k)
+              try:prefix=obj['Body'].read(200)
+              finally:obj['Body'].close()
+              print('PREFIX='+json.dumps({'side':label,'name':k,'firstBytes':repr(prefix[:160]),'containsHTML':b'<html' in prefix.lower(),'containsDoctype':b'<!doctype' in prefix.lower(),'mime':obj.get('ContentType')},ensure_ascii=False),flush=True)
+          PY

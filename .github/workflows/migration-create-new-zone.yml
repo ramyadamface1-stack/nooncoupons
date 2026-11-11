@@ -1,0 +1,68 @@
+name: Prepare New Cloudflare Zone Without Cutover
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-create-new-zone.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prepare-zone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OLD_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NEW_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Add pending full zone to new account only; never modify live nameservers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.parse,urllib.error
+          api='https://api.cloudflare.com/client/v4'
+          name='noondealsnow.com'
+          old_id='c82274152a942dea53044eae7153cfd7'
+          new_id='e4c35f8a50a7b2e4cfb9d6c534962603'
+          def call(token,method,path,body=None):
+              data=None if body is None else json.dumps(body).encode()
+              req=urllib.request.Request(api+path, data=data,method=method,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'})
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as resp:return resp.status,json.load(resp)
+              except urllib.error.HTTPError as e:
+                  raw=e.read(9000)
+                  try:obj=json.loads(raw)
+                  except:obj={'errors':[{'code':e.code,'message':'non_json_failure'}]}
+                  return e.code,obj
+          def list_zones(token,aid):
+              query=urllib.parse.urlencode({'name':name,'account.id':aid})
+              code,body=call(token,'GET','/zones?'+query)
+              if code!=200 or not body.get('success'):raise RuntimeError('zone_list_denied_'+str(code))
+              return body.get('result') or []
+          old_token=os.environ.get('OLD_TOKEN','').strip()
+          new_token=os.environ.get('NEW_TOKEN','').strip()
+          if not old_token or not new_token:raise RuntimeError('cloudflare_token_missing')
+          old=list_zones(old_token,old_id)
+          if len(old)!=1 or old[0].get('status')!='active':
+              raise RuntimeError('old_production_zone_not_proven_active_abort')
+          print('OLD_PRODUCTION_ZONE=active_unmodified',flush=True)
+          new=list_zones(new_token,new_id)
+          if len(new)>1:raise RuntimeError('multiple_new_zones_abort')
+          if not new:
+              print('NEW_ZONE_ACTION=create_pending_full_zone_only',flush=True)
+              code,response=call(new_token,'POST','/zones',{'name':name,'account':{'id':new_id},'type':'full'})
+              if code not in (200,201) or not response.get('success'):
+                  errors=[{'code':v.get('code'),'message':str(v.get('message',''))[:180]} for v in response.get('errors',[])]
+                  print('NEW_ZONE_CREATE_HTTP='+str(code)+' ERRORS='+json.dumps(errors),flush=True)
+                  raise RuntimeError('new_zone_creation_failed_no_nameserver_changes')
+              new=[response['result']]
+          z=new[0]
+          if z.get('account',{}).get('id')!=new_id:raise RuntimeError('new_zone_account_mismatch')
+          print('NEW_ZONE_ID='+z.get('id',''),flush=True)
+          print('NEW_ZONE_STATUS='+str(z.get('status')),flush=True)
+          print('NEW_ZONE_NAMESERVERS='+','.join(z.get('name_servers') or []),flush=True)
+          print('NEW_ZONE_PLAN='+str((z.get('plan') or {}).get('legacy_id','unknown')),flush=True)
+          print('NAMESERVER_CHANGE_PERFORMED=false',flush=True)
+          print('OLD_PUBLISHER_UNCHANGED=true',flush=True)
+          print('NEW_WORKER_PRODUCTION_ROUTES_ADDED=false',flush=True)
+          PY

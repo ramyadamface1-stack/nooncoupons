@@ -1,0 +1,62 @@
+name: Identify NoonDealsNow R2 HEAD Traffic Sources
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-r2-head-source-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+    steps:
+      - name: Read Worker traffic by script and public R2 bucket routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error,datetime
+          token=os.environ['TOKEN'].strip()
+          base='https://api.cloudflare.com/client/v4'
+          aid='c82274152a942dea53044eae7153cfd7'
+          bucket='nooncoupons-content-v2'
+          def read_json(url,payload=None):
+              headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'}
+              req=urllib.request.Request(url,headers=headers,method='POST' if payload is not None else 'GET',data=json.dumps(payload).encode() if payload is not None else None)
+              try:
+                  with urllib.request.urlopen(req,timeout=22) as response:return response.status,json.load(response)
+              except urllib.error.HTTPError as err:
+                  try:return err.code,json.loads(err.read(12000))
+                  except:return err.code,{}
+          end=datetime.datetime.now(datetime.timezone.utc)
+          begin=end-datetime.timedelta(hours=2)
+          q='query Traffic($aid: string!, $start: Time!, $end: Time!) { viewer { accounts(filter:{accountTag:$aid}) { workersInvocationsAdaptive(limit:1000,orderBy:[sum_requests_DESC],filter:{datetime_geq:$start,datetime_leq:$end}) { sum { requests errors subrequests } dimensions { scriptName status } } } } }'
+          vars={'aid':aid,'start':begin.isoformat().replace('+00:00','Z'),'end':end.isoformat().replace('+00:00','Z')}
+          code,reply=read_json(base+'/graphql',{'query':q,'variables':vars})
+          print('ALL_WORKER_TRAFFIC_HTTP='+str(code))
+          if reply.get('errors'):print('ALL_WORKER_TRAFFIC_ERRORS='+json.dumps([v.get('message','')[:200] for v in reply['errors'][:4]]))
+          rows=(((reply.get('data') or {}).get('viewer') or {}).get('accounts') or [{}])[0].get('workersInvocationsAdaptive') or []
+          summary={}
+          for item in rows:
+              name=str((item.get('dimensions') or {}).get('scriptName') or 'unnamed')
+              d=summary.setdefault(name,{'requests':0,'errors':0,'subrequests':0})
+              for fld in d:d[fld]+=int((item.get('sum') or {}).get(fld) or 0)
+          print('ALL_WORKERS_TWO_HOUR='+json.dumps(sorted([{'script':name,**val} for name,val in summary.items()],key=lambda row:-row['requests'])[:25]),flush=True)
+          for which in ('managed','custom'):
+              code,reply=read_json(base+'/accounts/'+aid+'/r2/buckets/'+bucket+'/domains/'+which)
+              print('R2_PUBLIC_'+which.upper()+'_HTTP='+str(code),flush=True)
+              if code==200 and reply.get('success'):
+                  result=reply.get('result') or {}
+                  if which=='managed':
+                      print('R2_DEV_ENABLED='+str(result.get('enabled')),flush=True)
+                      if result.get('domain'):print('R2_DEV_DOMAIN='+str(result.get('domain')),flush=True)
+                  else:
+                      domains=result.get('domains') or []
+                      print('R2_CUSTOM_DOMAINS='+json.dumps([{'domain':x.get('domain'),'enabled':x.get('enabled')} for x in domains]),flush=True)
+              else:
+                  print('R2_DOMAIN_QUERY_ERRORS='+json.dumps([{'code':x.get('code'),'message':str(x.get('message',''))[:120]} for x in (reply.get('errors') or [])[:3]]),flush=True)
+          print('READ_ONLY=true',flush=True)
+          PY

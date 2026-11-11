@@ -1,0 +1,91 @@
+name: Reconcile Updated NoonDealsNow Articles With Backups
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-article-conflict-reconcile.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: noondealsnow-r2-source-to-destination-copy
+  cancel-in-progress: false
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NOON_OLD_R2_ACCESS_KEY_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      NOON_OLD_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Back up older destination objects before copying newer authoritative source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import os,json,hashlib,boto3
+          from botocore.config import Config
+          from botocore.exceptions import ClientError
+          bucket='nooncoupons-content-v2'
+          cfg=Config(signature_version='s3v4',connect_timeout=15,read_timeout=60,retries={'max_attempts':4,'mode':'standard'},max_pool_connections=12)
+          attrs=('ContentType','CacheControl','ContentDisposition','ContentEncoding','ContentLanguage','Expires')
+          def connect(label,account):
+              return boto3.client('s3',region_name='auto',endpoint_url='https://'+account+'.r2.cloudflarestorage.com',aws_access_key_id=os.environ['NOON_'+label+'_R2_ACCESS_KEY_ID'].strip(),aws_secret_access_key=os.environ['NOON_'+label+'_R2_SECRET_ACCESS_KEY'].strip(),config=cfg)
+          old=connect('OLD','c82274152a942dea53044eae7153cfd7')
+          new=connect('NEW','e4c35f8a50a7b2e4cfb9d6c534962603')
+          def inventory(client):
+              out={}
+              for page in client.get_paginator('list_objects_v2').paginate(Bucket=bucket,Prefix='articles/',PaginationConfig={'PageSize':1000}):
+                  for x in page.get('Contents',()):
+                      if x['Key'].endswith('.html'):out[x['Key']]=x
+              return out
+          a,b=inventory(old),inventory(new)
+          conflict=sorted(k for k in a.keys()&b.keys() if int(a[k]['Size'])!=int(b[k]['Size']))
+          print('CONFLICT_COUNT='+str(len(conflict)),flush=True)
+          if len(conflict)>15:raise RuntimeError('max_15_reviewed_conflicts_safety_abort')
+          def get(client,key):
+              obj=client.get_object(Bucket=bucket,Key=key)
+              try:body=obj['Body'].read(8*1024*1024+1)
+              finally:obj['Body'].close()
+              if len(body)>8*1024*1024:raise RuntimeError('article_size_limit')
+              return body,{k:obj[k] for k in attrs if obj.get(k) is not None},obj.get('Metadata',{}),obj
+          def fingerprint(body):return hashlib.sha256(body).hexdigest()
+          def put_verified(client,key,body,headers,metadata):
+              payload={'Bucket':bucket,'Key':key,'Body':body,**headers}
+              if metadata:payload['Metadata']=metadata
+              client.put_object(**payload)
+              check,headers2,metadata2,_=get(client,key)
+              if fingerprint(check)!=fingerprint(body) or headers2!=headers or metadata2!=metadata:raise RuntimeError('write_verification_failed:'+key)
+          for key in conflict:
+              if a[key]['LastModified'] <= b[key]['LastModified']:
+                  raise RuntimeError('destination_newer_manual_review_required')
+              s,sh,sm,_=get(old,key)
+              d,dh,dm,_=get(new,key)
+              if len(s)!=a[key]['Size'] or len(d)!=b[key]['Size']:raise RuntimeError('inventory_changed_abort')
+              if not s.lstrip().lower().startswith((b'<!doctype',b'<html',b'<article',b'<!--')) or not d.lstrip().lower().startswith((b'<!doctype',b'<html',b'<article',b'<!--')):
+                  raise RuntimeError('html_validation_failed')
+              if fingerprint(s)==fingerprint(d):continue
+              backup='migration/conflict-backups/20261019/'+hashlib.sha256(key.encode()).hexdigest()[:24]+'/'+fingerprint(d)+'.html'
+              try:
+                  existing,eh,em,_=get(new,backup)
+                  if fingerprint(existing)!=fingerprint(d) or eh!=dh or em!=dm:
+                      raise RuntimeError('backup_conflict_unsafe')
+                  print('DEST_BACKUP_ALREADY_VERIFIED='+backup,flush=True)
+              except ClientError as e:
+                  if str(e.response.get('Error',{}).get('Code')) not in ('404','NoSuchKey','NotFound'):raise
+                  put_verified(new,backup,d,dh,dm)
+                  print('DEST_BACKUP_CREATED='+backup,flush=True)
+              # Re-read both live objects just before destination overwrite; fail closed if either changed.
+              s2,sh2,sm2,_=get(old,key)
+              d2,dh2,dm2,_=get(new,key)
+              if fingerprint(s2)!=fingerprint(s) or sh2!=sh or sm2!=sm or fingerprint(d2)!=fingerprint(d) or dh2!=dh or dm2!=dm:
+                  raise RuntimeError('source_or_destination_changed_during_reconciliation')
+              put_verified(new,key,s,sh,sm)
+              print('AUTHORITATIVE_SOURCE_RESTORED='+json.dumps({'key':key,'sourceSHA256':fingerprint(s),'backupSHA256':fingerprint(d),'backupKey':backup},ensure_ascii=False),flush=True)
+          print('CONFLICT_RECONCILIATION_COMPLETE=true',flush=True)
+          print('OLD_ACCOUNT_UNMODIFIED=true',flush=True)
+          print('DEST_ARTICLE_KEYS_NOT_DELETED=true',flush=True)
+          PY

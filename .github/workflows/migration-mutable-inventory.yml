@@ -1,0 +1,53 @@
+name: Audit Migration Mutable R2 Indexes and Journals
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-mutable-inventory.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  read-only-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NOON_OLD_R2_ACCESS_KEY_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      NOON_OLD_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Compare volatile and backup object inventories without changing any object
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import os,boto3,json
+          from botocore.config import Config
+          cfg=Config(signature_version='s3v4',connect_timeout=10,read_timeout=45,retries={'max_attempts':4,'mode':'standard'})
+          aids={'OLD':'c82274152a942dea53044eae7153cfd7','NEW':'e4c35f8a50a7b2e4cfb9d6c534962603'}
+          def connect(label):
+              return boto3.client('s3',region_name='auto',endpoint_url='https://'+aids[label]+'.r2.cloudflarestorage.com',
+                  aws_access_key_id=os.environ['NOON_'+label+'_R2_ACCESS_KEY_ID'].strip(),
+                  aws_secret_access_key=os.environ['NOON_'+label+'_R2_SECRET_ACCESS_KEY'].strip(),config=cfg)
+          a,b=connect('OLD'),connect('NEW')
+          prefixes=['bulk/','quality/','maintenance/','english-canary/','_ops/','freshness/','legacy-upgrade/','migration/do-state/']
+          bucket='nooncoupons-content-v2'
+          def list_prefix(client,prefix):
+              out={}
+              for pi,page in enumerate(client.get_paginator('list_objects_v2').paginate(Bucket=bucket,Prefix=prefix,PaginationConfig={'PageSize':1000})):
+                  if pi>=1000:raise RuntimeError('prefix_inventory_page_cap_hit')
+                  for row in page.get('Contents',()):
+                      if row['Key'] in out:raise RuntimeError('duplicate_inventory_key')
+                      out[row['Key']]=int(row['Size'])
+              return out
+          for p in prefixes:
+              old=list_prefix(a,p)
+              new=list_prefix(b,p)
+              missing=len(old.keys()-new.keys())
+              extra=len(new.keys()-old.keys())
+              conflicts=sum(old[k]!=new[k] for k in old.keys()&new.keys())
+              print('PREFIX_AUDIT '+json.dumps({'prefix':p,'source':len(old),'destination':len(new),'missing':missing,'differentSize':conflicts,'extra':extra}),flush=True)
+          print('MUTABLE_INV_READ_ONLY_COMPLETE=true',flush=True)
+          PY

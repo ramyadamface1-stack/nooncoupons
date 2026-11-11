@@ -1,0 +1,64 @@
+name: Audit Cloudflare R2 Billing Usage Readonly
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-cloudflare-billable-usage-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OLD_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NEW_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Check only billing usage and open invoice metadata, no modifications
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          root='https://api.cloudflare.com/client/v4'
+          for label,aid in [('OLD','c82274152a942dea53044eae7153cfd7'),('NEW','e4c35f8a50a7b2e4cfb9d6c534962603')]:
+              token=os.environ.get(label+'_TOKEN','').strip()
+              headers={'Authorization':'Bearer '+token,'Accept':'application/json'}
+              for label2,endpoint in [
+                ('usage_v1','/accounts/'+aid+'/billable-usage'),
+                ('usage_v2','/accounts/'+aid+'/billable/usage?from=2026-10-01&to=2026-10-19'),
+                ('history','/accounts/'+aid+'/billing/history?per_page=20'),
+                ('subscription','/accounts/'+aid+'/subscriptions')]:
+                  req=urllib.request.Request(root+endpoint,headers=headers)
+                  try:
+                    with urllib.request.urlopen(req,timeout=20) as r:status=r.status;data=json.load(r)
+                  except urllib.error.HTTPError as e:
+                    status=e.code
+                    try:data=json.loads(e.read(8000))
+                    except:data={}
+                  except Exception as e:
+                    print(label+'_'+label2+'_NETWORK_ERROR='+type(e).__name__,flush=True)
+                    continue
+                  print(label+'_'+label2.upper()+'_HTTP='+str(status),flush=True)
+                  if not data.get('success'):
+                    print(label+'_'+label2.upper()+'_ERRORS='+json.dumps([{'code':x.get('code'),'message':str(x.get('message',''))[:100]} for x in data.get('errors',[])[:3]]),flush=True)
+                    continue
+                  vals=data.get('result') or []
+                  if isinstance(vals,dict):vals=vals.get('items') or vals.get('data') or []
+                  if not isinstance(vals,list):vals=[]
+                  if label2.startswith('usage'):
+                    groups={}
+                    for item in vals:
+                      k=str(item.get('ChargeDescription') or item.get('x_BillableMetricId') or item.get('ServiceName') or 'unknown')[:110]
+                      v=groups.setdefault(k,{'count':0,'billedCost':0.0,'usage':0.0})
+                      v['count']+=1
+                      v['billedCost']+=float(item.get('BilledCost') or item.get('ContractedCost') or 0)
+                      v['usage']+=float(item.get('ConsumedQuantity') or item.get('PricingQuantity') or 0)
+                    print(label+'_'+label2.upper()+'_COUNT='+str(len(vals)),flush=True)
+                    print(label+'_'+label2.upper()+'_SUMMARY='+json.dumps([{'metric':k,**v} for k,v in sorted(groups.items(),key=lambda x:-x[1]['billedCost'])[:28]]),flush=True)
+                  elif label2=='history':
+                    for item in vals[:5]:
+                      print(label+'_INVOICE='+json.dumps({k:item.get(k) for k in ('amount','amount_to_pay','currency','occurred_at','status','source','action','type') }|{'hasHostedInvoiceUrl':bool(item.get('hosted_invoice_url')),'hasInvoiceId':bool(item.get('invoice_id'))}),flush=True)
+                  else:
+                    print(label+'_SUBSCRIPTIONS='+json.dumps([{'state':x.get('state'),'name':str((x.get('rate_plan') or {}).get('name'))[:90],'ratePlanPublicName':str((x.get('rate_plan') or {}).get('public_name'))[:90],'ratePlanId':str((x.get('rate_plan') or {}).get('id'))[:40],'price':x.get('price'),'frequency':x.get('frequency')} for x in vals[:12]]),flush=True)
+          print('READ_ONLY=true')
+          PY

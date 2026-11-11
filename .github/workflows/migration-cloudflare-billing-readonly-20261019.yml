@@ -1,0 +1,63 @@
+name: Check Cloudflare Billing Charge Source Without Writes
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-cloudflare-billing-readonly-20261019.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OLD_CF_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+      NEW_CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Check only read-only billing API permissions and sanitized charge details
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error,datetime
+          root="https://api.cloudflare.com/client/v4"
+          accounts=[("OLD","c82274152a942dea53044eae7153cfd7"),("NEW","e4c35f8a50a7b2e4cfb9d6c534962603")]
+          paths=[("history","/accounts/{account}/billing/history?per_page=40"),("subscriptions","/accounts/{account}/subscriptions")]
+          for label,aid in accounts:
+            token=os.environ.get(label+"_CF_TOKEN","").strip()
+            if not token:
+              print(label+"_TOKEN=missing");continue
+            for key,template in paths:
+              req=urllib.request.Request(root+template.format(account=aid),headers={"Authorization":"Bearer "+token,"Accept":"application/json"})
+              try:
+                with urllib.request.urlopen(req,timeout=20) as f:
+                  status=f.status
+                  payload=json.load(f)
+              except urllib.error.HTTPError as e:
+                status=e.code
+                try:payload=json.loads(e.read(16000))
+                except:payload={}
+              except Exception as e:
+                print(label+"_"+key.upper()+"_NETWORK_ERROR="+type(e).__name__);continue
+              print(label+"_"+key.upper()+"_HTTP="+str(status),flush=True)
+              if not payload.get("success"):
+                print(label+"_"+key.upper()+"_ERROR_CODES="+json.dumps([x.get("code") for x in (payload.get("errors") or [])[:3]]),flush=True)
+                continue
+              result=payload.get("result") or []
+              if not isinstance(result,list):
+                result=result.get("items",[]) if isinstance(result,dict) else []
+              if key=="subscriptions":
+                rows=[]
+                for item in result:
+                  plan=item.get("rate_plan") or {}
+                  rows.append({"state":item.get("state"),"type":item.get("type"),"rate_plan_name":str(plan.get("name") or "")[:110],"frequency":item.get("frequency")})
+                print(label+"_SUBSCRIPTIONS_SUMMARY="+json.dumps(rows[:30]),flush=True)
+              else:
+                rows=[]
+                for item in result:
+                  amount=item.get("amount")
+                  occurred=str(item.get("occurred_at") or "")
+                  if occurred[:7]>="2026-09":
+                    rows.append({"amount":amount,"currency":item.get("currency"),"occurred_at":occurred,"status":item.get("status"),"description":str(item.get("description") or "")[:170],"type":item.get("type")})
+                print(label+"_RECENT_HISTORY="+json.dumps(rows[:25]),flush=True)
+          print("READ_ONLY=true")
+          PY
