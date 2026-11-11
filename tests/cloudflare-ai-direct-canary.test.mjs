@@ -47,7 +47,15 @@ test('the live scheduler remains untouched until canary proof',()=>{
  const release=read('.github/workflows/deploy-noondealsnow-cloudflare-direct-r2.yml');
  assert.match(release,/secrets\.NOON_NEW_CF_API_TOKEN/);
  assert.match(release,/wrangler deploy --config cloudflare-ai-direct\/wrangler\.jsonc/);
- assert.doesNotMatch(release,/GEMINI_API_KEY|GROQ_API_KEY/);
+ // One-time deploy-time handoff may read existing GitHub Secrets, but
+ // the direct Cloudflare engine itself must never call GitHub or spawn Actions.
+ assert.match(release,/node cloudflare-ai-direct\/pack-existing-keys\.mjs gemini/);
+ assert.match(release,/node cloudflare-ai-direct\/pack-existing-keys\.mjs groq/);
+ assert.match(release,/wrangler secret put GEMINI_KEYS_JSON/);
+ assert.match(release,/wrangler secret put GROQ_KEYS_JSON/);
+ assert.match(release,/wrangler secret put SITE_PUBLISH_TOKEN/);
+ assert.match(release,/DIRECT_CRON=STILL_DISABLED_UNTIL_SAFE_CUTOVER/);
+ assert.doesNotMatch(release,/wrangler deploy --config ai-scheduler-v2\/wrangler\.jsonc/);
 });
 
 test('direct canary uses unused N11 topics, and missing keys cannot burn an article checkpoint',()=>{
