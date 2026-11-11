@@ -5,6 +5,7 @@ import {batchArticlePrompt,parseArticleBatch} from '../automation/ai-v2/article-
 import {buildSaudiAiV2Article} from '../automation/ai-v2/native-arabic-article.mjs';
 import {buildEnglishAiV2Article} from '../automation/ai-v2/native-article.mjs';
 import {listDirectKeys} from './keys.mjs';
+import {providerOutcomeAction} from './provider-response.mjs';
 
 const ROOT='_ops/noondealsnow-direct-ai-v1/',READY=ROOT+'ready/';
 const headers={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
@@ -115,12 +116,13 @@ async function generate(env,market){
       model,providerCalls:calls,at:utc()});
     return logState(env,{phase:'PROVIDER_NETWORK_UNKNOWN',market,provider:entry.provider,calls});
    }
-   if(result.ok)break;
+   const action=providerOutcomeAction(result);
+   if(action==='ACCEPT')break;
    // A definitive 429 had no completed output: another free key is safe.
-   if(result.http===429)continue;
+   if(action==='NEXT_FREE_KEY')continue;
    // A 5xx may follow a model completion or quota consumption. Never
    // automatically resend the same prompt with a different key/provider.
-   if(Number(result.http)>=500){
+   if(action==='QUARANTINE_UNKNOWN'){
     await jsonPut(env,checkpointKey,{...initial,state:'UNKNOWN_REQUEST_OUTCOME',
      provider:entry.provider,model,providerCalls:calls,lastRequestStatus:result.http,at:utc()});
     return logState(env,{phase:'PROVIDER_HTTP_OUTCOME_UNKNOWN',market,
