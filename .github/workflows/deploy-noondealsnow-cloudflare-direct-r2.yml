@@ -31,6 +31,7 @@ jobs:
           node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('cloudflare-ai-direct/wrangler.jsonc','utf8')); if(c.name!=='noondealsnow-ai-direct-r2'||c.vars.DIRECT_AI_STAGE!=='canary-no-cron'||c.triggers.crons.length)process.exit(21)"
           node --check cloudflare-ai-direct/engine.mjs
           node --check cloudflare-ai-direct/keys.mjs
+          node --check cloudflare-ai-direct/pack-existing-keys.mjs
           node --check cloudflare-ai-direct/rpc-entry.mjs
           if grep -Eq 'api.github.com|GITHUB_DISPATCH_TOKEN|actions/workflows' cloudflare-ai-direct/engine.mjs cloudflare-ai-direct/keys.mjs cloudflare-ai-direct/rpc-entry.mjs; then exit 22; fi
           echo 'CLOUDFLARE_DIRECT_R2_PREFLIGHT=PASS'
@@ -51,6 +52,76 @@ jobs:
               npx wrangler secret put NDN_KEYS_MASTER --config cloudflare-ai-direct/wrangler.jsonc >/dev/null
             echo 'R2_ENCRYPTION_KEY=CONFIGURED'
           fi
+      - name: Provision missing direct Worker credentials from existing user-provided deploy secrets (no AI/GitHub runtime)
+        shell: bash
+        env:
+          GEMINI_API_KEYS: ${{ secrets.GEMINI_API_KEYS }}
+          GEMINI_API_KEYS_EXTRA: ${{ secrets.GEMINI_API_KEYS_EXTRA }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
+          GROQ_API_KEYS_EXTRA: ${{ secrets.GROQ_API_KEYS_EXTRA }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          NDN_GEMINI_POOL_01: ${{ secrets.NDN_GEMINI_POOL_01 }}
+          NDN_GEMINI_POOL_02: ${{ secrets.NDN_GEMINI_POOL_02 }}
+          NDN_GEMINI_POOL_03: ${{ secrets.NDN_GEMINI_POOL_03 }}
+          NDN_GEMINI_POOL_04: ${{ secrets.NDN_GEMINI_POOL_04 }}
+          NDN_GEMINI_POOL_05: ${{ secrets.NDN_GEMINI_POOL_05 }}
+          NDN_GEMINI_POOL_06: ${{ secrets.NDN_GEMINI_POOL_06 }}
+          NDN_GEMINI_POOL_07: ${{ secrets.NDN_GEMINI_POOL_07 }}
+          NDN_GEMINI_POOL_08: ${{ secrets.NDN_GEMINI_POOL_08 }}
+          NDN_GEMINI_POOL_09: ${{ secrets.NDN_GEMINI_POOL_09 }}
+          NDN_GEMINI_POOL_10: ${{ secrets.NDN_GEMINI_POOL_10 }}
+          NDN_GEMINI_POOL_11: ${{ secrets.NDN_GEMINI_POOL_11 }}
+          NDN_GEMINI_POOL_12: ${{ secrets.NDN_GEMINI_POOL_12 }}
+          NDN_GROQ_POOL_01: ${{ secrets.NDN_GROQ_POOL_01 }}
+          NDN_GROQ_POOL_02: ${{ secrets.NDN_GROQ_POOL_02 }}
+          NDN_GROQ_POOL_03: ${{ secrets.NDN_GROQ_POOL_03 }}
+          NDN_GROQ_POOL_04: ${{ secrets.NDN_GROQ_POOL_04 }}
+          NDN_GROQ_POOL_05: ${{ secrets.NDN_GROQ_POOL_05 }}
+          NDN_GROQ_POOL_06: ${{ secrets.NDN_GROQ_POOL_06 }}
+          NDN_GROQ_POOL_07: ${{ secrets.NDN_GROQ_POOL_07 }}
+          NDN_GROQ_POOL_08: ${{ secrets.NDN_GROQ_POOL_08 }}
+          NDN_GROQ_POOL_09: ${{ secrets.NDN_GROQ_POOL_09 }}
+          NDN_GROQ_POOL_10: ${{ secrets.NDN_GROQ_POOL_10 }}
+          NDN_GROQ_POOL_11: ${{ secrets.NDN_GROQ_POOL_11 }}
+          NDN_GROQ_POOL_12: ${{ secrets.NDN_GROQ_POOL_12 }}
+          NOONDEALSNOW_AI_SITE_PUBLISH_TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+        run: |
+          set -euo pipefail
+          # Never overwrite keys already configured directly in Cloudflare.
+          # GitHub is used ONCE as a deployment credential source; no AI work runs here.
+          npx wrangler secret list --config cloudflare-ai-direct/wrangler.jsonc > /tmp/ndn-direct-secret-before.json
+          if jq -e 'any(.[]; .name=="GEMINI_KEYS_JSON")' /tmp/ndn-direct-secret-before.json >/dev/null; then
+            echo 'DIRECT_GEMINI_POOL=PRESERVED'
+          else
+            gemini_json="$(node cloudflare-ai-direct/pack-existing-keys.mjs gemini)"
+            test -n "$gemini_json"
+            printf '%s' "$gemini_json" | npx wrangler secret put GEMINI_KEYS_JSON --config cloudflare-ai-direct/wrangler.jsonc >/dev/null
+            unset gemini_json
+            echo 'DIRECT_GEMINI_POOL=MIGRATED_TO_CLOUDFLARE_SECRET'
+          fi
+          if jq -e 'any(.[]; .name=="GROQ_KEYS_JSON")' /tmp/ndn-direct-secret-before.json >/dev/null; then
+            echo 'DIRECT_GROQ_POOL=PRESERVED'
+          else
+            groq_json="$(node cloudflare-ai-direct/pack-existing-keys.mjs groq)"
+            test -n "$groq_json"
+            printf '%s' "$groq_json" | npx wrangler secret put GROQ_KEYS_JSON --config cloudflare-ai-direct/wrangler.jsonc >/dev/null
+            unset groq_json
+            echo 'DIRECT_GROQ_POOL=MIGRATED_TO_CLOUDFLARE_SECRET'
+          fi
+          if jq -e 'any(.[]; .name=="SITE_PUBLISH_TOKEN")' /tmp/ndn-direct-secret-before.json >/dev/null; then
+            echo 'DIRECT_NATIVE_PUBLISH_TOKEN=PRESERVED'
+          else
+            test -n "${NOONDEALSNOW_AI_SITE_PUBLISH_TOKEN:-}" || { echo 'DIRECT_NATIVE_PUBLISH_TOKEN_SOURCE_MISSING'; exit 43; }
+            printf '%s' "$NOONDEALSNOW_AI_SITE_PUBLISH_TOKEN" | npx wrangler secret put SITE_PUBLISH_TOKEN --config cloudflare-ai-direct/wrangler.jsonc >/dev/null
+            echo 'DIRECT_NATIVE_PUBLISH_TOKEN=MIGRATED_TO_CLOUDFLARE_SECRET'
+          fi
+          npx wrangler secret list --config cloudflare-ai-direct/wrangler.jsonc > /tmp/ndn-direct-secret-after.json
+          for name in NDN_KEYS_MASTER GEMINI_KEYS_JSON GROQ_KEYS_JSON SITE_PUBLISH_TOKEN; do
+            jq -e --arg n "$name" 'any(.[]; .name == $n)' /tmp/ndn-direct-secret-after.json >/dev/null || { echo "DIRECT_REQUIRED_SECRET_MISSING=$name"; exit 44; }
+          done
+          echo 'DIRECT_CLOUDFLARE_CREDENTIAL_NAMES=VERIFIED;GITHUB_GENERATION=DISABLED_IN_DIRECT_ENGINE'
+          echo 'DIRECT_CRON=STILL_DISABLED_UNTIL_SAFE_CUTOVER'
       - name: Validate canary stage and no runtime GitHub usage
         shell: bash
         run: |
