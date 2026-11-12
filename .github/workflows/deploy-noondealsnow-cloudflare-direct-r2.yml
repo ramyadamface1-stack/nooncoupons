@@ -1,4 +1,4 @@
-name: Deploy NoonDealsNow Direct R2 Canary (Cloudflare only)
+name: Deploy NoonDealsNow Direct R2 Native Publish Pilot (Cloudflare only)
 on:
   push:
     branches: [main]
@@ -23,12 +23,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify separate no-cron source and destination API token
+      - name: Verify canary-publish stage and destination API token
         shell: bash
         run: |
           set -euo pipefail
           test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 20
-          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('cloudflare-ai-direct/wrangler.jsonc','utf8')); if(c.name!=='noondealsnow-ai-direct-r2'||c.vars.DIRECT_AI_STAGE!=='canary-generation'||c.triggers.crons.length!==1||c.triggers.crons[0]!=='* * * * *')process.exit(21)"
+          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('cloudflare-ai-direct/wrangler.jsonc','utf8')); if(c.name!=='noondealsnow-ai-direct-r2'||c.vars.DIRECT_AI_STAGE!=='canary-publish'||c.triggers.crons.length!==1||c.triggers.crons[0]!=='* * * * *')process.exit(21)"
           node --check cloudflare-ai-direct/engine.mjs
           node --check cloudflare-ai-direct/keys.mjs
           node --check cloudflare-ai-direct/pack-existing-keys.mjs
@@ -121,14 +121,14 @@ jobs:
             jq -e --arg n "$name" 'any(.[]; .name == $n)' /tmp/ndn-direct-secret-after.json >/dev/null || { echo "DIRECT_REQUIRED_SECRET_MISSING=$name"; exit 44; }
           done
           echo 'DIRECT_CLOUDFLARE_CREDENTIAL_NAMES=VERIFIED;GITHUB_GENERATION=DISABLED_IN_DIRECT_ENGINE'
-          echo 'DIRECT_PUBLISHING=STILL_DISABLED_UNTIL_SAFE_CUTOVER'
+          echo 'DIRECT_BULK_PUBLISHING=DISABLED;CANARY_PUBLISH_CAP=1'
       - name: Validate canary stage and no runtime GitHub usage
         shell: bash
         run: |
           set -euo pipefail
           for i in 1 2 3; do
             code=$(curl -sS --max-time 20 -o /tmp/direct-r2-health.json -w '%{http_code}' 'https://noondealsnow-ai-direct-r2.ndn-e4c35f8a50.workers.dev/health' || true)
-            if [ "$code" = 200 ] && jq -e '.ok==true and .schedulerEnabled==false and .githubRuntime==false and .directStage=="canary-generation" and .canaryGenerationEnabled==true' /tmp/direct-r2-health.json >/dev/null; then
+            if [ "$code" = 200 ] && jq -e '.ok==true and .schedulerEnabled==false and .githubRuntime==false and .directStage=="canary-publish" and .canaryPublishingEnabled==true and .canaryPublishMaxAttempts==5' /tmp/direct-r2-health.json >/dev/null; then
               echo 'DIRECT_CLOUDFLARE_R2_CANARY=VERIFIED'
               exit 0
             fi
@@ -136,7 +136,7 @@ jobs:
           done
           echo 'DIRECT_CLOUDFLARE_R2_CANARY=NOT_VERIFIED'
           exit 31
-      - name: Verify Cloudflare-only generation Cron is configured and legacy scheduler remains untouched
+      - name: Verify one-article Cloudflare-only publication pilot Cron and unchanged legacy scheduler
         shell: bash
         run: |
           set -euo pipefail
@@ -145,6 +145,6 @@ jobs:
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/noondealsnow-ai-direct-r2/schedules")
           test "$code" = 200 || { echo "DIRECT_CANARY_CRON_READ_FAILED"; exit 51; }
           jq -e '.success==true and any(.result.schedules[]?; .cron=="* * * * *")' /tmp/ndn-direct-cron.json >/dev/null || { echo "DIRECT_CANARY_CRON_MISSING"; exit 52; }
-          echo 'DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_GENERATION_ONLY'
-          echo 'DIRECT_PUBLICATION=DISABLED;LEGACY_PUBLISHER=UNCHANGED'
-          echo 'CANARY_GENERATION=AWAITING_NEXT_CLOUDFLARE_CRON_TICK'
+          echo 'DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_PUBLISH_PILOT'
+          echo 'DIRECT_BULK_PUBLISH=DISABLED;ONE_ARTICLE_PILOT_ONLY;LEGACY_PUBLISHER=UNCHANGED'
+          echo 'CANARY_PUBLISH=AT_MOST_ONE_ARTICLE;NO_PROVIDER_REQUESTS'
