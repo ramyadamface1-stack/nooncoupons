@@ -1,4 +1,4 @@
-name: Deploy NoonDealsNow Direct R2 Groq One-Shot Canary (Cloudflare only)
+name: Deploy NoonDealsNow Direct R2 Groq Three-Key Auth Canary (Cloudflare only)
 on:
   push:
     branches: [main]
@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify one-shot Groq generation stage and destination API token
+      - name: Verify three-key Groq authentication stage and destination API token
         shell: bash
         run: |
           set -euo pipefail
@@ -128,7 +128,7 @@ jobs:
             jq -e --arg n "$name" 'any(.[]; .name == $n)' /tmp/ndn-direct-secret-after.json >/dev/null || { echo "DIRECT_REQUIRED_SECRET_MISSING=$name"; exit 44; }
           done
           echo 'DIRECT_CLOUDFLARE_CREDENTIAL_NAMES=VERIFIED;GITHUB_GENERATION=DISABLED_IN_DIRECT_ENGINE'
-          echo 'DIRECT_BULK_PUBLISHING=DISABLED;GROQ_CANARY_PROVIDER_CALL_CAP=1'
+          echo 'DIRECT_BULK_PUBLISHING=DISABLED;GROQ_CANARY_PROVIDER_CALL_CAP=3'
       - name: Validate canary stage and no runtime GitHub usage
         shell: bash
         run: |
@@ -153,5 +153,5 @@ jobs:
           test "$code" = 200 || { echo "DIRECT_CANARY_CRON_READ_FAILED"; exit 51; }
           jq -e '.success==true and any(.result.schedules[]?; .cron=="* * * * *")' /tmp/ndn-direct-cron.json >/dev/null || { echo "DIRECT_CANARY_CRON_MISSING"; exit 52; }
           echo 'DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_BOUNDED_GROQ_CANARY'
-          echo 'DIRECT_BULK_PUBLISH=DISABLED;ONE_GROQ_GENERATION_ONLY;LEGACY_PUBLISHER=UNCHANGED'
-          echo 'CANARY_GROQ=AT_MOST_ONE_PROVIDER_POST;NO_PUBLICATION'
+          echo 'DIRECT_BULK_PUBLISH=DISABLED;THREE_DISTINCT_GROQ_KEYS_MAX;LEGACY_PUBLISHER=UNCHANGED'
+          echo 'CANARY_GROQ=AT_MOST_THREE_DISTINCT_PROVIDER_POSTS;NO_PUBLICATION'
