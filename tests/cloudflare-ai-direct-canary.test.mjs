@@ -17,7 +17,7 @@ test('the direct Worker has no GitHub runtime and publishing pilot is limited',(
   assert.doesNotMatch(read(path),/api\.github\.com|actions\/workflows|GITHUB_DISPATCH_TOKEN|repository_dispatch/);
  const cfg=JSON.parse(read('cloudflare-ai-direct/wrangler.jsonc'));
  assert.equal(cfg.r2_buckets[0].bucket_name,'nooncoupons-content-v2');
- assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-publish');
+ assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-groq-generation');
  assert.deepEqual(cfg.triggers.crons,['* * * * *']);
  const engine=read('cloudflare-ai-direct/engine.mjs');
  assert.match(engine,/async function canaryGenerateOnce\(env,scheduledAt\)/);
@@ -63,15 +63,15 @@ test('the live scheduler remains untouched until canary proof',()=>{
  assert.match(release,/wrangler secret put GEMINI_KEYS_JSON/);
  assert.match(release,/wrangler secret put GROQ_KEYS_JSON/);
  assert.match(release,/wrangler secret put SITE_PUBLISH_TOKEN/);
- assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;CANARY_PUBLISH_CAP=1/);
- assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_PUBLISH_PILOT/);
+ assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;GROQ_CANARY_PROVIDER_CALL_CAP=1/);
+ assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_BOUNDED_GROQ_CANARY/);
  assert.doesNotMatch(release,/wrangler deploy --config ai-scheduler-v2\/wrangler\.jsonc/);
 });
 
 test('direct canary uses unused N11 topics, and missing keys cannot burn an article checkpoint',()=>{
  const source=read('cloudflare-ai-direct/engine.mjs');
  assert.match(source,/topicByMarket=.*eleventhEditorialTopicWave/s);
- assert.match(source,/if\(!pool\.length\)return logState\(env,\{phase:'KEYS_MISSING',market\}\)/);
+ assert.match(source,/if\(!keys\.gemini\.length\&\&!keys\.groq\.length\)return logState\(env,\{phase:'KEYS_MISSING',market\}\)/);
  assert.doesNotMatch(source,/state:'NO_KEYS'/);
  assert.match(source,/env\.DIRECT_AI_STAGE!=='production'/);
  assert.match(source,/reason:'DIRECT_ENGINE_CANARY_NOT_ACTIVE'/);
@@ -203,22 +203,95 @@ test('canary health reads each attempt marker without exposing keys or performin
  }finally{globalThis.fetch=originalFetch}
 });
 
-test('direct provider key selection uses disjoint initial SA/AE windows and advances before POST',async()=>{
- const {planDirectKeyRotation}=await import('../cloudflare-ai-direct/key-rotation.mjs');
- const sa=planDirectKeyRotation(44,null,'SA'),ae=planDirectKeyRotation(44,null,'AE');
- assert.deepEqual(sa,{indices:[0,1,2],next:3,market:'SA'});
- assert.deepEqual(ae,{indices:[22,23,24],next:25,market:'AE'});
- assert.equal(sa.indices.some(index=>ae.indices.includes(index)),false);
- assert.deepEqual(planDirectKeyRotation(44,{next:sa.next},'SA').indices,[3,4,5]);
- assert.deepEqual(planDirectKeyRotation(4,{next:3},'SA').indices,[3,0,1]);
- assert.deepEqual(planDirectKeyRotation(1,null,'AE').indices,[0]);
- assert.throws(()=>planDirectKeyRotation(0,null,'SA'),/INVALID_KEY_ROTATION_ARGUMENT/);
- const source=read('cloudflare-ai-direct/engine.mjs');
- assert.match(source,/planDirectKeyRotation\(pool\.length,seed,market\)/);
- assert.match(source,/const seed=previousKeys\|\|/);
- assert.match(source,/const advanced=await jsonPut\(env,keyCursor/);
- assert.match(source,/for\(let attempt=0;attempt<Math\.min\(rotation\.indices\.length,maxProviderAttempts\);attempt\+\+\)/);
- assert.doesNotMatch(source,/pool\[\(start\+attempt\)%pool\.length\]/);
+test('Groq and Gemini are interleaved; SA and AE start with distinct providers',async()=>{
+ const {planDirectProviderWindow}=await import('../cloudflare-ai-direct/provider-window.mjs');
+ const counts={gemini:4,groq:2};
+ const sa=planDirectProviderWindow(counts,{market:'SA'});
+ const ae=planDirectProviderWindow(counts,{market:'AE'});
+ assert.deepEqual(sa.attempts,[
+  {provider:'gemini',keyIndex:0},{provider:'groq',keyIndex:0},{provider:'gemini',keyIndex:1}]);
+ assert.deepEqual(sa.next,{geminiNext:2,groqNext:1});
+ assert.deepEqual(ae.attempts,[
+  {provider:'groq',keyIndex:1},{provider:'gemini',keyIndex:2},{provider:'groq',keyIndex:0}]);
+ assert.deepEqual(ae.next,{geminiNext:3,groqNext:1});
+ assert.deepEqual(planDirectProviderWindow(counts,{market:'SA',previous:sa.next}).attempts,[
+  {provider:'gemini',keyIndex:2},{provider:'groq',keyIndex:1},{provider:'gemini',keyIndex:3}]);
+ assert.deepEqual(planDirectProviderWindow({gemini:0,groq:2},{market:'SA'}).attempts,[
+  {provider:'groq',keyIndex:0},{provider:'groq',keyIndex:1}]);
+ assert.deepEqual(planDirectProviderWindow(counts,{market:'AE',preferredProvider:'groq',
+  allowFallback:false,maxAttempts:1}).attempts,[{provider:'groq',keyIndex:1}]);
+ assert.deepEqual(planDirectProviderWindow({gemini:4,groq:0},{market:'AE',
+  preferredProvider:'groq',allowFallback:false}).attempts,[]);
+ assert.throws(()=>planDirectProviderWindow({gemini:-1,groq:0},{market:'AE'}),/INVALID_DIRECT_PROVIDER_WINDOW/);
+ assert.throws(()=>planDirectProviderWindow(counts,{market:'XX'}),/INVALID_DIRECT_PROVIDER_WINDOW/);
+ const engine=read('cloudflare-ai-direct/engine.mjs');
+ assert.match(engine,/planDirectProviderWindow\(\{gemini:keys\.gemini\.length,groq:keys\.groq\.length\}/);
+ assert.match(engine,/const advanced=await jsonPut\(env,keyCursor/);
+ assert.match(engine,/Promise\.allSettled\(\['SA','AE'\]\.map/);
+ assert.match(engine,/const secondPublication=\(async\(\)=>\{/);
+ assert.doesNotMatch(engine,/pool\[\(start\+attempt\)%pool\.length\]/);
+});
+
+test('Groq canary fails closed without a Groq key and does not contact any provider',async()=>{
+ const {directTick}=await import('../cloudflare-ai-direct/engine.mjs');
+ const original=globalThis.fetch;
+ let providerCalls=0,writes=0;
+ globalThis.fetch=async url=>{
+  if(String(url)!=='https://noondealsnow.com/api/ai-v2-control-policy'){
+   providerCalls++;throw Error('NO_PROVIDER_PERMITTED');
+  }
+  return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,
+   publishingIntervalMinutes:1}),{status:200});
+ };
+ const env={DIRECT_AI_STAGE:'canary-groq-generation',GEMINI_KEYS_JSON:'[]',GROQ_KEYS_JSON:'[]',
+  CONTENT_FINAL:{list:async()=>({objects:[]}),put:async()=>{writes++;return {etag:'one'}}}};
+ try{
+  assert.deepEqual(await directTick(env),{ok:false,phase:'GROQ_CANARY_KEYS_MISSING'});
+  assert.equal(providerCalls,0);
+  assert.equal(writes,0);
+ }finally{globalThis.fetch=original}
+});
+
+test('one Groq 429 is recorded once; repeat Cron never spends another key',async()=>{
+ const {directTick,directStatus}=await import('../cloudflare-ai-direct/engine.mjs');
+ const original=globalThis.fetch,objects=new Map();let serial=0,providerCalls=0;
+ const bucket={
+  async get(key){const x=objects.get(key);return x?{etag:x.etag,json:async()=>JSON.parse(x.body)}:null},
+  async head(){return null},
+  async list({prefix}){return {objects:[...objects.keys()].filter(key=>key.startsWith(prefix)).map(key=>({key})),truncated:false}},
+  async put(key,body,{onlyIf}={}){
+   const old=objects.get(key);
+   if(onlyIf?.etagDoesNotMatch==='*'&&old)return null;
+   if(onlyIf?.etagMatches&&old?.etag!==onlyIf.etagMatches)return null;
+   const item={body,etag:'tag-'+(++serial)};
+   objects.set(key,item);return {etag:item.etag};
+  }
+ };
+ globalThis.fetch=async(url,options)=>{
+  if(String(url)==='https://noondealsnow.com/api/ai-v2-control-policy')
+   return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,
+    publishingIntervalMinutes:1}),{status:200});
+  assert.match(String(url),/^https:\/\/api\.groq\.com\//);
+  assert.ok(String(options?.headers?.authorization||'').startsWith('Bearer gsk_'));
+  providerCalls++;
+  return new Response(JSON.stringify({error:{message:'quota'}}),{status:429});
+ };
+ const env={DIRECT_AI_STAGE:'canary-groq-generation',CONTENT_FINAL:bucket,
+  GROQ_KEYS_JSON:JSON.stringify(['gsk_'+'b'.repeat(35)]),GEMINI_KEYS_JSON:'[]'};
+ try{
+  const one=await directTick(env);
+  assert.equal(one.phase,'GROQ_CANARY_BLOCKED');
+  assert.equal(one.provider,'groq');
+  assert.equal(providerCalls,1);
+  const two=await directTick(env);
+  assert.equal(two.phase,'GROQ_CANARY_ALREADY_RECORDED');
+  assert.equal(providerCalls,1);
+  const status=await directStatus(env);
+  assert.equal(status.groqCanaryEnabled,true);
+  assert.equal(status.groqCanary.state,'BLOCKED');
+  assert.equal(status.groqCanary.provider,'groq');
+  assert.doesNotMatch(JSON.stringify(status),/gsk_bbbbb/);
+ }finally{globalThis.fetch=original}
 });
 
 test('one-article native publication pilot only retries a confirmed no-write and then stops permanently',async()=>{
