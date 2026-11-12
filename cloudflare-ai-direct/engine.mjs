@@ -454,7 +454,23 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
   if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
   return publishOne(env,p).catch(()=>({ok:false,reason:'PUBLICATION_UNAVAILABLE'}));
  })();
- const publications=Promise.all([firstPublication,secondPublication]);
+ const publications=Promise.all([firstPublication,secondPublication]).then(async results=>{
+  // Record only sanitized outcomes, never keys or article bodies. A publish
+  // failure must remain visible when a provider READY article stays in R2.
+  try{
+   const safe=results.map(row=>({
+    ok:row?.ok===true,
+    reason:typeof row?.reason==='string'&&/^[A-Z_]{3,90}$/.test(row.reason)?
+     row.reason:'UNKNOWN_PUBLISH_RESULT',
+    slug:typeof row?.slug==='string'&&/^[a-z0-9-]+$/.test(row.slug)?row.slug:null
+   }));
+   await jsonPut(env,ROOT+'publication-observation.json',{at:utc(),results:safe,
+    publicationMode:'cloudflare-direct-production',containsRawKeys:false});
+  }catch{
+   // Telemetry cannot turn an actual successful publication into an error.
+  }
+  return results;
+ });
  const force=await jsonGet(env,ROOT+'manual-request.json',null);
  if(minute%p.intervalMinutes!==0&&!(force?.pending&&Date.now()-Date.parse(force.createdAt)<120000)){
   const published=await publications;
@@ -515,14 +531,15 @@ export async function requestDirectGeneration(env){
  return {dispatched:true,scheduledVia:'cloudflare-cron-next-minute',githubUsed:false};
 }
 export async function directStatus(env){
- const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE,pilotMarker,groqMarker,geminiMarker]=await Promise.all([
+ const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE,pilotMarker,groqMarker,geminiMarker,publicationObservation]=await Promise.all([
   policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),env.CONTENT_FINAL.list({prefix:READY,limit:100}),
   jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json'),
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null,
   ['canary-publish','canary-publish-fresh'].includes(env.DIRECT_AI_STAGE)?jsonGet(env,ROOT+(env.DIRECT_AI_STAGE==='canary-publish-fresh'?'canary-publish-fresh-v1.json':'canary-publish-once-v2.json')):null,
   env.DIRECT_AI_STAGE==='canary-groq-generation'?jsonGet(env,ROOT+'canary-groq-once-v3.json'):null,
-  env.DIRECT_AI_STAGE==='canary-gemini-generation'?jsonGet(env,ROOT+'canary-gemini-fresh-v1.json'):null
+  env.DIRECT_AI_STAGE==='canary-gemini-generation'?jsonGet(env,ROOT+'canary-gemini-fresh-v1.json'):null,
+  jsonGet(env,ROOT+'publication-observation.json')
  ]);
  const canaryAttempt=row=>{
   if(!row||typeof row!=='object')return null;
@@ -560,6 +577,7 @@ export async function directStatus(env){
    slug:typeof pilotMarker.slug==='string'&&/^[a-z0-9-]+$/.test(pilotMarker.slug)?pilotMarker.slug:null,
    at:typeof pilotMarker.at==='string'&&Number.isFinite(Date.parse(pilotMarker.at))?pilotMarker.at:null}:null,
   lastGeneration:status||null,
+  lastPublication:publicationObservation?.containsRawKeys===false?publicationObservation:null,
   marketGeneration:{SA:saStatus||null,AE:aeStatus||null},
   verifiedMarkets:['SA','AE']};
 }
