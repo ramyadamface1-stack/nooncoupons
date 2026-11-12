@@ -316,6 +316,32 @@ async function canaryGroqOnce(env){
  return {ok:completed,phase:completed?'GROQ_CANARY_READY_CREATED':'GROQ_CANARY_BLOCKED',
   reason:result?.phase||'UNKNOWN',provider:'groq'};
 }
+// Fresh, single-request Gemini canary only: restores a new READY record
+// after the earlier example was discovered already published by legacy.
+async function canaryGeminiOnce(env){
+ let p;
+ try{p=await policy(env)}catch{return {ok:false,phase:'GEMINI_CANARY_POLICY_UNAVAILABLE'}}
+ if(!p.enabled)return {ok:false,phase:'GEMINI_CANARY_PAUSED'};
+ let keys;
+ try{keys=await listDirectKeys(env,{includePlain:true})}
+ catch{return {ok:false,phase:'GEMINI_CANARY_KEYS_UNAVAILABLE'}}
+ if(!keys.gemini.length)return {ok:false,phase:'GEMINI_CANARY_KEYS_MISSING'};
+ const marker=ROOT+'canary-gemini-fresh-v1.json';
+ const existing=await jsonGet(env,marker);
+ if(existing)return {ok:existing.state==='READY_CREATED',
+  phase:'GEMINI_CANARY_ALREADY_RECORDED',recordedState:existing.state};
+ const claimed=await jsonPut(env,marker,{state:'STARTED',at:utc()},
+  {onlyIf:{etagDoesNotMatch:'*'}});
+ if(!claimed)return {ok:false,phase:'GEMINI_CANARY_CLAIM_RACE'};
+ let result;
+ try{result=await generate(env,'AE',{maxProviderAttempts:1,preferredProvider:'gemini',allowFallback:false})}
+ catch{result={phase:'GEMINI_CANARY_UNKNOWN_OUTCOME'}};
+ const completed=result?.phase==='READY_CREATED'&&result?.provider==='gemini';
+ await jsonPut(env,marker,{state:completed?'READY_CREATED':'BLOCKED',provider:'gemini',
+  reason:result?.phase||'UNKNOWN',slug:result?.slug||null,at:utc()});
+ return {ok:completed,phase:completed?'GEMINI_CANARY_READY_CREATED':'GEMINI_CANARY_BLOCKED',
+  reason:result?.phase||'UNKNOWN',provider:'gemini',slug:result?.slug||null};
+}
 // A single Cloudflare-only native-publication pilot. Existing GitHub
 // publication retains the shared atomic site slot; this pilot cannot bypass it.
 // Never repeat a request unless the native bridge proves NO WRITE occurred.
@@ -381,6 +407,7 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  if(!env.CONTENT_FINAL)return {ok:false,reason:'R2_BINDING_MISSING'};
  if(env.DIRECT_AI_STAGE==='canary-generation')return canaryGenerateOnce(env,scheduledAt);
  if(env.DIRECT_AI_STAGE==='canary-groq-generation')return canaryGroqOnce(env);
+ if(env.DIRECT_AI_STAGE==='canary-gemini-generation')return canaryGeminiOnce(env);
  if(env.DIRECT_AI_STAGE==='canary-publish'){
   // Run out of phase with the legacy minute tick to avoid the observed
   // PUBLICATION_SLOT_NOT_DUE collision, never bypassing the atomic site gate.
@@ -441,13 +468,14 @@ export async function requestDirectGeneration(env){
  return {dispatched:true,scheduledVia:'cloudflare-cron-next-minute',githubUsed:false};
 }
 export async function directStatus(env){
- const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE,pilotMarker,groqMarker]=await Promise.all([
+ const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE,pilotMarker,groqMarker,geminiMarker]=await Promise.all([
   policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),env.CONTENT_FINAL.list({prefix:READY,limit:100}),
   jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json'),
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null,
   env.DIRECT_AI_STAGE==='canary-publish'?jsonGet(env,ROOT+'canary-publish-once-v2.json'):null,
-  env.DIRECT_AI_STAGE==='canary-groq-generation'?jsonGet(env,ROOT+'canary-groq-once-v3.json'):null
+  env.DIRECT_AI_STAGE==='canary-groq-generation'?jsonGet(env,ROOT+'canary-groq-once-v3.json'):null,
+  env.DIRECT_AI_STAGE==='canary-gemini-generation'?jsonGet(env,ROOT+'canary-gemini-fresh-v1.json'):null
  ]);
  const canaryAttempt=row=>{
   if(!row||typeof row!=='object')return null;
@@ -458,7 +486,10 @@ export async function directStatus(env){
  };
  return {ok:true,schedulerEnabled:p?.enabled===true&&env.DIRECT_AI_STAGE==='production',
   canaryGenerationEnabled:env.DIRECT_AI_STAGE==='canary-generation',
+  freshGeminiCanaryEnabled:env.DIRECT_AI_STAGE==='canary-gemini-generation',
   groqCanaryEnabled:env.DIRECT_AI_STAGE==='canary-groq-generation',
+  geminiCanary:geminiMarker?{state:geminiMarker.state,reason:geminiMarker.reason||null,
+   slug:geminiMarker.slug||null,at:geminiMarker.at||null}:null,
   groqCanary:groqMarker?{state:groqMarker.state,provider:groqMarker.provider||null,
    reason:groqMarker.reason||null,at:groqMarker.at||null}:null,
   canaryPublishingEnabled:env.DIRECT_AI_STAGE==='canary-publish',canaryPublishMaxAttempts:5,
@@ -468,7 +499,8 @@ export async function directStatus(env){
   source:'cloudflare-cron-r2-direct',controlStatus:p?(env.DIRECT_AI_STAGE==='production'?'POLICY_VERIFIED':
    env.DIRECT_AI_STAGE==='canary-generation'?'CANARY_GENERATION_ONLY':
    env.DIRECT_AI_STAGE==='canary-publish'?'CANARY_PUBLISH_ONLY':
-   env.DIRECT_AI_STAGE==='canary-groq-generation'?'GROQ_CANARY_ONLY':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
+   env.DIRECT_AI_STAGE==='canary-groq-generation'?'GROQ_CANARY_ONLY':
+   env.DIRECT_AI_STAGE==='canary-gemini-generation'?'GEMINI_CANARY_ONLY':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
   dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,directStage:env.DIRECT_AI_STAGE||'unset',
   freeOnly:true,readyCount:ready.objects.filter(x=>!x.key.endsWith('/')).length,
   readyCountExact:ready.truncated!==true,
