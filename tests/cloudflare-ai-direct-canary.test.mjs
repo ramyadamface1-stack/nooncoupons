@@ -17,7 +17,7 @@ test('the direct Worker has no GitHub runtime and publishing pilot is limited',(
   assert.doesNotMatch(read(path),/api\.github\.com|actions\/workflows|GITHUB_DISPATCH_TOKEN|repository_dispatch/);
  const cfg=JSON.parse(read('cloudflare-ai-direct/wrangler.jsonc'));
  assert.equal(cfg.r2_buckets[0].bucket_name,'nooncoupons-content-v2');
- assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-publish-fresh');
+ assert.equal(cfg.vars.DIRECT_AI_STAGE,'production');
  assert.deepEqual(cfg.triggers.crons,['* * * * *']);
  const engine=read('cloudflare-ai-direct/engine.mjs');
  assert.match(engine,/async function canaryGenerateOnce\(env,scheduledAt\)/);
@@ -63,8 +63,8 @@ test('the live scheduler remains untouched until canary proof',()=>{
  assert.match(release,/wrangler secret put GEMINI_KEYS_JSON/);
  assert.match(release,/wrangler secret put GROQ_KEYS_JSON/);
  assert.match(release,/wrangler secret put SITE_PUBLISH_TOKEN/);
- assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;FRESH_NATIVE_PUBLISH_ONLY=TRUE/);
- assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_FRESH_NATIVE_PILOT/);
+ assert.match(release,/DIRECT_PRODUCTION=ACTIVE;READY_BUFFER_TARGET=12/);
+ assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_PRODUCTION/);
  assert.doesNotMatch(release,/wrangler deploy --config ai-scheduler-v2\/wrangler\.jsonc/);
 });
 
@@ -279,7 +279,7 @@ test('Groq and Gemini are interleaved; SA and AE start with distinct providers',
  const engine=read('cloudflare-ai-direct/engine.mjs');
  assert.match(engine,/planDirectProviderWindow\(\{gemini:keys\.gemini\.length,groq:keys\.groq\.length\}/);
  assert.match(engine,/const advanced=await jsonPut\(env,keyCursor/);
- assert.match(engine,/Promise\.allSettled\(\['SA','AE'\]\.map/);
+ assert.match(engine,/Promise\.allSettled\(markets\.map/);
  assert.match(engine,/const secondPublication=\(async\(\)=>\{/);
  assert.doesNotMatch(engine,/pool\[\(start\+attempt\)%pool\.length\]/);
 });

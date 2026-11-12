@@ -1,4 +1,4 @@
-name: Deploy NoonDealsNow Direct R2 Fresh Article Native Publication Pilot
+name: Deploy NoonDealsNow Direct R2 Guarded Production
 on:
   push:
     branches: [main]
@@ -23,13 +23,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify bounded fresh article native publication stage and Cloudflare token
+      - name: Verify Cloudflare-native guarded production configuration and token
         shell: bash
         run: |
           set -euo pipefail
           test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 20
-          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('cloudflare-ai-direct/wrangler.jsonc','utf8')); if(c.name!=='noondealsnow-ai-direct-r2'||c.vars.DIRECT_AI_STAGE!=='canary-publish-fresh'||c.triggers.crons.length!==1||c.triggers.crons[0]!=='* * * * *')process.exit(21)"
+          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('cloudflare-ai-direct/wrangler.jsonc','utf8')); if(c.name!=='noondealsnow-ai-direct-r2'||c.vars.DIRECT_AI_STAGE!=='production'||c.triggers.crons.length!==1||c.triggers.crons[0]!=='* * * * *')process.exit(21)"
           node --check cloudflare-ai-direct/engine.mjs
+          node --check cloudflare-ai-direct/production-guard.mjs
           node --check cloudflare-ai-direct/provider-window.mjs
           node --check cloudflare-ai-direct/keys.mjs
           node --check cloudflare-ai-direct/pack-existing-keys.mjs
@@ -40,8 +41,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --test tests/cloudflare-ai-direct-canary.test.mjs
-          echo 'DIRECT_NATIVE_PILOT_TESTS=PASS;NO_PROVIDER_CALLS=TRUE'
+          node --test tests/cloudflare-ai-direct-canary.test.mjs tests/cloudflare-ai-direct-production-guard.test.mjs
+          echo 'DIRECT_PRODUCTION_SAFETY_TESTS=PASS;NO_PROVIDER_CALLS_IN_CI=TRUE'
+      - name: Confirm fresh direct-native article was genuinely published before cutover
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 20 -H 'Cache-Control: no-cache' \
+            https://noondealsnow-ai-direct-r2.ndn-e4c35f8a50.workers.dev/health > /tmp/native-before.json
+          jq -e '.ok==true and .githubRuntime==false and (
+            (.directStage=="canary-publish-fresh" and .canaryPublication.state=="VERIFIED" and .canaryPublication.reason=="LIVE_VERIFIED")
+            or (.directStage=="production" and .schedulerEnabled==true and .controlStatus=="POLICY_VERIFIED")
+          )' /tmp/native-before.json >/dev/null || { echo 'NATIVE_PUBLICATION_PROOF_MISSING'; exit 23; }
+          if jq -e '.directStage=="canary-publish-fresh"' /tmp/native-before.json >/dev/null; then
+            slug=$(jq -r '.canaryPublication.slug' /tmp/native-before.json)
+            [[ "$slug" =~ ^uae-[a-z0-9-]+-n11$ ]] || exit 24
+            code=$(curl -sS --max-time 20 -o /dev/null -w '%{http_code}' "https://noondealsnow.com/articles/$slug")
+            test "$code" = 200 || { echo 'NATIVE_ARTICLE_NOT_LIVE'; exit 25; }
+          fi
+          echo 'CLOUDFLARE_NATIVE_PUBLISH=PROVEN;LEGACY_SCHEDULER_NOT_STOPPED'
       - name: Build and deploy isolated direct R2 Worker
         run: |
           npm install --no-audit --no-fund --ignore-scripts
@@ -128,22 +146,22 @@ jobs:
             jq -e --arg n "$name" 'any(.[]; .name == $n)' /tmp/ndn-direct-secret-after.json >/dev/null || { echo "DIRECT_REQUIRED_SECRET_MISSING=$name"; exit 44; }
           done
           echo 'DIRECT_CLOUDFLARE_CREDENTIAL_NAMES=VERIFIED;GITHUB_GENERATION=DISABLED_IN_DIRECT_ENGINE'
-          echo 'DIRECT_BULK_PUBLISHING=DISABLED;FRESH_NATIVE_PUBLISH_ONLY=TRUE'
-      - name: Validate canary stage and no runtime GitHub usage
+          echo 'DIRECT_PRODUCTION=ACTIVE;READY_BUFFER_TARGET=12'
+      - name: Verify Cloudflare direct production health and no GitHub runtime
         shell: bash
         run: |
           set -euo pipefail
           for i in 1 2 3; do
             code=$(curl -sS --max-time 20 -o /tmp/direct-r2-health.json -w '%{http_code}' 'https://noondealsnow-ai-direct-r2.ndn-e4c35f8a50.workers.dev/health' || true)
-            if [ "$code" = 200 ] && jq -e '.ok==true and .schedulerEnabled==false and .githubRuntime==false and .directStage=="canary-publish-fresh" and .canaryPublishingEnabled==true and .freshNativePilotEnabled==true and .schedulerEnabled==false' /tmp/direct-r2-health.json >/dev/null; then
-              echo 'DIRECT_CLOUDFLARE_R2_CANARY=VERIFIED'
+            if [ "$code" = 200 ] && jq -e '.ok==true and .schedulerEnabled==true and .githubRuntime==false and .directStage=="production" and .controlStatus=="POLICY_VERIFIED"' /tmp/direct-r2-health.json >/dev/null; then
+              echo 'DIRECT_CLOUDFLARE_R2_PRODUCTION=VERIFIED'
               exit 0
             fi
             sleep 4
           done
-          echo 'DIRECT_CLOUDFLARE_R2_CANARY=NOT_VERIFIED'
+          echo 'DIRECT_CLOUDFLARE_R2_PRODUCTION=NOT_VERIFIED'
           exit 31
-      - name: Verify one-article Cloudflare-only publication pilot Cron and unchanged legacy scheduler
+      - name: Verify direct production Cron and preserve old scheduler for a measured cutover
         shell: bash
         run: |
           set -euo pipefail
@@ -152,6 +170,6 @@ jobs:
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/noondealsnow-ai-direct-r2/schedules")
           test "$code" = 200 || { echo "DIRECT_CANARY_CRON_READ_FAILED"; exit 51; }
           jq -e '.success==true and any(.result.schedules[]?; .cron=="* * * * *")' /tmp/ndn-direct-cron.json >/dev/null || { echo "DIRECT_CANARY_CRON_MISSING"; exit 52; }
-          echo 'DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_FRESH_NATIVE_PILOT'
-          echo 'DIRECT_BULK_PUBLISH=DISABLED;NO_NEW_AI_GENERATION;LEGACY_PUBLISHER=UNCHANGED'
-          echo 'CANARY_NATIVE=ONE_PINNED_ARTICLE_MAX;NO_PROVIDER_REQUESTS'
+          echo 'DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_PRODUCTION'
+          echo 'DIRECT_NATIVE_GENERATION=CLOUDFLARE_ONLY;LEGACY_PUBLISHER=UNCHANGED'
+          echo 'DIRECT_PRODUCTION_QUOTA_COOLDOWN=ENABLED;READY_BUFFER_TARGET=12;NO_GITHUB_RUNTIME'
