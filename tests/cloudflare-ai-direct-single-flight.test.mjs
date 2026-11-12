@@ -50,3 +50,40 @@ test('READY articles are examined before any uncertain POST reconciliation',()=>
  assert.doesNotMatch(source,/const firstPublication=publishOne\(env,p\)/);
  assert.doesNotMatch(source,/const secondPublication=/);
 });
+
+test('confirmed native slot denial retries only once after authoritative next eligibility',async()=>{
+ const minute=Date.parse('2026-11-12T23:15:00Z');
+ let now=minute;const calls=[],waits=[],written=[];
+ const env={CONTENT_FINAL:{async put(_key,data){written.push(JSON.parse(data));return {etag:'ok'}}}};
+ const output=await runNativePublicationWindow(env,{enabled:true,publishingIntervalMinutes:1},{
+  scheduledAt:minute,clock:()=>now,
+  sleep:async ms=>{waits.push(ms);now+=ms},
+  publish:async()=>{
+   calls.push(now);
+   return calls.length===1?
+    {ok:false,reason:'PUBLICATION_SLOT_NOT_DUE',nextEligibleAt:new Date(minute+42000).toISOString()}:
+    {ok:true,reason:'LIVE_VERIFIED',slug:'saudi-buyer-approved-new-content-nov170-2026-n11'};
+  }
+ });
+ assert.equal(calls.length,2,'at most one confirmed-no-write retry');
+ assert.deepEqual(waits,[35000,7250]);
+ assert.deepEqual(output.map(x=>x.reason),['PUBLICATION_SLOT_NOT_DUE','LIVE_VERIFIED']);
+ assert.deepEqual(written[0].results.map(x=>x.reason),['PUBLICATION_SLOT_NOT_DUE','LIVE_VERIFIED']);
+ assert.equal(written[0].containsRawKeys,false);
+});
+test('slot retries do not occur for missing, distant, stale or ambiguous next times',async()=>{
+ const minute=Date.parse('2026-11-12T23:20:00Z');
+ const invalid=[null,new Date(minute+60000).toISOString(),new Date(minute+20000).toISOString(),'not-a-date'];
+ for(const nextEligibleAt of invalid){
+  let calls=0;
+  const output=await runNativePublicationWindow({CONTENT_FINAL:{async put(){return {etag:'ok'}}}},
+   {enabled:true,publishingIntervalMinutes:1},{
+    scheduledAt:minute,clock:()=>minute+35000,sleep:async()=>{throw Error('SLEEP_NOT_ALLOWED')},
+    publish:async()=>{calls++;return {ok:false,reason:'PUBLICATION_SLOT_NOT_DUE',nextEligibleAt}}
+   });
+  assert.equal(calls,1);
+  assert.equal(output.length,1);
+ }
+ assert.match(source,/nextEligibleAt:Number\.isFinite\(nextDue\)/);
+ assert.match(source,/waitMs<=12000/);
+});
