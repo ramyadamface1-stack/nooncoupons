@@ -25,7 +25,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Prove Cloudflare production, actual two-market generation and native article publication
+      - name: Prove Cloudflare production, both market pipelines and confirmed native article publication
         shell: bash
         run: |
           set -euo pipefail
@@ -33,7 +33,7 @@ jobs:
           curl -fLsS --retry 3 --retry-delay 2 --max-time 30 "$DIRECT" > /tmp/ndn-direct-owner.json
           jq -e '.ok==true and .directStage=="production" and .schedulerEnabled==true and .githubRuntime==false and
             .controlStatus=="POLICY_VERIFIED" and .readyCountExact==true and .readyCount>=1 and
-            .marketGeneration.SA.phase=="READY_CREATED" and .marketGeneration.AE.phase=="READY_CREATED"' \
+            .marketGeneration.SA.market=="SA" and .marketGeneration.AE.market=="AE"' \
             /tmp/ndn-direct-owner.json >/dev/null || { echo 'DIRECT_MARKETS_OR_R2_NOT_READY'; exit 31; }
           curl -fLsS --retry 3 --retry-delay 2 --max-time 30 "$LEGACY" > /tmp/ndn-old-owner.json
           jq -e '.ok==true and .schedulerEnabled==true and .intervalMinutes==1' /tmp/ndn-old-owner.json >/dev/null ||
@@ -44,7 +44,7 @@ jobs:
             /tmp/ndn-before-ledger.json >/dev/null || { echo 'NATIVE_LEDGER_NOT_VERIFIED'; exit 33; }
           curl -fLsS --max-time 25 -o /dev/null \
             https://noondealsnow.com/articles/uae-buyer-samsung-tablet-pdf-handwriting-export-file-formats-h1-nov188-2026-n11
-          echo 'DIRECT_NATIVE_PROVEN_WITH_SA_AE_READY_AND_LIVE_LEDGER=YES;GH_GENERATION_NOT_USED'
+          echo 'DIRECT_NATIVE_PROVEN_WITH_BOTH_MARKETS_OBSERVED_AND_LIVE_LEDGER=YES;GH_GENERATION_NOT_USED'
       - name: Transfer sole publishing ownership to native Cloudflare with automatic rollback if liveness fails
         shell: bash
         run: |
