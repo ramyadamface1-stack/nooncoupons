@@ -1,0 +1,101 @@
+name: NoonDealsNow - Cloudflare Native Single Publisher Cutover
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-native-single-owner-cutover.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ndn-cloudflare-native-cutover-once
+  cancel-in-progress: false
+jobs:
+  single-owner:
+    if: github.repository == 'ramyadamface1-stack/nooncoupons'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: e4c35f8a50a7b2e4cfb9d6c534962603
+      DIRECT: https://noondealsnow-ai-direct-r2.ndn-e4c35f8a50.workers.dev/health
+      LEGACY: https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove Cloudflare production, actual two-market generation and native article publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 30
+          curl -fLsS --retry 3 --retry-delay 2 --max-time 30 "$DIRECT" > /tmp/ndn-direct-owner.json
+          jq -e '.ok==true and .directStage=="production" and .schedulerEnabled==true and .githubRuntime==false and
+            .controlStatus=="POLICY_VERIFIED" and .readyCountExact==true and .readyCount>=1 and
+            .marketGeneration.SA.phase=="READY_CREATED" and .marketGeneration.AE.phase=="READY_CREATED"' \
+            /tmp/ndn-direct-owner.json >/dev/null || { echo 'DIRECT_MARKETS_OR_R2_NOT_READY'; exit 31; }
+          curl -fLsS --retry 3 --retry-delay 2 --max-time 30 "$LEGACY" > /tmp/ndn-old-owner.json
+          jq -e '.ok==true and .schedulerEnabled==true and .intervalMinutes==1' /tmp/ndn-old-owner.json >/dev/null ||
+            { echo 'LEGACY_ALREADY_DISABLED_OR_STATUS_UNKNOWN'; exit 32; }
+          curl -fLsS --retry 3 --retry-delay 2 --max-time 30 \
+            https://noondealsnow.com/api/generator-health > /tmp/ndn-before-ledger.json
+          jq -e '.ok==true and .aiV2.ledgerAvailable==true and .aiV2.publishedCount>=7384' \
+            /tmp/ndn-before-ledger.json >/dev/null || { echo 'NATIVE_LEDGER_NOT_VERIFIED'; exit 33; }
+          curl -fLsS --max-time 25 -o /dev/null \
+            https://noondealsnow.com/articles/uae-buyer-samsung-tablet-pdf-handwriting-export-file-formats-h1-nov188-2026-n11
+          echo 'DIRECT_NATIVE_PROVEN_WITH_SA_AE_READY_AND_LIVE_LEDGER=YES;GH_GENERATION_NOT_USED'
+      - name: Transfer sole publishing ownership to native Cloudflare with automatic rollback if liveness fails
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund --ignore-scripts
+          rollback_needed=0
+          restore_old(){
+            if [ "$rollback_needed" = 1 ]; then
+              echo 'NATIVE_CUTOVER_GUARD_FAILED=RESTORING_LEGACY'
+              printf 'true' | npx wrangler secret put AI_V2_RUNTIME_ENABLED --config ai-scheduler-v2/wrangler.jsonc >/dev/null || true
+            fi
+          }
+          trap restore_old EXIT
+          before=$(jq -r '.aiV2.publishedCount' /tmp/ndn-before-ledger.json)
+          rollback_needed=1
+          printf 'false' | npx wrangler secret put AI_V2_RUNTIME_ENABLED --config ai-scheduler-v2/wrangler.jsonc >/dev/null
+          for i in 1 2 3 4; do
+            curl -fLsS --retry 2 --retry-delay 2 --max-time 20 "$LEGACY" > /tmp/ndn-old-after.json
+            if jq -e '.ok==true and .schedulerEnabled==false' /tmp/ndn-old-after.json >/dev/null; then break; fi
+            sleep 5
+          done
+          jq -e '.ok==true and .schedulerEnabled==false' /tmp/ndn-old-after.json >/dev/null ||
+            { echo 'LEGACY_PAUSE_NOT_VERIFIED'; exit 35; }
+          curl -fLsS --retry 2 --retry-delay 2 --max-time 20 "$DIRECT" > /tmp/ndn-direct-after.json
+          jq -e '.ok==true and .directStage=="production" and .schedulerEnabled==true and .githubRuntime==false' \
+            /tmp/ndn-direct-after.json >/dev/null || { echo 'DIRECT_CLOUDFLARE_OWNER_NOT_ACTIVE'; exit 36; }
+          echo 'GH_DISPATCH_LEGACY=PAUSED_BY_CLOUDFLARE_SECRET;DIRECT_NATIVE=ACTIVE'
+          directSuccess=0
+          previousAt=''
+          for i in 1 2 3 4; do
+            sleep 45
+            curl -fLsS --retry 2 --retry-delay 2 --max-time 25 "$DIRECT" > /tmp/ndn-direct-monitor.json
+            jq -e '.ok==true and .directStage=="production" and .schedulerEnabled==true' \
+              /tmp/ndn-direct-monitor.json >/dev/null || { echo 'DIRECT_BECAME_UNHEALTHY'; exit 37; }
+            observedAt=$(jq -r '.lastPublication.at // ""' /tmp/ndn-direct-monitor.json)
+            if [ "$observedAt" != "$previousAt" ] &&
+              jq -e 'any(.lastPublication.results[]?; .ok==true and .reason=="LIVE_VERIFIED")' \
+                /tmp/ndn-direct-monitor.json >/dev/null; then
+              directSuccess=$((directSuccess+1))
+            fi
+            previousAt="$observedAt"
+          done
+          curl -fLsS --retry 3 --retry-delay 2 --max-time 30 \
+            https://noondealsnow.com/api/generator-health > /tmp/ndn-after-ledger.json
+          after=$(jq -r '.aiV2.publishedCount // 0' /tmp/ndn-after-ledger.json)
+          delta=$((after-before))
+          echo "NATIVE_PUBLICATION_DELTA_IN_MONITORED_WINDOW=$delta;DIRECT_VERIFIED_TICKS=$directSuccess"
+          if [ "$delta" -lt 2 ] || [ "$directSuccess" -lt 1 ]; then
+            echo 'NATIVE_CADENCE_UNPROVEN_AUTOMATIC_ROLLBACK=YES'
+            exit 41
+          fi
+          rollback_needed=0
+          trap - EXIT
+          echo 'NATIVE_SINGLE_OWNER_CUTOVER=PROVISIONALLY_VERIFIED;LEGACY_DISPATCH_PAUSED'
