@@ -11,13 +11,13 @@ function bucket(){
   async list({prefix}){return{objects:[...values.keys()].filter(x=>x.startsWith(prefix)).map(key=>({key}))}}
  };
 }
-test('the direct Worker has no GitHub runtime and canary publishes nothing',()=>{
+test('the direct Worker has no GitHub runtime and publishing pilot is limited',()=>{
  for(const path of ['cloudflare-ai-direct/engine.mjs','cloudflare-ai-direct/keys.mjs',
   'cloudflare-ai-direct/rpc-entry.mjs'])
   assert.doesNotMatch(read(path),/api\.github\.com|actions\/workflows|GITHUB_DISPATCH_TOKEN|repository_dispatch/);
  const cfg=JSON.parse(read('cloudflare-ai-direct/wrangler.jsonc'));
  assert.equal(cfg.r2_buckets[0].bucket_name,'nooncoupons-content-v2');
- assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-generation');
+ assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-publish');
  assert.deepEqual(cfg.triggers.crons,['* * * * *']);
  const engine=read('cloudflare-ai-direct/engine.mjs');
  assert.match(engine,/async function canaryGenerateOnce\(env,scheduledAt\)/);
@@ -63,8 +63,8 @@ test('the live scheduler remains untouched until canary proof',()=>{
  assert.match(release,/wrangler secret put GEMINI_KEYS_JSON/);
  assert.match(release,/wrangler secret put GROQ_KEYS_JSON/);
  assert.match(release,/wrangler secret put SITE_PUBLISH_TOKEN/);
- assert.match(release,/DIRECT_PUBLISHING=STILL_DISABLED_UNTIL_SAFE_CUTOVER/);
- assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_GENERATION_ONLY/);
+ assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;CANARY_PUBLISH_CAP=1/);
+ assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_PUBLISH_PILOT/);
  assert.doesNotMatch(release,/wrangler deploy --config ai-scheduler-v2\/wrangler\.jsonc/);
 });
 
@@ -219,4 +219,83 @@ test('direct provider key selection uses disjoint initial SA/AE windows and adva
  assert.match(source,/const advanced=await jsonPut\(env,keyCursor/);
  assert.match(source,/for\(let attempt=0;attempt<Math\.min\(rotation\.indices\.length,maxProviderAttempts\);attempt\+\+\)/);
  assert.doesNotMatch(source,/pool\[\(start\+attempt\)%pool\.length\]/);
+});
+
+test('one-article native publication pilot only retries a confirmed no-write and then stops permanently',async()=>{
+ const {canaryPublishOnce,directStatus}=await import('../cloudflare-ai-direct/engine.mjs');
+ const slug='uae-buyer-samsung-tablet-pdf-handwriting-export-file-formats-nov188-2026-n11';
+ const ready='_ops/noondealsnow-direct-ai-v1/ready/example.json';
+ const objects=new Map();let seq=0;
+ const insert=(key,value)=>{
+  const etag='etag-'+(++seq);objects.set(key,{etag,body:JSON.stringify(value)});return {etag};
+ };
+ insert(ready,{state:'READY',topic:{country:'AE',coupon:'NOV188',slug},article:{html:'<article>safe mock</article>'}});
+ const bucket={
+  async get(key){const item=objects.get(key);return item?{etag:item.etag,json:async()=>JSON.parse(item.body)}:null},
+  async list({prefix}){return {objects:[...objects.keys()].filter(key=>key.startsWith(prefix)).map(key=>({key})),truncated:false}},
+  async put(key,body,{onlyIf}={}){const old=objects.get(key);
+   if(onlyIf?.etagDoesNotMatch==='*'&&old)return null;
+   if(onlyIf?.etagMatches&&old?.etag!==onlyIf.etagMatches)return null;
+   return insert(key,JSON.parse(body));
+  }
+ };
+ const oldFetch=globalThis.fetch;
+ let network=0,requests=0,ms=Date.parse('2026-11-12T08:00:00Z');
+ globalThis.fetch=async url=>{
+  if(String(url)!=='https://noondealsnow.com/api/ai-v2-control-policy')throw Error('FORBIDDEN_NETWORK');
+  network++;return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),{status:200});
+ };
+ const env={DIRECT_AI_STAGE:'canary-publish',SITE_PUBLISH_TOKEN:'SECRET_NOT_TO_EXPOSE',CONTENT_FINAL:bucket};
+ const publish=async()=>{requests++;return requests<=2?
+  {ok:false,reason:'PUBLICATION_SLOT_NOT_DUE'}:
+  {ok:true,reason:'LIVE_VERIFIED',slug};
+ };
+ try{
+  let result=await canaryPublishOnce(env,{publish,clock:()=>ms});
+  assert.deepEqual({state:result.state,attempts:result.attempts},{state:'WAIT_SLOT',attempts:1});
+  ms+=60000;result=await canaryPublishOnce(env,{publish,clock:()=>ms});
+  assert.equal(result.state,'WAIT_SLOT');assert.equal(result.attempts,2);
+  ms+=60000;result=await canaryPublishOnce(env,{publish,clock:()=>ms});
+  assert.equal(result.state,'VERIFIED');assert.equal(result.ok,true);assert.equal(result.attempts,3);
+  ms+=60000;result=await canaryPublishOnce(env,{publish,clock:()=>ms});
+  assert.equal(result.reason,'CANARY_PUBLISH_ALREADY_RECORDED');
+  assert.equal(requests,3);
+  const status=await directStatus(env);
+  assert.equal(status.canaryPublishingEnabled,true);
+  assert.equal(status.schedulerEnabled,false);
+  assert.deepEqual({state:status.canaryPublication.state,attempts:status.canaryPublication.attempts},
+   {state:'VERIFIED',attempts:3});
+  assert.doesNotMatch(JSON.stringify(status),/SECRET_NOT_TO_EXPOSE/);
+  assert.equal(network,5);
+ }finally{globalThis.fetch=oldFetch}
+});
+
+test('publishing pilot permanently quarantines an ambiguous native response',async()=>{
+ const {canaryPublishOnce}=await import('../cloudflare-ai-direct/engine.mjs');
+ const slug='uae-buyer-samsung-tablet-pdf-handwriting-export-file-formats-nov188-2026-n11';
+ const objects=new Map();let i=0;
+ objects.set('_ops/noondealsnow-direct-ai-v1/ready/pilot.json',{etag:'r1',body:JSON.stringify({
+  state:'READY',topic:{country:'AE',coupon:'NOV188',slug}})});
+ const bucket={
+  async get(key){const entry=objects.get(key);return entry?{etag:entry.etag,json:async()=>JSON.parse(entry.body)}:null},
+  async list({prefix}){return {objects:[...objects.keys()].filter(key=>key.startsWith(prefix)).map(key=>({key})),truncated:false}},
+  async put(key,body,{onlyIf}={}){const old=objects.get(key);
+   if(onlyIf?.etagDoesNotMatch==='*'&&old)return null;
+   if(onlyIf?.etagMatches&&old?.etag!==onlyIf.etagMatches)return null;
+   const entry={etag:'new'+(++i),body};objects.set(key,entry);return entry;
+  }
+ };
+ const previous=globalThis.fetch;
+ globalThis.fetch=async()=>new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),{status:200});
+ let attempts=0;
+ const env={CONTENT_FINAL:bucket,SITE_PUBLISH_TOKEN:'not-visible',DIRECT_AI_STAGE:'canary-publish'};
+ try{
+  const one=await canaryPublishOnce(env,{publish:async()=>{
+   attempts++;return {ok:false,reason:'PUBLISH_TRANSPORT_UNKNOWN'}},clock:()=>Date.parse('2026-11-12T08:00:00Z')});
+  assert.equal(one.state,'BLOCKED_UNKNOWN');
+  const two=await canaryPublishOnce(env,{publish:async()=>{
+   attempts++;throw Error('SHOULD_NOT_RETRY')},clock:()=>Date.parse('2026-11-12T08:03:00Z')});
+  assert.equal(two.reason,'CANARY_PUBLISH_ALREADY_RECORDED');
+  assert.equal(attempts,1);
+ }finally{globalThis.fetch=previous}
 });
