@@ -9,6 +9,7 @@ import {providerOutcomeAction} from './provider-response.mjs';
 import {planDirectProviderWindow} from './provider-window.mjs';
 import {directTopicAt,directTopicSpaceLength,DIRECT_TOPIC_SPACE_VERSION} from './topic-space.mjs';
 import {withDirectLease} from './lease.mjs';
+import {DIRECT_READY_TARGET,planGenerationMarkets,planQuotaCooldown} from './production-guard.mjs';
 
 const ROOT='_ops/noondealsnow-direct-ai-v1/',READY=ROOT+'ready/';
 const headers={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
@@ -121,6 +122,10 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
    // Authentication failures are permanent for that credential until the
    // owner updates the key pool; never send another request with a known 401.
    if(await env.CONTENT_FINAL.head(authRejectKey))continue;
+   const cooldownKey=ROOT+'provider-quota-cooldown/'+entry.provider+'/'+keyRef+'.json';
+   const activeCooldown=await jsonGet(env,cooldownKey);
+   if(Number.isFinite(Date.parse(String(activeCooldown?.until||'')))&&
+      Date.parse(activeCooldown.until)>Date.now())continue;
    chosen={provider:entry.provider,model,keyRef};calls++;
    try{result=await providerRequest(entry.provider,entry.key,model,batchArticlePrompt(topic))}
    catch{
@@ -130,8 +135,17 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
    }
    const action=providerOutcomeAction(result);
    if(action==='ACCEPT')break;
-   // A definitive 429 had no completed output: another free key is safe.
-   if(action==='NEXT_FREE_KEY')continue;
+   // A definitive 429 has no completed output, but it should not be spent
+   // again every minute: persist an exponential cooling window in R2 first.
+   if(action==='NEXT_FREE_KEY'){
+    const old=await jsonGet(env,cooldownKey);
+    const cooldown=planQuotaCooldown(entry.provider,Math.max(0,Number(old?.failures||0)));
+    const saved=await jsonPut(env,cooldownKey,{...cooldown,provider:entry.provider,
+     keyRef,http:429,at:utc()});
+    if(!saved)return logState(env,{phase:'QUOTA_COOLDOWN_WRITE_UNCONFIRMED',market,
+      provider:entry.provider,calls});
+    continue;
+   }
    if(action==='NEXT_VALID_KEY'){
     // A rejected 401/403 has no generated content. Persist the redacted key
     // fingerprint before trying another distinct credential, at most 3 total.
@@ -448,17 +462,40 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
    published:published.filter(x=>x.ok).map(x=>x.slug),
    publishReasons:published.map(x=>x.reason)});
  }
- // Both markets generate concurrently; each uses its own atomic R2 lease,
- // checkpoint and provider cursor. No GitHub runner generates articles.
- const generated=await Promise.allSettled(['SA','AE'].map(async market=>{
+ // READY backpressure prevents the parallel markets from consuming free
+ // tokens merely to build an unlimited backlog when publishing is slower.
+ let readyStock;
+ try{readyStock=await env.CONTENT_FINAL.list({prefix:READY,limit:DIRECT_READY_TARGET+1})}
+ catch{
+  const published=await publications;
+  return logState(env,{phase:'READY_STOCK_UNAVAILABLE_PAUSED',
+   publishReasons:published.map(x=>x.reason)});
+ }
+ if(readyStock.truncated){
+  const published=await publications;
+  return logState(env,{phase:'READY_STOCK_OVER_LIMIT_PAUSED',
+   readyStockLowerBound:readyStock.objects.length,
+   published:published.filter(x=>x.ok).map(x=>x.slug)});
+ }
+ const markets=planGenerationMarkets(readyStock.objects.length,minute);
+ if(!markets.length){
+  const published=await publications;
+  return logState(env,{phase:'READY_STOCK_BACKPRESSURE',
+   readyCount:readyStock.objects.length,
+   published:published.filter(x=>x.ok).map(x=>x.slug),
+   publishReasons:published.map(x=>x.reason)});
+ }
+ // Independent leases permit bounded parallel country generation only when
+ // buffer stock is low. No GitHub runner generates articles.
+ const generated=await Promise.allSettled(markets.map(async market=>{
   try{return await generate(env,market)}
   catch{return {phase:'GENERATION_TRANSIENT_UNAVAILABLE',market}}
  }));
  const published=await publications;
  if(force?.pending)await jsonPut(env,ROOT+'manual-request.json',{pending:false,handledAt:utc()});
  return {ok:true,engine:'cloudflare-direct-r2-v1',parallelMarkets:['SA','AE'],
-  generation:generated.map((x,i)=>x.status==='fulfilled'?x.value:{phase:'GENERATION_UNCONFIRMED',market:['SA','AE'][i]}),
-  publishing:published};
+  generation:generated.map((x,i)=>x.status==='fulfilled'?x.value:{phase:'GENERATION_UNCONFIRMED',market:markets[i]}),
+  readyBefore:readyStock.objects.length,productionMarkets:markets,publishing:published};
 }
 export async function requestDirectGeneration(env){
  if(env.DIRECT_AI_STAGE!=='production')
