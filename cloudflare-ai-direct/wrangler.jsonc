@@ -13,7 +13,7 @@
   },
   "vars": {
     "SITE_ID": "noondealsnow",
-    "DIRECT_AI_STAGE": "canary-generation"
+    "DIRECT_AI_STAGE": "canary-publish"
   },
   "r2_buckets": [
     {
