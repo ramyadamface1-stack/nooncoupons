@@ -153,7 +153,7 @@ test('N10 fast path never admits future/unapproved slugs or cross-market coupon 
  for(const slug of [
   'saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov188-2026-n10',
   'uae-buyer-xiaomi-phone-nfc-wallet-regional-compatibility-nov170-2026-n10',
-  'saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n11',
+  'saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n12',
   'saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n100',
   'saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n4'
  ]){
@@ -162,4 +162,39 @@ test('N10 fast path never admits future/unapproved slugs or cross-market coupon 
   assert.equal(res,null,slug);
  }
  assert.deepEqual(item.calls(),{gets:0,writes:0});
+});
+
+test('N11 Saudi and UAE originals use the same cheap native rendering as N10',async()=>{
+ const inputs=[
+  {country:'SA',slug:'saudi-buyer-samsung-tablet-offline-annotation-workflow-nov170-2026-n11',code:'NOV170',lang:'ar'},
+  {country:'AE',slug:'uae-buyer-samsung-tablet-pdf-handwriting-export-file-formats-nov188-2026-n11',code:'NOV188',lang:'en'}
+ ];
+ for(const row of inputs){
+  const item=fixture({country:row.country});
+  const res=await nativeBoundAiV2ArticleFastResponse(
+   new Request('https://noondealsnow.com/articles/'+row.slug),item.env);
+  assert.equal(res?.status,200,row.country);
+  assert.equal(res.headers.get('x-native-article-renderer'),'approved-fast-v1');
+  assert.equal(res.headers.get('content-language'),row.lang);
+  const html=await res.text();
+  assert.ok(html.includes(row.code));
+  assert.match(html,/rel="canonical"/);
+  assert.deepEqual(item.calls(),{gets:1,writes:0});
+ }
+});
+
+test('unpublished approved N11 article returns uncached 404 instead of expensive 1102 legacy fallback',async()=>{
+ const slug='uae-buyer-samsung-tablet-pdf-handwriting-export-file-formats-nov188-2026-n11';
+ let gets=0;
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{
+  async get(key){gets++;assert.equal(key,'articles/'+slug+'.html');return null},
+  async list(){throw Error('Must not enumerate R2')},
+  async put(){throw Error('Read-only route must not write')}
+ }};
+ const response=await nativeBoundAiV2ArticleFastResponse(
+  new Request('https://noondealsnow.com/articles/'+slug),env);
+ assert.equal(response?.status,404);
+ assert.equal(response.headers.get('cache-control'),'no-store');
+ assert.equal(response.headers.get('x-native-article-absence'),'r2-confirmed-v1');
+ assert.equal(gets,1);
 });
