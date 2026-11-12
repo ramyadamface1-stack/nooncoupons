@@ -17,7 +17,7 @@ test('the direct Worker has no GitHub runtime and publishing pilot is limited',(
   assert.doesNotMatch(read(path),/api\.github\.com|actions\/workflows|GITHUB_DISPATCH_TOKEN|repository_dispatch/);
  const cfg=JSON.parse(read('cloudflare-ai-direct/wrangler.jsonc'));
  assert.equal(cfg.r2_buckets[0].bucket_name,'nooncoupons-content-v2');
- assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-publish');
+ assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-gemini-generation');
  assert.deepEqual(cfg.triggers.crons,['* * * * *']);
  const engine=read('cloudflare-ai-direct/engine.mjs');
  assert.match(engine,/async function canaryGenerateOnce\(env,scheduledAt\)/);
@@ -63,8 +63,8 @@ test('the live scheduler remains untouched until canary proof',()=>{
  assert.match(release,/wrangler secret put GEMINI_KEYS_JSON/);
  assert.match(release,/wrangler secret put GROQ_KEYS_JSON/);
  assert.match(release,/wrangler secret put SITE_PUBLISH_TOKEN/);
- assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;NATIVE_PILOT_ARTICLE_CAP=1/);
- assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_OFFSET_NATIVE_PILOT/);
+ assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;GEMINI_FRESH_SINGLE_REQUEST=1/);
+ assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_GEMINI_SINGLE_CANARY/);
  assert.doesNotMatch(release,/wrangler deploy --config ai-scheduler-v2\/wrangler\.jsonc/);
 });
 
@@ -238,6 +238,21 @@ test('versioned lazy topic reserve expands each market without prebuilding thous
  assert.match(engine,/directTopicAt\(topics,index\)/);
  assert.match(engine,/previous\?\.space===DIRECT_TOPIC_SPACE_VERSION/);
  assert.match(engine,/canary-groq-once-v3/);
+});
+
+test('fresh Gemini one-shot canary prevents second provider spend with missing keys',async()=>{
+ const {directTick}=await import('../cloudflare-ai-direct/engine.mjs');
+ let writes=0;const previous=globalThis.fetch;
+ globalThis.fetch=async url=>{
+  assert.equal(String(url),'https://noondealsnow.com/api/ai-v2-control-policy');
+  return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),{status:200});
+ };
+ const env={DIRECT_AI_STAGE:'canary-gemini-generation',GEMINI_KEYS_JSON:'[]',GROQ_KEYS_JSON:'[]',
+  CONTENT_FINAL:{list:async()=>({objects:[]}),put:async()=>{writes++;return {etag:'one'}}}};
+ try{
+  assert.deepEqual(await directTick(env),{ok:false,phase:'GEMINI_CANARY_KEYS_MISSING'});
+  assert.equal(writes,0);
+ }finally{globalThis.fetch=previous}
 });
 
 test('Groq and Gemini are interleaved; SA and AE start with distinct providers',async()=>{
