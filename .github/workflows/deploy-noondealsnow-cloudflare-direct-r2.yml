@@ -35,6 +35,12 @@ jobs:
           node --check cloudflare-ai-direct/rpc-entry.mjs
           if grep -Eq 'api.github.com|GITHUB_DISPATCH_TOKEN|actions/workflows' cloudflare-ai-direct/engine.mjs cloudflare-ai-direct/keys.mjs cloudflare-ai-direct/rpc-entry.mjs; then exit 22; fi
           echo 'CLOUDFLARE_DIRECT_R2_PREFLIGHT=PASS'
+      - name: Mandatory zero-network direct publication safety tests before Cloudflare deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/cloudflare-ai-direct-canary.test.mjs
+          echo 'DIRECT_NATIVE_PILOT_TESTS=PASS;NO_PROVIDER_CALLS=TRUE'
       - name: Build and deploy isolated direct R2 Worker
         run: |
           npm install --no-audit --no-fund --ignore-scripts
