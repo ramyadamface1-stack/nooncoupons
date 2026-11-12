@@ -485,9 +485,9 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  try{p=await policy(env)}catch(e){return logState(env,{phase:String(e?.message||'POLICY_UNAVAILABLE')})}
  if(!p.enabled)return logState(env,{phase:'PAUSED_MANUALLY'});
  const minute=Math.floor(Number(scheduledAt)/60000);
- // Publish opportunities are independent from new generation. The second
- // bounded attempt is offset by 35 seconds and still obeys the global
- // atomic 30-second site permit; a slot collision never bypasses the gate.
+ // Publish independently from generation, with one bounded native POST
+ // opportunity per scheduled minute at a deterministic +35s offset.
+ // The existing atomic site permit remains authoritative.
  const publications=runNativePublicationWindow(env,p,{scheduledAt});
  const force=await jsonGet(env,ROOT+'manual-request.json',null);
  if(minute%p.intervalMinutes!==0&&!(force?.pending&&Date.now()-Date.parse(force.createdAt)<120000)){
