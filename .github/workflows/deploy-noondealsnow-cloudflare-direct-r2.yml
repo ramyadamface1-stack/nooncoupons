@@ -1,4 +1,4 @@
-name: Deploy NoonDealsNow Direct R2 Groq Three-Key Auth Canary (Cloudflare only)
+name: Deploy NoonDealsNow Direct R2 Native Publication Offset Pilot
 on:
   push:
     branches: [main]
@@ -23,12 +23,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify three-key Groq authentication stage and destination API token
+      - name: Verify bounded native publication retry stage and destination token
         shell: bash
         run: |
           set -euo pipefail
           test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 20
-          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('cloudflare-ai-direct/wrangler.jsonc','utf8')); if(c.name!=='noondealsnow-ai-direct-r2'||c.vars.DIRECT_AI_STAGE!=='canary-groq-generation'||c.triggers.crons.length!==1||c.triggers.crons[0]!=='* * * * *')process.exit(21)"
+          node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('cloudflare-ai-direct/wrangler.jsonc','utf8')); if(c.name!=='noondealsnow-ai-direct-r2'||c.vars.DIRECT_AI_STAGE!=='canary-publish'||c.triggers.crons.length!==1||c.triggers.crons[0]!=='* * * * *')process.exit(21)"
           node --check cloudflare-ai-direct/engine.mjs
           node --check cloudflare-ai-direct/provider-window.mjs
           node --check cloudflare-ai-direct/keys.mjs
@@ -128,14 +128,14 @@ jobs:
             jq -e --arg n "$name" 'any(.[]; .name == $n)' /tmp/ndn-direct-secret-after.json >/dev/null || { echo "DIRECT_REQUIRED_SECRET_MISSING=$name"; exit 44; }
           done
           echo 'DIRECT_CLOUDFLARE_CREDENTIAL_NAMES=VERIFIED;GITHUB_GENERATION=DISABLED_IN_DIRECT_ENGINE'
-          echo 'DIRECT_BULK_PUBLISHING=DISABLED;GROQ_CANARY_PROVIDER_CALL_CAP=3'
+          echo 'DIRECT_BULK_PUBLISHING=DISABLED;NATIVE_PILOT_ARTICLE_CAP=1'
       - name: Validate canary stage and no runtime GitHub usage
         shell: bash
         run: |
           set -euo pipefail
           for i in 1 2 3; do
             code=$(curl -sS --max-time 20 -o /tmp/direct-r2-health.json -w '%{http_code}' 'https://noondealsnow-ai-direct-r2.ndn-e4c35f8a50.workers.dev/health' || true)
-            if [ "$code" = 200 ] && jq -e '.ok==true and .schedulerEnabled==false and .githubRuntime==false and .directStage=="canary-groq-generation" and .groqCanaryEnabled==true and .canaryPublishingEnabled==false' /tmp/direct-r2-health.json >/dev/null; then
+            if [ "$code" = 200 ] && jq -e '.ok==true and .schedulerEnabled==false and .githubRuntime==false and .directStage=="canary-publish" and .canaryPublishingEnabled==true and .schedulerEnabled==false' /tmp/direct-r2-health.json >/dev/null; then
               echo 'DIRECT_CLOUDFLARE_R2_CANARY=VERIFIED'
               exit 0
             fi
@@ -152,6 +152,6 @@ jobs:
             "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/noondealsnow-ai-direct-r2/schedules")
           test "$code" = 200 || { echo "DIRECT_CANARY_CRON_READ_FAILED"; exit 51; }
           jq -e '.success==true and any(.result.schedules[]?; .cron=="* * * * *")' /tmp/ndn-direct-cron.json >/dev/null || { echo "DIRECT_CANARY_CRON_MISSING"; exit 52; }
-          echo 'DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_BOUNDED_GROQ_CANARY'
-          echo 'DIRECT_BULK_PUBLISH=DISABLED;THREE_DISTINCT_GROQ_KEYS_MAX;LEGACY_PUBLISHER=UNCHANGED'
-          echo 'CANARY_GROQ=AT_MOST_THREE_DISTINCT_PROVIDER_POSTS;NO_PUBLICATION'
+          echo 'DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_OFFSET_NATIVE_PILOT'
+          echo 'DIRECT_BULK_PUBLISH=DISABLED;ONE_PILOT_ARTICLE_MAX;LEGACY_PUBLISHER=UNCHANGED'
+          echo 'CANARY_PUBLISH=ONE_PINNED_ARTICLE_MAX;NO_AI_REQUESTS'
