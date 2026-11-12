@@ -351,14 +351,22 @@ export async function canaryPublishOnce(env,{publish=publishOne,clock=Date.now}=
  try{p=await policy(env)}catch{return {ok:false,reason:'CANARY_POLICY_UNAVAILABLE'}}
  if(!p.enabled)return {ok:false,reason:'CANARY_PAUSED'};
  if(!env.SITE_PUBLISH_TOKEN)return {ok:false,reason:'NATIVE_PUBLISH_TOKEN_MISSING'};
- const marker=ROOT+'canary-publish-once-v2.json';
+ // This v3 pilot is pinned to the fresh article prepared by Cloudflare itself.
+ // A pre-existing published URL is NOT proof of direct native publication.
+ const freshStage=env.DIRECT_AI_STAGE==='canary-publish-fresh';
+ const marker=ROOT+(freshStage?'canary-publish-fresh-v1.json':'canary-publish-once-v2.json');
+ const freshSource=freshStage?await jsonGet(env,ROOT+'canary-gemini-fresh-v1.json'):null;
+ const freshSlug=freshSource?.state==='READY_CREATED'&&
+   typeof freshSource.slug==='string'&&/^uae-[a-z0-9-]+-n11$/.test(freshSource.slug)?
+   freshSource.slug:null;
+ if(freshStage&&!freshSlug)return {ok:false,reason:'FRESH_GEMINI_NOT_READY'};
  let object=null,prior=null;
  try{
   object=await env.CONTENT_FINAL.get(marker);
   if(object)prior=await object.json();
  }catch{return {ok:false,reason:'CANARY_MARKER_UNAVAILABLE'}}
  if(object&&(!prior||!Number.isInteger(prior.attempts)||
-   !['STARTED','WAIT_SLOT','VERIFIED','BLOCKED_UNKNOWN'].includes(prior.state)))
+   !['STARTED','WAIT_SLOT','VERIFIED','BLOCKED_UNKNOWN','EXTERNAL_LIVE'].includes(prior.state)))
   return {ok:false,reason:'CANARY_MARKER_INVALID'};
  if(prior?.state!=='WAIT_SLOT'&&prior)return {ok:prior.state==='VERIFIED',
    reason:'CANARY_PUBLISH_ALREADY_RECORDED',state:prior.state,slug:prior.slug||null};
@@ -376,7 +384,7 @@ export async function canaryPublishOnce(env,{publish=publishOne,clock=Date.now}=
    if(!candidate||candidate.state!=='READY'||candidate.topic?.country!=='AE'||
      candidate.topic?.coupon!=='NOV188'||!/^uae-[a-z0-9-]+-n11$/.test(String(candidate.topic?.slug||'')))
     continue;
-   if(prior?.slug&&candidate.topic.slug!==prior.slug)continue;
+   if((prior?.slug&&candidate.topic.slug!==prior.slug)||(freshSlug&&candidate.topic.slug!==freshSlug))continue;
    record=candidate;break;
   }
   if(!record)return {ok:false,reason:'CANARY_VALID_READY_NOT_FOUND'};
@@ -393,11 +401,13 @@ export async function canaryPublishOnce(env,{publish=publishOne,clock=Date.now}=
  try{outcome=await publish(env,p,{onlySlug:record.topic.slug})}
  catch{outcome={ok:false,reason:'PUBLISH_TRANSPORT_UNKNOWN'}}
  const verified=outcome?.ok===true&&
-  ['LIVE_VERIFIED','RECONCILED_LIVE_VERIFIED','ALREADY_LIVE_VERIFIED'].includes(outcome.reason)&&
+  ['LIVE_VERIFIED','RECONCILED_LIVE_VERIFIED'].includes(outcome.reason)&&
   outcome.slug===record.topic.slug;
  const noWrite=outcome?.ok===false&&
   ['PUBLICATION_SLOT_NOT_DUE','PUBLICATION_INTERVAL_NOT_DUE','LEASE_ACTIVE'].includes(outcome.reason);
- const state=verified?'VERIFIED':noWrite?'WAIT_SLOT':'BLOCKED_UNKNOWN';
+ const preexisting=outcome?.ok===true&&outcome.reason==='ALREADY_LIVE_VERIFIED'&&
+  outcome.slug===record.topic.slug;
+ const state=preexisting?'EXTERNAL_LIVE':verified?'VERIFIED':noWrite?'WAIT_SLOT':'BLOCKED_UNKNOWN';
  const reason=typeof outcome?.reason==='string'&&/^[A-Z_]{3,70}$/.test(outcome.reason)?
   outcome.reason:'UNKNOWN_PUBLISH_RESULT';
  await jsonPut(env,marker,{state,reason,attempts,slug:record.topic.slug,at:new Date(clock()).toISOString()});
@@ -408,7 +418,7 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  if(env.DIRECT_AI_STAGE==='canary-generation')return canaryGenerateOnce(env,scheduledAt);
  if(env.DIRECT_AI_STAGE==='canary-groq-generation')return canaryGroqOnce(env);
  if(env.DIRECT_AI_STAGE==='canary-gemini-generation')return canaryGeminiOnce(env);
- if(env.DIRECT_AI_STAGE==='canary-publish'){
+ if(['canary-publish','canary-publish-fresh'].includes(env.DIRECT_AI_STAGE)){
   // Run out of phase with the legacy minute tick to avoid the observed
   // PUBLICATION_SLOT_NOT_DUE collision, never bypassing the atomic site gate.
   const due=Math.floor(Number(scheduledAt)/60000)*60000+35000;
@@ -473,7 +483,7 @@ export async function directStatus(env){
   jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json'),
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null,
-  env.DIRECT_AI_STAGE==='canary-publish'?jsonGet(env,ROOT+'canary-publish-once-v2.json'):null,
+  ['canary-publish','canary-publish-fresh'].includes(env.DIRECT_AI_STAGE)?jsonGet(env,ROOT+(env.DIRECT_AI_STAGE==='canary-publish-fresh'?'canary-publish-fresh-v1.json':'canary-publish-once-v2.json')):null,
   env.DIRECT_AI_STAGE==='canary-groq-generation'?jsonGet(env,ROOT+'canary-groq-once-v3.json'):null,
   env.DIRECT_AI_STAGE==='canary-gemini-generation'?jsonGet(env,ROOT+'canary-gemini-fresh-v1.json'):null
  ]);
@@ -492,21 +502,22 @@ export async function directStatus(env){
    slug:geminiMarker.slug||null,at:geminiMarker.at||null}:null,
   groqCanary:groqMarker?{state:groqMarker.state,provider:groqMarker.provider||null,
    reason:groqMarker.reason||null,at:groqMarker.at||null}:null,
-  canaryPublishingEnabled:env.DIRECT_AI_STAGE==='canary-publish',canaryPublishMaxAttempts:5,
+  canaryPublishingEnabled:['canary-publish','canary-publish-fresh'].includes(env.DIRECT_AI_STAGE),
+  freshNativePilotEnabled:env.DIRECT_AI_STAGE==='canary-publish-fresh',canaryPublishMaxAttempts:5,
   canaryMaxAttemptsPerMarket:1,canaryWave:2,
   intervalMinutes:p?.intervalMinutes||null,
   publishingIntervalMinutes:p?.publishingIntervalMinutes||null,
   source:'cloudflare-cron-r2-direct',controlStatus:p?(env.DIRECT_AI_STAGE==='production'?'POLICY_VERIFIED':
    env.DIRECT_AI_STAGE==='canary-generation'?'CANARY_GENERATION_ONLY':
-   env.DIRECT_AI_STAGE==='canary-publish'?'CANARY_PUBLISH_ONLY':
+   ['canary-publish','canary-publish-fresh'].includes(env.DIRECT_AI_STAGE)?'CANARY_PUBLISH_ONLY':
    env.DIRECT_AI_STAGE==='canary-groq-generation'?'GROQ_CANARY_ONLY':
    env.DIRECT_AI_STAGE==='canary-gemini-generation'?'GEMINI_CANARY_ONLY':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
   dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,directStage:env.DIRECT_AI_STAGE||'unset',
   freeOnly:true,readyCount:ready.objects.filter(x=>!x.key.endsWith('/')).length,
   readyCountExact:ready.truncated!==true,
   canaryAttempts:env.DIRECT_AI_STAGE==='canary-generation'?{SA:canaryAttempt(canarySA),AE:canaryAttempt(canaryAE)}:null,
-  canaryPublication:env.DIRECT_AI_STAGE==='canary-publish'&&pilotMarker?{
-   state:['STARTED','WAIT_SLOT','VERIFIED','BLOCKED_UNKNOWN'].includes(pilotMarker.state)?pilotMarker.state:'UNKNOWN',
+  canaryPublication:['canary-publish','canary-publish-fresh'].includes(env.DIRECT_AI_STAGE)&&pilotMarker?{
+   state:['STARTED','WAIT_SLOT','VERIFIED','BLOCKED_UNKNOWN','EXTERNAL_LIVE'].includes(pilotMarker.state)?pilotMarker.state:'UNKNOWN',
    attempts:Number.isInteger(pilotMarker.attempts)?pilotMarker.attempts:0,
    reason:typeof pilotMarker.reason==='string'&&/^[A-Z_]{3,70}$/.test(pilotMarker.reason)?pilotMarker.reason:null,
    slug:typeof pilotMarker.slug==='string'&&/^[a-z0-9-]+$/.test(pilotMarker.slug)?pilotMarker.slug:null,

@@ -17,7 +17,7 @@ test('the direct Worker has no GitHub runtime and publishing pilot is limited',(
   assert.doesNotMatch(read(path),/api\.github\.com|actions\/workflows|GITHUB_DISPATCH_TOKEN|repository_dispatch/);
  const cfg=JSON.parse(read('cloudflare-ai-direct/wrangler.jsonc'));
  assert.equal(cfg.r2_buckets[0].bucket_name,'nooncoupons-content-v2');
- assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-gemini-generation');
+ assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-publish-fresh');
  assert.deepEqual(cfg.triggers.crons,['* * * * *']);
  const engine=read('cloudflare-ai-direct/engine.mjs');
  assert.match(engine,/async function canaryGenerateOnce\(env,scheduledAt\)/);
@@ -63,8 +63,8 @@ test('the live scheduler remains untouched until canary proof',()=>{
  assert.match(release,/wrangler secret put GEMINI_KEYS_JSON/);
  assert.match(release,/wrangler secret put GROQ_KEYS_JSON/);
  assert.match(release,/wrangler secret put SITE_PUBLISH_TOKEN/);
- assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;GEMINI_FRESH_SINGLE_REQUEST=1/);
- assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_GEMINI_SINGLE_CANARY/);
+ assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;FRESH_NATIVE_PUBLISH_ONLY=TRUE/);
+ assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_FRESH_NATIVE_PILOT/);
  assert.doesNotMatch(release,/wrangler deploy --config ai-scheduler-v2\/wrangler\.jsonc/);
 });
 
@@ -507,4 +507,66 @@ test('publishing pilot permanently quarantines an ambiguous native response',asy
   assert.equal(two.reason,'CANARY_PUBLISH_ALREADY_RECORDED');
   assert.equal(attempts,1);
  }finally{globalThis.fetch=previous}
+});
+
+test('fresh native pilot never publishes without a new Gemini READY marker',async()=>{
+ const {canaryPublishOnce}=await import('../cloudflare-ai-direct/engine.mjs');
+ const originalFetch=globalThis.fetch;
+ let calls=0;
+ globalThis.fetch=async url=>{
+  assert.equal(String(url),'https://noondealsnow.com/api/ai-v2-control-policy');
+  return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),{status:200});
+ };
+ const env={DIRECT_AI_STAGE:'canary-publish-fresh',SITE_PUBLISH_TOKEN:'SECRET',CONTENT_FINAL:{
+  async get(){return null},async list(){throw Error('SHOULD_NOT_LIST_READY')},
+  async put(){throw Error('SHOULD_NOT_PUBLISH')}
+ }};
+ try{
+  const result=await canaryPublishOnce(env,{publish:async()=>{calls++;throw Error('UNSAFE_PUBLISH')}});
+  assert.deepEqual(result,{ok:false,reason:'FRESH_GEMINI_NOT_READY'});
+  assert.equal(calls,0);
+ }finally{globalThis.fetch=originalFetch}
+});
+
+test('fresh native pilot pins the exact newly generated slug and does not claim an existing URL as new publication',async()=>{
+ const {canaryPublishOnce,directStatus}=await import('../cloudflare-ai-direct/engine.mjs');
+ const prefix='_ops/noondealsnow-direct-ai-v1/',slug='uae-buyer-fresh-router-research-nov188-2026-n11';
+ const records=new Map();let serial=0;const save=(key,value)=>{
+  const item={etag:'e'+(++serial),value};records.set(key,item);return {etag:item.etag};
+ };
+ save(prefix+'canary-gemini-fresh-v1.json',{state:'READY_CREATED',slug,provider:'gemini'});
+ save(prefix+'ready/old.json',{state:'READY',topic:{slug:'uae-buyer-old-topic-nov188-2026-n11',country:'AE',coupon:'NOV188'}});
+ save(prefix+'ready/new.json',{state:'READY',topic:{slug,country:'AE',coupon:'NOV188'}});
+ const b={
+  async get(key){const o=records.get(key);return o?{etag:o.etag,json:async()=>o.value}:null},
+  async put(key,body,{onlyIf}={}){const o=records.get(key);
+   if(onlyIf?.etagMatches&&o?.etag!==onlyIf.etagMatches)return null;
+   if(onlyIf?.etagDoesNotMatch==='*'&&o)return null;
+   return save(key,JSON.parse(body));
+  },
+  async list({prefix:p}){return {objects:[...records.keys()].filter(k=>k.startsWith(p)).map(key=>({key})),truncated:false}}
+ };
+ const originalFetch=globalThis.fetch;
+ globalThis.fetch=async url=>{
+  assert.equal(String(url),'https://noondealsnow.com/api/ai-v2-control-policy');
+  return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),{status:200});
+ };
+ const env={DIRECT_AI_STAGE:'canary-publish-fresh',SITE_PUBLISH_TOKEN:'PRIVATE_DO_NOT_ECHO',CONTENT_FINAL:b};
+ const called=[];
+ try{
+  const first=await canaryPublishOnce(env,{publish:async(_env,_p,{onlySlug})=>{
+   called.push(onlySlug);return {ok:true,reason:'ALREADY_LIVE_VERIFIED',slug:onlySlug};
+  },clock:()=>Date.parse('2026-11-12T22:30:00Z')});
+  assert.equal(first.ok,false);
+  assert.equal(first.state,'EXTERNAL_LIVE');
+  assert.deepEqual(called,[slug]);
+  const next=await canaryPublishOnce(env,{publish:async()=>{throw Error('NO_DUPLICATE_POST')},
+   clock:()=>Date.parse('2026-11-12T22:32:00Z')});
+  assert.equal(next.reason,'CANARY_PUBLISH_ALREADY_RECORDED');
+  const status=await directStatus(env);
+  assert.equal(status.schedulerEnabled,false);
+  assert.equal(status.freshNativePilotEnabled,true);
+  assert.equal(status.canaryPublication.state,'EXTERNAL_LIVE');
+  assert.doesNotMatch(JSON.stringify(status),/PRIVATE_DO_NOT_ECHO/);
+ }finally{globalThis.fetch=originalFetch}
 });
