@@ -262,9 +262,62 @@ async function canaryGenerateOnce(env,scheduledAt){
  return {ok:completed,market,phase:completed?'CANARY_READY_CREATED':'CANARY_GENERATION_BLOCKED',
   reason:result?.phase||'UNKNOWN',slug:result?.slug||null};
 }
+// A single Cloudflare-only native-publication pilot. Existing GitHub
+// publication retains the shared atomic site slot; this pilot cannot bypass it.
+// Never repeat a request unless the native bridge proves NO WRITE occurred.
+export async function canaryPublishOnce(env,{publish=publishOne,clock=Date.now}={}){
+ if(!env?.CONTENT_FINAL)return {ok:false,reason:'R2_BINDING_MISSING'};
+ let p;
+ try{p=await policy(env)}catch{return {ok:false,reason:'CANARY_POLICY_UNAVAILABLE'}}
+ if(!p.enabled)return {ok:false,reason:'CANARY_PAUSED'};
+ if(!env.SITE_PUBLISH_TOKEN)return {ok:false,reason:'NATIVE_PUBLISH_TOKEN_MISSING'};
+ const marker=ROOT+'canary-publish-once-v1.json';
+ let object=null,prior=null;
+ try{
+  object=await env.CONTENT_FINAL.get(marker);
+  if(object)prior=await object.json();
+ }catch{return {ok:false,reason:'CANARY_MARKER_UNAVAILABLE'}}
+ if(object&&(!prior||!Number.isInteger(prior.attempts)||
+   !['STARTED','WAIT_SLOT','VERIFIED','BLOCKED_UNKNOWN'].includes(prior.state)))
+  return {ok:false,reason:'CANARY_MARKER_INVALID'};
+ if(prior?.state!=='WAIT_SLOT'&&prior)return {ok:prior.state==='VERIFIED',
+   reason:'CANARY_PUBLISH_ALREADY_RECORDED',state:prior.state,slug:prior.slug||null};
+ if((prior?.attempts||0)>=5)return {ok:false,reason:'CANARY_PUBLISH_ATTEMPT_LIMIT'};
+ if(prior?.at&&clock()-Date.parse(prior.at)<55000)
+  return {ok:false,reason:'CANARY_PUBLISH_COOLDOWN'};
+ let listing,record;
+ try{
+  listing=await env.CONTENT_FINAL.list({prefix:READY,limit:2});
+  if(listing.truncated||listing.objects.length!==1)
+   return {ok:false,reason:'CANARY_READY_STOCK_NOT_SINGLE'};
+  record=await jsonGet(env,listing.objects[0].key);
+ }catch{return {ok:false,reason:'CANARY_READY_UNAVAILABLE'}}
+ if(record?.state!=='READY'||record?.topic?.country!=='AE'||
+   record?.topic?.coupon!=='NOV188'||typeof record.topic.slug!=='string'||
+   !record.topic.slug.startsWith('uae-'))
+  return {ok:false,reason:'CANARY_READY_NOT_VALIDATED'};
+ const attempts=(prior?.attempts||0)+1,at=new Date(clock()).toISOString();
+ const written=await jsonPut(env,marker,{state:'STARTED',attempts,slug:record.topic.slug,at},
+  {onlyIf:object?{etagMatches:object.etag}:{etagDoesNotMatch:'*'}});
+ if(!written)return {ok:false,reason:'CANARY_PUBLISH_CLAIM_RACE'};
+ let outcome;
+ try{outcome=await publish(env,p)}
+ catch{outcome={ok:false,reason:'PUBLISH_TRANSPORT_UNKNOWN'}}
+ const verified=outcome?.ok===true&&
+  ['LIVE_VERIFIED','RECONCILED_LIVE_VERIFIED','ALREADY_LIVE_VERIFIED'].includes(outcome.reason)&&
+  outcome.slug===record.topic.slug;
+ const noWrite=outcome?.ok===false&&
+  ['PUBLICATION_SLOT_NOT_DUE','PUBLICATION_INTERVAL_NOT_DUE','LEASE_ACTIVE'].includes(outcome.reason);
+ const state=verified?'VERIFIED':noWrite?'WAIT_SLOT':'BLOCKED_UNKNOWN';
+ const reason=typeof outcome?.reason==='string'&&/^[A-Z_]{3,70}$/.test(outcome.reason)?
+  outcome.reason:'UNKNOWN_PUBLISH_RESULT';
+ await jsonPut(env,marker,{state,reason,attempts,slug:record.topic.slug,at:new Date(clock()).toISOString()});
+ return {ok:verified,reason,state,attempts,slug:record.topic.slug};
+}
 export async function directTick(env,{scheduledAt=Date.now()}={}){
  if(!env.CONTENT_FINAL)return {ok:false,reason:'R2_BINDING_MISSING'};
  if(env.DIRECT_AI_STAGE==='canary-generation')return canaryGenerateOnce(env,scheduledAt);
+ if(env.DIRECT_AI_STAGE==='canary-publish')return canaryPublishOnce(env);
  if(env.DIRECT_AI_STAGE!=='production')return {ok:false,reason:'CANARY_NOT_ACTIVE'};
  let p;
  try{p=await policy(env)}catch(e){return logState(env,{phase:String(e?.message||'POLICY_UNAVAILABLE')})}
@@ -299,11 +352,12 @@ export async function requestDirectGeneration(env){
  return {dispatched:true,scheduledVia:'cloudflare-cron-next-minute',githubUsed:false};
 }
 export async function directStatus(env){
- const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE]=await Promise.all([
+ const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE,pilotMarker]=await Promise.all([
   policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),env.CONTENT_FINAL.list({prefix:READY,limit:100}),
   jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json'),
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
-  env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null
+  env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null,
+  env.DIRECT_AI_STAGE==='canary-publish'?jsonGet(env,ROOT+'canary-publish-once-v1.json'):null
  ]);
  const canaryAttempt=row=>{
   if(!row||typeof row!=='object')return null;
@@ -313,15 +367,24 @@ export async function directStatus(env){
   return {state,phase,at};
  };
  return {ok:true,schedulerEnabled:p?.enabled===true&&env.DIRECT_AI_STAGE==='production',
-  canaryGenerationEnabled:env.DIRECT_AI_STAGE==='canary-generation',canaryMaxAttemptsPerMarket:1,canaryWave:2,
+  canaryGenerationEnabled:env.DIRECT_AI_STAGE==='canary-generation',
+  canaryPublishingEnabled:env.DIRECT_AI_STAGE==='canary-publish',canaryPublishMaxAttempts:5,
+  canaryMaxAttemptsPerMarket:1,canaryWave:2,
   intervalMinutes:p?.intervalMinutes||null,
   publishingIntervalMinutes:p?.publishingIntervalMinutes||null,
   source:'cloudflare-cron-r2-direct',controlStatus:p?(env.DIRECT_AI_STAGE==='production'?'POLICY_VERIFIED':
-   env.DIRECT_AI_STAGE==='canary-generation'?'CANARY_GENERATION_ONLY':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
+   env.DIRECT_AI_STAGE==='canary-generation'?'CANARY_GENERATION_ONLY':
+   env.DIRECT_AI_STAGE==='canary-publish'?'CANARY_PUBLISH_ONLY':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
   dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,directStage:env.DIRECT_AI_STAGE||'unset',
   freeOnly:true,readyCount:ready.objects.filter(x=>!x.key.endsWith('/')).length,
   readyCountExact:ready.truncated!==true,
   canaryAttempts:env.DIRECT_AI_STAGE==='canary-generation'?{SA:canaryAttempt(canarySA),AE:canaryAttempt(canaryAE)}:null,
+  canaryPublication:env.DIRECT_AI_STAGE==='canary-publish'&&pilotMarker?{
+   state:['STARTED','WAIT_SLOT','VERIFIED','BLOCKED_UNKNOWN'].includes(pilotMarker.state)?pilotMarker.state:'UNKNOWN',
+   attempts:Number.isInteger(pilotMarker.attempts)?pilotMarker.attempts:0,
+   reason:typeof pilotMarker.reason==='string'&&/^[A-Z_]{3,70}$/.test(pilotMarker.reason)?pilotMarker.reason:null,
+   slug:typeof pilotMarker.slug==='string'&&/^[a-z0-9-]+$/.test(pilotMarker.slug)?pilotMarker.slug:null,
+   at:typeof pilotMarker.at==='string'&&Number.isFinite(Date.parse(pilotMarker.at))?pilotMarker.at:null}:null,
   lastGeneration:status||null,
   marketGeneration:{SA:saStatus||null,AE:aeStatus||null},
   verifiedMarkets:['SA','AE']};
