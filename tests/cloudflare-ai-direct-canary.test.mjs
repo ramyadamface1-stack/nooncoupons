@@ -21,6 +21,9 @@ test('the direct Worker has no GitHub runtime and canary publishes nothing',()=>
  assert.deepEqual(cfg.triggers.crons,['* * * * *']);
  const engine=read('cloudflare-ai-direct/engine.mjs');
  assert.match(engine,/async function canaryGenerateOnce\(env,scheduledAt\)/);
+ assert.match(engine,/canary-once-v2\//);
+ assert.match(engine,/maxProviderAttempts:1/);
+ assert.match(engine,/canaryWave:2/);
  assert.match(engine,/canaryGenerateOnce\(env,scheduledAt\)/);
  assert.match(engine,/const reservation=await jsonPut\(env,attemptKey,\{state:'STARTED'/);
  assert.match(engine,/if\(prior\)return \{ok:prior.state==='READY_CREATED'/);
@@ -180,8 +183,8 @@ test('canary health reads each attempt marker without exposing keys or performin
   return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),{status:200});
  };
  const records={
-  '_ops/noondealsnow-direct-ai-v1/canary-once/SA.json':{state:'READY_CREATED',reason:'READY_CREATED',at:'2026-11-11T20:10:00.000Z',credential:'SECRET_MUST_NOT_LEAK'},
-  '_ops/noondealsnow-direct-ai-v1/canary-once/AE.json':{state:'STARTED',at:'2026-11-11T20:11:00.000Z'}
+  '_ops/noondealsnow-direct-ai-v1/canary-once-v2/SA.json':{state:'READY_CREATED',reason:'READY_CREATED',at:'2026-11-11T20:10:00.000Z',credential:'SECRET_MUST_NOT_LEAK'},
+  '_ops/noondealsnow-direct-ai-v1/canary-once-v2/AE.json':{state:'STARTED',at:'2026-11-11T20:11:00.000Z'}
  };
  const env={DIRECT_AI_STAGE:'canary-generation',CONTENT_FINAL:{
   list:async()=>({objects:[],truncated:false}),
@@ -191,6 +194,7 @@ test('canary health reads each attempt marker without exposing keys or performin
   const status=await directStatus(env);
   assert.equal(status.schedulerEnabled,false);
   assert.equal(status.canaryGenerationEnabled,true);
+  assert.equal(status.canaryWave,2);
   assert.equal(status.readyCount,0);
   assert.deepEqual(status.canaryAttempts.SA,{state:'READY_CREATED',phase:'READY_CREATED',at:'2026-11-11T20:10:00.000Z'});
   assert.deepEqual(status.canaryAttempts.AE,{state:'STARTED',phase:null,at:'2026-11-11T20:11:00.000Z'});
@@ -210,8 +214,9 @@ test('direct provider key selection uses disjoint initial SA/AE windows and adva
  assert.deepEqual(planDirectKeyRotation(1,null,'AE').indices,[0]);
  assert.throws(()=>planDirectKeyRotation(0,null,'SA'),/INVALID_KEY_ROTATION_ARGUMENT/);
  const source=read('cloudflare-ai-direct/engine.mjs');
- assert.match(source,/planDirectKeyRotation\(pool\.length,previousKeys,market\)/);
+ assert.match(source,/planDirectKeyRotation\(pool\.length,seed,market\)/);
+ assert.match(source,/const seed=previousKeys\|\|/);
  assert.match(source,/const advanced=await jsonPut\(env,keyCursor/);
- assert.match(source,/for\(let attempt=0;attempt<rotation\.indices\.length;attempt\+\+\)/);
+ assert.match(source,/for\(let attempt=0;attempt<Math\.min\(rotation\.indices\.length,maxProviderAttempts\);attempt\+\+\)/);
  assert.doesNotMatch(source,/pool\[\(start\+attempt\)%pool\.length\]/);
 });
