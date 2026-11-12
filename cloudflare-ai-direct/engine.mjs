@@ -109,7 +109,12 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
    const entry={provider:selected.provider,key:keys[selected.provider][selected.keyIndex]};
    const model=entry.provider==='groq'?'openai/gpt-oss-120b':
     models[(start+selected.keyIndex)%models.length];
-   chosen={provider:entry.provider,model,keyRef:(await fingerprint(entry.key)).slice(0,12)};calls++;
+   const keyRef=(await fingerprint(entry.key)).slice(0,12);
+   const authRejectKey=ROOT+'provider-rejected/'+entry.provider+'/'+keyRef+'.json';
+   // Authentication failures are permanent for that credential until the
+   // owner updates the key pool; never send another request with a known 401.
+   if(await env.CONTENT_FINAL.head(authRejectKey))continue;
+   chosen={provider:entry.provider,model,keyRef};calls++;
    try{result=await providerRequest(entry.provider,entry.key,model,batchArticlePrompt(topic))}
    catch{
     await jsonPut(env,checkpointKey,{...initial,state:'UNKNOWN_REQUEST_OUTCOME',provider:entry.provider,
@@ -120,6 +125,15 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
    if(action==='ACCEPT')break;
    // A definitive 429 had no completed output: another free key is safe.
    if(action==='NEXT_FREE_KEY')continue;
+   if(action==='NEXT_VALID_KEY'){
+    // A rejected 401/403 has no generated content. Persist the redacted key
+    // fingerprint before trying another distinct credential, at most 3 total.
+    const saved=await jsonPut(env,authRejectKey,{provider:entry.provider,
+     keyRef:chosen.keyRef,http:result.http,at:utc()},{onlyIf:{etagDoesNotMatch:'*'}});
+    if(!saved)return logState(env,{phase:'KEY_REJECTION_WRITE_UNCONFIRMED',market,
+      provider:entry.provider,http:result.http,calls});
+    continue;
+   }
    // A 5xx may follow a model completion or quota consumption. Never
    // automatically resend the same prompt with a different key/provider.
    if(action==='QUARANTINE_UNKNOWN'){
@@ -277,7 +291,7 @@ async function canaryGroqOnce(env){
  try{keys=await listDirectKeys(env,{includePlain:true})}
  catch{return {ok:false,phase:'GROQ_CANARY_KEYS_UNAVAILABLE'}}
  if(!keys.groq.length)return {ok:false,phase:'GROQ_CANARY_KEYS_MISSING'};
- const marker=ROOT+'canary-groq-once-v1.json';
+ const marker=ROOT+'canary-groq-once-v2.json';
  const existing=await jsonGet(env,marker);
  if(existing)return {ok:existing.state==='READY_CREATED',phase:'GROQ_CANARY_ALREADY_RECORDED',
   recordedState:existing.state,provider:existing.provider||null};
@@ -285,7 +299,7 @@ async function canaryGroqOnce(env){
   {onlyIf:{etagDoesNotMatch:'*'}});
  if(!claimed)return {ok:false,phase:'GROQ_CANARY_CLAIM_RACE'};
  let result;
- try{result=await generate(env,'AE',{maxProviderAttempts:1,preferredProvider:'groq',allowFallback:false})}
+ try{result=await generate(env,'AE',{maxProviderAttempts:3,preferredProvider:'groq',allowFallback:false})}
  catch{result={phase:'GROQ_CANARY_UNKNOWN_OUTCOME'}};
  const completed=result?.phase==='READY_CREATED'&&result?.provider==='groq';
  await jsonPut(env,marker,{state:completed?'READY_CREATED':'BLOCKED',provider:'groq',
@@ -408,7 +422,7 @@ export async function directStatus(env){
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null,
   env.DIRECT_AI_STAGE==='canary-publish'?jsonGet(env,ROOT+'canary-publish-once-v1.json'):null,
-  env.DIRECT_AI_STAGE==='canary-groq-generation'?jsonGet(env,ROOT+'canary-groq-once-v1.json'):null
+  env.DIRECT_AI_STAGE==='canary-groq-generation'?jsonGet(env,ROOT+'canary-groq-once-v2.json'):null
  ]);
  const canaryAttempt=row=>{
   if(!row||typeof row!=='object')return null;
