@@ -10,6 +10,7 @@ import {planDirectProviderWindow} from './provider-window.mjs';
 import {directTopicAt,directTopicSpaceLength,DIRECT_TOPIC_SPACE_VERSION} from './topic-space.mjs';
 import {withDirectLease} from './lease.mjs';
 import {DIRECT_READY_TARGET,planGenerationMarkets,planQuotaCooldown} from './production-guard.mjs';
+import {inspectNativeReadyStock} from './stock-housekeeping.mjs';
 
 const ROOT='_ops/noondealsnow-direct-ai-v1/',READY=ROOT+'ready/';
 const headers={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
@@ -514,7 +515,7 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  // READY backpressure prevents the parallel markets from consuming free
  // tokens merely to build an unlimited backlog when publishing is slower.
  let readyStock;
- try{readyStock=await env.CONTENT_FINAL.list({prefix:READY,limit:DIRECT_READY_TARGET+1})}
+ try{readyStock=await inspectNativeReadyStock(env.CONTENT_FINAL)}
  catch{
   const published=await publications;
   return logState(env,{phase:'READY_STOCK_UNAVAILABLE_PAUSED',
@@ -523,14 +524,15 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  if(readyStock.truncated){
   const published=await publications;
   return logState(env,{phase:'READY_STOCK_OVER_LIMIT_PAUSED',
-   readyStockLowerBound:readyStock.objects.length,
+   readyStockLowerBound:readyStock.scanned,
    published:published.filter(x=>x.ok).map(x=>x.slug)});
  }
- const markets=planGenerationMarkets(readyStock.objects.length,minute);
+ const markets=planGenerationMarkets(readyStock.activeCount,minute);
  if(!markets.length){
   const published=await publications;
   return logState(env,{phase:'READY_STOCK_BACKPRESSURE',
-   readyCount:readyStock.objects.length,
+   readyCount:readyStock.activeCount,actualReadyCount:readyStock.readyCount,
+   uncertainPublicationCount:readyStock.unknownCount,quarantinedCount:readyStock.quarantined,
    published:published.filter(x=>x.ok).map(x=>x.slug),
    publishReasons:published.map(x=>x.reason)});
  }
@@ -544,7 +546,8 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  if(force?.pending)await jsonPut(env,ROOT+'manual-request.json',{pending:false,handledAt:utc()});
  return {ok:true,engine:'cloudflare-direct-r2-v1',parallelMarkets:['SA','AE'],
   generation:generated.map((x,i)=>x.status==='fulfilled'?x.value:{phase:'GENERATION_UNCONFIRMED',market:markets[i]}),
-  readyBefore:readyStock.objects.length,productionMarkets:markets,publishing:published};
+  readyBefore:readyStock.activeCount,actualReadyBefore:readyStock.readyCount,
+  nonReadyQuarantined:readyStock.quarantined,productionMarkets:markets,publishing:published};
 }
 export async function requestDirectGeneration(env){
  if(env.DIRECT_AI_STAGE!=='production')
@@ -565,7 +568,7 @@ export async function requestDirectGeneration(env){
 }
 export async function directStatus(env){
  const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE,pilotMarker,groqMarker,geminiMarker,publicationObservation]=await Promise.all([
-  policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),env.CONTENT_FINAL.list({prefix:READY,limit:100}),
+  policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),inspectNativeReadyStock(env.CONTENT_FINAL,{maxCleanup:0}),
   jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json'),
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null,
@@ -600,8 +603,10 @@ export async function directStatus(env){
    env.DIRECT_AI_STAGE==='canary-groq-generation'?'GROQ_CANARY_ONLY':
    env.DIRECT_AI_STAGE==='canary-gemini-generation'?'GEMINI_CANARY_ONLY':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
   dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,directStage:env.DIRECT_AI_STAGE||'unset',
-  freeOnly:true,readyCount:ready.objects.filter(x=>!x.key.endsWith('/')).length,
+  freeOnly:true,readyCount:ready.readyCount,
   readyCountExact:ready.truncated!==true,
+  uncertainPublicationCount:ready.unknownCount,
+  inventoryScanCount:ready.scanned,
   canaryAttempts:env.DIRECT_AI_STAGE==='canary-generation'?{SA:canaryAttempt(canarySA),AE:canaryAttempt(canaryAE)}:null,
   canaryPublication:['canary-publish','canary-publish-fresh'].includes(env.DIRECT_AI_STAGE)&&pilotMarker?{
    state:['STARTED','WAIT_SLOT','VERIFIED','BLOCKED_UNKNOWN','EXTERNAL_LIVE'].includes(pilotMarker.state)?pilotMarker.state:'UNKNOWN',
