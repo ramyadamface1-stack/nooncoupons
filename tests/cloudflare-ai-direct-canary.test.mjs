@@ -17,7 +17,7 @@ test('the direct Worker has no GitHub runtime and publishing pilot is limited',(
   assert.doesNotMatch(read(path),/api\.github\.com|actions\/workflows|GITHUB_DISPATCH_TOKEN|repository_dispatch/);
  const cfg=JSON.parse(read('cloudflare-ai-direct/wrangler.jsonc'));
  assert.equal(cfg.r2_buckets[0].bucket_name,'nooncoupons-content-v2');
- assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-groq-generation');
+ assert.equal(cfg.vars.DIRECT_AI_STAGE,'canary-publish');
  assert.deepEqual(cfg.triggers.crons,['* * * * *']);
  const engine=read('cloudflare-ai-direct/engine.mjs');
  assert.match(engine,/async function canaryGenerateOnce\(env,scheduledAt\)/);
@@ -63,8 +63,8 @@ test('the live scheduler remains untouched until canary proof',()=>{
  assert.match(release,/wrangler secret put GEMINI_KEYS_JSON/);
  assert.match(release,/wrangler secret put GROQ_KEYS_JSON/);
  assert.match(release,/wrangler secret put SITE_PUBLISH_TOKEN/);
- assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;GROQ_CANARY_PROVIDER_CALL_CAP=3/);
- assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_BOUNDED_GROQ_CANARY/);
+ assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;NATIVE_PILOT_ARTICLE_CAP=1/);
+ assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_OFFSET_NATIVE_PILOT/);
  assert.doesNotMatch(release,/wrangler deploy --config ai-scheduler-v2\/wrangler\.jsonc/);
 });
 
@@ -416,6 +416,52 @@ test('one-article native publication pilot only retries a confirmed no-write and
   assert.doesNotMatch(JSON.stringify(status),/SECRET_NOT_TO_EXPOSE/);
   assert.equal(network,5);
  }finally{globalThis.fetch=oldFetch}
+});
+
+test('Cloudflare pilot pins one eligible READY slug across multiple stocked articles',async()=>{
+ const {canaryPublishOnce}=await import('../cloudflare-ai-direct/engine.mjs');
+ const one='uae-buyer-samsung-tablet-pdf-handwriting-export-file-formats-nov188-2026-n11';
+ const two='uae-buyer-dell-laptop-bios-battery-charging-limit-options-nov188-2026-n11';
+ const records=new Map(),seq={i:0},prefix='_ops/noondealsnow-direct-ai-v1/ready/';
+ const save=(key,value)=>{
+  const etag='t-'+(++seq.i);records.set(key,{etag,body:JSON.stringify(value)});return {etag};
+ };
+ save(prefix+'first.json',{state:'READY',topic:{slug:one,country:'AE',coupon:'NOV188'}});
+ save(prefix+'second.json',{state:'READY',topic:{slug:two,country:'AE',coupon:'NOV188'}});
+ const bucket={
+  async get(key){const v=records.get(key);return v?{etag:v.etag,json:async()=>JSON.parse(v.body)}:null},
+  async list({prefix}){return {objects:[...records.keys()].filter(k=>k.startsWith(prefix)).map(key=>({key})),truncated:false}},
+  async put(key,body,{onlyIf}={}){
+   const old=records.get(key);
+   if(onlyIf?.etagDoesNotMatch==='*'&&old)return null;
+   if(onlyIf?.etagMatches&&old?.etag!==onlyIf.etagMatches)return null;
+   return save(key,JSON.parse(body));
+  }
+ };
+ const original=globalThis.fetch;
+ globalThis.fetch=async url=>{
+  assert.equal(String(url),'https://noondealsnow.com/api/ai-v2-control-policy');
+  return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),{status:200});
+ };
+ const env={DIRECT_AI_STAGE:'canary-publish',SITE_PUBLISH_TOKEN:'SECRET_TEST',CONTENT_FINAL:bucket};
+ let now=Date.parse('2026-11-12T09:00:00Z');const called=[];
+ const publish=async(_env,_p,{onlySlug})=>{
+  called.push(onlySlug);return called.length===1?
+   {ok:false,reason:'PUBLICATION_SLOT_NOT_DUE'}:
+   {ok:true,reason:'LIVE_VERIFIED',slug:onlySlug};
+ };
+ try{
+  const first=await canaryPublishOnce(env,{publish,clock:()=>now});
+  assert.equal(first.state,'WAIT_SLOT');
+  assert.equal(first.slug,one);
+  now+=60000;
+  const second=await canaryPublishOnce(env,{publish,clock:()=>now});
+  assert.equal(second.state,'VERIFIED');
+  assert.equal(second.slug,one);
+  assert.deepEqual(called,[one,one]);
+  assert.ok(records.has(prefix+'second.json'),'other stocked article was not touched');
+  assert.ok(records.has('_ops/noondealsnow-direct-ai-v1/canary-publish-once-v2.json'));
+ }finally{globalThis.fetch=original}
 });
 
 test('publishing pilot permanently quarantines an ambiguous native response',async()=>{

@@ -197,15 +197,17 @@ async function verifyLive(record){
   return body.includes(record.topic.coupon)&&body.includes('<article');
  }catch{return false}
 }
-async function publishOne(env,p){
+async function publishOne(env,p,{onlySlug=null}={}){
  if(!p.enabled)return {ok:false,reason:'PAUSED'};
  const minute=Math.floor(Date.now()/60000);
  if(minute%p.publishingIntervalMinutes!==0)return {ok:false,reason:'PUBLICATION_INTERVAL_NOT_DUE'};
  return withDirectLease(env,'publisher',async()=>{
-  const ready=await env.CONTENT_FINAL.list({prefix:READY,limit:12});
+  const ready=await env.CONTENT_FINAL.list({prefix:READY,limit:100});
+  if(ready.truncated)return {ok:false,reason:'READY_STOCK_TRUNCATED'};
   if(!ready.objects.length)return {ok:false,reason:'NO_READY_STOCK'};
   for(const item of ready.objects){
    let record=await jsonGet(env,item.key);if(!record||!record.topic?.slug)continue;
+   if(onlySlug&&record.topic.slug!==onlySlug)continue;
    if(record.state==='LIVE_VERIFIED'){await env.CONTENT_FINAL.delete(item.key);continue}
    if(record.state==='UNKNOWN_PUBLICATION_OUTCOME'){
     if(await verifyLive(record)){
@@ -323,7 +325,7 @@ export async function canaryPublishOnce(env,{publish=publishOne,clock=Date.now}=
  try{p=await policy(env)}catch{return {ok:false,reason:'CANARY_POLICY_UNAVAILABLE'}}
  if(!p.enabled)return {ok:false,reason:'CANARY_PAUSED'};
  if(!env.SITE_PUBLISH_TOKEN)return {ok:false,reason:'NATIVE_PUBLISH_TOKEN_MISSING'};
- const marker=ROOT+'canary-publish-once-v1.json';
+ const marker=ROOT+'canary-publish-once-v2.json';
  let object=null,prior=null;
  try{
   object=await env.CONTENT_FINAL.get(marker);
@@ -339,10 +341,19 @@ export async function canaryPublishOnce(env,{publish=publishOne,clock=Date.now}=
   return {ok:false,reason:'CANARY_PUBLISH_COOLDOWN'};
  let listing,record;
  try{
-  listing=await env.CONTENT_FINAL.list({prefix:READY,limit:2});
-  if(listing.truncated||listing.objects.length!==1)
-   return {ok:false,reason:'CANARY_READY_STOCK_NOT_SINGLE'};
-  record=await jsonGet(env,listing.objects[0].key);
+  listing=await env.CONTENT_FINAL.list({prefix:READY,limit:100});
+  if(listing.truncated)return {ok:false,reason:'CANARY_READY_STOCK_TRUNCATED'};
+  // Select one existing READY article and pin its identity across retries.
+  // A future Groq article cannot displace the originally selected pilot.
+  for(const item of listing.objects){
+   const candidate=await jsonGet(env,item.key);
+   if(!candidate||candidate.state!=='READY'||candidate.topic?.country!=='AE'||
+     candidate.topic?.coupon!=='NOV188'||!/^uae-[a-z0-9-]+-n11$/.test(String(candidate.topic?.slug||'')))
+    continue;
+   if(prior?.slug&&candidate.topic.slug!==prior.slug)continue;
+   record=candidate;break;
+  }
+  if(!record)return {ok:false,reason:'CANARY_VALID_READY_NOT_FOUND'};
  }catch{return {ok:false,reason:'CANARY_READY_UNAVAILABLE'}}
  if(record?.state!=='READY'||record?.topic?.country!=='AE'||
    record?.topic?.coupon!=='NOV188'||typeof record.topic.slug!=='string'||
@@ -353,7 +364,7 @@ export async function canaryPublishOnce(env,{publish=publishOne,clock=Date.now}=
   {onlyIf:object?{etagMatches:object.etag}:{etagDoesNotMatch:'*'}});
  if(!written)return {ok:false,reason:'CANARY_PUBLISH_CLAIM_RACE'};
  let outcome;
- try{outcome=await publish(env,p)}
+ try{outcome=await publish(env,p,{onlySlug:record.topic.slug})}
  catch{outcome={ok:false,reason:'PUBLISH_TRANSPORT_UNKNOWN'}}
  const verified=outcome?.ok===true&&
   ['LIVE_VERIFIED','RECONCILED_LIVE_VERIFIED','ALREADY_LIVE_VERIFIED'].includes(outcome.reason)&&
@@ -370,7 +381,14 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  if(!env.CONTENT_FINAL)return {ok:false,reason:'R2_BINDING_MISSING'};
  if(env.DIRECT_AI_STAGE==='canary-generation')return canaryGenerateOnce(env,scheduledAt);
  if(env.DIRECT_AI_STAGE==='canary-groq-generation')return canaryGroqOnce(env);
- if(env.DIRECT_AI_STAGE==='canary-publish')return canaryPublishOnce(env);
+ if(env.DIRECT_AI_STAGE==='canary-publish'){
+  // Run out of phase with the legacy minute tick to avoid the observed
+  // PUBLICATION_SLOT_NOT_DUE collision, never bypassing the atomic site gate.
+  const due=Math.floor(Number(scheduledAt)/60000)*60000+35000;
+  const delay=Math.max(0,Math.min(35000,due-Date.now()));
+  if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
+  return canaryPublishOnce(env);
+ }
  if(env.DIRECT_AI_STAGE!=='production')return {ok:false,reason:'CANARY_NOT_ACTIVE'};
  let p;
  try{p=await policy(env)}catch(e){return logState(env,{phase:String(e?.message||'POLICY_UNAVAILABLE')})}
@@ -428,7 +446,7 @@ export async function directStatus(env){
   jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json'),
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null,
-  env.DIRECT_AI_STAGE==='canary-publish'?jsonGet(env,ROOT+'canary-publish-once-v1.json'):null,
+  env.DIRECT_AI_STAGE==='canary-publish'?jsonGet(env,ROOT+'canary-publish-once-v2.json'):null,
   env.DIRECT_AI_STAGE==='canary-groq-generation'?jsonGet(env,ROOT+'canary-groq-once-v3.json'):null
  ]);
  const canaryAttempt=row=>{
