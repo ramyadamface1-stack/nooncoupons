@@ -280,7 +280,8 @@ test('Groq and Gemini are interleaved; SA and AE start with distinct providers',
  assert.match(engine,/planDirectProviderWindow\(\{gemini:keys\.gemini\.length,groq:keys\.groq\.length\}/);
  assert.match(engine,/const advanced=await jsonPut\(env,keyCursor/);
  assert.match(engine,/Promise\.allSettled\(markets\.map/);
- assert.match(engine,/const secondPublication=\(async\(\)=>\{/);
+ assert.match(engine,/const publications=runNativePublicationWindow\(env,p,\{scheduledAt\}\)/);
+  assert.doesNotMatch(engine,/const secondPublication=/);
  assert.doesNotMatch(engine,/pool\[\(start\+attempt\)%pool\.length\]/);
 });
 

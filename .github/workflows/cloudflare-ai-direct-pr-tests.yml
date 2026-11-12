@@ -5,6 +5,7 @@ on:
       - 'cloudflare-ai-direct/**'
       - 'tests/cloudflare-ai-direct-canary.test.mjs'
       - 'tests/cloudflare-ai-direct-production-guard.test.mjs'
+      - 'tests/cloudflare-ai-direct-single-flight.test.mjs'
       - '.github/workflows/deploy-noondealsnow-cloudflare-direct-r2.yml'
       - '.github/workflows/cloudflare-ai-direct-pr-tests.yml'
 permissions:
@@ -25,7 +26,7 @@ jobs:
           node --check cloudflare-ai-direct/keys.mjs
           node --check cloudflare-ai-direct/rpc-entry.mjs
           node --check cloudflare-ai-direct/pack-existing-keys.mjs
-          node --test tests/cloudflare-ai-direct-canary.test.mjs tests/cloudflare-ai-direct-production-guard.test.mjs
+          node --test tests/cloudflare-ai-direct-canary.test.mjs tests/cloudflare-ai-direct-production-guard.test.mjs tests/cloudflare-ai-direct-single-flight.test.mjs
       - name: Bundle independent R2 Worker without deploying
         run: |
           npm install --no-audit --no-fund --ignore-scripts

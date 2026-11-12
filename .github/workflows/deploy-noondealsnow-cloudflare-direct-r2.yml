@@ -41,7 +41,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --test tests/cloudflare-ai-direct-canary.test.mjs tests/cloudflare-ai-direct-production-guard.test.mjs
+          node --test tests/cloudflare-ai-direct-canary.test.mjs tests/cloudflare-ai-direct-production-guard.test.mjs tests/cloudflare-ai-direct-single-flight.test.mjs
           echo 'DIRECT_PRODUCTION_SAFETY_TESTS=PASS;NO_PROVIDER_CALLS_IN_CI=TRUE'
       - name: Confirm fresh direct-native article was genuinely published before cutover
         shell: bash

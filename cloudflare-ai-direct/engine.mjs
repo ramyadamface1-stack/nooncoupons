@@ -219,17 +219,16 @@ async function publishOne(env,p,{onlySlug=null}={}){
   const ready=await env.CONTENT_FINAL.list({prefix:READY,limit:100});
   if(ready.truncated)return {ok:false,reason:'READY_STOCK_TRUNCATED'};
   if(!ready.objects.length)return {ok:false,reason:'NO_READY_STOCK'};
+  // Unknown POST outcomes may take 16 seconds to verify. Never let them
+  // starve genuinely READY articles waiting for the publication slot.
+  const unresolved=[];
   for(const item of ready.objects){
    let record=await jsonGet(env,item.key);if(!record||!record.topic?.slug)continue;
    if(onlySlug&&record.topic.slug!==onlySlug)continue;
    if(record.state==='LIVE_VERIFIED'){await env.CONTENT_FINAL.delete(item.key);continue}
    if(record.state==='UNKNOWN_PUBLICATION_OUTCOME'){
-    if(await verifyLive(record)){
-     await jsonPut(env,ROOT+'checkpoint/'+record.topic.slug+'.json',{state:'LIVE_VERIFIED',slug:record.topic.slug,publishedAt:utc()});
-     await env.CONTENT_FINAL.delete(item.key);
-     return {ok:true,reason:'RECONCILED_LIVE_VERIFIED',slug:record.topic.slug};
-    }
-    continue; // Never retry an uncertain POST.
+    unresolved.push({key:item.key,record});
+    continue; // Never resend an uncertain POST or delay READY stock.
    }
    if(record.state!=='READY')continue;
    const exists=await env.CONTENT_FINAL.head('articles/'+record.topic.slug+'.html');
@@ -270,6 +269,18 @@ async function publishOne(env,p,{onlySlug=null}={}){
     return {ok:false,reason:answer.reason,slug:record.topic.slug};
    }
    return {ok:false,reason:'PUBLISH_OUTCOME_UNVERIFIED',slug:record.topic.slug};
+  }
+  // If no READY article was eligible, reconcile at most ONE unknown
+  // result this tick. An unresolved POST is permanently excluded from retry.
+  if(unresolved.length){
+   const {key,record}=unresolved[0];
+   if(await verifyLive(record)){
+    await jsonPut(env,ROOT+'checkpoint/'+record.topic.slug+'.json',
+     {state:'LIVE_VERIFIED',slug:record.topic.slug,publishedAt:utc()});
+    await env.CONTENT_FINAL.delete(key);
+    return {ok:true,reason:'RECONCILED_LIVE_VERIFIED',slug:record.topic.slug};
+   }
+   return {ok:false,reason:'UNRESOLVED_PUBLICATION_RETAINED',slug:record.topic.slug};
   }
   return {ok:false,reason:'NO_ELIGIBLE_READY'};
  });
@@ -427,6 +438,35 @@ export async function canaryPublishOnce(env,{publish=publishOne,clock=Date.now}=
  await jsonPut(env,marker,{state,reason,attempts,slug:record.topic.slug,at:new Date(clock()).toISOString()});
  return {ok:verified,reason,state,attempts,slug:record.topic.slug};
 }
+// Exactly ONE publication attempt per scheduled minute. The previous
+// concurrent 0s/35s attempts raced over the same R2 publisher lease and
+// consumed the one-minute AI V2 publication slot on competing requests.
+export async function runNativePublicationWindow(env,p,{
+ scheduledAt=Date.now(),clock=Date.now,
+ publish=publishOne,
+ sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms))
+}={}){
+ const minute=Math.floor(Number(scheduledAt)/60000);
+ const due=minute*60000+35000;
+ const delay=Math.max(0,Math.min(35000,due-clock()));
+ if(delay)await sleep(delay);
+ let outcome;
+ try{outcome=await publish(env,p)}
+ catch{outcome={ok:false,reason:'PUBLICATION_UNAVAILABLE'}}
+ const results=[outcome];
+ // Observability is best-effort and never retries a native POST.
+ try{
+  const safe=results.map(row=>({
+   ok:row?.ok===true,
+   reason:typeof row?.reason==='string'&&/^[A-Z_]{3,90}$/.test(row.reason)?
+    row.reason:'UNKNOWN_PUBLISH_RESULT',
+   slug:typeof row?.slug==='string'&&/^[a-z0-9-]+$/.test(row.slug)?row.slug:null
+  }));
+  await jsonPut(env,ROOT+'publication-observation.json',{at:utc(),results:safe,
+   publicationMode:'cloudflare-direct-production',containsRawKeys:false});
+ }catch{}
+ return results;
+}
 export async function directTick(env,{scheduledAt=Date.now()}={}){
  if(!env.CONTENT_FINAL)return {ok:false,reason:'R2_BINDING_MISSING'};
  if(env.DIRECT_AI_STAGE==='canary-generation')return canaryGenerateOnce(env,scheduledAt);
@@ -445,32 +485,10 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  try{p=await policy(env)}catch(e){return logState(env,{phase:String(e?.message||'POLICY_UNAVAILABLE')})}
  if(!p.enabled)return logState(env,{phase:'PAUSED_MANUALLY'});
  const minute=Math.floor(Number(scheduledAt)/60000);
- // Publish opportunities are independent from new generation. The second
- // bounded attempt is offset by 35 seconds and still obeys the global
- // atomic 30-second site permit; a slot collision never bypasses the gate.
- const firstPublication=publishOne(env,p).catch(()=>({ok:false,reason:'PUBLICATION_UNAVAILABLE'}));
- const secondPublication=(async()=>{
-  const delay=Math.max(0,Math.min(35000,minute*60000+35000-Date.now()));
-  if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
-  return publishOne(env,p).catch(()=>({ok:false,reason:'PUBLICATION_UNAVAILABLE'}));
- })();
- const publications=Promise.all([firstPublication,secondPublication]).then(async results=>{
-  // Record only sanitized outcomes, never keys or article bodies. A publish
-  // failure must remain visible when a provider READY article stays in R2.
-  try{
-   const safe=results.map(row=>({
-    ok:row?.ok===true,
-    reason:typeof row?.reason==='string'&&/^[A-Z_]{3,90}$/.test(row.reason)?
-     row.reason:'UNKNOWN_PUBLISH_RESULT',
-    slug:typeof row?.slug==='string'&&/^[a-z0-9-]+$/.test(row.slug)?row.slug:null
-   }));
-   await jsonPut(env,ROOT+'publication-observation.json',{at:utc(),results:safe,
-    publicationMode:'cloudflare-direct-production',containsRawKeys:false});
-  }catch{
-   // Telemetry cannot turn an actual successful publication into an error.
-  }
-  return results;
- });
+ // Publish independently from generation, with one bounded native POST
+ // opportunity per scheduled minute at a deterministic +35s offset.
+ // The existing atomic site permit remains authoritative.
+ const publications=runNativePublicationWindow(env,p,{scheduledAt});
  const force=await jsonGet(env,ROOT+'manual-request.json',null);
  if(minute%p.intervalMinutes!==0&&!(force?.pending&&Date.now()-Date.parse(force.createdAt)<120000)){
   const published=await publications;
