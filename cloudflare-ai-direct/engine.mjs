@@ -6,7 +6,7 @@ import {buildSaudiAiV2Article} from '../automation/ai-v2/native-arabic-article.m
 import {buildEnglishAiV2Article} from '../automation/ai-v2/native-article.mjs';
 import {listDirectKeys} from './keys.mjs';
 import {providerOutcomeAction} from './provider-response.mjs';
-import {planDirectKeyRotation} from './key-rotation.mjs';
+import {planDirectProviderWindow} from './provider-window.mjs';
 import {withDirectLease} from './lease.mjs';
 
 const ROOT='_ops/noondealsnow-direct-ai-v1/',READY=ROOT+'ready/';
@@ -62,7 +62,7 @@ async function providerRequest(provider,key,model,prompt){
   :String(j.choices?.[0]?.message?.content||'');
  return content.length>1200?{ok:true,content}:{ok:false,reason:'PROVIDER_INCOMPLETE'};
 }
-async function generate(env,market,{maxProviderAttempts=3,initialKeyOffset=null}={}){
+async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null,allowFallback=true}={}){
  return withDirectLease(env,'generate-'+market,async()=>{
   const topics=topicByMarket[market],cursorKey=ROOT+'cursor/'+market+'.json';
   if(!topics.length)return logState(env,{phase:'WAITING_TOPICS',market});
@@ -71,8 +71,9 @@ async function generate(env,market,{maxProviderAttempts=3,initialKeyOffset=null}
   let keys;
   try{keys=await listDirectKeys(env,{includePlain:true})}
   catch{return logState(env,{phase:'KEY_STORAGE_UNAVAILABLE',market})}
-  const pool=[...keys.gemini.map(key=>({provider:'gemini',key})),...keys.groq.map(key=>({provider:'groq',key}))];
-  if(!pool.length)return logState(env,{phase:'KEYS_MISSING',market});
+  if(!keys.gemini.length&&!keys.groq.length)return logState(env,{phase:'KEYS_MISSING',market});
+  if(preferredProvider==='groq'&&!keys.groq.length&&!allowFallback)
+   return logState(env,{phase:'GROQ_KEYS_MISSING',market});
   const previous=await jsonGet(env,cursorKey,{next:0});
   const start=Math.max(0,Number(previous?.next||0));
   let topic=null,position=null,slot=null;
@@ -93,18 +94,21 @@ async function generate(env,market,{maxProviderAttempts=3,initialKeyOffset=null}
   const initial={state:'REQUEST_SENT',slug:topic.slug,market,createdAt:utc(),providerCalls:0};
   const reserved=await jsonPut(env,checkpointKey,initial,{onlyIf:{etagDoesNotMatch:'*'}});
   if(!reserved)return logState(env,{phase:'RESERVATION_COLLISION',market});
-  // Never tie key selection to the article topic cursor. Distinct SA/AE initial
-  // windows and durable, advanced-before-POST rotation avoid repeat 429 loops.
+  // An independently persisted cursor per provider ensures Groq is selected
+  // for AE whenever configured; neither provider can starve behind the other.
+  // Reserve all three candidate slots BEFORE making the first provider POST.
   const keyCursor=ROOT+'provider-rotation/'+market+'.json';
   const previousKeys=await jsonGet(env,keyCursor);
-  const seed=previousKeys||(Number.isSafeInteger(initialKeyOffset)&&initialKeyOffset>=0?{next:initialKeyOffset}:null);
-  const rotation=planDirectKeyRotation(pool.length,seed,market);
-  const advanced=await jsonPut(env,keyCursor,{next:rotation.next,at:utc()});
+  const window=planDirectProviderWindow({gemini:keys.gemini.length,groq:keys.groq.length},{
+    market,previous:previousKeys,maxAttempts:maxProviderAttempts,preferredProvider,allowFallback});
+  const advanced=await jsonPut(env,keyCursor,{...window.next,at:utc()});
   if(!advanced)return logState(env,{phase:'KEY_ROTATION_WRITE_UNCONFIRMED',market});
   const models=['gemini-3.1-flash-lite','gemini-3.5-flash-lite','gemini-3.8-flash'];
   let result=null,chosen=null,calls=0;
-  for(let attempt=0;attempt<Math.min(rotation.indices.length,maxProviderAttempts);attempt++){
-   const entry=pool[rotation.indices[attempt]],model=entry.provider==='groq'?'openai/gpt-oss-120b':models[Math.floor(start/Math.max(1,pool.length)+attempt)%models.length];
+  for(const selected of window.attempts){
+   const entry={provider:selected.provider,key:keys[selected.provider][selected.keyIndex]};
+   const model=entry.provider==='groq'?'openai/gpt-oss-120b':
+    models[(start+selected.keyIndex)%models.length];
    chosen={provider:entry.provider,model,keyRef:(await fingerprint(entry.key)).slice(0,12)};calls++;
    try{result=await providerRequest(entry.provider,entry.key,model,batchArticlePrompt(topic))}
    catch{
@@ -129,7 +133,8 @@ async function generate(env,market,{maxProviderAttempts=3,initialKeyOffset=null}
   if(!result?.ok){
    await jsonPut(env,checkpointKey,{...initial,state:result?.reason||'PROVIDER_BLOCKED',
       provider:chosen?.provider,model:chosen?.model,providerCalls:calls,at:utc()});
-   return logState(env,{phase:result?.reason||'PROVIDER_BLOCKED',market,calls});
+   return logState(env,{phase:result?.reason||'PROVIDER_BLOCKED',market,calls,
+     provider:chosen?.provider||null,http:result?.http||null});
   }
   const parsed=parseArticleBatch(result.content);
   if(!parsed.ok||parsed.sections.length!==5){
@@ -262,6 +267,32 @@ async function canaryGenerateOnce(env,scheduledAt){
  return {ok:completed,market,phase:completed?'CANARY_READY_CREATED':'CANARY_GENERATION_BLOCKED',
   reason:result?.phase||'UNKNOWN',slug:result?.slug||null};
 }
+// Exactly one Groq network attempt, isolated from normal generation and
+// publishing. Do not consume an unknown number of keys on repeated cron ticks.
+async function canaryGroqOnce(env){
+ let p;
+ try{p=await policy(env)}catch{return {ok:false,phase:'GROQ_CANARY_POLICY_UNAVAILABLE'}}
+ if(!p.enabled)return {ok:false,phase:'GROQ_CANARY_PAUSED'};
+ let keys;
+ try{keys=await listDirectKeys(env,{includePlain:true})}
+ catch{return {ok:false,phase:'GROQ_CANARY_KEYS_UNAVAILABLE'}}
+ if(!keys.groq.length)return {ok:false,phase:'GROQ_CANARY_KEYS_MISSING'};
+ const marker=ROOT+'canary-groq-once-v1.json';
+ const existing=await jsonGet(env,marker);
+ if(existing)return {ok:existing.state==='READY_CREATED',phase:'GROQ_CANARY_ALREADY_RECORDED',
+  recordedState:existing.state,provider:existing.provider||null};
+ const claimed=await jsonPut(env,marker,{state:'STARTED',at:utc()},
+  {onlyIf:{etagDoesNotMatch:'*'}});
+ if(!claimed)return {ok:false,phase:'GROQ_CANARY_CLAIM_RACE'};
+ let result;
+ try{result=await generate(env,'AE',{maxProviderAttempts:1,preferredProvider:'groq',allowFallback:false})}
+ catch{result={phase:'GROQ_CANARY_UNKNOWN_OUTCOME'}};
+ const completed=result?.phase==='READY_CREATED'&&result?.provider==='groq';
+ await jsonPut(env,marker,{state:completed?'READY_CREATED':'BLOCKED',provider:'groq',
+  reason:result?.phase||'UNKNOWN',at:utc()});
+ return {ok:completed,phase:completed?'GROQ_CANARY_READY_CREATED':'GROQ_CANARY_BLOCKED',
+  reason:result?.phase||'UNKNOWN',provider:'groq'};
+}
 // A single Cloudflare-only native-publication pilot. Existing GitHub
 // publication retains the shared atomic site slot; this pilot cannot bypass it.
 // Never repeat a request unless the native bridge proves NO WRITE occurred.
@@ -317,22 +348,41 @@ export async function canaryPublishOnce(env,{publish=publishOne,clock=Date.now}=
 export async function directTick(env,{scheduledAt=Date.now()}={}){
  if(!env.CONTENT_FINAL)return {ok:false,reason:'R2_BINDING_MISSING'};
  if(env.DIRECT_AI_STAGE==='canary-generation')return canaryGenerateOnce(env,scheduledAt);
+ if(env.DIRECT_AI_STAGE==='canary-groq-generation')return canaryGroqOnce(env);
  if(env.DIRECT_AI_STAGE==='canary-publish')return canaryPublishOnce(env);
  if(env.DIRECT_AI_STAGE!=='production')return {ok:false,reason:'CANARY_NOT_ACTIVE'};
  let p;
  try{p=await policy(env)}catch(e){return logState(env,{phase:String(e?.message||'POLICY_UNAVAILABLE')})}
  if(!p.enabled)return logState(env,{phase:'PAUSED_MANUALLY'});
  const minute=Math.floor(Number(scheduledAt)/60000);
- const published=await publishOne(env,p).catch(()=>({ok:false,reason:'PUBLICATION_UNAVAILABLE'}));
+ // Publish opportunities are independent from new generation. The second
+ // bounded attempt is offset by 35 seconds and still obeys the global
+ // atomic 30-second site permit; a slot collision never bypasses the gate.
+ const firstPublication=publishOne(env,p).catch(()=>({ok:false,reason:'PUBLICATION_UNAVAILABLE'}));
+ const secondPublication=(async()=>{
+  const delay=Math.max(0,Math.min(35000,minute*60000+35000-Date.now()));
+  if(delay)await new Promise(resolve=>setTimeout(resolve,delay));
+  return publishOne(env,p).catch(()=>({ok:false,reason:'PUBLICATION_UNAVAILABLE'}));
+ })();
+ const publications=Promise.all([firstPublication,secondPublication]);
  const force=await jsonGet(env,ROOT+'manual-request.json',null);
  if(minute%p.intervalMinutes!==0&&!(force?.pending&&Date.now()-Date.parse(force.createdAt)<120000)){
-  return logState(env,{phase:'WAITING_GENERATION_INTERVAL',published:published.ok?published.slug:null,publishReason:published.reason});
+  const published=await publications;
+  return logState(env,{phase:'WAITING_GENERATION_INTERVAL',
+   published:published.filter(x=>x.ok).map(x=>x.slug),
+   publishReasons:published.map(x=>x.reason)});
  }
- const market=minute%2?'AE':'SA';
- let result;
- try{result=await generate(env,market)}catch(e){result={phase:'GENERATION_TRANSIENT_UNAVAILABLE',reason:String(e?.message||'unknown').slice(0,65)}}
+ // Both markets generate concurrently; each uses its own atomic R2 lease,
+ // checkpoint and provider cursor. No GitHub runner generates articles.
+ const generated=await Promise.allSettled(['SA','AE'].map(async market=>{
+  try{return await generate(env,market)}
+  catch{return {phase:'GENERATION_TRANSIENT_UNAVAILABLE',market}}
+ }));
+ const published=await publications;
  if(force?.pending)await jsonPut(env,ROOT+'manual-request.json',{pending:false,handledAt:utc()});
- return {ok:true,engine:'cloudflare-direct-r2-v1',market,generation:result,publishing:published};
+ return {ok:true,engine:'cloudflare-direct-r2-v1',parallelMarkets:['SA','AE'],
+  generation:generated.map((x,i)=>x.status==='fulfilled'?x.value:{phase:'GENERATION_UNCONFIRMED',market:['SA','AE'][i]}),
+  publishing:published};
 }
 export async function requestDirectGeneration(env){
  if(env.DIRECT_AI_STAGE!=='production')
@@ -352,12 +402,13 @@ export async function requestDirectGeneration(env){
  return {dispatched:true,scheduledVia:'cloudflare-cron-next-minute',githubUsed:false};
 }
 export async function directStatus(env){
- const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE,pilotMarker]=await Promise.all([
+ const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE,pilotMarker,groqMarker]=await Promise.all([
   policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),env.CONTENT_FINAL.list({prefix:READY,limit:100}),
   jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json'),
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null,
-  env.DIRECT_AI_STAGE==='canary-publish'?jsonGet(env,ROOT+'canary-publish-once-v1.json'):null
+  env.DIRECT_AI_STAGE==='canary-publish'?jsonGet(env,ROOT+'canary-publish-once-v1.json'):null,
+  env.DIRECT_AI_STAGE==='canary-groq-generation'?jsonGet(env,ROOT+'canary-groq-once-v1.json'):null
  ]);
  const canaryAttempt=row=>{
   if(!row||typeof row!=='object')return null;
@@ -368,13 +419,17 @@ export async function directStatus(env){
  };
  return {ok:true,schedulerEnabled:p?.enabled===true&&env.DIRECT_AI_STAGE==='production',
   canaryGenerationEnabled:env.DIRECT_AI_STAGE==='canary-generation',
+  groqCanaryEnabled:env.DIRECT_AI_STAGE==='canary-groq-generation',
+  groqCanary:groqMarker?{state:groqMarker.state,provider:groqMarker.provider||null,
+   reason:groqMarker.reason||null,at:groqMarker.at||null}:null,
   canaryPublishingEnabled:env.DIRECT_AI_STAGE==='canary-publish',canaryPublishMaxAttempts:5,
   canaryMaxAttemptsPerMarket:1,canaryWave:2,
   intervalMinutes:p?.intervalMinutes||null,
   publishingIntervalMinutes:p?.publishingIntervalMinutes||null,
   source:'cloudflare-cron-r2-direct',controlStatus:p?(env.DIRECT_AI_STAGE==='production'?'POLICY_VERIFIED':
    env.DIRECT_AI_STAGE==='canary-generation'?'CANARY_GENERATION_ONLY':
-   env.DIRECT_AI_STAGE==='canary-publish'?'CANARY_PUBLISH_ONLY':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
+   env.DIRECT_AI_STAGE==='canary-publish'?'CANARY_PUBLISH_ONLY':
+   env.DIRECT_AI_STAGE==='canary-groq-generation'?'GROQ_CANARY_ONLY':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
   dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,directStage:env.DIRECT_AI_STAGE||'unset',
   freeOnly:true,readyCount:ready.objects.filter(x=>!x.key.endsWith('/')).length,
   readyCountExact:ready.truncated!==true,
