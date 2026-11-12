@@ -271,7 +271,10 @@ export async function canaryPublishOnce(env,{publish=publishOne,clock=Date.now}=
  try{p=await policy(env)}catch{return {ok:false,reason:'CANARY_POLICY_UNAVAILABLE'}}
  if(!p.enabled)return {ok:false,reason:'CANARY_PAUSED'};
  if(!env.SITE_PUBLISH_TOKEN)return {ok:false,reason:'NATIVE_PUBLISH_TOKEN_MISSING'};
- const marker=ROOT+'canary-publish-once-v1.json';
+ const priorWave=await jsonGet(env,ROOT+'canary-publish-once-v1.json');
+ if(priorWave?.state!=='WAIT_SLOT'||priorWave?.attempts!==5)
+  return {ok:false,reason:'CANARY_FIRST_WAVE_NO_WRITE_PROOF_MISSING'};
+ const marker=ROOT+'canary-publish-once-v2.json';
  let object=null,prior=null;
  try{
   object=await env.CONTENT_FINAL.get(marker);
@@ -282,7 +285,7 @@ export async function canaryPublishOnce(env,{publish=publishOne,clock=Date.now}=
   return {ok:false,reason:'CANARY_MARKER_INVALID'};
  if(prior?.state!=='WAIT_SLOT'&&prior)return {ok:prior.state==='VERIFIED',
    reason:'CANARY_PUBLISH_ALREADY_RECORDED',state:prior.state,slug:prior.slug||null};
- if((prior?.attempts||0)>=5)return {ok:false,reason:'CANARY_PUBLISH_ATTEMPT_LIMIT'};
+ if((prior?.attempts||0)>=3)return {ok:false,reason:'CANARY_PUBLISH_ATTEMPT_LIMIT'};
  if(prior?.at&&clock()-Date.parse(prior.at)<55000)
   return {ok:false,reason:'CANARY_PUBLISH_COOLDOWN'};
  let listing,record;
@@ -357,7 +360,7 @@ export async function directStatus(env){
   jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json'),
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null,
-  env.DIRECT_AI_STAGE==='canary-publish'?jsonGet(env,ROOT+'canary-publish-once-v1.json'):null
+  env.DIRECT_AI_STAGE==='canary-publish'?jsonGet(env,ROOT+'canary-publish-once-v2.json'):null
  ]);
  const canaryAttempt=row=>{
   if(!row||typeof row!=='object')return null;
@@ -368,7 +371,7 @@ export async function directStatus(env){
  };
  return {ok:true,schedulerEnabled:p?.enabled===true&&env.DIRECT_AI_STAGE==='production',
   canaryGenerationEnabled:env.DIRECT_AI_STAGE==='canary-generation',
-  canaryPublishingEnabled:env.DIRECT_AI_STAGE==='canary-publish',canaryPublishMaxAttempts:5,
+  canaryPublishingEnabled:env.DIRECT_AI_STAGE==='canary-publish',canaryPublishMaxAttempts:3,canaryPublishWave:2,
   canaryMaxAttemptsPerMarket:1,canaryWave:2,
   intervalMinutes:p?.intervalMinutes||null,
   publishingIntervalMinutes:p?.publishingIntervalMinutes||null,
@@ -417,5 +420,13 @@ export default {
   if(new URL(request.url).pathname!=='/health')return out({ok:false,error:'not_found'},404);
   return out(await directStatus(env));
  },
- async scheduled(event,env,ctx){ctx.waitUntil(directTick(env,{scheduledAt:event?.scheduledTime||Date.now()}))}
+ async scheduled(event,env,ctx){
+  // The last bounded publication pilot starts at a different second from
+  // legacy dispatch. Waiting on timers does not consume Worker CPU.
+  ctx.waitUntil((async()=>{
+   if(env.DIRECT_AI_STAGE==='canary-publish')
+    await new Promise(resolve=>setTimeout(resolve,25000));
+   return directTick(env,{scheduledAt:event?.scheduledTime||Date.now()});
+  })());
+ }
 };
