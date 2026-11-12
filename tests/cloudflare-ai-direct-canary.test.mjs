@@ -418,6 +418,52 @@ test('one-article native publication pilot only retries a confirmed no-write and
  }finally{globalThis.fetch=oldFetch}
 });
 
+test('Cloudflare pilot pins one eligible READY slug across multiple stocked articles',async()=>{
+ const {canaryPublishOnce}=await import('../cloudflare-ai-direct/engine.mjs');
+ const one='uae-buyer-samsung-tablet-pdf-handwriting-export-file-formats-nov188-2026-n11';
+ const two='uae-buyer-dell-laptop-bios-battery-charging-limit-options-nov188-2026-n11';
+ const records=new Map(),seq={i:0},prefix='_ops/noondealsnow-direct-ai-v1/ready/';
+ const save=(key,value)=>{
+  const etag='t-'+(++seq.i);records.set(key,{etag,body:JSON.stringify(value)});return {etag};
+ };
+ save(prefix+'first.json',{state:'READY',topic:{slug:one,country:'AE',coupon:'NOV188'}});
+ save(prefix+'second.json',{state:'READY',topic:{slug:two,country:'AE',coupon:'NOV188'}});
+ const bucket={
+  async get(key){const v=records.get(key);return v?{etag:v.etag,json:async()=>JSON.parse(v.body)}:null},
+  async list({prefix}){return {objects:[...records.keys()].filter(k=>k.startsWith(prefix)).map(key=>({key})),truncated:false}},
+  async put(key,body,{onlyIf}={}){
+   const old=records.get(key);
+   if(onlyIf?.etagDoesNotMatch==='*'&&old)return null;
+   if(onlyIf?.etagMatches&&old?.etag!==onlyIf.etagMatches)return null;
+   return save(key,JSON.parse(body));
+  }
+ };
+ const original=globalThis.fetch;
+ globalThis.fetch=async url=>{
+  assert.equal(String(url),'https://noondealsnow.com/api/ai-v2-control-policy');
+  return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),{status:200});
+ };
+ const env={DIRECT_AI_STAGE:'canary-publish',SITE_PUBLISH_TOKEN:'SECRET_TEST',CONTENT_FINAL:bucket};
+ let now=Date.parse('2026-11-12T09:00:00Z');const called=[];
+ const publish=async(_env,_p,{onlySlug})=>{
+  called.push(onlySlug);return called.length===1?
+   {ok:false,reason:'PUBLICATION_SLOT_NOT_DUE'}:
+   {ok:true,reason:'LIVE_VERIFIED',slug:onlySlug};
+ };
+ try{
+  const first=await canaryPublishOnce(env,{publish,clock:()=>now});
+  assert.equal(first.state,'WAIT_SLOT');
+  assert.equal(first.slug,one);
+  now+=60000;
+  const second=await canaryPublishOnce(env,{publish,clock:()=>now});
+  assert.equal(second.state,'VERIFIED');
+  assert.equal(second.slug,one);
+  assert.deepEqual(called,[one,one]);
+  assert.ok(records.has(prefix+'second.json'),'other stocked article was not touched');
+  assert.ok(records.has('_ops/noondealsnow-direct-ai-v1/canary-publish-once-v2.json'));
+ }finally{globalThis.fetch=original}
+});
+
 test('publishing pilot permanently quarantines an ambiguous native response',async()=>{
  const {canaryPublishOnce}=await import('../cloudflare-ai-direct/engine.mjs');
  const slug='uae-buyer-samsung-tablet-pdf-handwriting-export-file-formats-nov188-2026-n11';
