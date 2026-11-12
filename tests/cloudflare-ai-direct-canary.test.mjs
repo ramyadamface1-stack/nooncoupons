@@ -63,7 +63,7 @@ test('the live scheduler remains untouched until canary proof',()=>{
  assert.match(release,/wrangler secret put GEMINI_KEYS_JSON/);
  assert.match(release,/wrangler secret put GROQ_KEYS_JSON/);
  assert.match(release,/wrangler secret put SITE_PUBLISH_TOKEN/);
- assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;GROQ_CANARY_PROVIDER_CALL_CAP=1/);
+ assert.match(release,/DIRECT_BULK_PUBLISHING=DISABLED;GROQ_CANARY_PROVIDER_CALL_CAP=3/);
  assert.match(release,/DIRECT_CLOUDFLARE_CRON=ONE_MINUTE_BOUNDED_GROQ_CANARY/);
  assert.doesNotMatch(release,/wrangler deploy --config ai-scheduler-v2\/wrangler\.jsonc/);
 });
@@ -106,7 +106,9 @@ test('direct provider outcome guard never retries ambiguous 5xx or transport err
  assert.equal(providerOutcomeAction({ok:false,http:429}),'NEXT_FREE_KEY');
  for(const status of [500,502,503,504,520,524])
   assert.equal(providerOutcomeAction({ok:false,http:status}),'QUARANTINE_UNKNOWN');
- for(const status of [400,401,403,404,null])
+ for(const status of [401,403])
+  assert.equal(providerOutcomeAction({ok:false,http:status}),'NEXT_VALID_KEY');
+ for(const status of [400,404,null])
   assert.equal(providerOutcomeAction({ok:false,http:status}),'STOP');
  const code=read('cloudflare-ai-direct/engine.mjs');
  assert.match(code,/providerOutcomeAction\(result\)/);
@@ -291,6 +293,44 @@ test('one Groq 429 is recorded once; repeat Cron never spends another key',async
   assert.equal(status.groqCanary.state,'BLOCKED');
   assert.equal(status.groqCanary.provider,'groq');
   assert.doesNotMatch(JSON.stringify(status),/gsk_bbbbb/);
+ }finally{globalThis.fetch=original}
+});
+
+test('three distinct Groq 401 responses quarantine each invalid key, no repeat spending',async()=>{
+ const {directTick,directStatus}=await import('../cloudflare-ai-direct/engine.mjs');
+ const original=globalThis.fetch,objects=new Map();let seq=0,requests=0;
+ const bucket={
+  async get(key){const obj=objects.get(key);return obj?{etag:obj.etag,json:async()=>JSON.parse(obj.body)}:null},
+  async head(key){return objects.has(key)?{etag:objects.get(key).etag}:null},
+  async list({prefix}){return {objects:[...objects.keys()].filter(key=>key.startsWith(prefix)).map(key=>({key})),truncated:false}},
+  async put(key,body,{onlyIf}={}){
+   const old=objects.get(key);
+   if(onlyIf?.etagDoesNotMatch==='*'&&old)return null;
+   if(onlyIf?.etagMatches&&old?.etag!==onlyIf.etagMatches)return null;
+   const item={body,etag:'etag-'+(++seq)};objects.set(key,item);return {etag:item.etag};
+  }
+ };
+ globalThis.fetch=async(url,opts)=>{
+  if(String(url)==='https://noondealsnow.com/api/ai-v2-control-policy')
+   return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),{status:200});
+  assert.match(String(url),/^https:\/\/api\.groq\.com\//);
+  requests++;
+  return new Response(JSON.stringify({error:'invalid authentication'}),{status:401});
+ };
+ const env={DIRECT_AI_STAGE:'canary-groq-generation',CONTENT_FINAL:bucket,GEMINI_KEYS_JSON:'[]',
+  GROQ_KEYS_JSON:JSON.stringify(Array.from({length:3},(_,i)=>'gsk_'+String(i).repeat(35)))};
+ try{
+  const one=await directTick(env);
+  assert.equal(one.phase,'GROQ_CANARY_BLOCKED');
+  assert.equal(one.reason,'PROVIDER_REJECTED');
+  assert.equal(requests,3);
+  const blocked=[...objects.keys()].filter(k=>k.includes('/provider-rejected/groq/'));
+  assert.equal(blocked.length,3,'rejected key refs persisted without raw credentials');
+  assert.equal((await directTick(env)).phase,'GROQ_CANARY_ALREADY_RECORDED');
+  assert.equal(requests,3);
+  const status=await directStatus(env);
+  assert.equal(status.groqCanary.state,'BLOCKED');
+  assert.doesNotMatch(JSON.stringify(status),/gsk_[012]{12}/);
  }finally{globalThis.fetch=original}
 });
 
