@@ -262,7 +262,9 @@ async function publishOne(env,p,{onlySlug=null}={}){
    }
    if(response.status===409&&answer?.reason==='GLOBAL_PUBLICATION_SLOT_NOT_DUE'){
     record.state='READY';await jsonPut(env,item.key,record);
-    return {ok:false,reason:'PUBLICATION_SLOT_NOT_DUE'};
+    const nextDue=Date.parse(String(answer?.nextEligibleAt||''));
+    return {ok:false,reason:'PUBLICATION_SLOT_NOT_DUE',
+     nextEligibleAt:Number.isFinite(nextDue)?new Date(nextDue).toISOString():null};
    }
    if(response.status===409&&['NATIVE_QUALITY_BLOCKED','DUPLICATE_INTENT','COUPON_FRESHNESS_BLOCK','INVALID_HTML_SIZE'].includes(answer?.reason)){
     record.state='BLOCKED_REVIEW';await jsonPut(env,item.key,record);
@@ -454,7 +456,20 @@ export async function runNativePublicationWindow(env,p,{
  try{outcome=await publish(env,p)}
  catch{outcome={ok:false,reason:'PUBLICATION_UNAVAILABLE'}}
  const results=[outcome];
- // Observability is best-effort and never retries a native POST.
+ // Only a native 409 with a confirmed NO-WRITE timestamp authorizes a retry.
+ // Never repeat ambiguous transport errors, 5xx, leases or quality failures.
+ const nextDue=Date.parse(String(outcome?.nextEligibleAt||''));
+ const waitMs=nextDue-clock();
+ if(outcome?.ok===false&&outcome.reason==='PUBLICATION_SLOT_NOT_DUE'&&
+    Number.isFinite(nextDue)&&waitMs>-5000&&waitMs<=12000&&
+    Math.floor((clock()+Math.max(waitMs,0)+250)/60000)%p.publishingIntervalMinutes===0){
+  await sleep(Math.max(250,waitMs+250));
+  let retry;
+  try{retry=await publish(env,p)}
+  catch{retry={ok:false,reason:'PUBLICATION_UNAVAILABLE'}}
+  results.push(retry); // Sequential and bounded to one confirmed-no-write retry.
+ }
+ // Observability is best-effort and never retries an uncertain native POST.
  try{
   const safe=results.map(row=>({
    ok:row?.ok===true,
