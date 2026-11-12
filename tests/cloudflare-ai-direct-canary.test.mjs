@@ -205,6 +205,41 @@ test('canary health reads each attempt marker without exposing keys or performin
  }finally{globalThis.fetch=originalFetch}
 });
 
+test('versioned lazy topic reserve expands each market without prebuilding thousands of articles',async()=>{
+ const {eleventhEditorialTopicWave}=await import('../automation/ai-v2/topic-refresh-n11.mjs');
+ const {directTopicAt,directTopicSpaceLength,DIRECT_TOPIC_SPACE_VERSION,DIRECT_TOPIC_SCOPES}=
+  await import('../cloudflare-ai-direct/topic-space.mjs');
+ assert.equal(DIRECT_TOPIC_SPACE_VERSION,'n11-scoped-v1');
+ assert.equal(DIRECT_TOPIC_SCOPES.length,6);
+ for(const market of ['SA','AE']){
+  const list=eleventhEditorialTopicWave.filter(t=>t.country===market);
+  assert.ok(list.length>100);
+  assert.equal(directTopicSpaceLength(list),list.length*7);
+  const base=directTopicAt(list,0);
+  assert.strictEqual(base,list[0],'original N11 topic is immutable');
+  const expanded=Array.from({length:Math.min(list.length,100)},(_,i)=>
+   directTopicAt(list,list.length+i)).filter(Boolean);
+  assert.ok(expanded.length>5,'fresh unique intent topics are immediately accessible');
+  const unique=new Set(expanded.map(t=>t.slug));
+  assert.equal(unique.size,expanded.length);
+  for(const item of expanded){
+   assert.equal(item.country,market);
+   assert.equal(item.coupon,market==='AE'?'NOV188':'NOV170');
+   assert.match(item.slug,/-n11$/);
+   assert.ok(item.slug.length<=120);
+   assert.ok(item.topic.length<=72);
+   assert.equal(item.sections.length,5);
+  }
+ }
+ assert.throws(()=>directTopicSpaceLength(null),/INVALID_DIRECT_TOPICS/);
+ assert.throws(()=>directTopicAt([],0),/INVALID_DIRECT_TOPIC_INDEX/);
+ const engine=read('cloudflare-ai-direct/engine.mjs');
+ assert.match(engine,/directTopicSpaceLength\(topics\)/);
+ assert.match(engine,/directTopicAt\(topics,index\)/);
+ assert.match(engine,/previous\?\.space===DIRECT_TOPIC_SPACE_VERSION/);
+ assert.match(engine,/canary-groq-once-v3/);
+});
+
 test('Groq and Gemini are interleaved; SA and AE start with distinct providers',async()=>{
  const {planDirectProviderWindow}=await import('../cloudflare-ai-direct/provider-window.mjs');
  const counts={gemini:4,groq:2};

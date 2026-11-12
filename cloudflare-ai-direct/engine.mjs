@@ -7,6 +7,7 @@ import {buildEnglishAiV2Article} from '../automation/ai-v2/native-article.mjs';
 import {listDirectKeys} from './keys.mjs';
 import {providerOutcomeAction} from './provider-response.mjs';
 import {planDirectProviderWindow} from './provider-window.mjs';
+import {directTopicAt,directTopicSpaceLength,DIRECT_TOPIC_SPACE_VERSION} from './topic-space.mjs';
 import {withDirectLease} from './lease.mjs';
 
 const ROOT='_ops/noondealsnow-direct-ai-v1/',READY=ROOT+'ready/';
@@ -75,21 +76,27 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
   if(preferredProvider==='groq'&&!keys.groq.length&&!allowFallback)
    return logState(env,{phase:'GROQ_KEYS_MISSING',market});
   const previous=await jsonGet(env,cursorKey,{next:0});
-  const start=Math.max(0,Number(previous?.next||0));
+  const space=directTopicSpaceLength(topics);
+  // Upgrade old N11 cursors directly to fresh append-only scoped topics.
+  // Never start with the already exhausted original wave after cutover.
+  const oldNext=Number(previous?.next||0);
+  const start=previous?.space===DIRECT_TOPIC_SPACE_VERSION&&Number.isSafeInteger(oldNext)&&oldNext>=0
+   ?oldNext%space:topics.length;
   let topic=null,position=null,slot=null;
   // Eight cheap R2 HEADs at most, no content fetch and no mass enumeration.
   for(let step=0;step<8;step++){
-   const index=(start+step)%topics.length,candidate=topics[index];
+   const index=(start+step)%space,candidate=directTopicAt(topics,index);
+   if(!candidate)continue;
    const published=await env.CONTENT_FINAL.head('articles/'+candidate.slug+'.html');
    const checkpoint=await env.CONTENT_FINAL.head(ROOT+'checkpoint/'+candidate.slug+'.json');
    if(!published&&!checkpoint){topic=candidate;position=index;slot=step;break}
   }
   if(!topic){
-   await jsonPut(env,cursorKey,{next:(start+8)%topics.length,at:utc()});
+   await jsonPut(env,cursorKey,{space:DIRECT_TOPIC_SPACE_VERSION,next:(start+8)%space,at:utc()});
    return logState(env,{phase:'WAITING_TOPICS',market});
   }
   // Persist before provider POST. Ambiguous provider outcomes are never retried.
-  await jsonPut(env,cursorKey,{next:(position+1)%topics.length,at:utc()});
+  await jsonPut(env,cursorKey,{space:DIRECT_TOPIC_SPACE_VERSION,next:(position+1)%space,at:utc()});
   const checkpointKey=ROOT+'checkpoint/'+topic.slug+'.json';
   const initial={state:'REQUEST_SENT',slug:topic.slug,market,createdAt:utc(),providerCalls:0};
   const reserved=await jsonPut(env,checkpointKey,initial,{onlyIf:{etagDoesNotMatch:'*'}});
@@ -291,7 +298,7 @@ async function canaryGroqOnce(env){
  try{keys=await listDirectKeys(env,{includePlain:true})}
  catch{return {ok:false,phase:'GROQ_CANARY_KEYS_UNAVAILABLE'}}
  if(!keys.groq.length)return {ok:false,phase:'GROQ_CANARY_KEYS_MISSING'};
- const marker=ROOT+'canary-groq-once-v2.json';
+ const marker=ROOT+'canary-groq-once-v3.json';
  const existing=await jsonGet(env,marker);
  if(existing)return {ok:existing.state==='READY_CREATED',phase:'GROQ_CANARY_ALREADY_RECORDED',
   recordedState:existing.state,provider:existing.provider||null};
@@ -422,7 +429,7 @@ export async function directStatus(env){
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null,
   env.DIRECT_AI_STAGE==='canary-publish'?jsonGet(env,ROOT+'canary-publish-once-v1.json'):null,
-  env.DIRECT_AI_STAGE==='canary-groq-generation'?jsonGet(env,ROOT+'canary-groq-once-v2.json'):null
+  env.DIRECT_AI_STAGE==='canary-groq-generation'?jsonGet(env,ROOT+'canary-groq-once-v3.json'):null
  ]);
  const canaryAttempt=row=>{
   if(!row||typeof row!=='object')return null;
