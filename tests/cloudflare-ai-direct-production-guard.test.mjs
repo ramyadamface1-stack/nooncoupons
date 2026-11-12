@@ -37,3 +37,31 @@ test('per-key provider quota cooling increases and caps at four hours without re
  assert.match(source,/if\(action==='QUARANTINE_UNKNOWN'\)/);
  assert.doesNotMatch(source,/api\.github\.com|actions\/workflows/);
 });
+
+test('production exposes redacted publication outcomes without any API key',async()=>{
+ const {directStatus}=await import('../cloudflare-ai-direct/engine.mjs');
+ const before=globalThis.fetch;
+ const observation={at:'2026-11-12T21:50:00Z',containsRawKeys:false,
+  publicationMode:'cloudflare-direct-production',
+  results:[{ok:false,reason:'PUBLICATION_SLOT_NOT_DUE',slug:null},
+   {ok:true,reason:'LIVE_VERIFIED',slug:'uae-buyer-verified-nov188-2026-n11'}]};
+ const key='_ops/noondealsnow-direct-ai-v1/publication-observation.json';
+ globalThis.fetch=async url=>{
+  assert.equal(String(url),'https://noondealsnow.com/api/ai-v2-control-policy');
+  return new Response(JSON.stringify({ok:true,enabled:true,intervalMinutes:1,publishingIntervalMinutes:1}),{status:200});
+ };
+ const env={DIRECT_AI_STAGE:'production',SITE_PUBLISH_TOKEN:'DO_NOT_DISPLAY_SECRET',CONTENT_FINAL:{
+  async get(k){return k===key?{json:async()=>observation}:null},
+  async list(){return {objects:[],truncated:false}}
+ }};
+ try{
+  const status=await directStatus(env);
+  assert.equal(status.schedulerEnabled,true);
+  assert.deepEqual(status.lastPublication,observation);
+  assert.deepEqual(status.lastPublication.results.map(x=>x.reason),
+   ['PUBLICATION_SLOT_NOT_DUE','LIVE_VERIFIED']);
+  assert.doesNotMatch(JSON.stringify(status),/DO_NOT_DISPLAY_SECRET/);
+  assert.match(source,/publication-observation\.json/);
+  assert.match(source,/containsRawKeys:false/);
+ }finally{globalThis.fetch=before}
+});
