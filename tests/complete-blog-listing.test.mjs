@@ -37,6 +37,10 @@ test('blog default exposes real corpus count, 15 articles and latest editorial s
  assert.match(html,/١٣٣٬٧٤٦/);
  assert.match(html,/Newest verified published guide/);
  assert.equal(urls(html).length,15);
+ assert.equal((html.match(/class="card-image"/g)||[]).length,15,'the first archive page needs a featured visual for every article');
+ assert.match(html,/\/assets\/coupon-svg\/000-saudi-article\/1\.svg\?v=10&amp;country=SA/);
+ assert.match(html,/\/assets\/coupon-svg\/001-uae-article\/1\.svg\?v=10&amp;country=AE/);
+ assert.match(html,/loading="lazy" decoding="async"/);
  assert.equal(env.calls[0].limit,16);
  assert.match(html,/canonical" href="https:\/\/noondealsnow.com\/blog"/);
  assert.equal(page.headers.get('x-full-blog-r2'),'read-only-cursor-v1');
@@ -53,6 +57,7 @@ test('latest-publication lane shows 15 newest articles with real dates without c
  const latest=html.split('<aside class="latest">')[1].split('</aside>')[0];
  const links=[...latest.matchAll(/<a href="([^"]+)"/g)].map(x=>x[1]);
  assert.equal(links.length,15);
+ assert.equal((latest.match(/class="latest-image"/g)||[]).length,3,'three newest guides have lightweight featured artwork');
  assert.equal(links[0],'/articles/new-article-21');
  assert.equal(links.at(-1),'/articles/new-article-07');
  assert.match(latest,/<time datetime="2026-11-22T00:00:00\.000Z">/);

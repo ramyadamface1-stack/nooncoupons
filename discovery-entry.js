@@ -292,6 +292,14 @@ export async function prioritySitemap(env,origin){
     {loc:origin+'/en/uae/noon-coupon-code',lastmod:null},
     {loc:origin+'/en/saudi/category/mobiles',lastmod:null}
   ];
+  // Canonical evergreen articles with demonstrated search impressions can fall
+  // outside the bounded recent-English R2 projection. Keep a tiny verified
+  // recovery list in this lightweight sitemap; old redirecting URLs must never
+  // be submitted here (e.g. the former /en-iphone-duo-...-deals slug).
+  const evergreenEnglishArticles=[
+    {loc:origin+'/en/articles/en-iphone-18-pro-max-noon-abu-dhabi-price',lastmod:null},
+    {loc:origin+'/en/articles/en-iphone-duo-noon-abu-dhabi-coupon-code',lastmod:null}
+  ];
   for(const [country,market] of [['SA','saudi'],['AE','uae']]){
     const marketRows=english.filter(a=>a.country===country);
     if(!marketRows.length)continue;
@@ -319,7 +327,7 @@ export async function prioritySitemap(env,origin){
     if(d?.complete&&Number(d?.version)===1&&Number(d?.shards||0)>0)auditArchive.push({loc:origin+'/blog/archive',lastmod:d.generatedAt||null});
   }catch{}
   const seen=new Set(),rows=[];
-  for(const row of [...keyPages(origin),...auditArchive,...englishPages,...articles,...englishArticles]){
+  for(const row of [...keyPages(origin),...auditArchive,...englishPages,...evergreenEnglishArticles,...articles,...englishArticles]){
     if(seen.has(row.loc))continue;
     seen.add(row.loc);rows.push(row);
   }
