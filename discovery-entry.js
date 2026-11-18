@@ -548,7 +548,26 @@ function edgePageCachePut(req,u,res,ctx){
   ctx?.waitUntil?.(caches.default.put(edgePageCacheKey(u),out.clone()));
   return out;
 }
-export default{
+// The public R2 rescue and English commerce routes are GET-only. A HEAD
+// request must report the same status and indexing metadata as GET, without
+// returning a body. Never rewrite HEAD for admin, APIs, static assets or XML.
+export function isPublicHtmlHeadRoute(pathname){
+  const parts=String(pathname||'').split('/').filter(Boolean);
+  if(!parts.length)return false;
+  if(['articles','blog','coupons','saudi','uae'].includes(parts[0]))return true;
+  return parts[0]==='en'&&parts.length>1&&['articles','coupons','saudi','uae'].includes(parts[1]);
+}
+export async function mirrorGetForPublicHead(req,fetchGet){
+  const headers=new Headers(req.headers);
+  headers.set('x-internal-seo-head-parity','1');
+  const getReq=new Request(req,{method:'GET',headers});
+  const res=await fetchGet(getReq);
+  const headHeaders=new Headers(res.headers);
+  headHeaders.delete('content-length');
+  headHeaders.set('x-public-html-head-parity','get-status-v1');
+  return new Response(null,{status:res.status,statusText:res.statusText,headers:headHeaders});
+}
+const discoveryEntrypoint={
   async fetch(req,env,ctx){
     env=enableExistingDestinationR2(env);
     const u=new URL(req.url),origin=env.SITE_ORIGIN||u.origin;
@@ -580,6 +599,9 @@ export default{
         }
         return new Response(null,{status:200,headers});
       }
+    }
+    if(req.method==='HEAD'&&isPublicHtmlHeadRoute(u.pathname)){
+      return mirrorGetForPublicHead(req,getReq=>discoveryEntrypoint.fetch(getReq,env,ctx));
     }
     // Emergency public read-only rescue: old account R2 is NotEntitled (10042).
     // Only articles and blog/archive are served from the verified new R2 mirror.
@@ -808,5 +830,6 @@ export default{
     if(app.scheduled)return app.scheduled(event,env,ctx);
   }
 };
+export default discoveryEntrypoint;
 
 export const DISCOVERY_ENTRY_INFO={version:26,dailyPaceRecovery:true,burstBulkAlwaysEnabled:true,recoveryEnglishCycles:4,recoveryBulkEveryStep:false,recoveryBulkOwner:'daily-pace',cpuSaverMode:true,cronCadenceMinutes:1,coreSitemap:true,coreSitemapPath:'/sitemap-core.xml',release:DISCOVERY_RELEASE,revisionEndpoint:'/api/revision',hubSitemap:true,hubSitemapPath:'/sitemap-hubs.xml',edgePageCache:true,edgePageCacheBrowserSeconds:30,edgePageCacheSharedSeconds:120,edgePageCacheStaleSeconds:600,englishBatchPublishing:true,englishPriorityDiscovery:true,englishRootSitemapDiscovery:true,englishHomepageDiscovery:true,balancedMarketDiscovery:true,exactMarketHubFilter:true,englishPriorityArticleLimit:500,englishCategoryEvidenceMin:3,couponR2Migration:true,couponR2Audit:true,articleCorpusAudit:true,collisionOwnerAudit:true,couponSurfaceSanitizer:true,secureMigrationStep:true,englishSchedulerOwner:true,englishSchedulerRuntimeOwner:'auto-platform',englishBatchRunsBeforeRepair:false,englishSchedulerObserved:true,englishSchedulerPriority:'english-uae-core-cron-deadline-safe',englishSchedulerEffectiveBatch:24,englishSchedulerStatusRetry:true,englishSchedulerTimeBudgetMs:12000,englishSchedulerStopsOnError:true,englishBatchRepairSequential:false,secureEnglishBatchStep:true,wraps:'brand-runtime',prioritySitemap:'/sitemap-priority.xml',recentArticleLimit:500,keyPriorityPages:34,discoveryLinks:true,discoveryLinkCount:8,discoveryHubs:['/','/coupons','/blog','/blog/archive','/saudi','/uae','/saudi/categories','/uae/categories'],robotsPrioritySitemap:true,robotsEnglishSitemap:true,manifestCacheSeconds:120,r2PublicManifestCoalesced:true,edgeCachePolicy:EDGE_CACHE_POLICY_REVISION};

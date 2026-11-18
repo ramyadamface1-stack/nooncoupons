@@ -409,7 +409,7 @@ async function handleConversionEvent(req,env){
 }
 
 function isCountableArticleVisit(req,path){
-  if(req.method!=='GET'||!/^\/(?:en\/)?articles\//.test(path))return false;
+  if(req.method!=='GET'||req.headers.get('x-internal-seo-head-parity')==='1'||!/^\/(?:en\/)?articles\//.test(path))return false;
   return !botLikeRequest(req);
 }
 async function trackUniqueArticleVisit(req,env,path){
