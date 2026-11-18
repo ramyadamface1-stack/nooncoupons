@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {completeBlogResponse,listFullBlogPublished} from '../complete-blog-listing.js';
 
-function mockEnv(entries){
+function mockEnv(entries,recentArticles=null){
  const sorted=[...entries].sort((a,b)=>a.key.localeCompare(b.key,'en'));
  const calls=[];
  return {calls,CONTENT_FINAL:{
@@ -16,6 +16,7 @@ function mockEnv(entries){
   },
   async get(key){
    if(key==='_ops/article-count.json')return {json:async()=>({count:133746,countedAt:'2026-09-28T21:39:16Z'})};
+   if(key==='blog/latest-live-v1.json'&&recentArticles)return {json:async()=>({articles:recentArticles})};
    if(key==='blog/latest-live-v1.json')return {json:async()=>({articles:[
     {slug:'newest-noon-uae-today',title:'Newest verified published guide',status:'published'}
    ]})};
@@ -39,6 +40,28 @@ test('blog default exposes real corpus count, 15 articles and latest editorial s
  assert.equal(env.calls[0].limit,16);
  assert.match(html,/canonical" href="https:\/\/noondealsnow.com\/blog"/);
  assert.equal(page.headers.get('x-full-blog-r2'),'read-only-cursor-v1');
+});
+test('latest-publication lane shows 15 newest articles with real dates without changing archive pagination',async()=>{
+ const articles=Array.from({length:22},(_,i)=>({
+   slug:'new-article-'+String(i).padStart(2,'0'),title:'Useful guide '+i,country:i%2?'AE':'SA',
+   status:'published',publishedAt:new Date(Date.UTC(2026,10,i+1)).toISOString()
+ }));
+ articles.push({...articles[21],title:'Duplicate must be excluded'});
+ articles.push({slug:'hidden-draft',title:'Draft',country:'SA',status:'draft'});
+ const env=mockEnv(rows(33),articles);
+ const html=await (await go(env)).text();
+ const latest=html.split('<aside class="latest">')[1].split('</aside>')[0];
+ const links=[...latest.matchAll(/<a href="([^"]+)"/g)].map(x=>x[1]);
+ assert.equal(links.length,15);
+ assert.equal(links[0],'/articles/new-article-21');
+ assert.equal(links.at(-1),'/articles/new-article-07');
+ assert.match(latest,/<time datetime="2026-11-22T00:00:00\.000Z">/);
+ assert.ok(!latest.includes('Duplicate must be excluded'));
+ assert.equal(urls(html).length,15,'original archive count and cursor are unchanged');
+ assert.match(html,/المقالات التالية/);
+ const sa=(await (await go(env,'/blog/saudi')).text()).split('<aside class="latest">')[1].split('</aside>')[0];
+ assert.equal([...sa.matchAll(/<a href="([^"]+)"/g)].length,11);
+ assert.ok(!sa.includes('new-article-21'),'country archive may not leak UAE recent links');
 });
 test('cursor pagination visits every R2 HTML object exactly once without a 4149 cap',async()=>{
  const env=mockEnv(rows(47));

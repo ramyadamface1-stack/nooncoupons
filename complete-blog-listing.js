@@ -103,16 +103,29 @@ export async function completeBlogResponse(env,url){
  const count=Number(snapshot?.count),isCount=Number.isSafeInteger(count)&&count>0;
  const date=safeDate(snapshot?.countedAt);
  const countLine=isCount?'آخر جرد لملفات المقالات في R2: <strong>'+fmt(count)+'</strong>'+(date?' (بتاريخ '+esc(date)+')':'')+' — ليس عدًا مباشرًا لحظيًا':'جميع المقالات المحفوظة قابلة للتصفح حتى آخر صفحة';
- const latest=Array.isArray(recent?.articles)?recent.articles.filter(a=>a?.status==='published'&&a?.slug&&a?.indexable!==false).slice(0,3):[];
- const quick=latest.length?'<aside class="latest"><h2>أحدث المقالات المنشورة</h2><div>'+latest.map(a=>{
+ // The R2 object cursor must remain alphabetical to avoid skipping history.
+ // Give visitors a separate, bounded newest-first discovery lane instead.
+ const seenRecent=new Set();
+ const latest=Array.isArray(recent?.articles)?recent.articles.filter(a=>{
+   const slug=String(a?.slug||'');
+   if(a?.status!=='published'||a?.indexable===false||!slug||slug.length>300||/[/?#]/.test(slug)||seenRecent.has(slug))return false;
+   if(market&&a.country!==market)return false;
+   seenRecent.add(slug);return true;
+ }).sort((a,b)=>{
+   const published=x=>Date.parse(x?.publishedAt||x?.createdAt||'')||0;
+   return published(b)-published(a);
+ }).slice(0,15):[];
+ const quick=latest.length?'<aside class="latest"><h2>أحدث المقالات المنشورة</h2><p class="note">مرتبة حسب تاريخ النشر، والأرشيف الكامل أسفلها.</p><div>'+latest.map(a=>{
    const slug=String(a.slug),english=slug.startsWith('en-')||String(a.language||'').startsWith('en');
    const text=refreshCurrentSeasonLabel(String(a.title||slug)),href=(english?'/en/articles/':'/articles/')+encodeURIComponent(slug);
-   return '<a href="'+esc(href)+'">'+esc(text)+'</a>';
+   const publishedAt=a.publishedAt||a.createdAt,when=safeDate(publishedAt);
+   return '<article dir="'+(english?'ltr':'rtl')+'"><a href="'+esc(href)+'">'+esc(text)+'</a>'+(when?'<small><time datetime="'+esc(publishedAt)+'">'+esc(when)+'</time> · '+(a.country==='AE'?'الإمارات':'السعودية')+'</small>':'')+'</article>';
  }).join('')+'</div></aside>':'';
  const next=page.nextAfter?'<a rel="next" href="'+esc(newLink(path,page.nextAfter))+'">المقالات التالية ←</a>':'';
  const head='<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title)+'</title><meta name="description" content="'+esc(meta.description)+'"><link rel="canonical" href="'+canonical+'"><meta name="robots" content="'+(after?'noindex,follow':'index,follow')+'">';
+ const newestStyle='<style>.latest>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.latest article{padding:12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;min-width:0}.latest article a{font-weight:700;overflow-wrap:anywhere}.latest article small{display:block;color:#475569;margin-top:5px}.latest .note{margin:0 0 12px}@media(max-width:750px){.latest>div{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.latest>div{grid-template-columns:1fr}}</style>';
  const schema='<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@type':'CollectionPage',name:title,url:canonical,mainEntity:{'@type':'ItemList',itemListElement:page.rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+a.href}))}}).replace(/</g,'\\u003c')+'</script>';
  const style='<style>*{box-sizing:border-box}body{margin:0;background:#f8fafc;color:#111827;font-family:Tahoma,Arial,sans-serif;line-height:1.75}a{color:#2638a4;text-decoration:underline;text-underline-offset:3px}header{background:#111827;color:#fff;padding:28px 0}header a{color:#fff}.w{width:min(1080px,92%);margin:auto}.links{display:flex;flex-wrap:wrap;gap:12px}.links a{padding:5px 9px}.hero p{color:#e5e7eb}.count{padding:12px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin:20px 0}.latest{padding:16px;background:#fff;border:1px solid #e5e7eb;border-radius:14px}.latest h2{font-size:18px;margin:0 0 10px}.latest div{display:flex;gap:14px;flex-wrap:wrap}.latest a{display:inline-block;max-width:310px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:20px 0}.article-card{padding:18px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;min-width:0}.article-card h2{font-size:19px;line-height:1.6;overflow-wrap:anywhere}.card-meta{color:#475569;font-size:13px}.read{font-weight:bold}.pager{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;margin:26px auto 50px}.pager a{border:1px solid #cbd5e1;background:#fff;padding:9px 13px;border-radius:10px}.note{color:#475569;font-size:14px}@media(max-width:850px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:570px){.grid{grid-template-columns:1fr}}</style>';
  const body='<header><div class="w hero"><nav class="links" aria-label="أقسام الموقع"><a href="/">الرئيسية</a><a href="/coupons">الكوبونات</a><a href="/blog">كل المقالات</a><a href="/blog/saudi">السعودية</a><a href="/blog/uae">الإمارات</a><a href="/blog/archive/all">الأرشيف المباشر</a></nav><h1>'+esc(title)+'</h1><p>كل ملفات المقالات المنشورة في الأرشيف؛ لا نعتمد على فهرس أحدث المقالات المحدود، ولا نحذف أو نغيّر روابط المقالات القديمة.</p></div></header><main class="w"><div class="count">'+countLine+'</div>'+quick+'<h2>تصفح جميع المقالات '+(after?'— تكملة القائمة':'')+'</h2><p class="note">حتى 15 مقالًا منشورًا في الدفعة. فلترة الدولة قد تعطي دفعة أقصر عندما يكون مخزون الدولة متباعدًا أبجديًا؛ تابع بالمقالات التالية للوصول إلى البقية. ترتيب فهرس R2 أبجدي وليس حسب تاريخ النشر؛ روابط أحدث المقالات أعلاه.</p><section class="grid">'+(items||'<p>لا توجد مقالات قابلة للعرض في هذه الدفعة.</p>')+'</section><nav class="pager" aria-label="التنقل بين صفحات المدونة"><a href="'+path+'">أول القائمة</a>'+next+'</nav><p class="note">المعروض الآن: '+fmt(page.rows.length)+' · نتيجة القراءة: '+fmt(page.scanned)+' مفتاحًا · لا توجد حدود قصوى لعدد صفحات المدونة.</p></main>';
- return new Response('<!doctype html><html lang="ar" dir="rtl"><head>'+head+style+schema+'</head><body>'+body+'</body></html>',{headers:{'content-type':'text/html; charset=utf-8','cache-control':after?'public,max-age=0,s-maxage=120':'public,max-age=0,s-maxage=30','x-robots-tag':after?'noindex,follow':'index,follow','x-full-blog-r2':'read-only-cursor-v1'}});
+ return new Response('<!doctype html><html lang="ar" dir="rtl"><head>'+head+style+newestStyle+schema+'</head><body>'+body+'</body></html>',{headers:{'content-type':'text/html; charset=utf-8','cache-control':after?'public,max-age=0,s-maxage=120':'public,max-age=0,s-maxage=30','x-robots-tag':after?'noindex,follow':'index,follow','x-full-blog-r2':'read-only-cursor-v1'}});
 }

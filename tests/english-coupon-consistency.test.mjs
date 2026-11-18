@@ -68,6 +68,8 @@ test('published English article renders recorded approved coupon across summary,
   assert.equal(res.status,200);
   assert.equal(res.headers.get('x-english-canary'),'v1');
   const html=await res.text();
+  assert.match(html,/<div class="brand"><a href="\/en\/uae">Noon Deals Now<\/a>/,
+    'visible article header must match the independent site name used by schema');
   assert.match(html,/<dd>NOV188<\/dd>/);
   assert.match(html,/Quick answer: copy NOV188/);
   assert.match(html,/data-copy-code="NOV188"/);
