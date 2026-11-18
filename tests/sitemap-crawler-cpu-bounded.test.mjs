@@ -66,3 +66,12 @@ test('missing English snapshot degrades to stable valid XML without heavy-state 
   }
   assert.ok(!calls.includes('english-canary/state.json'));
 });
+test('priority sitemap retains verified canonical English search recovery targets, not redirecting slugs',async()=>{
+  const {env}=fakeR2({englishAvailable:false});
+  const xml=await (await prioritySitemap(env,ORIGIN)).text();
+  for(const path of [
+    '/en/articles/en-iphone-18-pro-max-noon-abu-dhabi-price',
+    '/en/articles/en-iphone-duo-noon-abu-dhabi-coupon-code'
+  ])assert.ok(xml.includes('<loc>'+ORIGIN+path+'</loc>'),path);
+  assert.ok(!xml.includes('/en/articles/en-iphone-duo-noon-abu-dhabi-deals</loc>'));
+});
