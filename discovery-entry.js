@@ -562,7 +562,10 @@ function edgePageCachePut(req,u,res,ctx){
 export function isPublicHtmlHeadRoute(pathname){
   const parts=String(pathname||'').split('/').filter(Boolean);
   if(!parts.length)return false;
-  if(['articles','blog','coupons','saudi','uae'].includes(parts[0]))return true;
+  // Search-intent guides and coupon landing pages are GET-only too. Previously
+  // HEAD returned 404 on live URLs that returned 200 to GET; preserve their
+  // actual response status for crawlers, link checkers and preview clients.
+  if(['articles','blog','coupons','coupon','guide','category','topics','saudi','uae'].includes(parts[0]))return true;
   return parts[0]==='en'&&parts.length>1&&['articles','coupons','saudi','uae'].includes(parts[1]);
 }
 export async function mirrorGetForPublicHead(req,fetchGet){

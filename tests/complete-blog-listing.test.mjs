@@ -46,6 +46,44 @@ test('blog default exposes real corpus count, 15 articles and latest editorial s
  assert.match(html,/canonical" href="https:\/\/noondealsnow.com\/blog"/);
  assert.equal(page.headers.get('x-full-blog-r2'),'read-only-cursor-v1');
 });
+test('complete blog includes one GA4 loader and a direct market-specific coupon-to-Noon path',async()=>{
+ const html=await(await go(mockEnv(rows(20)))).text();
+ assert.equal((html.match(/id="complete-blog-ga4"/g)||[]).length,1);
+ assert.equal((html.match(/G-1551Z7DJ2C/g)||[]).length,2);
+ assert.equal((html.match(/id="rescue-coupon-copy"/g)||[]).length,1);
+ assert.match(html,/data-rescue-copy="NOV170"/);
+ assert.match(html,/data-rescue-copy="NOV188"/);
+ assert.match(html,/https:\/\/www\.noon\.com\/saudi-ar\//);
+ assert.match(html,/https:\/\/www\.noon\.com\/uae-ar\//);
+ assert.match(html,/coupon_copy_success/);
+ const sa=await(await go(mockEnv(rows(20)),'/blog/saudi')).text();
+ assert.match(sa,/data-rescue-copy="NOV170"/);
+ assert.doesNotMatch(sa,/data-rescue-copy="NOV188"/);
+ const ae=await(await go(mockEnv(rows(20)),'/blog/uae')).text();
+ assert.match(ae,/data-rescue-copy="NOV188"/);
+ assert.doesNotMatch(ae,/data-rescue-copy="NOV170"/);
+ const next=more(html);
+ assert.ok(next);
+ const continuation=await(await go(mockEnv(rows(20)),next)).text();
+ assert.doesNotMatch(continuation,/class="blog-market-offers"/);
+ assert.match(continuation,/id="complete-blog-ga4"/);
+});
+test('blog SEO descriptions are country-specific, useful to shoppers, and preserve canonical URLs',async()=>{
+ const cases=[
+  ['/blog','السعودية والإمارات','https://noondealsnow.com/blog'],
+  ['/blog/saudi','NOV170','https://noondealsnow.com/blog/saudi'],
+  ['/blog/uae','NOV188','https://noondealsnow.com/blog/uae']
+ ];
+ for(const [path,needle,canonical] of cases){
+  const html=await(await go(mockEnv(rows(8)),path)).text();
+  const title=html.match(/<title>([^<]+)<\/title>/)?.[1];
+  const description=html.match(/<meta name="description" content="([^"]+)">/)?.[1];
+  assert.match(title,new RegExp(needle));
+  assert.match(description,new RegExp(needle));
+  assert.doesNotMatch(description,/R2|cursor|مخزون أبجدي/);
+  assert.match(html,new RegExp('rel="canonical" href="'+canonical+'"'));
+ }
+});
 test('archive and newest thumbnails display the article coupon, safely scoped to its market',async()=>{
  const entries=[
   {key:'articles/000-uae-code.html',customMetadata:{status:'published',c:'AE',cp:'NOV157'},uploaded:new Date('2026-09-18T18:00:00Z')},
