@@ -431,7 +431,56 @@ export async function englishPublicRecentRecords(env){
  try{return await publicRecentInFlight}finally{publicRecentInFlight=null}
 }
 
+// Public health must not hydrate the unbounded authoring state and its journal.
+// Those objects grow with every publication and can exhaust the Worker isolate
+// just to answer a read-only status request. Publishing still uses readState().
+async function englishCanaryLightHealth(env){
+  const [scheduler,auditLock]=await Promise.all([
+    readEnglishSchedulerState(env),
+    readArticleAuditLock(env).catch(()=>null)
+  ]);
+  let recent=[];
+  try{
+    const object=await env.CONTENT_FINAL?.get('english-canary/public-recent-v1.json');
+    const data=object?await object.json():null;
+    if(data?.version===1&&Array.isArray(data.articles))
+      recent=data.articles.slice(-48).map(publicRecord).filter(r=>r?.slug);
+  }catch{}
+  const n=Number(scheduler?.recordsTotal),knownCount=scheduler?.recordsTotal!=null&&Number.isSafeInteger(n)&&n>=0?n:null;
+  const canaryTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env);
+  const sample=recent.slice(0,canaryTarget).map(r=>({...r,r2Present:null}));
+  const mixWindow=recent.filter(r=>r.country==='AE').slice(-20);
+  const goldenCommercial=mixWindow.filter(r=>UAE_GOLDEN_COMMERCIAL_INTENTS.has(r.intent)).length;
+  const keywordMix={window:mixWindow.length,goldenCommercial,supportingIntent:Math.max(0,mixWindow.length-goldenCommercial),
+    goldenCommercialPct:mixWindow.length?Number((goldenCommercial*100/mixWindow.length).toFixed(1)):0,
+    targetGoldenCommercialPct:55,goldenHead:mixWindow.filter(r=>r.keywordTier==='uae-golden-commercial-head-v4').length,
+    highDemandProduct:mixWindow.filter(r=>r.keywordTier==='uae-high-demand-product-v4').length,
+    outputCycle:UAE_GOLDEN_OUTPUT_CYCLE,outputGoldenSlots:UAE_GOLDEN_OUTPUT_SLOTS};
+  const audit={active:Boolean(auditLock?.active),expired:Boolean(auditLock?.expired),runId:auditLock?.runId||null,
+    expiresAt:auditLock?.expiresAt||null,reason:auditLock?.reason||null};
+  return {ok:true,version:8,builder:BULK_ENGINE_INFO.englishArticleBuilder,
+    source:'bounded-scheduler-and-public-recent',countAsOf:scheduler?.completedAt||null,
+    countAvailable:knownCount!==null,fullStateRead:false,
+    indexNow:{...INDEXNOW_INFO,last:null},target:canaryTarget,
+    status:knownCount===null?'unknown':knownCount>=canaryTarget?'complete':'active',
+    published:knownCount===null?null:Math.min(knownCount,canaryTarget),
+    complete:knownCount===null?null:knownCount>=canaryTarget,
+    records:sample,lastError:scheduler?.error||null,lastCandidateDiagnostics:null,
+    updatedAt:scheduler?.completedAt||null,scheduler:scheduler||null,auditLock:audit,
+    controlled:{target:controlledTarget,targetMarket:TARGET_MARKET,marketPolicy:'uae-only-new-v6-batch24',
+      campaignCalendarVersion:CAMPAIGN_CALENDAR_INFO.version,published:knownCount,recordsTotal:knownCount,
+      remaining:knownCount===null?null:Math.max(0,controlledTarget-knownCount),
+      complete:knownCount===null?null:knownCount>=controlledTarget,
+      status:knownCount===null?'unknown':knownCount>=controlledTarget?'complete':'active',
+      sa:null,ae:null,uniqueProfiles:null,publishedToday:null,
+      dailyTarget:dailyTargetFromEnv(env),minIntervalMinutes:minIntervalMinutesFromEnv(env),batchSize:batchSizeFromEnv(env),
+      keywordMix,nextEligibleAt:null,samplePolicy:'bounded-public-recent-only',sampleSize:recent.length,
+      r2SampleChecked:0,r2SampleMissing:0,r2SampleHeadCacheSeconds:HEALTH_HEAD_TTL_MS/1000,
+      lightHealth:true,records:recent.map(r=>({...r,r2Present:null}))}};
+}
+
 export async function englishCanaryHealth(env,{light=true}={}){
+  if(light)return englishCanaryLightHealth(env);
   const state=await readState(env),allRecords=(state.records||[]).map(publicRecord);
   const scheduler=await readEnglishSchedulerState(env);
   const auditLock=await readArticleAuditLock(env),canaryTarget=targetFromEnv(env),controlledTarget=controlledTargetFromEnv(env);

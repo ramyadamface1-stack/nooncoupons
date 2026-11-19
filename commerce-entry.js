@@ -10,6 +10,7 @@ import {serveEnglishCanaryRepairHealth} from './english-canary-repair.js';
 import {readCouponR2MigrationState} from './coupon-r2-migration.js';
 import {APPROVED_COUPON_CODES} from './approved-coupons.js';
 import {createSafeStatsMemo,permitStatsFresh} from './safe-stats-cache.js';
+import {getGeneratorStatus} from './admin-runtime.js';
 export {ControlPlane,GeneratorControl} from './public-entry.js';
 
 async function r2json(env,key,fallback){try{const o=env.CONTENT_FINAL?await env.CONTENT_FINAL.get(key):null;return o?await o.json():fallback}catch{return fallback}}
@@ -96,9 +97,19 @@ async function health(env){const latest=await r2json(env,'bulk/latest.json',{art
 async function computeContentStats(req,env,ctx){
   let generator={};
   try{
-    const u=new URL(req.url);u.pathname='/api/generator-health';u.search='';
-    const r=await app.fetch(new Request(u.toString(),{method:'GET',headers:req.headers}),env,ctx);
-    generator=await r.json();
+    // A public statistics request must never hydrate the full legacy article
+    // state or AI V2 publication ledger through /api/generator-health.
+    // The DO status is the bounded, monotonic source for bulk counters.
+    const status=await getGeneratorStatus(env);
+    generator={ok:true,source:'durable-object-status-lite',
+      bulk:{publishedTotal:Math.max(0,Number(status.bulkPublishedTotal||0)),
+        publishedToday:String(status.bulkDay||'')===new Date().toISOString().slice(0,10)
+          ?Math.max(0,Number(status.bulkPublishedToday||0)):0,
+        dailyTarget:Math.max(0,Number(status.bulkDailyTarget||env.BULK_DAILY_TARGET||0)),
+        lastSlug:status.bulkLastSlug||null,lastQuality:status.bulkLastQuality??null,
+        lastWordCount:status.bulkLastWordCount??null,lastRun:status.bulkLastRun||null,
+        lastError:status.bulkLastError||null},
+      workersAiPublishedTodayByMarket:null};
   }catch{}
   let english={};
   try{english=await englishCanaryHealth(env,{light:true})}catch{}
@@ -111,10 +122,12 @@ async function computeContentStats(req,env,ctx){
   const r2Count=await countR2ArticleHtml(env,{fresh:freshCount});
   const r2Uploaded=r2Count.count;
   const bulk=generator?.bulk||{};
-  const workersAiToday=generator?.workersAiPublishedTodayByMarket||{};
+  const workersAiToday=generator?.workersAiPublishedTodayByMarket||null;
   const controlled=english?.controlled||{};
   const arabic=Number(bulk.publishedTotal||0);
-  const englishTotal=Number(controlled.published||0),trackedPublished=arabic+englishTotal,untrackedEstimate=r2Count.complete&&Number.isFinite(Number(r2Uploaded))?Math.max(0,Number(r2Uploaded)-trackedPublished):null;
+  const englishKnown=controlled.published!=null,englishTotal=englishKnown?Number(controlled.published):null;
+  const trackedPublished=generator.ok&&englishKnown?arabic+englishTotal:null;
+  const untrackedEstimate=r2Count.complete&&trackedPublished!==null&&Number.isFinite(Number(r2Uploaded))?Math.max(0,Number(r2Uploaded)-trackedPublished):null;
   const discovery=await r2json(env,ARTICLE_DISCOVERY_CURRENT_KEY,null),auditQualified=discovery?.complete?Number(discovery.articles||0):null,auditCoverage=r2Count.complete&&auditQualified!=null&&Number(r2Uploaded)>0?Math.round(auditQualified/Number(r2Uploaded)*10000)/100:null;
   return {
     ok:true,total:trackedPublished,r2Uploaded,authoritativeAuditHtmlCount:r2Uploaded,liveTrackedPublished:trackedPublished,arabic,english:englishTotal,
@@ -125,12 +138,12 @@ async function computeContentStats(req,env,ctx){
       rescueManifest:'Independent reference entries at /api/archive-inventory; not confirmed published file counts',
       comparable:false,automaticDeletion:false
     },
-    englishByCountry:{SA:Number(controlled.sa||0),AE:Number(controlled.ae||0)},
+    englishByCountry:{SA:controlled.sa==null?null:Number(controlled.sa),AE:controlled.ae==null?null:Number(controlled.ae)},
     publishedTodayArabic:Number(bulk.publishedToday||0),dailyTargetArabic:Number(bulk.dailyTarget||0),
-    publishedTodaySaudiWorkersAI:Number(workersAiToday.SA||0),
-    publishedTodayUaeWorkersAI:Number(workersAiToday.AE||0),
-    publishedTodaySaudiKnown:Number(bulk.publishedToday||0)+Number(workersAiToday.SA||0),
-    publishedTodayCountScope:'publishedTodayArabic is programmatic bulk only; publishedTodaySaudiKnown adds separate Workers AI ControlPlane posts, excluding unaudited older/other pipelines',
+    publishedTodaySaudiWorkersAI:workersAiToday?Number(workersAiToday.SA||0):null,
+    publishedTodayUaeWorkersAI:workersAiToday?Number(workersAiToday.AE||0):null,
+    publishedTodaySaudiKnown:workersAiToday?Number(bulk.publishedToday||0)+Number(workersAiToday.SA||0):null,
+    publishedTodayCountScope:'Bulk counters are durable-object facts. Legacy Workers AI and English country/today totals are null when unavailable from a bounded snapshot, never fabricated as zero.',
     last:{slug:bulk.lastSlug||null,quality:bulk.lastQuality??null,wordCount:bulk.lastWordCount??null,run:bulk.lastRun||null,error:bulk.lastError||null},
     englishControlled:{target:Number(controlled.target||0),complete:Boolean(controlled.complete),remaining:Number(controlled.remaining||0),publishedToday:Number(controlled.publishedToday||0),dailyTarget:Number(controlled.dailyTarget||0),minIntervalMinutes:Number(controlled.minIntervalMinutes||0),nextEligibleAt:controlled.nextEligibleAt||null},
     source:'live-runtime',generatedAt:new Date().toISOString(),health:generator,
