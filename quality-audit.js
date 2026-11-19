@@ -51,6 +51,14 @@ export function preAuditSemanticGate(article,semanticRecent=[]){
 function addCheck(list,group,name,pass,weight=1,{critical=false,note=''}={}){list.push({group,name,pass:Boolean(pass),weight,critical,note})}
 function groupScores(checks){const names=[...new Set(checks.map(x=>x.group))],out={};for(const g of names){const c=checks.filter(x=>x.group===g),w=c.reduce((s,x)=>s+x.weight,0),p=c.reduce((s,x)=>s+(x.pass?x.weight:0),0);out[g]=clamp(pct(p,w))}return out}
 
+export function imageMeetsAuditAttributes(tag){
+  const html=String(tag||''),width=(html.match(/\bwidth\s*=\s*["']?(\d+)/i)||[])[1],height=(html.match(/\bheight\s*=\s*["']?(\d+)/i)||[])[1];
+  // Accept existing 1200×760 artwork during migration and the newer 1600×1000
+  // images. A mismatched pair is not a valid image-size declaration.
+  const validDimensions=(width==='1600'&&height==='1000')||(width==='1200'&&height==='760');
+  return validDimensions&&/\balt=["'][^"']{12,}["']/i.test(html)&&/\btitle=["'][^"']+["']/i.test(html);
+}
+
 const COMPETITOR=/amazon|temu|shein|namshi|aliexpress|trendyol|carrefour|jarir|(?:eXtra\s+(?:stores|saudi|ksa|uae))|أمازون|امازون|تيمو|شي\s?إن|شيين|نمشي|علي\s?إكسبريس|علي\s?اكسبريس|ترينديول|كارفور|جرير|إكسترا|اكسترا/i;
 const GENERIC_AI=/(?:بالتأكيد|مما لا شك فيه|في عالمنا اليوم|في عصرنا الحالي|دعنا نتعمق|في الختام،؟ يمكن القول|سواء كنت مبتدئًا أو محترفًا)/i;
 const UNSUPPORTED_PROMO=/(?:خصم|توفير)\s*(?:حتى\s*)?\d{1,3}\s*[%٪]|\d{1,4}\s*(?:ريال|درهم)\s*(?:خصم|توفير)|(?:مضمون|مؤكد)\s*(?:الخصم|الكود|القسيمة)/i;
@@ -134,7 +142,7 @@ export function auditSeoArticle(article,topic,opts={}){
   addCheck(checks,'technical','valid_heading_depth',h1===1&&h2>=9&&h3>=4,2);
   addCheck(checks,'technical','no_placeholder_links',!/href=["'](?:#|javascript:)/i.test(html),2);
 
-  const imageGood=imgs.filter(x=>/alt=["'][^"']{12,}["']/i.test(x)&&/title=["'][^"']+["']/i.test(x)&&/width=["']?1200/i.test(x)&&/height=["']?760/i.test(x)).length;
+  const imageGood=imgs.filter(imageMeetsAuditAttributes).length;
   addCheck(checks,'image','image_count',imgs.length>=4,3);
   addCheck(checks,'image','image_attributes',imageGood>=4,3);
   addCheck(checks,'image','lazy_loading',imgs.filter(x=>/loading=["']lazy["']/i.test(x)).length>=4,2);

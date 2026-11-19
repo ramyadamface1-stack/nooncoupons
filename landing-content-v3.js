@@ -1,4 +1,5 @@
 import {MARKETS,CATEGORIES,BRANDS,COMPARISONS,commercePaths} from './commerce-taxonomy.js';
+import {readRecentPublicManifest} from './r2-public-manifest.js';
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const hash=s=>{let n=2166136261;for(const c of String(s||'')){n^=c.charCodeAt(0);n=Math.imul(n,16777619)}return n>>>0};
@@ -103,10 +104,12 @@ function entityBlock(ctx){
 
 async function relatedArticlesBlock(ctx,env){
   try{
-    const o=env?.CONTENT_FINAL?await env.CONTENT_FINAL.get('bulk/latest.json'):null;
-    const d=o?await o.json():{articles:[]},rows=(d.articles||[]);
+    // Reuse the bounded manifest snapshot that commerceLanding has already read.
+    // A second unbounded bulk/latest.json read costs both Worker CPU and R2 ops.
+    const d=await readRecentPublicManifest(env),rows=Array.isArray(d?.articles)?d.articles:[];
     const marketCode=ctx.market==='uae'?'AE':'SA';
     const scored=rows.map(a=>{
+      if(!a?.slug||a.indexable===false||!/^[a-z0-9][a-z0-9_-]*$/i.test(a.slug))return null;
       let score=0;
       if(a.country===marketCode)score+=4; else return null;
       if(ctx.type==='category'&&a.categoryKey===ctx.key)score+=12;
@@ -115,7 +118,7 @@ async function relatedArticlesBlock(ctx,env){
       if(ctx.type==='comparison'&&a.comparisonKey===ctx.key)score+=18;
       if(a.landingPath===ctx.path)score+=20;
       return score>4?{a,score}:null;
-    }).filter(Boolean).sort((x,y)=>y.score-x.score).slice(0,8);
+    }).filter(Boolean).sort((x,y)=>y.score-x.score).slice(0,6);
     if(!scored.length)return '';
     return `<section class="section related-articles"><h2>مقالات مرتبطة مباشرة بهذه الصفحة</h2><p>هذه المقالات مختارة من بيانات التصنيف المحفوظة مع المقال نفسه، وليس من تطابق كلمات العنوان فقط.</p><div class="grid">${scored.map(({a})=>`<article class="box"><h3><a href="/articles/${esc(a.slug)}">${esc(a.title||a.primaryKeyword||a.slug)}</a></h3><p>${esc(a.primaryKeyword||'دليل شراء وكوبونات مرتبط')}</p></article>`).join('')}</div></section>`;
   }catch{return ''}
@@ -135,43 +138,52 @@ function relatedHubBlock(ctx){
   if(ctx.brand)links.push({p:base+'/brand/'+Object.keys(BRANDS).find(k=>BRANDS[k]===ctx.brand),l:'كل أدلة '+ctx.brand.label});
   return `<section class="section related-authority"><h2>روابط مرتبطة تساعدك على إكمال القرار</h2><p>استخدم هذه الروابط للانتقال بين مستوى السوق والقسم والبراند وصفحة الكوبون من غير فقدان سياق المقارنة.</p><nav class="chips" aria-label="روابط تجارية مرتبطة">${links.filter((x,i,a)=>a.findIndex(y=>y.p===x.p)===i).map(x=>`<a href="${esc(x.p)}">${esc(x.l)}</a>`).join('')}</nav></section>`;
 }
-function eeatBlock(ctx){return `<section class="section editorial-method"><h2>منهجية التحرير والتحقق</h2><p>نكتب هذه الصفحة لمساعدة المستخدم على المقارنة وليس لإصدار حكم مطلق. نفصل بين المعلومات الثابتة نسبيًا مثل اسم البراند أو عائلة المنتج، وبين المعلومات المتغيرة مثل السعر والمخزون والبائع وأهلية الكوبون. أي عنصر متغير يجب فحصه على ${esc(ctx.mk.name)} قبل الدفع.</p><p>عند وجود أكثر من بائع أو نسخة، نعتبر كل تركيبة حالة مستقلة. لا نفترض أن الضمان أو الملحقات أو حالة المنتج واحدة بين كل النتائج. كما لا ننسب إلى نون أو البراند أي تعهد لم يظهر في الصفحة الحية. هذا الأسلوب يرفع قابلية التحقق ويقلل الادعاءات غير المسندة.</p><p>آخر تحديث تحريري لهذه الطبقة: 16 سبتمبر 2026. الغرض من تاريخ التحديث هو توضيح إصدار منهج الصفحة، وليس الادعاء بأن كل سعر أو مخزون ثابت منذ هذا التاريخ.</p></section>`}
+function eeatBlock(ctx){return `<section class="section editorial-method"><h2>منهجية التحرير والتحقق</h2><p>نكتب هذه الصفحة لمساعدة المستخدم على المقارنة وليس لإصدار حكم مطلق. نفصل بين المعلومات الثابتة نسبيًا مثل اسم البراند أو عائلة المنتج، وبين المعلومات المتغيرة مثل السعر والمخزون والبائع وأهلية الكوبون. أي عنصر متغير يجب فحصه على ${esc(ctx.mk.name)} قبل الدفع.</p><p>عند وجود أكثر من بائع أو نسخة، نعتبر كل تركيبة حالة مستقلة. لا نفترض أن الضمان أو الملحقات أو حالة المنتج واحدة بين كل النتائج. كما لا ننسب إلى نون أو البراند أي تعهد لم يظهر في الصفحة الحية. هذا الأسلوب يرفع قابلية التحقق ويقلل الادعاءات غير المسندة.</p><p>هذه منهجية ثابتة وليست ادعاء بتحديث الأسعار أو المخزون بشكل لحظي.</p></section>`}
 
-function faqBlock(ctx,seed){const qs=rotate(QA,seed).slice(0,8);return {html:`<section class="section faq"><h2>أسئلة شائعة عن ${esc(ctx.label)}</h2>${qs.map(([q,a])=>`<details><summary>${esc(q)}</summary><p>${esc(a)} في سياق ${esc(ctx.label)} على ${esc(ctx.mk.name)}، راجع دائمًا تفاصيل السلة الحية قبل الدفع.</p></details>`).join('')}</section>`,items:qs.map(([q,a])=>({'@type':'Question',name:q,acceptedAnswer:{'@type':'Answer',text:`${a} في سياق ${ctx.label} على ${ctx.mk.name}، راجع تفاصيل السلة الحية قبل الدفع.`}}))};}
+function faqBlock(ctx,seed){
+  // A mobile hub must not surface a fashion FAQ, and vice versa. Rotating the
+  // old global list leaked irrelevant questions into many category pages.
+  const general=rotate(QA.slice(0,7),seed);
+  const fashionKeys=new Set(['shoes','bags','fashion','women-fashion','men-fashion']);
+  const technicalKeys=new Set(['mobiles','electronics','computers','gaming','audio','tvs','tablets','laptops','appliances']);
+  const categoryKeys=ctx.category?[ctx.key]:ctx.brand?.categories||[];
+  const special=ctx.type==='brand'||ctx.type==='model'?QA[7]:
+    categoryKeys.some(k=>fashionKeys.has(k))?QA[8]:
+    categoryKeys.some(k=>technicalKeys.has(k))?QA[9]:
+    [`ما الذي يجب مطابقته قبل طلب ${ctx.label}؟`,`راجع المنتج والكمية أو السعة والبائع والشحن وأهلية الكوبون، ثم قارن إجمالي السلة النهائي على ${ctx.mk.name}.`];
+  const qs=[...general,special];
+  return {html:`<section class="section faq"><h2>أسئلة شائعة عن ${esc(ctx.label)}</h2>${qs.map(([q,a])=>`<details><summary>${esc(q)}</summary><p>${esc(a)} في سياق ${esc(ctx.label)} على ${esc(ctx.mk.name)}، راجع دائمًا تفاصيل السلة الحية قبل الدفع.</p></details>`).join('')}</section>`,items:qs.map(([q,a])=>({'@type':'Question',name:q,acceptedAnswer:{'@type':'Answer',text:`${a} في سياق ${ctx.label} على ${ctx.mk.name}، راجع تفاصيل السلة الحية قبل الدفع.`}}))};
+}
 
 function extraSchema(origin,path,ctx,faqItems){
-  const marketPath='/'+ctx.market,lang=ctx.market==='saudi'?'ar-SA':'ar-AE';
-  const crumbs=[
-    {'@type':'ListItem',position:1,name:'الرئيسية',item:origin+'/'},
-    {'@type':'ListItem',position:2,name:ctx.mk.name,item:origin+marketPath}
-  ];
-  if(ctx.type==='category'||ctx.type==='directory')crumbs.push({'@type':'ListItem',position:3,name:'الأقسام',item:origin+marketPath+'/categories'});
-  if(ctx.type==='brand'||ctx.type==='model')crumbs.push({'@type':'ListItem',position:3,name:ctx.brand?.label||ctx.label,item:origin+marketPath+'/brand/'+(ctx.type==='model'?path.split('/').filter(Boolean)[2]:ctx.key)});
-  if(ctx.type==='comparison')crumbs.push({'@type':'ListItem',position:3,name:'المقارنات',item:origin+marketPath+'/categories'});
-  if(crumbs[crumbs.length-1]?.item!==origin+path)crumbs.push({'@type':'ListItem',position:crumbs.length+1,name:ctx.label,item:origin+path});
+  // commerce-pages-v2 already emits the authoritative CollectionPage,
+  // Organization and canonical BreadcrumbList. Adding another WebPage,
+  // publisher and conflicting breadcrumb graph here created duplicate entities.
   return {'@context':'https://schema.org','@graph':[
-    {'@type':'WebPage','@id':origin+path+'#guide',url:origin+path,name:ctx.label,inLanguage:lang,dateModified:'2026-09-26',about:{'@type':'Thing',name:ctx.label},isPartOf:{'@type':'WebSite','@id':origin+'/#website',url:origin,name:'كوبونات نون'},publisher:{'@type':'Organization','@id':origin+'/#publisher',name:'كوبونات نون',url:origin},breadcrumb:{'@id':origin+path+'#breadcrumb'}},
-    {'@type':'BreadcrumbList','@id':origin+path+'#breadcrumb',itemListElement:crumbs},
-    {'@type':'FAQPage','@id':origin+path+'#faq',mainEntity:faqItems},
-    {'@type':'Organization','@id':origin+'/#publisher',name:'كوبونات نون',url:origin,description:'دليل مستقل لتنظيم أكواد الخصم ومقارنات التسوق على نون السعودية ونون الإمارات.'}
+    {'@type':'FAQPage','@id':origin+path+'#faq',mainEntity:faqItems}
   ]};
 }
 
-export async function enhanceLandingPage(path,origin,res){
+export async function enhanceLandingPage(path,origin,res,env){
   const ctx=context(path);if(!ctx||!res?.ok||!(res.headers.get('content-type')||'').includes('text/html'))return res;
+  ctx.path=path;
   let html=await res.text();if(html.includes('id="landing-depth-v3"'))return new Response(html,{status:res.status,headers:res.headers});
-  const seed=hash(path),angles=rotate(ANGLES,seed).slice(0,40);
+  // Huge, formulaic 5,000-word additions repeated across commercial landings
+  // obscured the useful steps and inflated mobile HTML by ~200 KB. Keep a
+  // focused, collapsible 1,800–2,400-word guide with truly related articles.
+  const seed=hash(path),angles=rotate(ANGLES,seed).slice(0,4);
   const faq=faqBlock(ctx,seed);
   const guideStyle=`<style id="advanced-guide-ui">.advanced-guide{margin:28px 0}.advanced-guide-intro{color:#667085;line-height:1.8;max-width:850px}.advanced-guide-list{display:grid;gap:9px;margin-top:16px}.long-guide-section{border:1px solid #e7e9ee;border-radius:14px;background:#fff;overflow:hidden}.long-guide-section summary{cursor:pointer;padding:14px 16px;list-style:none;background:#fcfcfd}.long-guide-section summary::-webkit-details-marker{display:none}.long-guide-section summary h3{display:inline;font-size:16px;line-height:1.6;margin:0}.long-guide-section summary:after{content:'+';float:left;font-size:21px;font-weight:900;color:#667085}.long-guide-section[open] summary:after{content:'−'}.long-guide-body{padding:4px 18px 18px;border-top:1px solid #f0f1f3}.long-guide-body p{font-size:15px;line-height:1.9;color:#475467}.landing-visuals{border:1px solid #e7e9ee;border-radius:14px;padding:14px 16px;background:#fff}.landing-visuals>summary{cursor:pointer;font-weight:900}</style>`;
-  const buildBody=(guideItems)=>`<div id="landing-depth-v3" data-content-version="4" data-route-seed="${seed}">${guideStyle}${entityBlock(ctx)}${functionalBlock(ctx)}${couponGuideBlock(ctx,seed)}${definitionsBlock(ctx)}${keywordBlock(ctx,seed)}${visualBlock(ctx,seed)}<section class="section advanced-guide"><h2>دليل متقدم لاختيار ${esc(ctx.label)}</h2><p class="advanced-guide-intro">لو احتجت تفاصيل أعمق، افتح فقط النقطة التي تهمك. المحتوى التالي منظم كمراجع قصيرة حتى لا تضطر لقراءة صفحة طويلة من البداية للنهاية.</p><div class="advanced-guide-list">${guideItems}</div></section>${faq.html}${relatedHubBlock(ctx)}${eeatBlock(ctx)}</div>`;
+  const related=await relatedArticlesBlock(ctx,env);
+  const buildBody=(guideItems)=>`<div id="landing-depth-v3" data-content-version="5" data-route-seed="${seed}">${guideStyle}${entityBlock(ctx)}${functionalBlock(ctx)}${couponGuideBlock(ctx,seed)}${definitionsBlock(ctx)}${keywordBlock(ctx,seed)}${visualBlock(ctx,seed)}${related}<section class="section advanced-guide"><h2>دليل متقدم لاختيار ${esc(ctx.label)}</h2><p class="advanced-guide-intro">لو احتجت تفاصيل أعمق، افتح فقط النقطة التي تهمك. المحتوى التالي منظم كمراجع قصيرة حتى لا تضطر لقراءة صفحة طويلة من البداية للنهاية.</p><div class="advanced-guide-list">${guideItems}</div></section>${faq.html}${relatedHubBlock(ctx)}${eeatBlock(ctx)}</div>`;
   let guideItems=angles.map((a,i)=>section(ctx,seed,i,a)).join('');
   let body=buildBody(guideItems);
-  const floor=5000;const charFloor=5000;let n=words(body),extra=0;
-  while((n<floor||body.replace(/<[^>]*>/g,' ').length<charFloor)&&extra<20){guideItems+=section(ctx,seed+extra*101,angles.length+extra,ANGLES[(seed+extra)%ANGLES.length]);extra++;body=buildBody(guideItems);n=words(body)}
+  const floor=1800;let n=words(body),extra=0;
+  while(n<floor&&extra<5){guideItems+=section(ctx,seed+extra*101,angles.length+extra,ANGLES[(seed+extra)%ANGLES.length]);extra++;body=buildBody(guideItems);n=words(body)}
   const schema=extraSchema(origin,path,ctx,faq.items);
-  html=html.replace(/<\/head>/i,`<meta name="content-depth" content="${n}"><meta name="landing-content-version" content="4"><script type="application/ld+json">${JSON.stringify(schema).replace(/</g,'\\u003c')}</script></head>`).replace(/<\/main>/i,`${body}</main>`);
-  const h=new Headers(res.headers);h.delete('content-length');h.set('x-landing-content','v4');h.set('x-landing-word-count',String(n));h.set('x-landing-char-count',String(body.replace(/<[^>]*>/g,' ').length));h.set('x-landing-images','3');h.set('x-landing-unique-seed',String(seed));h.set('x-landing-schema','webpage-breadcrumb-faq-organization');
+  html=html.replace(/<\/head>/i,`<meta name="content-depth" content="${n}"><meta name="landing-content-version" content="5"><script type="application/ld+json">${JSON.stringify(schema).replace(/</g,'\\u003c')}</script></head>`).replace(/<\/main>/i,`${body}</main>`);
+  const h=new Headers(res.headers);h.delete('content-length');h.set('x-landing-content','v5');h.set('x-landing-word-count',String(n));h.set('x-landing-char-count',String(body.replace(/<[^>]*>/g,' ').length));h.set('x-landing-images','3');h.set('x-landing-unique-seed',String(seed));h.set('x-landing-schema','collectionpage-breadcrumb-faq-organization');
   return new Response(html,{status:res.status,statusText:res.statusText,headers:h});
 }
 
-export const LANDING_CONTENT_V3={version:4,minWords:5000,minChars:5000,imagesPerLanding:3,definitions:true,keywordClusters:true,couponGuide:true,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['WebPage','BreadcrumbList','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true,relatedAuthorityLinks:true,functionalByLandingType:true,metadataMatchedRelatedArticles:true};
+export const LANDING_CONTENT_V3={version:5,minWords:1800,minChars:5000,imagesPerLanding:3,definitions:true,keywordClusters:true,couponGuide:true,routeCount:commercePaths().length,uniqueBy:'route-seed',schema:['CollectionPage','BreadcrumbList','FAQPage','Organization'],eeat:true,geoAeo:true,seo:true,relatedAuthorityLinks:true,functionalByLandingType:true,metadataMatchedRelatedArticles:true};

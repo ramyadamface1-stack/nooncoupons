@@ -94,11 +94,44 @@ async function getObject(env,key,cacheMs=0){
 }
 async function getJson(env,key){const result=await getObject(env,key,key==='blog/latest-live-v1.json'?15000:120000);return result?JSON.parse(result.body):null}
 
-const rescueImageUrl=(slug,country='SA',coupon='',variant=1)=>'/assets/coupon-svg/'+encodeURIComponent(String(slug))+'/'+variant+'.svg?v=9&country='+encodeURIComponent(country==='AE'?'AE':'SA')+(coupon?'&coupon='+encodeURIComponent(String(coupon)):'');
+const rescueImageUrl=(slug,country='SA',coupon='',variant=1,title='')=>'/assets/coupon-svg/'+encodeURIComponent(String(slug))+'/'+variant+'.svg?v=11&country='+encodeURIComponent(country==='AE'?'AE':'SA')+(coupon?'&coupon='+encodeURIComponent(String(coupon)):'')+(title?'&kw='+encodeURIComponent(String(title).slice(0,120)):'');
 const marketOf=a=>a?.country==='AE'||/^en-/.test(String(a?.slug||''))||/\buae\b|الإمارات/i.test(String(a?.slug||''))?'AE':'SA';
 const dateIso=s=>{const d=new Date(s||'');return Number.isFinite(d.getTime())?d.toISOString():null};
 const dateLabel=s=>{try{return new Intl.DateTimeFormat('ar-EG',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(s))}catch{return ''}};
-const imgTag=(slug,country,coupon,variant=1,title='')=>'<img src="'+esc(rescueImageUrl(slug,country,coupon,variant))+'" alt="'+esc('Noon '+(country==='AE'?'UAE':'Saudi Arabia')+' coupon guide — '+title)+'" width="1200" height="760" loading="'+(variant===1?'eager':'lazy')+'" decoding="async" style="width:100%;height:auto;aspect-ratio:1200/760;object-fit:contain;background:#f8fafc;border-radius:12px">';
+const imgTag=(slug,country,coupon,variant=1,title='')=>'<img src="'+esc(rescueImageUrl(slug,country,coupon,variant,title))+'" alt="'+esc('Noon '+(country==='AE'?'UAE':'Saudi Arabia')+' coupon guide — '+title)+'" width="1600" height="1000" loading="'+(variant===1?'eager':'lazy')+'" decoding="async" style="width:100%;height:auto;aspect-ratio:8/5;object-fit:contain;background:#f8fafc;border-radius:12px">';
+
+// Existing R2 objects are immutable. Apply narrowly scoped, evidence-led GSC
+// snippet improvements at render time, never changing the H1, slug or article.
+// Unverified discounts, real-time price figures and claims are intentionally absent.
+const RESCUE_GSC_SNIPPETS={
+  'en-iphone-18-pro-max-noon-abu-dhabi-price':{
+    title:'iPhone 18 Pro Max in Abu Dhabi on Noon UAE | Price Guide',
+    description:'Compare iPhone 18 Pro Max listings on Noon UAE in Abu Dhabi. Check the exact model, seller, delivery, NOV188 eligibility and final cart total.'
+  },
+  'en-iphone-18-pro-max-noon-abu-dhabi-buying-guide':{
+    title:'iPhone 18 Pro Max on Noon UAE | Abu Dhabi Buying Guide',
+    description:'Planning to buy iPhone 18 Pro Max in Abu Dhabi? Review the model, seller, warranty, delivery and final Noon UAE checkout total with NOV188.'
+  },
+  'en-iphone-duo-noon-abu-dhabi-coupon-code':{
+    title:'iPhone Duo Noon UAE Coupon Code | Abu Dhabi Guide',
+    description:'Compare iPhone Duo listings on Noon UAE in Abu Dhabi. Check the seller, model, NOV188 coupon eligibility and final checkout total.'
+  },
+  'en-samsung-galaxy-s26-ultra-noon-dubai-deals':{
+    title:'Samsung Galaxy S26 Ultra on Noon Dubai | UAE Guide',
+    description:'Review Samsung Galaxy S26 Ultra listings on Noon UAE in Dubai. Compare the seller, warranty, shipping and final total with NOV188.'
+  },
+  'en-noon-cart-coupon-uae-grocery-checkout-guide':{
+    title:'Noon UAE Grocery Coupon Code | Checkout Guide',
+    description:'Shopping for groceries on Noon UAE? Check pack sizes, seller, delivery and NOV188 coupon eligibility before confirming the cart total.'
+  }
+};
+export function rescueGscSnippet(slug,title,description,english){
+  const row=english?RESCUE_GSC_SNIPPETS[String(slug||'')]:null;
+  return row?{title:row.title,description:row.description,optimized:true}:{title,description,optimized:false};
+}
+export function refreshArtworkUrlsInHtml(html){
+  return String(html||'').replace(/(\/assets\/coupon-svg\/[^"'\s<>]+\/[1-5]\.svg\?)v=\d+/g,'$1v=11');
+}
 const topicLinks=(country='SA',english=false)=>{
   const market=country==='AE'?'uae':'saudi';
   const landing=country==='AE'?'/uae/noon-coupon-code':'/saudi-arabia/noon-coupon-code';
@@ -117,7 +150,7 @@ const topicLinks=(country='SA',english=false)=>{
 };
 function page(title,content,{lang='ar',dir='rtl',canonical='',description='',robots='noindex,follow',image=''}={}){
   const header='<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="'+esc(robots)+'">'+
-    '<title>'+esc(title)+' | كوبونات نون</title><meta name="description" content="'+esc(description||title)+'">'+
+    '<title>'+esc(title)+(String(lang).startsWith('en')?' | Noon Deals Now':' | كوبونات نون')+'</title><meta name="description" content="'+esc(description||title)+'">'+
     (canonical?'<link rel="canonical" href="'+esc(canonical)+'">':'')+
     (image?'<meta property="og:type" content="website"><meta property="og:title" content="'+esc(title)+'"><meta property="og:description" content="'+esc(description||title)+'"><meta property="og:url" content="'+esc(canonical||'https://noondealsnow.com/blog')+'"><meta property="og:image" content="'+esc(image)+'"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(image)+'">':'');
   // These rescue responses exit before public-entry.js's original injection.
@@ -185,7 +218,7 @@ export function removeRedundantSourceArticleJsonLd(content){
 export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  const md=obj?.meta||{},country=english?'AE':String(md.c||'').toUpperCase()==='AE'?'AE':'SA';
  const code=country==='AE'?'NOV188':'NOV170';
- const source=refreshLiveTemporalArticleHtml(String(obj?.body||''),{english}).html;
+ const source=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(String(obj?.body||''),{english}).html);
  if(md.p!=='ai-v2-native'||md.status!=='published'||md.c!==country||
     md.cp!==code||Number(md.q)<95||Number(md.w)<1500||
     source.length<4000||source.length>240000||!source.includes(code)||
@@ -196,8 +229,9 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  const title=fromMeta(md.t).slice(0,180);
  const description=fromMeta(md.m).slice(0,170);
  if(title.length<8||description.length<20)return null;
+ const snippet=rescueGscSnippet(slug,title,description,english);
  const canonical='https://noondealsnow.com'+u.pathname;
- const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1);
+ const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1,title);
  const figure='<figure class="featured">'+imgTag(slug,country,code,1,title)+'</figure>';
  const published=dateIso(md.at);
  const timeLabel=published?(english?new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Cairo',dateStyle:'medium',timeStyle:'short'}).format(new Date(published)):dateLabel(published)):'';
@@ -206,11 +240,11 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
    renderCouponAction(country,english,'top')+source+
    renderCouponAction(country,english,'bottom')+'</article>'+
    topicLinks(country,english)+rescueCopyScript;
- let html=page(title,contents,{lang:english?'en-AE':country==='AE'?'ar-AE':'ar-SA',
-   dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
+ let html=page(snippet.title,contents,{lang:english?'en-AE':country==='AE'?'ar-AE':'ar-SA',
+   dir:english?'ltr':'rtl',canonical,description:snippet.description,robots:'index,follow,max-image-preview:large'});
  const extras=rescueArticleStyles+'<meta property="og:type" content="article"><meta property="og:title" content="'+
-  esc(title)+'"><meta property="og:description" content="'+esc(description)+'"><meta property="og:image" content="'+
-  esc(featured)+'"><meta name="twitter:card" content="summary_large_image">'+
+  esc(snippet.title)+'"><meta property="og:description" content="'+esc(snippet.description)+'"><meta property="og:image" content="'+
+  esc(featured)+'"><meta property="og:image:width" content="1600"><meta property="og:image:height" content="1000"><meta name="twitter:card" content="summary_large_image">'+
   (published?'<meta property="article:published_time" content="'+esc(published)+'">':'')+
   (english?'<link rel="alternate" hreflang="en-AE" href="'+esc(canonical)+'">':'');
  html=html.replace('</head>',extras+'</head>');
@@ -261,10 +295,11 @@ async function serveArticle(env,u,english){
   const fast=renderApprovedNativeAiV2Fast(obj,slug,u,english);
   if(fast)return fast;
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
-  const body=refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country),country),country),country,english),{english}).html;
+  const body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country),country),country),country,english),{english}).html);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
   const description=cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'')).slice(0,170),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
-  const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1);
+  const snippet=rescueGscSnippet(slug,title,description,english);
+  const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1,title);
   const date=dateIso(obj.meta.publishedAt||obj.meta.createdAt||obj.meta.datePublished||obj.meta.at);
   const meta={'@context':'https://schema.org','@type':'Article',headline:title,description,inLanguage:english?'en':'ar',mainEntityOfPage:canonical,image:[featured],author:{'@type':'Organization',name:'Noon Deals Now editorial team',url:'https://noondealsnow.com/authors/editorial-team'},publisher:{'@type':'Organization',name:'Noon Deals Now',url:'https://noondealsnow.com'},...(date?{datePublished:date}:{})};
   // The source's legacy text-only coupon box did not expose a copy action.
@@ -285,10 +320,10 @@ async function serveArticle(env,u,english){
   const topOffer=renderCouponAction(country,english,'top'),bottomOffer=renderCouponAction(country,english,'bottom');
   const mobileOffer='<div class="rescue-mobile-offer" data-market="'+country+'">'+renderCouponAction(country,english,'mobile')+'</div>';
   const contents=schema+figure+'<article class="rescue-article" data-market="'+country+'">'+topOffer+body+bottomOffer+related+'</article>'+extras+mobileOffer+rescueCopyScript;
-  let html=page(title,contents,{lang:english?'en-AE':country==='AE'?'ar-AE':'ar-SA',dir:english?'ltr':'rtl',canonical,description,robots:'index,follow,max-image-preview:large'});
+  let html=page(snippet.title,contents,{lang:english?'en-AE':country==='AE'?'ar-AE':'ar-SA',dir:english?'ltr':'rtl',canonical,description:snippet.description,robots:'index,follow,max-image-preview:large'});
   html=html.replace('</head>',rescueArticleStyles+'</head>');
   if(languageAlternates)html=html.replace('</head>',languageAlternates+'</head>');
-  html=html.replace('</head>','<meta property="og:type" content="article"><meta property="og:title" content="'+esc(title)+'"><meta property="og:description" content="'+esc(description)+'"><meta property="og:image" content="'+esc(featured)+'"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="760"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(featured)+'"></head>');
+  html=html.replace('</head>','<meta property="og:type" content="article"><meta property="og:title" content="'+esc(snippet.title)+'"><meta property="og:description" content="'+esc(snippet.description)+'"><meta property="og:image" content="'+esc(featured)+'"><meta property="og:image:width" content="1600"><meta property="og:image:height" content="1000"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(featured)+'"></head>');
   return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles','content-language':english?'en':'ar',...(originalEnglishBaseline?{'x-english-canary':'v1'}:{})}});
 }
 function rescueIntentGroup(intent){
@@ -527,7 +562,7 @@ async function liveRecentSitemap(env){
   }
   const entries=rows.map(a=>{
     const loc=rescueArticleUrl(a),date=new Date(a.publishedAt||a.createdAt).toISOString();
-    const img=rescueOrigin+rescueImageUrl(a.slug,marketOf(a),primaryCodeForMarket(marketOf(a)),1);
+    const img=rescueOrigin+rescueImageUrl(a.slug,marketOf(a),primaryCodeForMarket(marketOf(a)),1,a.title);
     return '<url><loc>'+xmlSafe(loc)+'</loc><lastmod>'+xmlSafe(date)+'</lastmod><image:image><image:loc>'+xmlSafe(img)+'</image:loc></image:image></url>';
   }).join('');
   const xml='<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">'+entries+'</urlset>';
@@ -661,7 +696,7 @@ export async function rescueSitemapResponse(path,env){
   const body=file.articles.map(a=>{
     const loc=rescueArticleUrl(a),date=a.lastmod?'<lastmod>'+xmlSafe(a.lastmod)+'</lastmod>':'';
     if(!image)return '<url><loc>'+xmlSafe(loc)+'</loc>'+date+'</url>';
-    const img=rescueOrigin+rescueImageUrl(a.slug,a.country,primaryCodeForMarket(a.country),1);
+    const img=rescueOrigin+rescueImageUrl(a.slug,a.country,primaryCodeForMarket(a.country),1,a.title);
     return '<url><loc>'+xmlSafe(loc)+'</loc><image:image><image:loc>'+xmlSafe(img)+'</image:loc></image:image></url>';
   }).join('');
   const ns=image?' xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"':'';

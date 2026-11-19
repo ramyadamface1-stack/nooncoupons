@@ -67,19 +67,20 @@ a{color:inherit}.w{width:min(1180px,92%);margin:auto}.site-note{background:#1118
 .code{display:inline-block;background:#111827;color:#fff;border-radius:10px;padding:7px 11px;font-weight:900}.cta{display:inline-block;background:var(--gold);color:#111827;border:0;text-decoration:none;font-weight:900;padding:13px 16px;border-radius:12px;cursor:pointer}.check{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.check .box{line-height:1.85}.spider{padding:28px 0;background:#f8fafc;color:var(--ink);border-top:1px solid var(--line)}.trust-row{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}.trust-row span{padding:8px 11px;border:1px solid #ffffff1f;background:#ffffff0d;border-radius:999px;font-size:12px;color:#e5e7eb}.empty{background:#fff;border:1px dashed #cbd5e1;border-radius:18px;padding:20px;color:#64748b}.table{width:100%;border-collapse:collapse;background:#fff}.table th,.table td{border:1px solid #e5e7eb;padding:12px;text-align:right;vertical-align:top}
 .coupon-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.coupon-actions .cta{flex:1 1 auto;text-align:center}.coupon-actions .official-store{background:#111827;color:#fff}
 .site-footer{background:#111827;color:#e5e7eb;padding:36px 0;margin-top:24px}.site-foot{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:24px;align-items:start}.site-foot p{color:#cbd5e1;line-height:1.8}.site-foot b{display:block;margin-bottom:10px;color:#fff}.site-foot a{display:block;color:#e5e7eb;text-decoration:none;margin:8px 0}.site-footer .site-brand{color:#fff}.site-footer .site-mark{background:#FEEE00;color:#111827}
-@media(max-width:900px){.grid,.grid4,.city-grid{grid-template-columns:1fr 1fr}.site-nav nav{display:none}.site-foot{grid-template-columns:1fr 1fr}}@media(max-width:620px){.grid,.grid4,.city-grid,.check,.coupon,.site-foot{grid-template-columns:1fr}.site-note .w{display:block}.site-note .w span:last-child{display:none}.site-cta{display:none}}
+.mobile-nav{display:none;position:relative}.mobile-nav summary{list-style:none;cursor:pointer;min-height:42px;display:flex;align-items:center;justify-content:center;padding:8px 12px;border:1px solid #d1d5db;background:#fff;border-radius:11px;font-weight:900;color:#111827}.mobile-nav summary::-webkit-details-marker{display:none}.mobile-nav summary:focus-visible{outline:3px solid #6366f1;outline-offset:2px}.site-nav .mobile-nav nav{position:absolute;top:calc(100% + 7px);right:0;width:min(82vw,290px);z-index:90;display:grid;gap:2px;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:8px;box-shadow:0 18px 35px #0f172a22}.site-nav .mobile-nav nav a{display:block;padding:11px 12px;border-radius:9px;text-decoration:none;font-size:14px;color:#111827;font-weight:800}.site-nav .mobile-nav nav a:focus-visible,.site-nav .mobile-nav nav a:hover{background:#fef3c7}
+@media(max-width:900px){.grid,.grid4,.city-grid{grid-template-columns:1fr 1fr}.site-nav>nav{display:none}.mobile-nav{display:block}.site-foot{grid-template-columns:1fr 1fr}}@media(max-width:620px){.grid,.grid4,.city-grid,.check,.coupon,.site-foot{grid-template-columns:1fr}.site-note .w{display:block}.site-note .w span:last-child{display:none}.site-cta{display:none}.site-nav{gap:7px}.site-brand{font-size:16px;gap:5px}.site-mark{width:34px;height:34px}.header-markets a{padding:4px}.mobile-nav summary{padding:7px 9px;font-size:13px}}
 `;
 
 function commerceHeader(){
-  return `<div class="site-note"><div class="w"><span>كوبونات نون للسعودية والإمارات</span><span>موقع مستقل غير تابع لـ Noon</span></div></div><header class="site-head"><div class="w site-nav"><a class="site-brand" href="/"><span class="site-mark">ك</span><strong>كوبونات نون</strong></a><div class="header-markets" aria-label="اختيار السوق"><a href="/saudi">🇸🇦</a><a href="/uae">🇦🇪</a></div><nav><a href="/coupons">الكوبونات</a><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a><a href="/saudi/categories">الأقسام</a><a href="/blog">المقالات</a><a href="/coupon-verification">التحقق</a></nav><a class="site-cta" href="/coupons">انسخ كود</a></div></header>`;
+  return `<div class="site-note"><div class="w"><span>كوبونات نون للسعودية والإمارات</span><span>موقع مستقل غير تابع لـ Noon</span></div></div><header class="site-head"><div class="w site-nav"><a class="site-brand" href="/"><span class="site-mark">ك</span><strong>كوبونات نون</strong></a><div class="header-markets" aria-label="اختيار السوق"><a href="/saudi" aria-label="السعودية">🇸🇦</a><a href="/uae" aria-label="الإمارات">🇦🇪</a></div><nav aria-label="القائمة الرئيسية"><a href="/coupons">الكوبونات</a><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a><a href="/saudi/categories">الأقسام</a><a href="/blog">المقالات</a><a href="/coupon-verification">التحقق</a></nav><details class="mobile-nav"><summary aria-label="افتح قائمة الموقع">القائمة ☰</summary><nav aria-label="قائمة الموبايل"><a href="/coupons">الكوبونات</a><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a><a href="/saudi/categories">الأقسام</a><a href="/blog">المقالات</a><a href="/coupon-verification">التحقق</a></nav></details><a class="site-cta" href="/coupons">انسخ كود</a></div></header>`;
 }
 function commerceFooter(){
   return `<footer class="site-footer"><div class="w site-foot"><div><a class="site-brand" href="/"><span class="site-mark">ك</span><strong>كوبونات نون</strong></a><p>أكواد وأدلة نون للسعودية والإمارات. لا نعرض نسبة خصم أو أهلية غير موثقة.</p></div><div><b>الدول</b><a href="/saudi">السعودية</a><a href="/uae">الإمارات</a></div><div><b>الأقسام</b><a href="/saudi/categories">السعودية</a><a href="/uae/categories">الإمارات</a></div><div><b>الثقة</b><a href="/coupon-verification">منهجية التحقق</a><a href="/editorial-policy">السياسة التحريرية</a><a href="/authors/editorial-team">فريق التحرير</a></div></div></footer>`;
 }
 
 function englishHeader(market){
-  const sa=market==='saudi'?' current':'',ae=market==='uae'?' current':'',couponPath=`/en/${market}/noon-coupon-code`;
-  return `<div class="site-note"><div class="w"><span>Noon shopping and coupon guides for Saudi Arabia and the UAE</span><span>Independent site · not affiliated with Noon</span></div></div><header class="site-head" data-english-nav="v2"><div class="w site-nav"><a class="site-brand" href="/"><span class="site-mark">N</span><strong>Noon Deals Now</strong></a><div class="header-markets" aria-label="Choose market"><a class="${sa.trim()}" href="/en/saudi" aria-label="Saudi Arabia">🇸🇦</a><a class="${ae.trim()}" href="/en/uae" aria-label="UAE">🇦🇪</a></div><nav><a href="/en/saudi">Saudi Arabia</a><a href="/en/uae">UAE</a><a href="/en/coupons">All coupons</a><a href="${couponPath}">Market coupon page</a><a href="/coupon-verification">Verification</a></nav><a class="site-cta" href="${couponPath}">Copy code</a></div></header>`;
+  const sa=market==='saudi'?' current':'',ae=market==='uae'?' current':'',generic=market!=='saudi'&&market!=='uae',couponPath=generic?'/en/coupons#market-codes':`/en/${market}/noon-coupon-code`,couponLabel=generic?'All market coupons':'Market coupon page';
+  return `<div class="site-note"><div class="w"><span>Noon shopping and coupon guides for Saudi Arabia and the UAE</span><span>Independent site · not affiliated with Noon</span></div></div><header class="site-head" data-english-nav="v3"><div class="w site-nav"><a class="site-brand" href="/"><span class="site-mark">N</span><strong>Noon Deals Now</strong></a><div class="header-markets" aria-label="Choose market"><a class="${sa.trim()}" href="/en/saudi" aria-label="Saudi Arabia">🇸🇦</a><a class="${ae.trim()}" href="/en/uae" aria-label="UAE">🇦🇪</a></div><nav aria-label="Main navigation"><a href="/en/saudi">Saudi Arabia</a><a href="/en/uae">UAE</a><a href="/en/coupons">All coupons</a><a href="${couponPath}">${couponLabel}</a><a href="/coupon-verification">Verification</a></nav><details class="mobile-nav"><summary aria-label="Open navigation">Menu ☰</summary><nav aria-label="Mobile navigation"><a href="/en/saudi">Saudi Arabia</a><a href="/en/uae">UAE</a><a href="/en/coupons">All coupons</a><a href="${couponPath}">${couponLabel}</a><a href="/coupon-verification">Verification</a><a href="/blog">Blog</a></nav></details><a class="site-cta" href="${couponPath}">${generic?'Choose market':'Copy code'}</a></div></header>`;
 }
 function englishFooter(){
   return `<footer class="site-footer" data-english-footer="v1"><div class="w site-foot"><div><a class="site-brand" href="/"><span class="site-mark">N</span><strong>Noon Deals Now</strong></a><p>Independent Noon coupon and shopping guidance for Saudi Arabia and the UAE. Checkout remains the final reference for eligibility and savings.</p></div><div><b>Markets</b><a href="/en/saudi">Saudi Arabia</a><a href="/en/uae">UAE</a><a href="/saudi">العربية — السعودية</a><a href="/uae">العربية — الإمارات</a></div><div><b>Discovery</b><a href="/sitemap-en-articles.xml">English sitemap</a><a href="/feed-en.xml">English RSS</a><a href="/blog">Arabic blog</a></div><div><b>Trust</b><a href="/coupon-verification">Coupon verification</a><a href="/editorial-policy">Editorial policy</a><a href="/authors/editorial-team">Editorial team</a><a href="/research">Research & methodology</a></div></div></footer>`;
@@ -171,8 +172,20 @@ function categoryAlternates(origin,path,rows=[]){
   const en=(rows||[]).length>=3?`<link rel="alternate" hreflang="${enLang}" href="${esc(origin+'/en'+path)}">`:'';
   return `<link rel="alternate" hreflang="ar-SA" href="${esc(origin+saPath)}"><link rel="alternate" hreflang="ar-AE" href="${esc(origin+aePath)}">${en}<link rel="alternate" hreflang="x-default" href="${esc(origin+'/')}">`;
 }
+function commerceBreadcrumbItems(origin,path,title){
+  const segments=path.split('/').filter(Boolean),market=segments[0],kind=segments[1],marketName=MARKETS[market]?.name||market;
+  const items=[];
+  const add=(name,url)=>items.push({'@type':'ListItem',position:items.length+1,name,item:origin+url});
+  add('الرئيسية','/');
+  add(marketName,'/'+market);
+  if(kind==='category'||kind==='categories'||kind==='compare')add('الأقسام','/'+market+'/categories');
+  if(kind==='model')add(BRANDS[segments[2]]?.label||segments[2],'/'+market+'/brand/'+segments[2]);
+  if(items[items.length-1].item!==origin+path)add(title,path);
+  return items;
+}
+
 function schema(origin, path, title, desc, rows) {
-  const segments = path.split('/').filter(Boolean),locale=marketLocale(path);
+  const locale=marketLocale(path);
   return {
     '@context': 'https://schema.org',
     '@graph': [
@@ -187,6 +200,7 @@ function schema(origin, path, title, desc, rows) {
         inLanguage: locale,
         isPartOf:{'@id':origin+'/#website'},
         publisher:{'@id':origin+'/#organization'},
+        breadcrumb:{'@id':origin+path+'#breadcrumb'},
         mainEntity: {
           '@type': 'ItemList',
           numberOfItems: rows.length,
@@ -200,12 +214,8 @@ function schema(origin, path, title, desc, rows) {
       },
       {
         '@type': 'BreadcrumbList',
-        itemListElement: segments.map((segment, i) => ({
-          '@type': 'ListItem',
-          position: i + 1,
-          name: i === segments.length - 1 ? title : segment,
-          item: origin + '/' + segments.slice(0, i + 1).join('/'),
-        })),
+        '@id':origin+path+'#breadcrumb',
+        itemListElement:commerceBreadcrumbItems(origin,path,title),
       },
     ],
   };
@@ -219,7 +229,8 @@ function pageHead(origin, path, title, desc, rows) {
 function couponBox(market, key, label) {
   const mk = MARKETS[market];
   const code = codeFor(market + ':' + key,market);
-  return `<aside class="coupon"><div><small>كود من قائمة الموقع للتجربة</small><h2>جرّب <span class="code">${code}</span> مع ${esc(label)}</h2><p class="lead">لا نثبت نسبة خصم أو أهلية غير موثقة. ثبّت المنتج والبائع والسلة، جرّب الكود، ثم اعتبر إجمالي نون النهائي هو المرجع.</p></div><a class="cta" href="${mk.noon}" rel="noopener external sponsored">فتح ${esc(mk.name)}</a></aside>`;
+  const marketCode=market==='saudi'?'SA':'AE';
+  return `<aside class="coupon"><div><small>كود من قائمة الموقع للتجربة</small><h2>جرّب <span class="code">${code}</span> مع ${esc(label)}</h2><p class="lead">لا نثبت نسبة خصم أو أهلية غير موثقة. ثبّت المنتج والبائع والسلة، جرّب الكود، ثم اعتبر إجمالي نون النهائي هو المرجع.</p></div><div class="coupon-actions"><button class="cta" type="button" data-market-coupon-copy="${code}" data-copy-code="${code}" data-market="${marketCode}" aria-live="polite">نسخ الكود ${code}</button><a class="cta official-store" href="${esc(mk.noon)}" rel="noopener external sponsored">فتح ${esc(mk.name)}</a></div></aside>`;
 }
 
 function visualSvg(key,label){
@@ -244,15 +255,43 @@ function htmlResponse(body, kind, headers = {}) {
   return new Response(body, {headers: {'content-type':'text/html; charset=utf-8','cache-control':'public,max-age=90,s-maxage=300','x-commerce-network':'v2','x-commerce-kind':kind,...headers}});
 }
 
+export const ARABIC_MARKET_COUPON_COPY_SCRIPT=`<script id="arabic-market-coupon-copy-v1">(function(){
+  if(window.__ndnArabicMarketCopyBound)return;
+  window.__ndnArabicMarketCopyBound=true;
+  var allowed=${safeJson(HOMEPAGE_COUPONS_BY_MARKET)};
+  document.addEventListener('click',async function(e){
+    var b=e.target&&e.target.closest?e.target.closest('button[data-market-coupon-copy]'):null;
+    if(!b)return;
+    var code=String(b.getAttribute('data-market-coupon-copy')||'').toUpperCase();
+    var market=String(b.getAttribute('data-market')||'');
+    if(!allowed[market]||allowed[market].indexOf(code)===-1)return;
+    var placement=String(b.getAttribute('data-placement')||'arabic_commerce_landing');
+    if(!/^(arabic_country_hero|arabic_commerce_landing)$/.test(placement))placement='arabic_commerce_landing';
+    var before=b.textContent;
+    try{
+      if(!navigator.clipboard||typeof navigator.clipboard.writeText!=='function')throw Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(code);
+      b.textContent='تم نسخ '+code+' ✓';
+      try{if(typeof window.gtag==='function')window.gtag('event','coupon_copy_success',{
+        coupon_code:code,market:market,page_path:location.pathname,
+        placement:placement,source:'confirmed_clipboard_write'
+      })}catch(_){}
+    }catch(_){
+      b.textContent='تعذّر النسخ؛ حدد الكود '+code+' بالأعلى';
+    }
+    setTimeout(function(){if(b.isConnected!==false)b.textContent=before},2600);
+  },false);
+})();</script>`;
+
 function shell(origin, path, title, desc, rows, hero, main, market, current = '') {
-  return `<!doctype html><html lang="ar" dir="rtl"><head>${pageHead(origin,path,title,desc,rows)}</head><body>${commerceHeader()}${hero}<main class="w">${main}</main>${spider(market,current)}${commerceFooter()}</body></html>`;
+  return `<!doctype html><html lang="ar" dir="rtl"><head>${pageHead(origin,path,title,desc,rows)}</head><body>${commerceHeader()}${hero}<main class="w">${main}</main>${spider(market,current)}${commerceFooter()}${ARABIC_MARKET_COUPON_COPY_SCRIPT}</body></html>`;
 }
 
 function englishCategoryGrid(market){
  return `<div class="grid4">${Object.keys(CATEGORIES).map(k=>`<article class="card visual-card"><div>${visualSvg(k,EN_CATEGORY_LABELS[k]||k)}<span class="visual-theme">${esc(CATEGORY_VISUALS[k]?.theme||'shopping')}</span><h3><a href="/en/${market}/category/${k}">${esc(EN_CATEGORY_LABELS[k]||k)}</a></h3><p>Explore coupon-focused guides and eligible shopping content for this category.</p></div><a class="read" href="/en/${market}/category/${k}">Explore category →</a></article>`).join('')}</div>`;
 }
 function englishSchema(origin,path,title,desc,market,rows=[]){
- const genericCoupons=path==='/en/coupons',marketName=market==='saudi'?'Saudi Arabia':'UAE',marketPath=`/en/${market}`,isCategory=/^\/en\/(?:saudi|uae)\/category\/[^/]+$/.test(path),modified=latestEnglishModified(rows);
+ const genericCoupons=path==='/en/coupons',marketName=market==='saudi'?'Saudi Arabia':'UAE',marketPath=`/en/${market}`,isCountry=path===marketPath,modified=latestEnglishModified(rows);
  const page={'@type':'CollectionPage','@id':origin+path+'#page',url:origin+path,name:title,description:desc,inLanguage:'en',isPartOf:{'@id':origin+'/#website'},publisher:{'@id':origin+'/#organization'},mainEntity:{'@type':'ItemList',numberOfItems:rows.length,itemListElement:rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+englishArticlePath(a),name:a.title||a.slug}))}};
  if(modified)page.dateModified=modified;
  return {
@@ -265,7 +304,9 @@ function englishSchema(origin,path,title,desc,market,rows=[]){
    {'@type':'BreadcrumbList','@id':origin+path+'#breadcrumb',itemListElement:[
     {'@type':'ListItem',position:1,name:'Home',item:origin+'/'},
     {'@type':'ListItem',position:2,name:genericCoupons?'Coupons':'Noon '+marketName,item:genericCoupons?origin+path:origin+marketPath},
-    ...(!genericCoupons&&isCategory?[{'@type':'ListItem',position:3,name:title,item:origin+path}]:[])
+    // Every English leaf page (including product and coupon hubs) needs the
+    // final breadcrumb node; previously only /category/ pages received it.
+    ...(!genericCoupons&&!isCountry?[{'@type':'ListItem',position:3,name:title,item:origin+path}]:[])
    ]}
   ]
  };
@@ -312,9 +353,9 @@ async function englishProductHub(market,key,origin,env){
       title:'iPhone 18 Pro Max on Noon UAE | Price, Deals & Coupon Guide',
       desc:'A focused iPhone 18 Pro Max hub for Noon UAE covering seller checks, price comparison, coupon eligibility, shipping and the final checkout total.',
       brandPath:'/uae/brand/apple',
-      brandLabel:'Apple hub',
+      brandLabel:'Apple brand guide (Arabic)',
       familyPath:'/uae/model/apple/iphone-plus-pro-max',
-      familyLabel:'iPhone family hub',
+      familyLabel:'iPhone family guide (Arabic)',
       note:'Confirm storage, regional version and included accessories.'
     },
     'iphone-duo':{
@@ -323,9 +364,9 @@ async function englishProductHub(market,key,origin,env){
       title:'iPhone Duo on Noon UAE | Search, Deals & Coupon Guide',
       desc:'A focused Noon UAE search hub for iPhone Duo queries, bringing together city-specific guides, seller checks, coupon testing and final-checkout comparisons.',
       brandPath:'/uae/brand/apple',
-      brandLabel:'Apple hub',
+      brandLabel:'Apple brand guide (Arabic)',
       familyPath:'/uae/brand/apple',
-      familyLabel:'Apple product hub',
+      familyLabel:'Apple product guide (Arabic)',
       note:'Confirm the exact product or listing name shown by Noon before comparing price, seller or coupon eligibility.'
     },
     'samsung-galaxy-s26-ultra':{
@@ -334,9 +375,9 @@ async function englishProductHub(market,key,origin,env){
       title:'Samsung Galaxy S26 Ultra on Noon UAE | Price & Deals Guide',
       desc:'A focused Samsung Galaxy S26 Ultra hub for Noon UAE covering seller checks, price comparison, warranty, coupon eligibility and the final checkout total.',
       brandPath:'/uae/brand/samsung',
-      brandLabel:'Samsung hub',
+      brandLabel:'Samsung brand guide (Arabic)',
       familyPath:'/uae/model/samsung/galaxy-s',
-      familyLabel:'Galaxy S family hub',
+      familyLabel:'Galaxy S family guide (Arabic)',
       note:'Confirm storage, regional version, seller and warranty details on the exact Noon listing.'
     }
   }[key];
@@ -349,7 +390,8 @@ async function englishProductHub(market,key,origin,env){
   const coupon=`<aside class="coupon"><div><small>Coupon-first action</small><h2>Try code <span class="code">${code}</span></h2><p class="lead">Test the code on the exact cart you intend to buy. Keep seller, variant, quantity and delivery conditions fixed, then compare the final checkout total.</p></div><div class="coupon-actions"><button class="cta" type="button" data-english-copy="${code}" data-copy-code="${code}" data-market="${market==='saudi'?'SA':'AE'}" data-placement="english_market_hub" aria-live="polite">Copy code</button><a class="cta official-store" href="${esc(officialNoonSearch)}" target="_blank" rel="noopener noreferrer">Find on Noon UAE</a></div></aside>`;
   const answer=`<section class="section"><h2>Quick answer: what should you check first?</h2><div class="check"><div class="box"><strong>Exact listing</strong><p>${esc(cfg.note)}</p></div><div class="box"><strong>Seller and warranty</strong><p>Compare the seller, warranty route and return conditions.</p></div><div class="box"><strong>Coupon eligibility</strong><p>Apply the code only after the cart is fixed and use the Noon checkout message as the reference.</p></div><div class="box"><strong>Final price</strong><p>Compare the complete payable total including shipping and visible cart adjustments.</p></div></div></section>`;
   const priceHelp=`<section class="section"><h2>How can you check the current ${esc(label)} price on Noon UAE?</h2><div class="box"><p>Open the official Noon UAE results for ${esc(label)}, then compare the exact storage, seller, warranty and shipping terms. Prices and availability change, so this page does not claim a fixed price or an unverified discount. Apply the code to the selected cart and compare the final amount at checkout.</p><p><a class="read" href="${esc(officialNoonSearch)}" target="_blank" rel="noopener noreferrer">See current listings on the official Noon UAE store →</a></p></div></section>`;
-  const main=`${coupon}<section class="section">${englishTrust()}${englishFreshness(rows)}</section>${answer}${priceHelp}<section class="section"><h2>${esc(label)} guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">Supporting guides will appear here after they pass the quality gate.</div>'}</section><section class="section"><h2>Continue in the UAE mobile cluster</h2><div class="chips"><a href="/en/uae/category/mobiles">Noon UAE mobiles</a><a href="${cfg.brandPath}">${esc(cfg.brandLabel)}</a><a href="${cfg.familyPath}">${esc(cfg.familyLabel)}</a><a href="/en/uae/noon-coupon-code">Noon UAE coupon page</a></div></section>`;
+  const comparison=`<section class="section" aria-label="Product comparison checklist"><h2>Compare the same ${esc(label)} listing before applying a coupon</h2><div class="box"><ol><li>Record the exact model name, region, variant and storage from the selected listing.</li><li>Compare the <strong>same configuration</strong> from different sellers; note warranty coverage, delivery charges and return route.</li><li>Keep your cart unchanged while applying the code. Compare the final payable total rather than a headline price or claimed percentage.</li></ol><p>We do not publish an estimated price, stock status or seller rating without a current official listing.</p></div></section>`;
+  const main=`${coupon}<section class="section">${englishTrust()}${englishFreshness(rows)}</section>${answer}${priceHelp}${comparison}<section class="section"><h2>${esc(label)} guides</h2>${rows.length?`<div class="grid">${rows.map(englishArticleCard).join('')}</div>`:'<div class="empty">Supporting guides will appear here after they pass the quality gate.</div>'}</section><section class="section"><h2>Continue in the UAE mobile cluster</h2><div class="chips"><a href="/en/uae/category/mobiles">Noon UAE mobiles</a><a href="${cfg.brandPath}">${esc(cfg.brandLabel)}</a><a href="${cfg.familyPath}">${esc(cfg.familyLabel)}</a><a href="/en/uae/noon-coupon-code">Noon UAE coupon page</a></div></section>`;
   const robots=evidence?'index,follow,max-image-preview:large':'noindex,follow';
   const head=englishHead(origin,path,title,desc,market,rows).replace('content="index,follow,max-image-preview:large"',`content="${robots}"`);
   return htmlResponse(`<!doctype html><html lang="en-AE" dir="ltr"><head>${head}</head><body>${englishHeader(market)}${hero}<main class="w">${main}</main>${englishFooter()}${ENGLISH_MARKET_COUPON_COPY_SCRIPT}</body></html>`,'product-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-product-hub':key,'x-english-evidence':evidence?'content-backed':'insufficient','x-robots-tag':robots});
@@ -359,11 +401,14 @@ async function englishCouponsIndex(origin,env){
   let rows=[];try{rows=await englishPublicRecentRecords(env)}catch{}
   rows=(rows||[]).filter(a=>a?.slug&&a.indexable!==false).slice(0,12);
   const path='/en/coupons',title='Noon Coupon Codes | Saudi Arabia & UAE',desc='A market selector for Noon coupon codes in Saudi Arabia and the UAE, with a checkout-first verification workflow and no unverified fixed-discount claims.';
-  const cards=CODES.map(code=>`<article class="card"><small>Site-approved test code</small><h3><span class="code">${esc(code)}</span></h3><p>Use the code only after choosing the correct Noon market and keeping the cart unchanged. Checkout is the reference for eligibility and savings.</p></article>`).join('');
+  const countryGroups=[{market:'SA',slug:'saudi',label:'Saudi Arabia'},{market:'AE',slug:'uae',label:'UAE'}].map(group=>{
+    const cards=HOMEPAGE_COUPONS_BY_MARKET[group.market].map(code=>`<article class="card"><small>Listed for Noon ${esc(group.label)}</small><h3><span class="code">${code}</span></h3><p>Keep your Noon ${esc(group.label)} cart unchanged when testing this code. Final checkout is the reference for eligibility and savings.</p><button class="cta" type="button" data-english-copy="${code}" data-copy-code="${code}" data-market="${group.market}" data-placement="english_all_coupons" aria-live="polite">Copy ${code}</button><div class="chips"><a href="/coupon/${code.toLowerCase()}">${code} details</a></div></article>`).join('');
+    return `<section class="section" data-coupon-market="${group.market}"><h2>Noon ${esc(group.label)} codes</h2><p>Use these codes only with the matching Noon market and check the final checkout result.</p><div class="grid">${cards}</div><p><a class="read" href="/en/${group.slug}/noon-coupon-code">Full ${esc(group.label)} coupon guide →</a></p></section>`;
+  }).join('');
   const hero=`<header class="hero"><div class="w"><div class="crumbs"><a href="/">Home</a> · <a href="/coupons">العربية</a></div><h1>${title}</h1><p>${desc}</p><div class="chips"><a href="/en/saudi/noon-coupon-code">Noon coupon code KSA</a><a href="/en/uae/noon-coupon-code">Noon coupon code UAE</a></div></div></header>`;
-  const main=`<section class="section"><h2>Choose your Noon market first</h2><div class="grid"><article class="card"><small>Saudi Arabia</small><h3><a href="/en/saudi/noon-coupon-code">Noon Coupon Code KSA</a></h3><p>Saudi-market coupon testing, categories and checkout guidance.</p><a class="read" href="/en/saudi/noon-coupon-code">Open KSA coupon page →</a></article><article class="card"><small>United Arab Emirates</small><h3><a href="/en/uae/noon-coupon-code">Noon Coupon Code UAE</a></h3><p>UAE-market coupon testing, categories and checkout guidance.</p><a class="read" href="/en/uae/noon-coupon-code">Open UAE coupon page →</a></article></div></section><section class="section"><h2>Current codes to test</h2><div class="grid">${cards}</div></section><section class="section">${englishTrust()}<p class="lead">A code appearing here means it is on the site's approved test list; it does not by itself prove a discount percentage, expiry date or eligibility for every account.</p></section>`;
+  const main=`<section class="section"><h2>Choose your Noon market first</h2><div class="grid"><article class="card"><small>Saudi Arabia</small><h3><a href="/en/saudi/noon-coupon-code">Noon Coupon Code KSA</a></h3><p>Saudi-market coupon testing, categories and checkout guidance.</p><a class="read" href="/en/saudi/noon-coupon-code">Open KSA coupon page →</a></article><article class="card"><small>United Arab Emirates</small><h3><a href="/en/uae/noon-coupon-code">Noon Coupon Code UAE</a></h3><p>UAE-market coupon testing, categories and checkout guidance.</p><a class="read" href="/en/uae/noon-coupon-code">Open UAE coupon page →</a></article></div></section><div id="market-codes">${countryGroups}</div><section class="section">${englishTrust()}<p class="lead">A code appearing here means it is on the site's approved test list; it does not by itself prove a discount percentage, expiry date or eligibility for every account.</p></section>`;
   const head=englishHead(origin,path,title,desc,'saudi',rows);
-  return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${head}</head><body>${englishHeader('saudi')}${hero}<main class="w">${main}</main>${englishFooter()}</body></html>`,'coupon-index-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-generic-coupon-owner':'v1'});
+  return htmlResponse(`<!doctype html><html lang="en" dir="ltr"><head>${head}</head><body>${englishHeader(null)}${hero}<main class="w">${main}</main>${englishFooter()}${ENGLISH_MARKET_COUPON_COPY_SCRIPT}</body></html>`,'coupon-index-en',{'cache-control':'public,max-age=30,s-maxage=60,stale-while-revalidate=120','x-content-language':'en','x-english-generic-coupon-owner':'v2'});
 }
 
 
@@ -376,6 +421,8 @@ export const ENGLISH_MARKET_COUPON_COPY_SCRIPT = `<script id="english-market-cou
     var code=String(b.getAttribute('data-english-copy')||'').toUpperCase();
     var market=String(b.getAttribute('data-market')||'');
     if(!/^NOV[0-9]{3}$/.test(code)||!(/^(SA|AE)$/.test(market)))return;
+    var placement=String(b.getAttribute('data-placement')||'english_market_coupon');
+    if(!/^(english_market_hub|english_market_coupon|english_all_coupons)$/.test(placement))placement='english_market_coupon';
     var prior=b.textContent;
     try{
       if(!navigator.clipboard||typeof navigator.clipboard.writeText!=='function')throw Error('Clipboard unavailable');
@@ -383,7 +430,7 @@ export const ENGLISH_MARKET_COUPON_COPY_SCRIPT = `<script id="english-market-cou
       b.textContent='Copied '+code+' ✓';
       try{if(typeof window.gtag==='function')window.gtag('event','coupon_copy_success',{
         coupon_code:code,market:market,page_path:location.pathname,
-        placement:'english_market_coupon',source:'confirmed_clipboard_write'
+        placement:placement,source:'confirmed_clipboard_write'
       })}catch(_){}
     }catch(_){
       // A click or a blocked clipboard is never counted as a successful copy.
@@ -442,7 +489,7 @@ async function countryPage(market,origin,env){
  const rows=selectMarketSpotlightArticles(await latestArticles(env),market,12),path=`/${market}`,code=PRIMARY_COUPON_BY_MARKET[market==='saudi'?'SA':'AE'],couponPath=market==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code';
  const title=`دليل ${mk.name} | الأقسام والبراندات وأدلة الشراء`,desc=`بوابة تسوق ${mk.name}: أقسام وبراندات ومدن وأدلة شراء مترابطة. لنية البحث عن الكوبون استخدم صفحة الكود المخصصة للسوق.`;
  const cities=(CITIES[market]||[]).map(c=>`<article class="card"><small>${esc(c.en)}</small><h3><a href="/${market}/city/${c.key}">${esc(c.ar)}</a></h3><p>محتوى وكوبونات ${esc(mk.name)} المرتبطة بالبحث من ${esc(c.ar)} بدون ادعاء اختلاف خصم غير موثق حسب المدينة.</p></article>`).join('');
- const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/">الرئيسية</a></div><div class="market-switch"><a class="${market==='saudi'?'current':''}" href="/saudi">🇸🇦 السعودية</a><a class="${market==='uae'?'current':''}" href="/uae">🇦🇪 الإمارات</a></div><h1>${title}</h1><p>${desc}</p><div class="chips"><a href="/${market}/shopping-guide">دليل الشراء</a><a href="/${market}/categories">كل الأقسام</a><a href="${couponPath}">صفحة كود نون ${market==='saudi'?'السعودية':'الإمارات'}</a><a href="/coupon/${code.toLowerCase()}">تفاصيل كود ${code} الأساسية</a></div><aside class="coupon"><div><small>اختصار للكوبون — النية الأساسية في صفحة الكود</small><h2>جرّب <span class="code">${code}</span> بعد اختيار سلتك</h2><p class="lead">للتفاصيل والأكواد انتقل إلى صفحة السوق المخصصة؛ نتيجة نون داخل السلة هي المرجع.</p></div><div class="chips"><button class="cta" type="button" data-copy-code="${code}" data-market="${market==='saudi'?'SA':'AE'}" data-placement="country_hero" onclick="navigator.clipboard&&navigator.clipboard.writeText('${code}');this.textContent='✓ تم النسخ'">نسخ الكود</button><a class="cta" href="/coupon/${code.toLowerCase()}">شروط كود ${code}</a></div></aside><div class="trust-row"><span>${CODES.length} أكواد معتمدة فقط</span><span>المحتوى مستقل عن Noon</span><span>التحقق داخل السلة هو المرجع</span><span><a href="/coupon-verification">منهجية التحقق</a></span></div></div></header>`;
+ const hero=`<header class="country-hero"><div class="w"><div class="crumbs"><a href="/">الرئيسية</a></div><div class="market-switch"><a class="${market==='saudi'?'current':''}" href="/saudi">🇸🇦 السعودية</a><a class="${market==='uae'?'current':''}" href="/uae">🇦🇪 الإمارات</a></div><h1>${title}</h1><p>${desc}</p><div class="chips"><a href="/${market}/shopping-guide">دليل الشراء</a><a href="/${market}/categories">كل الأقسام</a><a href="${couponPath}">صفحة كود نون ${market==='saudi'?'السعودية':'الإمارات'}</a><a href="/coupon/${code.toLowerCase()}">تفاصيل كود ${code} الأساسية</a></div><aside class="coupon"><div><small>اختصار للكوبون — النية الأساسية في صفحة الكود</small><h2>جرّب <span class="code">${code}</span> بعد اختيار سلتك</h2><p class="lead">للتفاصيل والأكواد انتقل إلى صفحة السوق المخصصة؛ نتيجة نون داخل السلة هي المرجع.</p></div><div class="chips"><button class="cta" type="button" data-market-coupon-copy="${code}" data-copy-code="${code}" data-market="${market==='saudi'?'SA':'AE'}" data-placement="arabic_country_hero" aria-live="polite">نسخ الكود</button><a class="cta" href="/coupon/${code.toLowerCase()}">شروط كود ${code}</a></div></aside><div class="trust-row"><span>${HOMEPAGE_COUPONS_BY_MARKET[market==='saudi'?'SA':'AE'].length} أكواد معتمدة للسوق</span><span>المحتوى مستقل عن Noon</span><span>التحقق داخل السلة هو المرجع</span><span><a href="/coupon-verification">منهجية التحقق</a></span></div></div></header>`;
  const main=`<section class="section"><div class="chips"><a href="/${market}/shopping-guide">دليل الشراء من ${mk.name}</a><a href="/${market}/categories">كل الأقسام</a></div></section><section class="section"><h2>تسوق حسب القسم</h2><p class="lead">اختر القسم الذي تتسوق فيه للوصول إلى الأدلة والبراندات والمقالات المرتبطة.</p>${categoryGrid(market)}</section><section class="section"><h2>براندات شائعة</h2><p class="lead">ابدأ بالبراند إذا كنت تعرف المنتج أو العائلة التي تبحث عنها.</p>${brandGrid(market)}</section><section class="section"><h2>أهم المدن</h2><div class="city-grid">${cities}</div></section><section class="section"><h2>أحدث الأدلة والكوبونات</h2>${rows.length?`<div class="grid">${rows.map(articleCard).join('')}</div>`:'<div class="empty">تظهر المقالات المؤهلة تلقائيًا.</div>'}</section>`;
  return htmlResponse(shell(origin,path,title,desc,rows,hero,main,market),'country',{'x-commerce-market':market});
 }

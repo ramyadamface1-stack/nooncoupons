@@ -59,11 +59,12 @@ test('the stable path is edge-cacheable but query params still bypass cache',()=
 
 test('rescue analytics/security updates refresh article and blog caches while retaining costly archive cache',()=>{
   const base='r2-jsonld-dedupe-r16';
-  assert.equal(publicEdgePolicyRevision('/articles/saudi-legacy',base),'r2-rescue-security-ga4-topic-links-v21-nativefast-cpu');
-  assert.equal(publicEdgePolicyRevision('/en/articles/en-uae-test',base),'r2-rescue-security-ga4-topic-links-v21-nativefast-cpu');
-  assert.equal(publicEdgePolicyRevision('/blog',base),'r2-complete-blog-r2-cursor-v19');
-  assert.equal(publicEdgePolicyRevision('/blog/saudi',base),'r2-complete-blog-r2-cursor-v19');
-  assert.equal(publicEdgePolicyRevision('/blog/uae',base),'r2-complete-blog-r2-cursor-v19');
+  assert.equal(publicEdgePolicyRevision('/articles/saudi-legacy',base),'r2-rescue-english-artwork-gsc-v22-nativefast-cpu');
+  assert.equal(publicEdgePolicyRevision('/en/articles/en-uae-test',base),'r2-rescue-english-artwork-gsc-v22-nativefast-cpu');
+  assert.equal(publicEdgePolicyRevision('/en/articles/en-iphone-18-pro-max-noon-abu-dhabi-price',base),'legacy-1102-cpu-canary-seo-image-v2');
+  assert.equal(publicEdgePolicyRevision('/blog',base),'r2-complete-blog-artwork-v20');
+  assert.equal(publicEdgePolicyRevision('/blog/saudi',base),'r2-complete-blog-artwork-v20');
+  assert.equal(publicEdgePolicyRevision('/blog/uae',base),'r2-complete-blog-artwork-v20');
   for(const path of ['/blog/archive/catalog','/blog/archive/catalog/700','/sitemap.xml','/sitemap-rescue-catalog.xml']){
     assert.equal(publicEdgePolicyRevision(path,base),base);
   }

@@ -10,12 +10,12 @@ test('every public SVG variant renders without R2 HEAD/GET or Durable Object cal
     async get(){readCount++;throw Error('r2_get_not_allowed')}
   }};
   for(let v=1;v<=5;v++){
-    const url='https://noondealsnow.com/assets/coupon-svg/en-samsung-tv-noon-uae-shopping-guide-dubai-deals/'+v+'.svg?v=10&coupon=NOV188&country=AE&kw=Samsung%20TV%20shopping%20guide%20UAE';
+    const url='https://noondealsnow.com/assets/coupon-svg/en-samsung-tv-noon-uae-shopping-guide-dubai-deals/'+v+'.svg?v=11&coupon=NOV188&country=AE&kw=Samsung%20TV%20shopping%20guide%20UAE';
     const res=await visualWorker.fetch(new Request(url),env,{});
     const body=await res.text();
     assert.equal(res.status,200);
     assert.match(res.headers.get('content-type'),/image\/svg\+xml/);
-    assert.equal(res.headers.get('x-image-source'),'deterministic-no-r2-head-v10');
+    assert.equal(res.headers.get('x-image-source'),'deterministic-no-r2-head-v11');
     assert.match(body,/<svg\b/);
     assert.match(body,/NOV188/);
     assert.match(body,/Samsung/);

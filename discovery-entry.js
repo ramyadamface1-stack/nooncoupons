@@ -400,7 +400,7 @@ export async function imageSitemap(env,origin){
     .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))).slice(0,500);
   const rows=source.map(a=>{
     const page=origin+articleHref(a),coupon=String(a.coupon||a.code||''),country=a.country==='AE'?'AE':'SA',title=refreshCurrentSeasonLabel(String(a.title||a.primaryKeyword||a.slug));
-    const images=[2,3].map(v=>origin+'/assets/coupon-svg/'+enc(a.slug)+'/'+v+'.svg?v=9&coupon='+encodeURIComponent(coupon)+'&country='+country);
+    const images=[2,3].map(v=>origin+'/assets/coupon-svg/'+enc(a.slug)+'/'+v+'.svg?v=11&coupon='+encodeURIComponent(coupon)+'&country='+country);
     return `<url><loc>${esc(page)}</loc>${images.map(src=>`<image:image><image:loc>${esc(src)}</image:loc><image:title>${esc(title)}</image:title></image:image>`).join('')}</url>`;
   }).join('');
   const xml=`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">${rows}</urlset>`;

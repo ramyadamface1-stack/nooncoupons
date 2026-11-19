@@ -57,8 +57,8 @@ test('canary never reads R2 for admin, unrelated articles, disabled rescue mode 
   assert.deepEqual(f.report(),{reads:[],writes:0});
 });
 test('canary changes only one article edge cache revision and its import runs before decorators',()=>{
-  assert.equal(publicEdgePolicyRevision(TARGET),'legacy-1102-cpu-canary-r2-direct-v1');
-  assert.equal(publicEdgePolicyRevision('/en/articles/other'),'r2-rescue-security-ga4-topic-links-v21-nativefast-cpu');
+  assert.equal(publicEdgePolicyRevision(TARGET),'legacy-1102-cpu-canary-seo-image-v2');
+  assert.equal(publicEdgePolicyRevision('/en/articles/other'),'r2-rescue-english-artwork-gsc-v22-nativefast-cpu');
   const entry=readFileSync(new URL('../discovery-entry.js',import.meta.url),'utf8');
   assert.ok(entry.indexOf('nativeBoundLegacyCpuCanaryResponse(req,env)')>entry.indexOf('nativeBoundAiV2ArticleFastResponse(req,env)'));
   assert.ok(entry.indexOf('nativeBoundLegacyCpuCanaryResponse(req,env)')<entry.indexOf('let res=await app.fetch(req,env,ctx)'));
