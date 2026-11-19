@@ -6,7 +6,7 @@ import {nativeAiV2SitemapResponse} from './ai-v2-sitemap.js';
 import app from './brand-runtime.js';
 import {llms as canonicalCouponSourceGuide} from './final-platform.js';
 import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
-import {emergencyPublicR2Response,nativeBoundAiV2ArticleFastResponse,nativeBoundLegacyCpuCanaryResponse,rescueSitemapIndexPaths,rescueSitemapResponse,prebuiltRescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
+import {emergencyPublicR2Response,nativeBoundAiV2ArticleFastResponse,nativeBoundLegacyCpuCanaryResponse,nativeBoundLegacyPublicFastResponse,rescueSitemapIndexPaths,rescueSitemapResponse,prebuiltRescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
 import {runEnglishCanaryBatch,englishCanaryRecords,englishPublicRecentRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
@@ -635,6 +635,10 @@ const discoveryEntrypoint={
     // observed failing legacy article. Cache as normal; no R2 writes.
     const legacyCpuCanary=await nativeBoundLegacyCpuCanaryResponse(req,env);
     if(legacyCpuCanary)return edgePageCachePut(req,u,legacyCpuCanary,ctx);
+    // Old public HTML is served from the same read-only R2 mirror as the
+    // archive. Avoid the heavy legacy decorator chain and its 1102 CPU errors.
+    const legacyR2Fast=await nativeBoundLegacyPublicFastResponse(req,env);
+    if(legacyR2Fast)return edgePageCachePut(req,u,legacyR2Fast,ctx);
     if(req.method==='GET'){
       const nativeSitemap=await nativeAiV2SitemapResponse(u.pathname,env,origin);
       if(nativeSitemap)return edgePageCachePut(req,u,nativeSitemap,ctx);

@@ -98,6 +98,15 @@ const rescueImageUrl=(slug,country='SA',coupon='',variant=1,title='')=>'/assets/
 const marketOf=a=>a?.country==='AE'||/^en-/.test(String(a?.slug||''))||/\buae\b|الإمارات/i.test(String(a?.slug||''))?'AE':'SA';
 const dateIso=s=>{const d=new Date(s||'');return Number.isFinite(d.getTime())?d.toISOString():null};
 const dateLabel=s=>{try{return new Intl.DateTimeFormat('ar-EG',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(s))}catch{return ''}};
+// Only editorially verified content changes may set dateModified. Storage
+// migration times, automatic month labels and future scheduling do not count.
+export function verifiedEditorialModifiedAt(meta,publishedAt,now=new Date()){
+  const raw=meta?.editorialUpdatedAt||meta?.substantiveUpdatedAt;
+  const updated=dateIso(raw),published=dateIso(publishedAt);
+  if(!updated||!published)return null;
+  const ms=Date.parse(updated),created=Date.parse(published),current=now.getTime();
+  return ms>created&&ms<=current?updated:null;
+}
 const imgTag=(slug,country,coupon,variant=1,title='')=>'<img src="'+esc(rescueImageUrl(slug,country,coupon,variant,title))+'" alt="'+esc('Noon '+(country==='AE'?'UAE':'Saudi Arabia')+' coupon guide — '+title)+'" width="1600" height="1000" loading="'+(variant===1?'eager':'lazy')+'" decoding="async" style="width:100%;height:auto;aspect-ratio:8/5;object-fit:contain;background:#f8fafc;border-radius:12px">';
 
 // Existing R2 objects are immutable. Apply narrowly scoped, evidence-led GSC
@@ -218,9 +227,13 @@ export function removeRedundantSourceArticleJsonLd(content){
 export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  const md=obj?.meta||{},country=english?'AE':String(md.c||'').toUpperCase()==='AE'?'AE':'SA';
  const code=country==='AE'?'NOV188':'NOV170';
- const source=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(String(obj?.body||''),{english}).html);
  if(md.p!=='ai-v2-native'||md.status!=='published'||md.c!==country||
-    md.cp!==code||Number(md.q)<95||Number(md.w)<1500||
+    md.cp!==code||Number(md.q)<95||Number(md.w)<1500)return null;
+ // Do not parse or rewrite large legacy HTML in a fast-path eligibility check.
+ // Archived articles use the legacy renderer below; this prevents two costly
+ // full-body passes on every request and keeps R2 bytes untouched.
+ const source=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(String(obj?.body||''),{english}).html);
+ if(
     source.length<4000||source.length>240000||!source.includes(code)||
     !/<article\b/i.test(source)||!/<h1\b/i.test(source))return null;
  const fromMeta=value=>{try{return decodeURIComponent(String(value||''))}catch{return String(value||'')}};
@@ -292,6 +305,10 @@ async function serveArticle(env,u,english){
   const obj=await getObject(env,'articles/'+slug+'.html');
   if(!obj)return new Response('Not Found',{status:404,headers:{'cache-control':'public,max-age=60'}});
   if(obj.meta.status&&obj.meta.status!=='published')return new Response('Not Found',{status:404});
+  const scheduled=dateIso(obj.meta.scheduledAt||obj.meta.scheduled_at);
+  const publication=dateIso(obj.meta.publishedAt||obj.meta.datePublished||obj.meta.at);
+  if((scheduled&&Date.parse(scheduled)>Date.now())||(publication&&Date.parse(publication)>Date.now()))
+    return new Response('Not Found',{status:404,headers:{'cache-control':'no-store'}});
   const fast=renderApprovedNativeAiV2Fast(obj,slug,u,english);
   if(fast)return fast;
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
@@ -301,11 +318,13 @@ async function serveArticle(env,u,english){
   const snippet=rescueGscSnippet(slug,title,description,english);
   const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1,title);
   const date=dateIso(obj.meta.publishedAt||obj.meta.createdAt||obj.meta.datePublished||obj.meta.at);
-  const meta={'@context':'https://schema.org','@type':'Article',headline:title,description,inLanguage:english?'en':'ar',mainEntityOfPage:canonical,image:[featured],author:{'@type':'Organization',name:'Noon Deals Now editorial team',url:'https://noondealsnow.com/authors/editorial-team'},publisher:{'@type':'Organization',name:'Noon Deals Now',url:'https://noondealsnow.com'},...(date?{datePublished:date}:{})};
+  const modified=verifiedEditorialModifiedAt(obj.meta,date);
+  const meta={'@context':'https://schema.org','@type':'Article',headline:title,description,inLanguage:english?'en':'ar',mainEntityOfPage:canonical,image:[featured],author:{'@type':'Organization',name:'Noon Deals Now editorial team',url:'https://noondealsnow.com/authors/editorial-team'},publisher:{'@type':'Organization',name:'Noon Deals Now',url:'https://noondealsnow.com'},...(date?{datePublished:date}:{}),...(modified?{dateModified:modified}:{})};
   // The source's legacy text-only coupon box did not expose a copy action.
   // Keep original R2 bytes unchanged; present a verified market-locked primary code in the reader.
   const schema='<script type="application/ld+json">'+JSON.stringify(meta).replace(/</g,'\\u003c')+'</script>';
   const figure='<figure class="featured">'+imgTag(slug,country,code,1,title)+'<figcaption>'+esc(english?'Noon shopping guide. Verify coupon eligibility at checkout.':'دليل كوبونات نون — تحقّق من أهلية الكود عند الدفع.')+'</figcaption></figure>';
+  const publishTime=date?'<p class="article-published"><time datetime="'+esc(date)+'">'+esc(english?new Intl.DateTimeFormat('en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(date)):dateLabel(date))+'</time></p>':'';
   const extras=topicLinks(country,english);
   // The legacy two-entry English baseline remains visible through R2 rescue.
   // Preserve its language, market alternatives and canary contract when serving
@@ -319,7 +338,7 @@ async function serveArticle(env,u,english){
   try{const live=await getJson(env,'blog/latest-live-v1.json');related=renderRelatedArticles(live?.articles,slug,country,english)}catch(error){console.warn('related_articles_feed_unavailable',String(error?.message||error).slice(0,80))}
   const topOffer=renderCouponAction(country,english,'top'),bottomOffer=renderCouponAction(country,english,'bottom');
   const mobileOffer='<div class="rescue-mobile-offer" data-market="'+country+'">'+renderCouponAction(country,english,'mobile')+'</div>';
-  const contents=schema+figure+'<article class="rescue-article" data-market="'+country+'">'+topOffer+body+bottomOffer+related+'</article>'+extras+mobileOffer+rescueCopyScript;
+  const contents=schema+figure+publishTime+'<article class="rescue-article" data-market="'+country+'">'+topOffer+body+bottomOffer+related+'</article>'+extras+mobileOffer+rescueCopyScript;
   let html=page(snippet.title,contents,{lang:english?'en-AE':country==='AE'?'ar-AE':'ar-SA',dir:english?'ltr':'rtl',canonical,description:snippet.description,robots:'index,follow,max-image-preview:large'});
   html=html.replace('</head>',rescueArticleStyles+'</head>');
   if(languageAlternates)html=html.replace('</head>',languageAlternates+'</head>');
@@ -765,5 +784,33 @@ export async function emergencyPublicR2Response(req,env){
     // Local unit-test diagnostics only. Must remain off on deployed production.
     if(String(env.R2_RESCUE_DEBUG||'')==='true')headers['x-r2-rescue-debug']=message;
     return new Response('Article archive temporarily unavailable',{status:503,headers});
+  }
+}
+
+// Use the directly bound destination R2 for public legacy articles and the
+// complete blog when the general rescue flag is off. The previous fallback
+// walked several nested HTML/SEO decorators and could exhaust Worker CPU
+// (Cloudflare 1102) before the original article reached search crawlers.
+// This is strictly read-only: no queue, generator, archive or schedule writes.
+export async function nativeBoundLegacyPublicFastResponse(req,env){
+  if(req.method!=='GET'||String(env?.R2_RESCUE_READONLY_ENABLED||'')!=='false'||
+     typeof env?.CONTENT_FINAL?.get!=='function')return null;
+  const url=new URL(req.url),path=url.pathname.replace(/\/+$/,'')||'/';
+  const article=/^\/(?:en\/)?articles\/[^/]+$/.test(path);
+  const blog=['/blog','/blog/saudi','/blog/uae'].includes(path)&&
+    (!url.searchParams.has('page')||url.searchParams.has('after'))&&!url.searchParams.has('topic');
+  if(!article&&!blog)return null;
+  try{
+    const result=article?await serveArticle(env,url,path.startsWith('/en/')):
+      await completeBlogResponse(env,url);
+    if(!result)return null;
+    const headers=new Headers(result.headers);
+    headers.set('x-r2-public-fast-route','legacy-readonly-v1');
+    return new Response(result.body,{status:result.status,statusText:result.statusText,headers});
+  }catch(error){
+    console.warn('legacy_r2_fast_unavailable',String(error?.message||error).slice(0,100));
+    return new Response('Public article temporarily unavailable',{status:503,headers:{
+      'cache-control':'no-store','retry-after':'120','x-r2-public-fast-route':'temporary-unavailable-v1'
+    }});
   }
 }

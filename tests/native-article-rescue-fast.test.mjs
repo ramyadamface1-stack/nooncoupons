@@ -30,6 +30,14 @@ test('only actual native QA-approved, country-matched originals take fast route'
  assert.equal(renderApprovedNativeAiV2Fast({...item,body:'<article>no coupon</article>'},
   'bad',url,false),null);
 });
+test('legacy article fast-path rejection does not read or transform its large HTML body',()=>{
+ const legacy={meta:{p:'legacy-bulk',status:'published',c:'SA',cp:'NOV170',q:'100',w:'1750'}};
+ Object.defineProperty(legacy,'body',{get(){throw new Error('legacy body must never be read during native eligibility check')}});
+ assert.equal(renderApprovedNativeAiV2Fast(legacy,'original-legacy-slug',url,false),null);
+ const nativeScheduled={meta:{...item.meta,status:'scheduled'}};
+ Object.defineProperty(nativeScheduled,'body',{get(){throw new Error('unpublished body must never be read')}});
+ assert.equal(renderApprovedNativeAiV2Fast(nativeScheduled,'original-unpublished-slug',url,false),null);
+});
 
 test('AE approved native article uses cheap metadata-backed fast renderer and the market-approved code',async()=>{
  const u=new URL('https://noondealsnow.com/articles/uae-buyer-baseus-powerbank-long-storage-charge-care-nov188-2026-n6');
