@@ -1,11 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {visibleEditorialDates,nativeBoundLegacyPublicFastResponse} from '../r2-emergency-readonly.js';
+import {visibleEditorialDates,nativeBoundLegacyPublicFastResponse,readableMetaDescription} from '../r2-emergency-readonly.js';
 import {fullBlogRowFromObject,verifiedRowEditorialDate,completeBlogResponse} from '../complete-blog-listing.js';
 import {parseGscCsv,rankDecayingArticles} from '../scripts/gsc-decay-refresh-plan.mjs';
 
 const published='2026-08-06T11:20:00.000Z';
 const reviewed='2026-11-18T09:30:00.000Z';
+test('historical article metadata snippets end at a sentence or full word, never midway through a word',()=>{
+ const lead='كود نون السعودية NOV170 يساعدك على فحص أهلية العرض عند الدفع.';
+ const entire=lead+' التفاصيل الكاملة تتطلب مراجعة المنتجات والشحن والمقارنة بين الخيارات قبل الشراء'.repeat(8);
+ const snippet=readableMetaDescription(entire,130);
+ assert.equal(snippet,lead);
+ assert.ok(snippet.length<=130);
+ const words='Compare the actual seller warranty shipment coupon eligibility cart total before buying '.repeat(7);
+ const clipped=readableMetaDescription(words,115);
+ assert.ok(clipped.endsWith('…'));
+ assert.ok(clipped.length<=115);
+ assert.ok(/\s[A-Za-z]+…$/.test(clipped));
+ assert.equal(readableMetaDescription('  سعر نون اليوم   واضح   '),'سعر نون اليوم واضح');
+});
 test('substantial verified November updates display separately from original publication',async()=>{
  const body='<!doctype html><html><head><title>Outdated page</title></head><body><main><article><h1>دليل مقارنة الهواتف على نون السعودية</h1><p>'+('افحص الضمان والبائع والتوصيل والمواصفات قبل شراء الموبايل. '.repeat(25))+'</p></article></main></body></html>';
  const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{async get(key){
