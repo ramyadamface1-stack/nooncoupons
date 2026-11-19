@@ -117,6 +117,7 @@ export function visibleEditorialDates(publishedAt,modifiedAt,english=false){
   const format=date=>new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(date));
   return '<p class="article-published">'+(english?'Published: ':'تاريخ النشر: ')+
     '<time datetime="'+esc(published)+'">'+esc(format(published))+'</time>'+
+    '<span class="article-timezone"> · '+(english?'Cairo time':'بتوقيت القاهرة (Cairo time)')+'</span>'+
     (modified&&Date.parse(modified)>Date.parse(published)&&Date.parse(modified)<=Date.now()
       ?' <span class="article-editorial-updated">· '+(english?'Substantially updated: ':'آخر تحديث تحريري: ')+
         '<time itemprop="dateModified" datetime="'+esc(modified)+'">'+esc(format(modified))+'</time></span>'
