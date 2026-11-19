@@ -1,5 +1,6 @@
 // SEO-ready, market-safe wrapper for AI section fragments. No native publishing
 // or quality approval is implied by successful rendering of this HTML.
+import {nativeArticleMetaDescription} from './meta-description.mjs';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const json=s=>JSON.stringify(s).replace(/</g,'\\u003c');
 const market={AE:{lang:'en',language:'en-AE',market:'UAE',path:'/en/uae',currency:'AED'}};
@@ -51,7 +52,7 @@ export function buildEnglishAiV2Article(topic,sections){
  const slug=String(topic.slug||''),brand=String(topic.brand||''),category=String(topic.category||''),code=topic.coupon;
  const title=String(topic.topic||'').trim();
  if(!/^[a-z0-9-]{16,120}$/.test(slug)||!title||!brand||!category)throw Error('INCOMPLETE_NATIVE_TOPIC');
- const description=('Compare '+brand+' '+category+' on Noon UAE: check specifications, seller warranty, delivery and the final checkout total. Test '+code+' only if your cart is eligible.').slice(0,160);
+ const description=nativeArticleMetaDescription({country:'AE',brand,category,code});
  const faq=[
   {q:'Can coupon '+code+' be used on every Noon UAE order?',a:'No. Coupon acceptance depends on the eligible account, product, seller and current checkout conditions. The final cart is the commercial reference.'},
   {q:'How can I compare '+brand+' products fairly?',a:'Compare the listed capacity, the exact model number, seller details, warranty terms and delivery price for the same cart.'},

@@ -12,6 +12,9 @@ const text='قارن المواصفات مع شروط الضمان والبائ�
 const sections=Array.from({length:5},(_,i)=>({html:'<h2>كيف تراجع المواصفات قبل الشراء '+(i+1)+'</h2>'+Array.from({length:6},()=>'<p>'+text.repeat(5)+'</p>').join('')}));
 test('Saudi article renderer has market-lock, 4 images, 5 nav links, verified source and JSON-LD',()=>{
  const n=buildSaudiAiV2Article(sa,sections);
+ assert.ok(n.article.metaDescription.endsWith('.'));
+ assert.ok(n.article.metaDescription.includes('NOV170'));
+ assert.ok(n.article.metaDescription.length<=160);
  assert.equal(n.article.country,'SA');
  assert.equal(validateAiV2NativePayload({...n,checkpoint:{state:'PREPARED_FOR_NATIVE_AUDIT',articleId:'a'.repeat(24)}}).ok,true);
  assert.ok((n.article.html.match(/<img\b/g)||[]).length>=4);
