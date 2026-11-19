@@ -6,7 +6,10 @@ let inFlight=null;
 export async function readRecentPublicManifest(env){
   if(snapshot&&Date.now()-snapshot.at<FRESH_MS)return snapshot.value;
   if(inFlight)return inFlight;
-  inFlight=(async()=>{
+  // Defer the read by one microtask. Otherwise a synchronous early return
+  // (for example when R2 is temporarily unbound) executes `finally` before
+  // `inFlight = ...` finishes, leaving a settled promise pinned forever.
+  inFlight=Promise.resolve().then(async()=>{
     try{
       if(!env?.CONTENT_FINAL)return snapshot?.value||{articles:[]};
       // The new account hosts a verified compact public-only projection
@@ -24,7 +27,7 @@ export async function readRecentPublicManifest(env){
     }finally{
       inFlight=null;
     }
-  })();
+  });
   return inFlight;
 }
 export const PUBLIC_MANIFEST_CACHE_TTL_MS=FRESH_MS;

@@ -38,12 +38,28 @@ test('blog default exposes real corpus count, 15 articles and latest editorial s
  assert.match(html,/Newest verified published guide/);
  assert.equal(urls(html).length,15);
  assert.equal((html.match(/class="card-image"/g)||[]).length,15,'the first archive page needs a featured visual for every article');
- assert.match(html,/\/assets\/coupon-svg\/000-saudi-article\/1\.svg\?v=10&amp;country=SA/);
- assert.match(html,/\/assets\/coupon-svg\/001-uae-article\/1\.svg\?v=10&amp;country=AE/);
+ assert.match(html,/\/assets\/coupon-svg\/000-saudi-article\/1\.svg\?v=11&amp;coupon=NOV170&amp;country=SA/);
+ assert.match(html,/\/assets\/coupon-svg\/001-uae-article\/1\.svg\?v=11&amp;coupon=NOV188&amp;country=AE/);
+ assert.match(html,/width="1600" height="1000" loading="lazy"/);
  assert.match(html,/loading="lazy" decoding="async"/);
  assert.equal(env.calls[0].limit,16);
  assert.match(html,/canonical" href="https:\/\/noondealsnow.com\/blog"/);
  assert.equal(page.headers.get('x-full-blog-r2'),'read-only-cursor-v1');
+});
+test('archive and newest thumbnails display the article coupon, safely scoped to its market',async()=>{
+ const entries=[
+  {key:'articles/000-uae-code.html',customMetadata:{status:'published',c:'AE',cp:'NOV157'},uploaded:new Date('2026-09-18T18:00:00Z')},
+  {key:'articles/001-saudi-code.html',customMetadata:{status:'published',c:'SA',coupon:'NOV195'},uploaded:new Date('2026-09-19T19:30:00Z')},
+  {key:'articles/002-uae-wrong.html',customMetadata:{status:'published',c:'AE',cp:'NOV170'}}
+ ];
+ const latest=[{slug:'new-uae-code',status:'published',country:'AE',coupon:'NOV161',publishedAt:'2026-11-18T12:30:00Z'}];
+ const html=await(await go(mockEnv(entries,latest))).text();
+ assert.match(html,/000-uae-code\/1\.svg\?v=11&amp;coupon=NOV157&amp;country=AE/);
+ assert.match(html,/001-saudi-code\/1\.svg\?v=11&amp;coupon=NOV195&amp;country=SA/);
+ assert.match(html,/002-uae-wrong\/1\.svg\?v=11&amp;coupon=NOV188&amp;country=AE/);
+ assert.match(html,/new-uae-code\/1\.svg\?v=11&amp;coupon=NOV161&amp;country=AE/);
+ assert.match(html,/محفوظ/);
+ assert.match(html,/<time datetime="2026-11-18T12:30:00Z">[^<]+<\/time>/);
 });
 test('latest-publication lane shows 15 newest articles with real dates without changing archive pagination',async()=>{
  const articles=Array.from({length:22},(_,i)=>({
@@ -57,7 +73,7 @@ test('latest-publication lane shows 15 newest articles with real dates without c
  const latest=html.split('<aside class="latest">')[1].split('</aside>')[0];
  const links=[...latest.matchAll(/<a href="([^"]+)"/g)].map(x=>x[1]);
  assert.equal(links.length,15);
- assert.equal((latest.match(/class="latest-image"/g)||[]).length,3,'three newest guides have lightweight featured artwork');
+ assert.equal((latest.match(/class="latest-image"/g)||[]).length,15,'all fifteen newest guides have lazy-loaded featured artwork');
  assert.equal(links[0],'/articles/new-article-21');
  assert.equal(links.at(-1),'/articles/new-article-07');
  assert.match(latest,/<time datetime="2026-11-22T00:00:00\.000Z">/);

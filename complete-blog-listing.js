@@ -1,4 +1,5 @@
 import {refreshCurrentSeasonLabel} from './article-temporal-freshness.js';
+import {normalizeMarketCoupon} from './approved-coupons.js';
 // Read-only, bounded all-article browser for /blog, /blog/saudi and /blog/uae.
 // Uses the existing R2 bucket. No deletion, migration, new resources or full-corpus scan.
 // R2 uses lexicographic key order; the newest-publication feed remains a separate
@@ -11,6 +12,7 @@ const safeResumeKey=k=>typeof k==='string'&&k.startsWith('articles/')&&k.length<
   !k.includes('..')&&!/[\x00-\x1f\x7f]/.test(k);
 const safeSlugKey=k=>safeResumeKey(k)&&/^articles\/[^/]{1,300}\.html$/u.test(k);
 const safeDate=x=>{try{const ms=Date.parse(String(x||''));return Number.isFinite(ms)?new Date(ms).toLocaleDateString('ar-EG',{timeZone:'Africa/Cairo'}):null}catch{return null}};
+const safeDateTime=x=>{try{const ms=Date.parse(String(x||''));return Number.isFinite(ms)?new Date(ms).toLocaleString('ar-EG',{timeZone:'Africa/Cairo',day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}):null}catch{return null}};
 export function fullBlogMarketOf(o){
  const md=o?.customMetadata||{},slug=String(o?.key||'').slice(9,-5);
  const market=String(md.c||md.country||md.market||'').toUpperCase();
@@ -32,7 +34,7 @@ export function fullBlogRowFromObject(o,market=null){
  try{rawTitle=decodeURIComponent(String(rawTitle))}catch{}
  const title=refreshCurrentSeasonLabel(String(rawTitle).replace(/[-_]+/g,' ').replace(/\s+/g,' ').trim()).slice(0,230);
  const href=(english?'/en/articles/':'/articles/')+encodeURIComponent(slug);
- return {key,slug,title: title||slug,country,english,href,uploaded:o.uploaded||null};
+ return {key,slug,title: title||slug,country,english,href,coupon:normalizeMarketCoupon(md.cp||md.coupon,country),uploaded:o.uploaded||null};
 }
 /** Does not overscan past an emitted key. On partial-filter pages, consumes each
  * visited key exactly once and resumes after the last scanned key. R2 LIST may
@@ -82,11 +84,11 @@ const pth=(market)=>market==='SA'?'/blog/saudi':market==='AE'?'/blog/uae':'/blog
 const label=m=>m==='SA'?'نون السعودية':m==='AE'?'نون الإمارات':'السعودية والإمارات';
 const meta={description:'تصفح جميع أدلة ومقالات نون السعودية والإمارات المحفوظة في R2، 15 مقالًا في الصفحة، مع روابط المقالات الأصلية.'};
 // The site's SVG image endpoint is deterministic and does not read the R2
-// article body. Keep the images available even for legacy records without
-// featured-image metadata; the market-specific approved coupon is resolved
-// by the existing artwork renderer, not duplicated here.
-function blogImageSrc(slug,country){
- return '/assets/coupon-svg/'+encodeURIComponent(slug)+'/1.svg?v=10&country='+(country==='AE'?'AE':'SA');
+// article body. For records with a coupon, use the same market-validated code
+// as the article page; otherwise use the existing market-safe default.
+function blogImageSrc(slug,country,coupon){
+ const market=country==='AE'?'AE':'SA',code=normalizeMarketCoupon(coupon,market);
+ return '/assets/coupon-svg/'+encodeURIComponent(slug)+'/1.svg?v=11&coupon='+encodeURIComponent(code)+'&country='+market;
 }
 function newLink(path,after){return path+'?after='+encodeURIComponent(after)}
 async function readJson(env,key){
@@ -106,7 +108,7 @@ export async function completeBlogResponse(env,url){
  ]);
  const path=pth(market),title='مدونة كوبونات نون — جميع مقالات '+label(market);
  const origin='https://noondealsnow.com',canonical=origin+path;
- const items=page.rows.map(a=>'<article class="article-card" dir="'+(a.english?'ltr':'rtl')+'"><a class="card-image" href="'+esc(a.href)+'" aria-label="'+esc(a.title)+'"><img src="'+esc(blogImageSrc(a.slug,a.country))+'" alt="'+esc(a.title)+' — Noon '+(a.country==='AE'?'UAE':'Saudi Arabia')+'" width="1200" height="760" loading="lazy" decoding="async"></a><div class="card-meta">'+(a.country==='AE'?'الإمارات':'السعودية')+(a.uploaded?' · محفوظ '+esc(safeDate(a.uploaded)||''):'')+'</div><h2><a href="'+esc(a.href)+'">'+esc(a.title)+'</a></h2><a class="read" href="'+esc(a.href)+'">'+(a.english?'Open article':'اقرأ المقال')+' ←</a></article>').join('');
+ const items=page.rows.map(a=>'<article class="article-card" dir="'+(a.english?'ltr':'rtl')+'"><a class="card-image" href="'+esc(a.href)+'" aria-label="'+esc(a.title)+'"><img src="'+esc(blogImageSrc(a.slug,a.country,a.coupon))+'" alt="'+esc(a.title)+' — Noon '+(a.country==='AE'?'UAE':'Saudi Arabia')+'" width="1600" height="1000" loading="lazy" decoding="async"></a><div class="card-meta">'+(a.country==='AE'?'الإمارات':'السعودية')+(a.uploaded?' · محفوظ '+esc(safeDateTime(a.uploaded)||''):'')+'</div><h2><a href="'+esc(a.href)+'">'+esc(a.title)+'</a></h2><a class="read" href="'+esc(a.href)+'">'+(a.english?'Open article':'اقرأ المقال')+' ←</a></article>').join('');
  const count=Number(snapshot?.count),isCount=Number.isSafeInteger(count)&&count>0;
  const date=safeDate(snapshot?.countedAt);
  const countLine=isCount?'آخر جرد لملفات المقالات في R2: <strong>'+fmt(count)+'</strong>'+(date?' (بتاريخ '+esc(date)+')':'')+' — ليس عدًا مباشرًا لحظيًا':'جميع المقالات المحفوظة قابلة للتصفح حتى آخر صفحة';
@@ -122,16 +124,16 @@ export async function completeBlogResponse(env,url){
    const published=x=>Date.parse(x?.publishedAt||x?.createdAt||'')||0;
    return published(b)-published(a);
  }).slice(0,15):[];
- const quick=latest.length?'<aside class="latest"><h2>أحدث المقالات المنشورة</h2><p class="note">مرتبة حسب تاريخ النشر، والأرشيف الكامل أسفلها.</p><div>'+latest.map((a,i)=>{
+ const quick=latest.length?'<aside class="latest"><h2>أحدث المقالات المنشورة</h2><p class="note">مرتبة حسب تاريخ النشر، والأرشيف الكامل أسفلها.</p><div>'+latest.map(a=>{
    const slug=String(a.slug),english=slug.startsWith('en-')||String(a.language||'').startsWith('en');
    const text=refreshCurrentSeasonLabel(String(a.title||slug)),href=(english?'/en/articles/':'/articles/')+encodeURIComponent(slug);
-   const publishedAt=a.publishedAt||a.createdAt,when=safeDate(publishedAt);
-   const thumb=i<3?'<img class="latest-image" src="'+esc(blogImageSrc(slug,a.country))+'" alt="'+esc(text)+'" width="1200" height="760" loading="lazy" decoding="async">':'';
+   const publishedAt=a.publishedAt||a.createdAt,when=safeDateTime(publishedAt);
+   const thumb='<img class="latest-image" src="'+esc(blogImageSrc(slug,a.country,a.coupon||a.code))+'" alt="'+esc(text)+'" width="1600" height="1000" loading="lazy" decoding="async">';
    return '<article dir="'+(english?'ltr':'rtl')+'"><a href="'+esc(href)+'">'+thumb+esc(text)+'</a>'+(when?'<small><time datetime="'+esc(publishedAt)+'">'+esc(when)+'</time> · '+(a.country==='AE'?'الإمارات':'السعودية')+'</small>':'')+'</article>';
  }).join('')+'</div></aside>':'';
  const next=page.nextAfter?'<a rel="next" href="'+esc(newLink(path,page.nextAfter))+'">المقالات التالية ←</a>':'';
  const head='<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+esc(title)+'</title><meta name="description" content="'+esc(meta.description)+'"><link rel="canonical" href="'+canonical+'"><meta name="robots" content="'+(after?'noindex,follow':'index,follow')+'">';
- const newestStyle='<style>.article-card .card-image{display:block;margin-bottom:12px}.article-card .card-image img{display:block;width:100%;height:auto;aspect-ratio:1200/760;object-fit:contain;background:#fffdf0;border-radius:11px}.latest>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.latest article{padding:12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;min-width:0}.latest article a{font-weight:700;overflow-wrap:anywhere}.latest article a img{display:block;width:100%;height:auto;aspect-ratio:1200/760;object-fit:contain;border-radius:9px;margin-bottom:8px;background:#fffdf0}.latest article small{display:block;color:#475569;margin-top:5px}.latest .note{margin:0 0 12px}@media(max-width:750px){.latest>div{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.latest>div{grid-template-columns:1fr}}</style>';
+ const newestStyle='<style>.article-card .card-image{display:block;margin-bottom:12px}.article-card .card-image img{display:block;width:100%;height:auto;aspect-ratio:8/5;object-fit:contain;background:#fffdf0;border-radius:11px}.latest>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.latest article{padding:12px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;min-width:0}.latest article a{font-weight:700;overflow-wrap:anywhere}.latest article a img{display:block;width:100%;height:auto;aspect-ratio:8/5;object-fit:contain;border-radius:9px;margin-bottom:8px;background:#fffdf0}.latest article small{display:block;color:#475569;margin-top:5px}.latest .note{margin:0 0 12px}@media(max-width:750px){.latest>div{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.latest>div{grid-template-columns:1fr}}</style>';
  const schema='<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@type':'CollectionPage',name:title,url:canonical,mainEntity:{'@type':'ItemList',itemListElement:page.rows.map((a,i)=>({'@type':'ListItem',position:i+1,url:origin+a.href}))}}).replace(/</g,'\\u003c')+'</script>';
  const style='<style>*{box-sizing:border-box}body{margin:0;background:#f8fafc;color:#111827;font-family:Tahoma,Arial,sans-serif;line-height:1.75}a{color:#2638a4;text-decoration:underline;text-underline-offset:3px}header{background:#111827;color:#fff;padding:28px 0}header a{color:#fff}.w{width:min(1080px,92%);margin:auto}.links{display:flex;flex-wrap:wrap;gap:12px}.links a{padding:5px 9px}.hero p{color:#e5e7eb}.count{padding:12px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin:20px 0}.latest{padding:16px;background:#fff;border:1px solid #e5e7eb;border-radius:14px}.latest h2{font-size:18px;margin:0 0 10px}.latest div{display:flex;gap:14px;flex-wrap:wrap}.latest a{display:inline-block;max-width:310px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:20px 0}.article-card{padding:18px;border:1px solid #e5e7eb;border-radius:16px;background:#fff;min-width:0}.article-card h2{font-size:19px;line-height:1.6;overflow-wrap:anywhere}.card-meta{color:#475569;font-size:13px}.read{font-weight:bold}.pager{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;margin:26px auto 50px}.pager a{border:1px solid #cbd5e1;background:#fff;padding:9px 13px;border-radius:10px}.note{color:#475569;font-size:14px}@media(max-width:850px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:570px){.grid{grid-template-columns:1fr}}</style>';
  const body='<header><div class="w hero"><nav class="links" aria-label="أقسام الموقع"><a href="/">الرئيسية</a><a href="/coupons">الكوبونات</a><a href="/blog">كل المقالات</a><a href="/blog/saudi">السعودية</a><a href="/blog/uae">الإمارات</a><a href="/blog/archive/all">الأرشيف المباشر</a></nav><h1>'+esc(title)+'</h1><p>كل ملفات المقالات المنشورة في الأرشيف؛ لا نعتمد على فهرس أحدث المقالات المحدود، ولا نحذف أو نغيّر روابط المقالات القديمة.</p></div></header><main class="w"><div class="count">'+countLine+'</div>'+quick+'<h2>تصفح جميع المقالات '+(after?'— تكملة القائمة':'')+'</h2><p class="note">حتى 15 مقالًا منشورًا في الدفعة. فلترة الدولة قد تعطي دفعة أقصر عندما يكون مخزون الدولة متباعدًا أبجديًا؛ تابع بالمقالات التالية للوصول إلى البقية. ترتيب فهرس R2 أبجدي وليس حسب تاريخ النشر؛ روابط أحدث المقالات أعلاه.</p><section class="grid">'+(items||'<p>لا توجد مقالات قابلة للعرض في هذه الدفعة.</p>')+'</section><nav class="pager" aria-label="التنقل بين صفحات المدونة"><a href="'+path+'">أول القائمة</a>'+next+'</nav><p class="note">المعروض الآن: '+fmt(page.rows.length)+' · نتيجة القراءة: '+fmt(page.scanned)+' مفتاحًا · لا توجد حدود قصوى لعدد صفحات المدونة.</p></main>';

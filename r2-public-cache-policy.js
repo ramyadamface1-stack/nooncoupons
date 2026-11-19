@@ -37,8 +37,8 @@ export function publicEdgeCacheEligible(req,u=new URL(req.url)){
 export function publicEdgePolicyRevision(path,baseRevision='r2-jsonld-dedupe-r16'){
   const kind=publicRouteKind(String(path||''));
   if(String(path||'')==='/en/articles/en-iphone-18-pro-max-noon-abu-dhabi-price')
-    return 'legacy-1102-cpu-canary-r2-direct-v1';
-  if(kind==='article')return 'r2-rescue-security-ga4-topic-links-v21-nativefast-cpu';
+    return 'legacy-1102-cpu-canary-seo-image-v2';
+  if(kind==='article')return 'r2-rescue-english-artwork-gsc-v22-nativefast-cpu';
   // Refresh only these two English coupon pages after enforcing market lists,
   // canonical detail links and real clipboard copy actions.
   if(/^\/en\/(?:saudi|uae)\/noon-coupon-code$/.test(String(path||'').replace(/\/+$/,'')))
@@ -63,7 +63,7 @@ export function publicEdgePolicyRevision(path,baseRevision='r2-jsonld-dedupe-r16
   if((String(path||'').replace(/\/+$/,'')||'/')==='/coupons')return 'nov-coupon-detail-links-v1';
   // Ensure old market sitemaps are replaced immediately after the canonical market fix.
   if(/^\/sitemap-coupons-(?:saudi|uae)\.xml$/.test(String(path||'')))return 'market-coupon-canonical-v3';
-  if(['/blog','/blog/saudi','/blog/uae'].includes(String(path||'').replace(/\/+$/,'')))return 'r2-complete-blog-r2-cursor-v19';
+  if(['/blog','/blog/saudi','/blog/uae'].includes(String(path||'').replace(/\/+$/,'')))return 'r2-complete-blog-artwork-v20';
   return baseRevision;
 }
 
