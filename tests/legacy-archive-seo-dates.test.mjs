@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {verifiedEditorialModifiedAt,emergencyPublicR2Response,nativeBoundLegacyPublicFastResponse} from '../r2-emergency-readonly.js';
+import {verifiedEditorialModifiedAt,emergencyPublicR2Response,nativeBoundLegacyPublicFastResponse,unwrapLegacyArticleDocument,localizeLegacySiteNavigation} from '../r2-emergency-readonly.js';
 import {readFileSync} from 'node:fs';
 
 const published='2026-08-06T11:20:00.000Z';
@@ -67,4 +67,62 @@ test('read-only fast path never exposes scheduled, missing, private or non-GET a
  assert.equal(await nativeBoundLegacyPublicFastResponse(new Request('https://noondealsnow.com/articles/draft'),{...env,R2_RESCUE_READONLY_ENABLED:'true'}),null);
  const src=readFileSync(new URL('../discovery-entry.js',import.meta.url),'utf8');
  assert.ok(src.indexOf('nativeBoundLegacyPublicFastResponse(req,env)')<src.indexOf('let res=await app.fetch(req,env,ctx)'));
+});
+test('migrated document shell is removed without losing the original article',()=>{
+ const source='<!doctype html><html lang="ar"><head><title>Wrong old title</title>'+
+  '<link rel="canonical" href="https://couponsnoon.com/old-article"><meta name="robots" content="noindex"></head>'+
+  '<body><header>Old logo and navigation</header><main><article><h1>دليل شراء الجوالات</h1>'+
+  '<p>نص مفيد عن المنتجات والتوصيل وكود NOV170.</p></article></main><footer>Old footer</footer></body></html>';
+ const result=unwrapLegacyArticleDocument(source);
+ assert.match(result,/<h1>دليل شراء الجوالات<\/h1>/);
+ assert.match(result,/NOV170/);
+ for(const tag of ['<!doctype','<html','<head','<body','<title','canonical','noindex','Old logo','Old footer'])
+  assert.ok(!result.includes(tag),`obsolete shell should be removed: ${tag}`);
+ assert.equal(unwrapLegacyArticleDocument('<article><h1>Preserve fragment</h1></article>'),'<article><h1>Preserve fragment</h1></article>');
+});
+test('old self-domain navigation returns to this site but official store links are unchanged',()=>{
+ const markup='<a href="https://couponsnoon.com/">الرئيسية</a>'+
+  '<a href="https://couponsnoon.com/saudi-arabia">السعودية</a>'+
+  '<a href="https://www.couponsnoon.com/categories">التصنيفات</a>'+
+  '<a href="https://couponsnoon.com/old-guide">المقال نفسه</a>'+
+  '<a href="https://couponsnoon.com/other-article">مقال آخر غير مؤكد</a>'+
+  '<a href="https://www.noon.com/saudi-ar/">متجر نون</a>';
+ const localized=localizeLegacySiteNavigation(markup,'old-guide','SA');
+ assert.match(localized,/href="\/">الرئيسية/);
+ assert.match(localized,/href="\/saudi">السعودية/);
+ assert.match(localized,/href="\/saudi\/categories">التصنيفات/);
+ assert.match(localized,/href="\/articles\/old-guide">المقال نفسه/);
+ assert.match(localized,/href="https:\/\/couponsnoon.com\/other-article"/,'unverified source path must not be guessed');
+ assert.match(localized,/href="https:\/\/www.noon.com\/saudi-ar\/"/);
+});
+test('full archived document becomes one canonical page with functional coupon controls',async()=>{
+ const source='<!doctype html><html><head><title>Old document</title>'+
+  '<link rel="canonical" href="https://couponsnoon.com/old-embedded-guide"></head><body>'+
+  '<header>old site header</header><main><article><h1>نون السعودية دليل شراء</h1>'+
+  '<p>نص المقال الأصلي، ومقارنة الشحن والبائع، واستخدام الكود NOV170 قبل الشراء.</p>'+
+  '<a href="https://couponsnoon.com/categories">الأقسام</a></article></main></body></html>';
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{async get(key){return key==='articles/old-embedded-guide.html'?{
+  text:async()=>source,customMetadata:{status:'published',c:'SA',at:published}
+ }:null}}};
+ const res=await nativeBoundLegacyPublicFastResponse(new Request('https://noondealsnow.com/articles/old-embedded-guide'),env);
+ assert.equal(res.status,200);
+ const html=await res.text();
+ assert.equal((html.match(/<html\b/gi)||[]).length,1);
+ assert.equal((html.match(/<head\b/gi)||[]).length,1);
+ assert.equal((html.match(/<title\b/gi)||[]).length,1);
+ assert.equal((html.match(/rel="canonical"/gi)||[]).length,1);
+ assert.match(html,/href="https:\/\/noondealsnow.com\/articles\/old-embedded-guide"/);
+ assert.match(html,/href="\/saudi\/categories"/);
+ assert.match(html,/href="\/blog\/archive"/,'use the working archive route');
+ assert.doesNotMatch(html,/href="\/blog\/archive\/catalog"/,'do not link customers to an observed 404');
+ assert.match(html,/data-rescue-copy="NOV170"/);
+ assert.doesNotMatch(html,/couponsnoon\.com/);
+ assert.match(html,/نص المقال الأصلي/);
+});
+test('public archive menus do not advertise the currently unavailable catalog paths',()=>{
+ const source=readFileSync(new URL('../r2-emergency-readonly.js',import.meta.url),'utf8');
+ assert.doesNotMatch(source,/<a href="\/blog\/archive\/(?:english\/)?catalog(?:"|\/)/,
+   'avoid dead live links in article and archive navigation');
+ assert.match(source,/<a href="\/blog\/archive">/);
+ assert.match(source,/<a href="\/blog\/archive\/english">/);
 });

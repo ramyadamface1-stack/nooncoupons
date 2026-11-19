@@ -13,6 +13,12 @@ const safeResumeKey=k=>typeof k==='string'&&k.startsWith('articles/')&&k.length<
 const safeSlugKey=k=>safeResumeKey(k)&&/^articles\/[^/]{1,300}\.html$/u.test(k);
 const safeDate=x=>{try{const ms=Date.parse(String(x||''));return Number.isFinite(ms)?new Date(ms).toLocaleDateString('ar-EG',{timeZone:'Africa/Cairo'}):null}catch{return null}};
 const safeDateTime=x=>{try{const ms=Date.parse(String(x||''));return Number.isFinite(ms)?new Date(ms).toLocaleString('ar-EG',{timeZone:'Africa/Cairo',day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}):null}catch{return null}};
+export function verifiedRowEditorialDate(meta,publishedAt,now=new Date()){
+ const modified=String(meta?.editorialUpdatedAt||meta?.substantiveUpdatedAt||'');
+ const base=Date.parse(String(publishedAt||'')),update=Date.parse(modified);
+ return Number.isFinite(base)&&Number.isFinite(update)&&update>base&&update<=now.getTime()
+   ?new Date(update).toISOString():null;
+}
 export function fullBlogMarketOf(o){
  const md=o?.customMetadata||{},slug=String(o?.key||'').slice(9,-5);
  const market=String(md.c||md.country||md.market||'').toUpperCase();
@@ -34,7 +40,9 @@ export function fullBlogRowFromObject(o,market=null){
  try{rawTitle=decodeURIComponent(String(rawTitle))}catch{}
  const title=refreshCurrentSeasonLabel(String(rawTitle).replace(/[-_]+/g,' ').replace(/\s+/g,' ').trim()).slice(0,230);
  const href=(english?'/en/articles/':'/articles/')+encodeURIComponent(slug);
- return {key,slug,title: title||slug,country,english,href,coupon:normalizeMarketCoupon(md.cp||md.coupon,country),uploaded:o.uploaded||null};
+ const publishedAt=md.publishedAt||md.datePublished||md.at||null;
+ return {key,slug,title: title||slug,country,english,href,coupon:normalizeMarketCoupon(md.cp||md.coupon,country),
+   publishedAt,editorialUpdatedAt:verifiedRowEditorialDate(md,publishedAt),uploaded:o.uploaded||null};
 }
 /** Does not overscan past an emitted key. On partial-filter pages, consumes each
  * visited key exactly once and resumes after the last scanned key. R2 LIST may
@@ -108,7 +116,7 @@ export async function completeBlogResponse(env,url){
  ]);
  const path=pth(market),title='مدونة كوبونات نون — جميع مقالات '+label(market);
  const origin='https://noondealsnow.com',canonical=origin+path;
- const items=page.rows.map(a=>'<article class="article-card" dir="'+(a.english?'ltr':'rtl')+'"><a class="card-image" href="'+esc(a.href)+'" aria-label="'+esc(a.title)+'"><img src="'+esc(blogImageSrc(a.slug,a.country,a.coupon))+'" alt="'+esc(a.title)+' — Noon '+(a.country==='AE'?'UAE':'Saudi Arabia')+'" width="1600" height="1000" loading="lazy" decoding="async"></a><div class="card-meta">'+(a.country==='AE'?'الإمارات':'السعودية')+(a.uploaded?' · محفوظ '+esc(safeDateTime(a.uploaded)||''):'')+'</div><h2><a href="'+esc(a.href)+'">'+esc(a.title)+'</a></h2><a class="read" href="'+esc(a.href)+'">'+(a.english?'Open article':'اقرأ المقال')+' ←</a></article>').join('');
+ const items=page.rows.map(a=>'<article class="article-card" dir="'+(a.english?'ltr':'rtl')+'"><a class="card-image" href="'+esc(a.href)+'" aria-label="'+esc(a.title)+'"><img src="'+esc(blogImageSrc(a.slug,a.country,a.coupon))+'" alt="'+esc(a.title)+' — Noon '+(a.country==='AE'?'UAE':'Saudi Arabia')+'" width="1600" height="1000" loading="lazy" decoding="async"></a><div class="card-meta">'+(a.country==='AE'?'الإمارات':'السعودية')+(a.publishedAt&&safeDateTime(a.publishedAt)?' · نشر <time datetime="'+esc(a.publishedAt)+'">'+esc(safeDateTime(a.publishedAt))+'</time>':a.uploaded?' · محفوظ '+esc(safeDateTime(a.uploaded)||''):'')+(a.editorialUpdatedAt?' · آخر تحديث <time datetime="'+esc(a.editorialUpdatedAt)+'">'+esc(safeDateTime(a.editorialUpdatedAt))+'</time>':'')+'</div><h2><a href="'+esc(a.href)+'">'+esc(a.title)+'</a></h2><a class="read" href="'+esc(a.href)+'">'+(a.english?'Open article':'اقرأ المقال')+' ←</a></article>').join('');
  const count=Number(snapshot?.count),isCount=Number.isSafeInteger(count)&&count>0;
  const date=safeDate(snapshot?.countedAt);
  const countLine=isCount?'آخر جرد لملفات المقالات في R2: <strong>'+fmt(count)+'</strong>'+(date?' (بتاريخ '+esc(date)+')':'')+' — ليس عدًا مباشرًا لحظيًا':'جميع المقالات المحفوظة قابلة للتصفح حتى آخر صفحة';

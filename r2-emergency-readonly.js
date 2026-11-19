@@ -107,6 +107,60 @@ export function verifiedEditorialModifiedAt(meta,publishedAt,now=new Date()){
   const ms=Date.parse(updated),created=Date.parse(published),current=now.getTime();
   return ms>created&&ms<=current?updated:null;
 }
+// Readers and crawlers see the same date semantics: the original publication
+// time remains intact, while a genuinely revised article may separately show
+// its verified editorial update. Automatic month-label repairs don't qualify.
+export function visibleEditorialDates(publishedAt,modifiedAt,english=false){
+  const published=dateIso(publishedAt),modified=dateIso(modifiedAt);
+  if(!published)return '';
+  const locale=english?'en-GB':'ar-EG';
+  const format=date=>new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(date));
+  return '<p class="article-published">'+(english?'Published: ':'تاريخ النشر: ')+
+    '<time datetime="'+esc(published)+'">'+esc(format(published))+'</time>'+
+    '<span class="article-timezone"> · '+(english?'Cairo time':'بتوقيت القاهرة (Cairo time)')+'</span>'+
+    (modified&&Date.parse(modified)>Date.parse(published)&&Date.parse(modified)<=Date.now()
+      ?' <span class="article-editorial-updated">· '+(english?'Substantially updated: ':'آخر تحديث تحريري: ')+
+        '<time itemprop="dateModified" datetime="'+esc(modified)+'">'+esc(format(modified))+'</time></span>'
+      :'')+'</p>';
+}
+// Migrated R2 articles sometimes contain an entire stand-alone HTML page.
+// Nesting its head/body into the rescue page duplicates title, canonical and
+// schema tags and can point Google at the OLD domain. Keep the actual article
+// content, but never embed the obsolete document shell.
+export function unwrapLegacyArticleDocument(source){
+  const raw=String(source??'');
+  if(!/(?:<!doctype\s+html\b|<html\b)/i.test(raw))return raw;
+  const body=raw.match(/<body\b[^>]*>([\s\S]*?)<\/body\s*>/i);
+  if(body){
+    const main=body[1].match(/<main\b[^>]*>([\s\S]*?)<\/main\s*>/i);
+    return (main&&/<(?:article|h1)\b/i.test(main[1])?main[1]:body[1]).trim();
+  }
+  return raw.replace(/<!doctype\s+html[^>]*>/i,'')
+    .replace(/<head\b[^>]*>[\s\S]*?<\/head\s*>/i,'')
+    .replace(/<\/?(?:html|body)\b[^>]*>/gi,'').trim();
+}
+
+// Only the exact known former self-domain, and only mapped on-site paths.
+// Product/store/external domains and all original article URLs stay untouched.
+export function localizeLegacySiteNavigation(source,slug,country='SA'){
+  const currentSlug=String(slug??'');
+  const market=country==='AE'?'uae':'saudi';
+  const map=new Map([
+    ['/','/'],['/blog','/blog'],['/coupons','/coupons'],
+    ['/categories','/'+market+'/categories'],
+    ['/saudi','/saudi'],['/saudi-arabia','/saudi'],
+    ['/uae','/uae'],['/united-arab-emirates','/uae']
+  ]);
+  return String(source??'').replace(/(<a\b[^>]*\bhref\s*=\s*)(["'])(https?:\/\/(?:www\.)?couponsnoon\.com(?:\/[^"'<>]*)?)\2/gi,(full,prefix,q,rawUrl)=>{
+    let url;try{url=new URL(rawUrl)}catch{return full}
+    const path=url.pathname.replace(/\/+$/,'')||'/';
+    const internal=path==='/'?'/':map.get(path);
+    let decodedPath=path;try{decodedPath=decodeURIComponent(path)}catch{}
+    const self=decodedPath==='/'+currentSlug?'/articles/'+encodeURIComponent(currentSlug):null;
+    if(!internal&&!self)return full;
+    return prefix+q+(self||internal)+(url.search||'')+(url.hash||'')+q;
+  });
+}
 const imgTag=(slug,country,coupon,variant=1,title='')=>'<img src="'+esc(rescueImageUrl(slug,country,coupon,variant,title))+'" alt="'+esc('Noon '+(country==='AE'?'UAE':'Saudi Arabia')+' coupon guide — '+title)+'" width="1600" height="1000" loading="'+(variant===1?'eager':'lazy')+'" decoding="async" style="width:100%;height:auto;aspect-ratio:8/5;object-fit:contain;background:#f8fafc;border-radius:12px">';
 
 // Existing R2 objects are immutable. Apply narrowly scoped, evidence-led GSC
@@ -151,7 +205,7 @@ const topicLinks=(country='SA',english=false)=>{
     ['/'+market+'/categories',english?'Product categories':'أقسام المنتجات'],
     ['/blog',english?'Latest guides':'أحدث المقالات'],
     ['/blog/archive/all',english?'All archived guides':'أرشيف المقالات'],
-    [english?'/blog/archive/english/catalog':'/blog/archive/catalog',english?'Browse English guide directory':'فهرس المقالات القديمة'],
+    [english?'/blog/archive/english':'/blog/archive',english?'Browse English guide directory':'فهرس المقالات القديمة'],
     ['/topics/'+market,english?'More guides from this market':'مقالات هذا السوق'],
     ['/topics/buying-guides',english?'Buying guides':'أدلة الشراء'],
     ['/topics/coupon-help',english?'Coupon help':'مشاكل الكوبونات']
@@ -247,8 +301,8 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1,title);
  const figure='<figure class="featured">'+imgTag(slug,country,code,1,title)+'</figure>';
  const published=dateIso(md.at);
- const timeLabel=published?(english?new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Cairo',dateStyle:'medium',timeStyle:'short'}).format(new Date(published)):dateLabel(published)):'';
- const publishTime=published?'<p class="article-published"><time datetime="'+esc(published)+'">'+esc(timeLabel)+' · Cairo time</time></p>':'';
+ const modified=verifiedEditorialModifiedAt(md,published);
+ const publishTime=visibleEditorialDates(published,modified,english);
  const contents=figure+publishTime+'<article class="rescue-article" data-market="'+country+'">'+
    renderCouponAction(country,english,'top')+source+
    renderCouponAction(country,english,'bottom')+'</article>'+
@@ -259,6 +313,7 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
   esc(snippet.title)+'"><meta property="og:description" content="'+esc(snippet.description)+'"><meta property="og:image" content="'+
   esc(featured)+'"><meta property="og:image:width" content="1600"><meta property="og:image:height" content="1000"><meta name="twitter:card" content="summary_large_image">'+
   (published?'<meta property="article:published_time" content="'+esc(published)+'">':'')+
+  (modified?'<meta property="article:modified_time" content="'+esc(modified)+'">':'')+
   (english?'<link rel="alternate" hreflang="en-AE" href="'+esc(canonical)+'">':'');
  html=html.replace('</head>',extras+'</head>');
  return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles',
@@ -312,7 +367,8 @@ async function serveArticle(env,u,english){
   const fast=renderApprovedNativeAiV2Fast(obj,slug,u,english);
   if(fast)return fast;
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
-  const body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(obj.body),country),country),country),country,english),{english}).html);
+  const source=localizeLegacySiteNavigation(unwrapLegacyArticleDocument(obj.body),slug,country);
+  const body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(source),country),country),country),country,english),{english}).html);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
   const description=cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'')).slice(0,170),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const snippet=rescueGscSnippet(slug,title,description,english);
@@ -324,7 +380,7 @@ async function serveArticle(env,u,english){
   // Keep original R2 bytes unchanged; present a verified market-locked primary code in the reader.
   const schema='<script type="application/ld+json">'+JSON.stringify(meta).replace(/</g,'\\u003c')+'</script>';
   const figure='<figure class="featured">'+imgTag(slug,country,code,1,title)+'<figcaption>'+esc(english?'Noon shopping guide. Verify coupon eligibility at checkout.':'دليل كوبونات نون — تحقّق من أهلية الكود عند الدفع.')+'</figcaption></figure>';
-  const publishTime=date?'<p class="article-published"><time datetime="'+esc(date)+'">'+esc(english?new Intl.DateTimeFormat('en-GB',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(date)):dateLabel(date))+'</time></p>':'';
+  const publishTime=visibleEditorialDates(date,modified,english);
   const extras=topicLinks(country,english);
   // The legacy two-entry English baseline remains visible through R2 rescue.
   // Preserve its language, market alternatives and canary contract when serving
@@ -342,7 +398,7 @@ async function serveArticle(env,u,english){
   let html=page(snippet.title,contents,{lang:english?'en-AE':country==='AE'?'ar-AE':'ar-SA',dir:english?'ltr':'rtl',canonical,description:snippet.description,robots:'index,follow,max-image-preview:large'});
   html=html.replace('</head>',rescueArticleStyles+'</head>');
   if(languageAlternates)html=html.replace('</head>',languageAlternates+'</head>');
-  html=html.replace('</head>','<meta property="og:type" content="article"><meta property="og:title" content="'+esc(snippet.title)+'"><meta property="og:description" content="'+esc(snippet.description)+'"><meta property="og:image" content="'+esc(featured)+'"><meta property="og:image:width" content="1600"><meta property="og:image:height" content="1000"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(featured)+'"></head>');
+  html=html.replace('</head>','<meta property="og:type" content="article"><meta property="og:title" content="'+esc(snippet.title)+'"><meta property="og:description" content="'+esc(snippet.description)+'"><meta property="og:image" content="'+esc(featured)+'"><meta property="og:image:width" content="1600"><meta property="og:image:height" content="1000"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:image" content="'+esc(featured)+'">'+(date?'<meta property="article:published_time" content="'+esc(date)+'">':'')+(modified?'<meta property="article:modified_time" content="'+esc(modified)+'">':'')+'</head>');
   return new Response(html,{headers:{...htmlHeaders,'x-r2-rescue-object':'articles','content-language':english?'en':'ar',...(originalEnglishBaseline?{'x-english-canary':'v1'}:{})}});
 }
 function rescueIntentGroup(intent){
@@ -387,7 +443,7 @@ async function serveBlog(env,u){
   const visible=rows.slice((pageNum-1)*size,pageNum*size);
   const path=market==='SA'?'/blog/saudi':market==='AE'?'/blog/uae':'/blog';
   const heading=market==='SA'?'مدونة نون السعودية':market==='AE'?'مدونة نون الإمارات':'مدونة كوبونات نون';
-  const tabs='<nav class="related-links" aria-label="أقسام المدونة"><a href="/blog">كل المقالات</a><a href="/blog/saudi">السعودية</a><a href="/blog/uae">الإمارات</a><a href="/blog/archive/english">English UAE</a><a href="/blog/archive/english/catalog">English directory</a><a href="/blog/archive/all">الأرشيف الكامل</a><a href="/blog/archive/catalog">فهرس المقالات القديمة</a></nav>';
+  const tabs='<nav class="related-links" aria-label="أقسام المدونة"><a href="/blog">كل المقالات</a><a href="/blog/saudi">السعودية</a><a href="/blog/uae">الإمارات</a><a href="/blog/archive/english">English UAE</a><a href="/blog/archive/all">الأرشيف الكامل</a><a href="/blog/archive">فهرس المقالات القديمة</a></nav>';
   const filtersUrl=(m,t)=>{const q=new URLSearchParams();if(m)q.set('market',m);if(t)q.set('topic',t);return '/blog'+(q.toString()?'?'+q.toString():'')};
   const filters='<section id="premium-blog-browser" aria-label="فلترة المدونة"><h2>اختر الدولة ونوع الدليل</h2><nav class="related-links" aria-label="تصفية حسب الدولة">'+[['','كل الدول'],['SA','السعودية'],['AE','الإمارات']].map(([m,label])=>'<a href="'+filtersUrl(m,topic)+'"'+((market||'')===m?' aria-current="page"':'')+'>'+label+'</a>').join('')+'</nav><nav class="related-links" aria-label="تصفية حسب موضوع المقال">'+[['','كل الأهداف'],['buying','أدلة شراء'],['coupon','مشاكل الكوبون'],['price','السعر والسلة'],['trust','الإرجاع والبائع']].map(([t,label])=>'<a href="'+filtersUrl(market,t)+'"'+(topic===t?' aria-current="page"':'')+'>'+label+'</a>').join('')+'</nav></section>';
   const hint='<h1>'+esc(heading)+'</h1><p>مقالات وأدلة شرائية مرتبطة بكوبونات نون، مع ضرورة مراجعة أهلية الكود والسعر النهائي داخل السلة.</p>'+tabs+filters;
@@ -421,7 +477,7 @@ async function serveEnglishArchive(env,u){
     return '<article class="card" dir="ltr"><a href="'+esc(href)+'">'+imgTag(slug,'AE',primaryCodeForMarket('AE'),1,title)+'</a><h2><a href="'+esc(href)+'">'+esc(title)+'</a></h2><small>Noon UAE guide · '+esc(a.lastmod||'')+'</small></article>';
   }).join('');
   const path='/blog/archive/english',url='https://noondealsnow.com'+path+(pageNum>1?'?page='+pageNum:'');
-  const heading='<h1>Noon UAE English Shopping Guides</h1><p>Browse '+count.toLocaleString('en-US')+' published UAE shopping guides, alphabetically, 15 per page. Check each coupon against your final Noon cart total.</p><nav class="related-links"><a href="/blog">Arabic blog</a><a href="/blog/uae">UAE Arabic articles</a><a href="/uae">UAE store hub</a><a href="/blog/archive/english/catalog">Browse all English guides</a></nav>';
+  const heading='<h1>Noon UAE English Shopping Guides</h1><p>Browse '+count.toLocaleString('en-US')+' published UAE shopping guides, alphabetically, 15 per page. Check each coupon against your final Noon cart total.</p><nav class="related-links"><a href="/blog">Arabic blog</a><a href="/blog/uae">UAE Arabic articles</a><a href="/uae">UAE store hub</a><a href="/blog/archive/english">Browse all English guides</a></nav>';
   return response('Noon UAE English Guides',heading+'<section class="cards">'+cardsHtml+'</section>'+nav(pageNum>1?path+'?page='+(pageNum-1):'',pageNum<pages?path+'?page='+(pageNum+1):'','Page '+pageNum+' of '+pages),{canonical:url,robots:'noindex,follow',lang:'en',dir:'ltr'});
 }
 
@@ -539,12 +595,12 @@ async function serveAll(env,u){
   let count='';
   try{const m=await getJson(env,'_ops/article-count.json');count=m?.count?'<p>آخر عد مؤكد لملفات المقالات: '+Number(m.count).toLocaleString('ar-EG')+'</p>':''}catch{}
   const next=rows.more&&rows.token?'/blog/archive/all?cursor='+encodeURIComponent(rows.token):'';
-  return response('كل المقالات المحفوظة','<h1>كل المقالات المحفوظة</h1><p>أرشيف كامل قابل للتصفح، 15 مقالة في الصفحة، بدون تغيير الروابط القديمة. <a href="/blog/archive/catalog">فهرس ثابت للمقالات القديمة</a>.</p>'+count+'<section class="cards">'+cardsHtml+'</section>'+nav('',next,'15 مقالة / صفحة'),{canonical:'https://noondealsnow.com/blog/archive/all',robots:'noindex,follow'});
+  return response('كل المقالات المحفوظة','<h1>كل المقالات المحفوظة</h1><p>أرشيف كامل قابل للتصفح، 15 مقالة في الصفحة، بدون تغيير الروابط القديمة. <a href="/blog/archive">فهرس المقالات القديمة</a>.</p>'+count+'<section class="cards">'+cardsHtml+'</section>'+nav('',next,'15 مقالة / صفحة'),{canonical:'https://noondealsnow.com/blog/archive/all',robots:'noindex,follow'});
 }
 async function serveDays(env){
   const m=await getJson(env,'bulk/days.json'),days=(m?.days||[]).filter(x=>/^\d{4}-\d{2}-\d{2}$/.test(x.day||''));
   const rows=days.map(x=>'<article class="card"><a href="/blog/archive/'+encode(x.day)+'">'+esc(x.day)+'</a> · '+Number(x.count||0).toLocaleString('ar-EG')+' مقالة في فهرس اليوم</article>').join('');
-  return response('أرشيف المقالات','<h1>أرشيف المقالات حسب التاريخ</h1><p><a href="/blog/archive/all">تصفح كل المقالات المحفوظة</a> · <a href="/blog/archive/catalog">الفهرس الثابت للمقالات القديمة</a></p><section class="cards">'+rows+'</section>',{canonical:'https://noondealsnow.com/blog/archive'});
+  return response('أرشيف المقالات','<h1>أرشيف المقالات حسب التاريخ</h1><p><a href="/blog/archive/all">تصفح كل المقالات المحفوظة</a> · <a href="/blog">أحدث المقالات</a></p><section class="cards">'+rows+'</section>',{canonical:'https://noondealsnow.com/blog/archive'});
 }
 async function serveDay(env,u,day){
   const m=await getJson(env,'bulk/days.json'),row=(m?.days||[]).find(x=>x.day===day);
