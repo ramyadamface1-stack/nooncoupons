@@ -10,7 +10,10 @@ import {planDirectProviderWindow} from './provider-window.mjs';
 import {directTopicAt,directTopicSpaceLength,DIRECT_TOPIC_SPACE_VERSION} from './topic-space.mjs';
 import {withDirectLease} from './lease.mjs';
 import {DIRECT_READY_TARGET,planGenerationMarkets,planQuotaCooldown} from './production-guard.mjs';
-import {inspectNativeReadyStock} from './stock-housekeeping.mjs';
+import {inspectNativeReadyStock,countArchivedUncertainStock} from './stock-housekeeping.mjs';
+import {classifyNativeRejection} from './native-rejection.mjs';
+import {couponStatus,COUPON_REGISTRY_INFO} from '../coupon-registry.js';
+import {PRIMARY_COUPON_BY_MARKET} from '../approved-coupons.js';
 
 const ROOT='_ops/noondealsnow-direct-ai-v1/',READY=ROOT+'ready/';
 const headers={'content-type':'application/json; charset=utf-8','cache-control':'no-store'};
@@ -18,6 +21,7 @@ const out=(value,status=200)=>new Response(JSON.stringify(value),{status,headers
 const utc=()=>new Date().toISOString();
 const topicByMarket={SA:eleventhEditorialTopicWave.filter(x=>x.country==='SA'),
   AE:eleventhEditorialTopicWave.filter(x=>x.country==='AE')};
+const couponGate=market=>couponStatus({code:PRIMARY_COUPON_BY_MARKET[market],country:market});
 async function jsonGet(env,key,fallback=null){
  try{const obj=await env.CONTENT_FINAL.get(key);return obj?await obj.json():fallback}catch{return fallback}
 }
@@ -67,6 +71,9 @@ async function providerRequest(provider,key,model,prompt){
 }
 async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null,allowFallback=true}={}){
  return withDirectLease(env,'generate-'+market,async()=>{
+  const coupon=couponGate(market);
+  if(env.DIRECT_AI_STAGE==='production'&&!coupon.publishAllowed)return logState(env,{phase:'COUPON_OWNER_REVIEW_REQUIRED',market,
+   reason:coupon.reason,coupon:coupon.code,reviewDueAt:coupon.reviewDueAt});
   const topics=topicByMarket[market],cursorKey=ROOT+'cursor/'+market+'.json';
   if(!topics.length)return logState(env,{phase:'WAITING_TOPICS',market});
   // Verify Cloudflare-side credentials BEFORE reserving any topic/checkpoint.
@@ -242,6 +249,7 @@ async function publishOne(env,p,{onlySlug=null}={}){
    }
    if(!env.SITE_PUBLISH_TOKEN)return {ok:false,reason:'NATIVE_PUBLISH_TOKEN_MISSING'};
    record.state='UNKNOWN_PUBLICATION_OUTCOME';
+   record.publishAttemptAt=utc();
    await jsonPut(env,item.key,record);
    let response,answer;
    try{
@@ -267,8 +275,9 @@ async function publishOne(env,p,{onlySlug=null}={}){
     return {ok:false,reason:'PUBLICATION_SLOT_NOT_DUE',
      nextEligibleAt:Number.isFinite(nextDue)?new Date(nextDue).toISOString():null};
    }
-   if(response.status===409&&['NATIVE_QUALITY_BLOCKED','DUPLICATE_INTENT','COUPON_FRESHNESS_BLOCK','INVALID_HTML_SIZE'].includes(answer?.reason)){
-    record.state='BLOCKED_REVIEW';await jsonPut(env,item.key,record);
+   const classified=classifyNativeRejection(response.status,answer?.reason);
+   if(classified!=='UNKNOWN_PUBLICATION_OUTCOME'){
+    record.state=classified;await jsonPut(env,item.key,record);
     return {ok:false,reason:answer.reason,slug:record.topic.slug};
    }
    return {ok:false,reason:'PUBLISH_OUTCOME_UNVERIFIED',slug:record.topic.slug};
@@ -276,7 +285,9 @@ async function publishOne(env,p,{onlySlug=null}={}){
   // If no READY article was eligible, reconcile at most ONE unknown
   // result this tick. An unresolved POST is permanently excluded from retry.
   if(unresolved.length){
-   const {key,record}=unresolved[0];
+   // Spread read-only verification across unknown records; always probing
+   // the first record can starve the other unresolved articles forever.
+   const {key,record}=unresolved[minute%unresolved.length];
    if(await verifyLive(record)){
     await jsonPut(env,ROOT+'checkpoint/'+record.topic.slug+'.json',
      {state:'LIVE_VERIFIED',slug:record.topic.slug,publishedAt:utc()});
@@ -500,6 +511,11 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  let p;
  try{p=await policy(env)}catch(e){return logState(env,{phase:String(e?.message||'POLICY_UNAVAILABLE')})}
  if(!p.enabled)return logState(env,{phase:'PAUSED_MANUALLY'});
+ // Site and direct Worker deploy separately on the same merge. Do not burn
+ // free Gemini/Groq calls until the LIVE native publisher advertises the
+ // identical owner-reviewed coupon catalog; one may deploy before the other.
+ if(p.ownerCatalogUpdatedAt!==COUPON_REGISTRY_INFO.catalogUpdatedAt)
+  return logState(env,{phase:'SITE_COUPON_CATALOG_DEPLOY_PENDING'});
  const minute=Math.floor(Number(scheduledAt)/60000);
  // Publish independently from generation, with one bounded native POST
  // opportunity per scheduled minute at a deterministic +35s offset.
@@ -527,12 +543,15 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
    readyStockLowerBound:readyStock.scanned,
    published:published.filter(x=>x.ok).map(x=>x.slug)});
  }
- const markets=planGenerationMarkets(readyStock.activeCount,minute);
+ const marketPlan=planGenerationMarkets(readyStock.activeCount,minute);
+ const markets=marketPlan.filter(market=>couponGate(market).publishAllowed);
+ const stoppedForCoupons=marketPlan.length>0&&markets.length===0;
  if(!markets.length){
   const published=await publications;
-  return logState(env,{phase:'READY_STOCK_BACKPRESSURE',
+  return logState(env,{phase:stoppedForCoupons?'COUPON_OWNER_REVIEW_REQUIRED':'READY_STOCK_BACKPRESSURE',
    readyCount:readyStock.activeCount,actualReadyCount:readyStock.readyCount,
    uncertainPublicationCount:readyStock.unknownCount,quarantinedCount:readyStock.quarantined,
+   archivedUncertainCount:readyStock.archivedUncertain,
    published:published.filter(x=>x.ok).map(x=>x.slug),
    publishReasons:published.map(x=>x.reason)});
  }
@@ -547,13 +566,18 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  return {ok:true,engine:'cloudflare-direct-r2-v1',parallelMarkets:['SA','AE'],
   generation:generated.map((x,i)=>x.status==='fulfilled'?x.value:{phase:'GENERATION_UNCONFIRMED',market:markets[i]}),
   readyBefore:readyStock.activeCount,actualReadyBefore:readyStock.readyCount,
-  nonReadyQuarantined:readyStock.quarantined,productionMarkets:markets,publishing:published};
+  nonReadyQuarantined:readyStock.quarantined,uncertainArchived:readyStock.archivedUncertain,
+  productionMarkets:markets,publishing:published};
 }
 export async function requestDirectGeneration(env){
  if(env.DIRECT_AI_STAGE!=='production')
   return {dispatched:false,reason:'DIRECT_ENGINE_CANARY_NOT_ACTIVE',githubUsed:false};
  const p=await policy(env);
  if(!p.enabled)return {dispatched:false,reason:'SCHEDULER_PAUSED',githubUsed:false};
+ if(p.ownerCatalogUpdatedAt!==COUPON_REGISTRY_INFO.catalogUpdatedAt)
+  return {dispatched:false,reason:'SITE_COUPON_CATALOG_DEPLOY_PENDING',githubUsed:false};
+ if(!couponGate('SA').publishAllowed&&!couponGate('AE').publishAllowed)
+  return {dispatched:false,reason:'COUPON_OWNER_REVIEW_REQUIRED',githubUsed:false};
  // An accepted button must actually have the prerequisites to produce and
  // publish. Never claim the request was queued if all Cloudflare keys are gone.
  if(!env.SITE_PUBLISH_TOKEN)
@@ -567,8 +591,9 @@ export async function requestDirectGeneration(env){
  return {dispatched:true,scheduledVia:'cloudflare-cron-next-minute',githubUsed:false};
 }
 export async function directStatus(env){
- const [p,status,ready,saStatus,aeStatus,canarySA,canaryAE,pilotMarker,groqMarker,geminiMarker,publicationObservation]=await Promise.all([
+ const [p,status,ready,archived,saStatus,aeStatus,canarySA,canaryAE,pilotMarker,groqMarker,geminiMarker,publicationObservation]=await Promise.all([
   policy(env).catch(()=>null),jsonGet(env,ROOT+'status.json'),inspectNativeReadyStock(env.CONTENT_FINAL,{maxCleanup:0}),
+  countArchivedUncertainStock(env.CONTENT_FINAL).catch(()=>({count:null,exact:false})),
   jsonGet(env,ROOT+'status-sa.json'),jsonGet(env,ROOT+'status-ae.json'),
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/SA.json'):null,
   env.DIRECT_AI_STAGE==='canary-generation'?jsonGet(env,ROOT+'canary-once-v2/AE.json'):null,
@@ -606,6 +631,11 @@ export async function directStatus(env){
   freeOnly:true,readyCount:ready.readyCount,
   readyCountExact:ready.truncated!==true,
   uncertainPublicationCount:ready.unknownCount,
+  archivedUncertainPublicationCount:archived.count,
+  archivedUncertainCountExact:archived.exact,
+  couponOwnerApproval:{SA:{allowed:couponGate('SA').publishAllowed,reason:couponGate('SA').reason},
+   AE:{allowed:couponGate('AE').publishAllowed,reason:couponGate('AE').reason}},
+  siteCatalogSynchronized:p?.ownerCatalogUpdatedAt===COUPON_REGISTRY_INFO.catalogUpdatedAt,
   inventoryScanCount:ready.scanned,
   canaryAttempts:env.DIRECT_AI_STAGE==='canary-generation'?{SA:canaryAttempt(canarySA),AE:canaryAttempt(canaryAE)}:null,
   canaryPublication:['canary-publish','canary-publish-fresh'].includes(env.DIRECT_AI_STAGE)&&pilotMarker?{

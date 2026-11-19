@@ -1,14 +1,15 @@
 import {APPROVED_COUPON_CODES,isApprovedCoupon,replaceUnapprovedCouponTokens,HOMEPAGE_COUPONS_BY_MARKET,replaceWrongMarketCouponTokens} from './approved-coupons.js';
 
 const DAY=86400000;
-// Last actual SOURCE-OF-TRUTH change to the owner-approved NOV code market whitelist:
-// GitHub commit 9c5aaa413a555d2dd24ac6e908a67aa413194b1f (2026-10-14 05:31:46 UTC).
-// This is an internal list revision, NOT a claim that Noon itself verified codes.
-const OWNER_CATALOG_UPDATED_AT='2026-10-14T05:31:46.000Z';
+// Original approved NOV market whitelist: GitHub commit
+// 9c5aaa413a555d2dd24ac6e908a67aa413194b1f (2026-10-14 05:31:46 UTC).
+// On 2026-11-19 the site owner explicitly reconfirmed ALL TEN codes unchanged.
+// This records the owner's confirmation, NOT verification by Noon or a store.
+const OWNER_CATALOG_UPDATED_AT='2026-11-19T09:57:34.000Z';
 const REVIEW_AFTER_DAYS=14;
 const BLOCK_AFTER_DAYS=30;
 const CODES=APPROVED_COUPON_CODES;
-const REGISTRY_VERSION='owner-approved-nov-v1-strict-copy';
+const REGISTRY_VERSION='owner-approved-nov-v2-owner-reconfirmed-20261119';
 
 export const COUPON_REGISTRY=Object.freeze(Object.fromEntries(CODES.map(code=>[code,Object.freeze({
   code,
@@ -26,11 +27,13 @@ export function couponStatus(topic,at=new Date()){
   if(!row.active)return {publishAllowed:false,state:'inactive',reason:'coupon_inactive',code,country};
   if(!row.markets.includes(country))return {publishAllowed:false,state:'wrong-market',reason:'coupon_market_not_allowed',code,country};
   const updated=Date.parse(row.catalogUpdatedAt),ageDays=Number.isFinite(updated)?Math.floor((at.getTime()-updated)/DAY):9999;
-  const state=ageDays>BLOCK_AFTER_DAYS?'expired-for-new-publishing':ageDays>REVIEW_AFTER_DAYS?'review-due':'current-owner-approved';
+  // The published review/block timestamps are inclusive boundaries. A
+  // code must not remain publishable for an extra day after the stated date.
+  const state=ageDays>=BLOCK_AFTER_DAYS?'expired-for-new-publishing':ageDays>=REVIEW_AFTER_DAYS?'review-due':'current-owner-approved';
   return {
-    publishAllowed:ageDays<=BLOCK_AFTER_DAYS,
+    publishAllowed:ageDays<BLOCK_AFTER_DAYS,
     state,
-    reason:ageDays>BLOCK_AFTER_DAYS?'coupon_registry_stale':null,
+    reason:ageDays>=BLOCK_AFTER_DAYS?'coupon_registry_stale':null,
     code,country,
     officialVerified:false,
     evidence:row.evidence,

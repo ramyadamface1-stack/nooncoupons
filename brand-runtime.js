@@ -250,7 +250,7 @@ function setImgAttr(attrs,name,value){
   const re=new RegExp('\\s'+name+'=["\\\'][^"\\\']*["\\\']','i'),chunk=' '+name+'="'+attr(value)+'"';
   return re.test(attrs)?attrs.replace(re,chunk):attrs+chunk;
 }
-function optimizeImages(html){
+export function optimizeImages(html){
   let firstSrc=null,count=0;
   let out=String(html).replace(/<img\b([^>]*)>/gi,(whole,attrs)=>{
     const m=String(attrs).match(/\bsrc=(["'])(.*?)\1/i);if(!m||!m[2])return whole;
@@ -261,7 +261,10 @@ function optimizeImages(html){
     return '<img'+next+'>';
   });
   if(firstSrc&&!/<link\b[^>]*rel=["'][^"']*preload[^"']*["'][^>]*as=["']image["']/i.test(out)){
-    const tag='<link rel="preload" as="image" href="'+attr(firstSrc)+'" fetchpriority="high">';
+    // The <img> source is already HTML-escaped. Normalize the entity before
+    // escaping it once more for the new attribute; otherwise '&amp;amp;coupon'
+    // preloads a different URL from the image itself and wastes a request.
+    const tag='<link rel="preload" as="image" href="'+attr(firstSrc.replace(/&amp;/gi,'&'))+'" fetchpriority="high">';
     out=out.replace(/<\/head>/i,tag+'</head>');
   }
   return {html:out,count,firstSrc};

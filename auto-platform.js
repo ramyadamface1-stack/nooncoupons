@@ -15,6 +15,7 @@ import {getPublicationSlotStatus} from './publication-rate-limit.js';
 import {readAiV2PublicationLedger,combineGenerationFreshness,aiV2PublicationWindows} from './ai-v2-publication-ledger.js';
 import {readRecentPublicManifest} from './r2-public-manifest.js';
 import {awaitPublicationWindow} from './cron-publication-window.js';
+import {COUPON_REGISTRY_INFO} from './coupon-registry.js';
 import {getCampaignWindow} from './campaign-calendar.js';
 
 const VERSION='generator-5.0-quality-first';
@@ -477,7 +478,8 @@ export default{
     if(u.pathname==='/api/ai-v2-control-policy'&&req.method==='GET'){
       // Public non-secret policy for the separately deployed minute scheduler.
       // Never expose API key material or authentication tokens.
-      try{return json({ok:true,...await getAiV2Control(env)})}
+      try{return json({ok:true,...await getAiV2Control(env),
+        ownerCatalogUpdatedAt:COUPON_REGISTRY_INFO.catalogUpdatedAt})}
       catch{return json({ok:false,error:'control_unavailable'},503)}
     }
     if(u.pathname==='/admin'||u.pathname==='/admin/'){
