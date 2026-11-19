@@ -192,6 +192,30 @@ export function rescueGscSnippet(slug,title,description,english){
   const row=english?RESCUE_GSC_SNIPPETS[String(slug||'')]:null;
   return row?{title:row.title,description:row.description,optimized:true}:{title,description,optimized:false};
 }
+// Old R2 descriptions were cut at an arbitrary character, sometimes leaving
+// half of an Arabic or English word in the public Google snippet. Keep source
+// bytes untouched; prefer a complete nearby sentence and otherwise cut on a
+// word boundary. This is formatting, not an invented editorial update date.
+export function readableMetaDescription(value,maxLength=170){
+  const raw=String(value||'').replace(/\s+/g,' ').trim();
+  // An older publisher cut some fields before a trailing connective (for
+  // example "...قبل الدفع، مع"). Finish at the last complete thought, without
+  // pretending the underlying R2 article received a substantive edit.
+  if(raw.length<=maxLength&&/[،,;:]\s*(?:مع|ثم|أو|و|and|with|or|if)$/i.test(raw)){
+    return raw.replace(/[،,;:]\s*(?:مع|ثم|أو|و|and|with|or|if)$/i,'').replace(/[.؟!?\s]+$/u,'').trim()+'.';
+  }
+  if(raw.length<=maxLength)return raw;
+  const slice=raw.slice(0,maxLength);
+  let finish=-1;
+  for(const mark of ['.','!','؟','?','؛']){
+    const at=slice.lastIndexOf(mark);
+    if(at>=Math.floor(maxLength*.4)&&at>finish)finish=at;
+  }
+  if(finish>=0)return slice.slice(0,finish+1).trim();
+  const space=slice.lastIndexOf(' ');
+  const boundary=space>=Math.floor(maxLength*.65)?space:maxLength;
+  return slice.slice(0,boundary).replace(/[\s،,;:.-]+$/u,'').trim()+'…';
+}
 export function refreshArtworkUrlsInHtml(html){
   return String(html||'').replace(/(\/assets\/coupon-svg\/[^"'\s<>]+\/[1-5]\.svg\?)v=\d+/g,'$1v=11');
 }
@@ -294,7 +318,7 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  // Publisher stores title and description as URL-encoded R2 custom metadata.
  // Avoid running multiple full-document HTML regex passes on each public hit.
  const title=fromMeta(md.t).slice(0,180);
- const description=fromMeta(md.m).slice(0,170);
+ const description=readableMetaDescription(fromMeta(md.m));
  if(title.length<8||description.length<20)return null;
  const snippet=rescueGscSnippet(slug,title,description,english);
  const canonical='https://noondealsnow.com'+u.pathname;
@@ -370,7 +394,7 @@ async function serveArticle(env,u,english){
   const source=localizeLegacySiteNavigation(unwrapLegacyArticleDocument(obj.body),slug,country);
   const body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(source),country),country),country),country,english),{english}).html);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
-  const description=cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'')).slice(0,170),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
+  const description=readableMetaDescription(cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,''))),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const snippet=rescueGscSnippet(slug,title,description,english);
   const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1,title);
   const date=dateIso(obj.meta.publishedAt||obj.meta.createdAt||obj.meta.datePublished||obj.meta.at);

@@ -10,7 +10,9 @@ test('only public HTML routes qualify for GET-derived HEAD metadata',()=>{
     '/articles/saudi-noon-coupon',
     '/en/uae/product/iphone-18-pro-max',
     '/saudi/category/computers',
-    '/coupons','/blog/archive','/en/saudi'
+    '/coupons','/coupon/noon-discount-50','/guide/noon-yellow-friday',
+    '/guide/noon-refund-credit','/category/electronics','/topics/saudi',
+    '/blog/archive','/en/saudi'
   ])assert.equal(isPublicHtmlHeadRoute(path),true,path);
   for(const path of [
     '/','/api/health','/admin','/sitemap.xml','/sitemap-hubs.xml',
@@ -66,4 +68,18 @@ test('real English product hub serves identical GET/HEAD metadata and a direct o
   assert.match(body,/Find on Noon UAE/);
   assert.match(body,/https:\/\/www\.noon\.com\/uae-en\/search\?q=iPhone%2018%20Pro%20Max/);
   assert.match(body,/Prices and availability change/);
+});
+
+test('real seasonal guide and commercial landing pages have GET/HEAD status parity',async()=>{
+  globalThis.caches={default:{match:async()=>null,put:async()=>{}}};
+  const env={SITE_ORIGIN:root,CONTENT_FINAL:{get:async()=>null}};
+  for(const path of ['/guide/noon-yellow-friday','/guide/noon-refund-credit','/coupon/noon-discount-50']){
+    const get=await app.fetch(new Request(root+path),env,{waitUntil:()=>{}});
+    const head=await app.fetch(new Request(root+path,{method:'HEAD'}),env,{waitUntil:()=>{}});
+    assert.equal(get.status,200,path);
+    assert.equal(head.status,get.status,path);
+    assert.equal(head.headers.get('content-type'),get.headers.get('content-type'),path);
+    assert.equal(head.headers.get('x-public-html-head-parity'),'get-status-v1',path);
+    assert.equal(await head.text(),'',path);
+  }
 });

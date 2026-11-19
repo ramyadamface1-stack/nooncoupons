@@ -1,6 +1,7 @@
 // Saudi editorial AI V2 article renderer (deterministic, zero provider calls).
 // Native R2 publisher still decides if the full document is qualified.
 import {trimAiSectionHtml} from './native-article.mjs';
+import {nativeArticleMetaDescription} from './meta-description.mjs';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const data=s=>JSON.stringify(s).replace(/</g,'\\u003c');
 export function buildSaudiAiV2Article(topic,sections,{verifiedAt=new Date().toISOString()}={}){
@@ -40,7 +41,7 @@ export function buildSaudiAiV2Article(topic,sections,{verifiedAt=new Date().toIS
  const code='NOV170',factor='الضمان',scenario='اختيار البائع قبل الشراء',useCase='المقارنة قبل الدفع';
  const saved=sections.map(s=>trimAiSectionHtml(s.html,250));
  const market='السعودية',currency='الريال السعودي',currencyCode='SAR';
- const description=('دليل شامل عن '+title+' على نون السعودية: قارن المواصفات والبائع والضمان والشحن وتحقق من السعر النهائي قبل الدفع، مع تجربة كوبون '+code+' وفق شروط السلة فقط.').slice(0,165);
+ const description=nativeArticleMetaDescription({country:'SA',brand,category,code});
  const faq=[
   {q:'كيف أستخدم كوبون '+code+' في نون السعودية؟',a:'جهّز السلة، اقرأ شروط العرض، ثم جرّب الكود وتأكد من المبلغ النهائي بالريال السعودي قبل الدفع؛ لا نفترض قبول القسيمة لكل حساب.'},
   {q:'هل كوبون '+code+' مضمون لجميع الحسابات؟',a:'لا. العرض والمنتجات المؤهلة وتاريخ الانتهاء يحددها متجر نون وقت الدفع، ولا توجد نسبة خصم مضمونة هنا.'},
