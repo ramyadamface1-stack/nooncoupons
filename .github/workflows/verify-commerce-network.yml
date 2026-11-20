@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     paths: ['topic-hubs.js','commerce-entry.js','commerce-taxonomy.js','commerce-generator-taxonomy.js','landing-content-v3.js','landing-quality-selftest.mjs','.github/workflows/verify-commerce-network.yml']
+  pull_request:
+    branches: [main]
+    paths: ['topic-hubs.js','commerce-entry.js','commerce-taxonomy.js','commerce-generator-taxonomy.js','landing-content-v3.js','landing-quality-selftest.mjs','.github/workflows/verify-commerce-network.yml']
   workflow_dispatch:
 
 permissions:
@@ -29,9 +32,14 @@ jobs:
           d=json.load(open('/tmp/landing-audit.json'))
           assert d['routes']>=110
           assert d['uniqueRenders']==d['routes']
-          assert d['minWords']>=5000
+          assert d['minWords']>=1800
+          assert d['maxWords']<=2500
+          assert d.get('specializedRoutes')==d['routes']
+          assert d['imagesPerLanding']>=3
+          assert {'CollectionPage','BreadcrumbList','FAQPage','Organization'}.issubset(set(d['schema']))
           PY
       - name: Live spider network checks
+        if: github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
