@@ -61,7 +61,8 @@ test('country coupon detail only claims copy success after a confirmed clipboard
       assert.deepEqual(copied,[couponCode]);
       assert.ok(okButton.textContent.includes('تم نسخ الكود'),couponCode);
       const deniedButton={dataset:{copy:couponCode},textContent:'نسخ الكود'};
-      await runInNewContext(handler,{button:deniedButton,navigator:{clipboard:{writeText:async()=>{throw Error('denied')}}}}});
+      const deniedNavigator={clipboard:{writeText:async()=>{throw Error('denied')}}};
+      await runInNewContext(handler,{button:deniedButton,navigator:deniedNavigator});
       assert.ok(deniedButton.textContent.includes('تعذر النسخ'),couponCode);
       assert.ok(!deniedButton.textContent.includes('تم نسخ'),couponCode);
     }
