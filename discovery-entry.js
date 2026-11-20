@@ -177,6 +177,12 @@ function discoveryEligible(a){
   if(a.indexation&&a.indexation.indexable===false)return false;
   return true;
 }
+// Match the English category renderer's index/noindex evidence thresholds.
+// A sitemap should not invite crawlers to thin pages that explicitly noindex.
+function englishCategoryIndexable(market,key,count){
+  if(market==='saudi'&&key==='mobiles')return true;
+  return count>=(market==='uae'&&key==='grocery'?2:3);
+}
 function articleHref(a){
   const explicit=String(a?.urlPath||'').trim();
   if(explicit.startsWith('/'))return explicit;
@@ -245,8 +251,7 @@ export function coreSitemap(origin){
     '/en/uae',
     '/en/saudi/noon-coupon-code',
     '/en/uae/noon-coupon-code',
-    '/en/saudi/category/mobiles',
-    '/en/uae/category/grocery'
+    '/en/saudi/category/mobiles'
   ];
   const seen=new Set(),rows=[];
   for(const row of [...keyPages(origin),...extra.map(path=>({loc:origin+path,lastmod:null}))]){
@@ -307,7 +312,7 @@ export async function prioritySitemap(env,origin){
     englishPages.push({loc:origin+'/en/'+market+'/noon-coupon-code',lastmod:marketRows.map(a=>a.updatedAt||a.createdAt||'').sort().slice(-1)[0]||null});
     const byCategory=new Map();
     for(const a of marketRows){if(a.categoryKey)byCategory.set(a.categoryKey,(byCategory.get(a.categoryKey)||0)+1)}
-    for(const [categoryKey,count] of byCategory)if(count>=3)englishPages.push({loc:origin+'/en/'+market+'/category/'+encodeURIComponent(categoryKey),lastmod:null});
+    for(const [categoryKey,count] of byCategory)if(englishCategoryIndexable(market,categoryKey,count))englishPages.push({loc:origin+'/en/'+market+'/category/'+encodeURIComponent(categoryKey),lastmod:null});
     if(country==='AE'){
       const productHubs=[
         ['iphone-18-pro-max',/iphone\s*18\s*pro\s*max/i],
@@ -354,17 +359,29 @@ export async function hubSitemap(env,origin){
     if(a.landingPath&&String(a.landingPath).startsWith('/'))add(String(a.landingPath),lastmod);
   }
   add('/en/coupons');add('/en/uae/saving-guide');add('/en/saudi');add('/en/uae');add('/en/saudi/noon-coupon-code');add('/en/uae/noon-coupon-code');add('/en/saudi/category/mobiles');
-  const english=await boundedEnglishSitemapRecords(env);
+  const english=[...new Map((await boundedEnglishSitemapRecords(env)).map(a=>[articleHref(a),a])).values()];
+  const categoryCounts=new Map(),productCounts=new Map();
+  const productPatterns=[
+    ['iphone-18-pro-max',/iphone\s*18\s*pro\s*max/i],
+    ['iphone-duo',/iphone\s*duo/i],
+    ['samsung-galaxy-s26-ultra',/samsung\s*(?:galaxy\s*)?s26\s*ultra/i]
+  ];
+  for(const a of english){
+    const market=a.country==='AE'?'uae':'saudi';
+    if(a.categoryKey){const id=market+':'+a.categoryKey;categoryCounts.set(id,(categoryCounts.get(id)||0)+1)}
+    if(a.country==='AE'){
+      const hay=String(a.title||'')+' '+String(a.primaryKeyword||'');
+      for(const [key,pattern] of productPatterns)if(pattern.test(hay))productCounts.set(key,(productCounts.get(key)||0)+1);
+    }
+  }
   for(const a of english){
     const market=a.country==='AE'?'uae':'saudi',lastmod=a.updatedAt||a.createdAt||null;
     add('/en/'+market,lastmod);
     add('/en/'+market+'/noon-coupon-code',lastmod);
-    if(a.categoryKey)add('/en/'+market+'/category/'+encodeURIComponent(a.categoryKey),lastmod);
+    if(a.categoryKey&&englishCategoryIndexable(market,a.categoryKey,categoryCounts.get(market+':'+a.categoryKey)||0))add('/en/'+market+'/category/'+encodeURIComponent(a.categoryKey),lastmod);
     if(a.country==='AE'){
       const hay=String(a.title||'')+' '+String(a.primaryKeyword||'');
-      if(/iphone\s*18\s*pro\s*max/i.test(hay))add('/en/uae/product/iphone-18-pro-max',lastmod);
-      if(/iphone\s*duo/i.test(hay))add('/en/uae/product/iphone-duo',lastmod);
-      if(/samsung\s*(?:galaxy\s*)?s26\s*ultra/i.test(hay))add('/en/uae/product/samsung-galaxy-s26-ultra',lastmod);
+      for(const [key,pattern] of productPatterns)if((productCounts.get(key)||0)>=2&&pattern.test(hay))add('/en/uae/product/'+key,lastmod);
     }
   }
   const out=[...rows.values()].slice(0,10000);

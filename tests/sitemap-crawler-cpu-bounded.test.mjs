@@ -4,7 +4,7 @@ import {APPROVED_COUPON_CODES} from '../approved-coupons.js';
 import {coreSitemap,prioritySitemap,hubSitemap,imageSitemap,englishRecentSitemap,boundedEnglishSitemapRecords} from '../discovery-entry.js';
 
 const ORIGIN='https://noondealsnow.com';
-function fakeR2({englishAvailable=true}={}){
+function fakeR2({englishAvailable=true,englishArticles=null}={}){
   const calls=[];
   const sa={slug:'saudi-article-nov170',country:'SA',status:'published',quality:98,qualityFloor:92,wordCount:1900,
     createdAt:'2026-11-07T14:00:00Z',updatedAt:'2026-11-08T14:00:00Z',
@@ -19,7 +19,7 @@ function fakeR2({englishAvailable=true}={}){
     // priority, hub, or image sitemap route under the Worker Free CPU limit.
     if(key==='english-canary/state.json')throw Error('unbounded-English-state-fetch');
     if(key==='english-canary/public-recent-v1.json'&&englishAvailable)
-      return {json:async()=>({version:1,articles:[ae]})};
+      return {json:async()=>({version:1,articles:englishArticles??[ae]})};
     if(key==='bulk/public-compact-v1.json')
       return {json:async()=>({version:1,articles:[sa]})};
     return null;
@@ -41,7 +41,7 @@ test('CPU-bounded priority, hubs and images use only precomputed R2 public snaps
   const {env,calls}=fakeR2();
   for(const [label,fn,expected] of [
     ['priority',prioritySitemap,'en-uae-nov188-verified'],
-    ['hubs',hubSitemap,'/en/uae/category/beauty'],
+    ['hubs',hubSitemap,'/en/uae/noon-coupon-code'],
     ['images',imageSitemap,'en-uae-nov188-verified'],
     ['english',englishRecentSitemap,'en-uae-nov188-verified']
   ]){
@@ -65,6 +65,35 @@ test('missing English snapshot degrades to stable valid XML without heavy-state 
     assert.ok(xml.startsWith('<?xml version="1.0"'));
   }
   assert.ok(!calls.includes('english-canary/state.json'));
+});
+test('English sitemaps submit only category and product hubs that meet page indexability thresholds',async()=>{
+  const record=(slug,categoryKey,title)=>({slug,urlPath:'/en/articles/'+slug,
+    languageSource:'native-intent-v6-canary',country:'AE',status:'published',indexable:true,
+    quality:98,qualityFloor:92,wordCount:1600,categoryKey,title,
+    createdAt:'2026-11-19T10:00:00Z',updatedAt:'2026-11-19T10:00:00Z'});
+  const sparse=fakeR2({englishArticles:[
+    record('beauty-one','beauty','Beauty cart checklist'),
+    record('phone-one','mobiles','iPhone 18 Pro Max buying guide')
+  ]});
+  for(const fn of [prioritySitemap,hubSitemap]){
+    const xml=await (await fn(sparse.env,ORIGIN)).text();
+    assert.ok(!xml.includes('<loc>'+ORIGIN+'/en/uae/category/beauty</loc>'));
+    assert.ok(!xml.includes('<loc>'+ORIGIN+'/en/uae/product/iphone-18-pro-max</loc>'));
+  }
+  const core=await coreSitemap(ORIGIN).text();
+  assert.ok(!core.includes('<loc>'+ORIGIN+'/en/uae/category/grocery</loc>'),
+    'Core sitemap must not advertise a conditional noindex grocery hub');
+  const mature=fakeR2({englishArticles:[
+    record('grocery-one','grocery','Grocery shopper guide'),
+    record('grocery-two','grocery','Noon Grocery cart guide'),
+    record('phone-one','mobiles','iPhone 18 Pro Max buying guide'),
+    record('phone-two','mobiles','iPhone 18 Pro Max seller guide')
+  ]});
+  for(const fn of [prioritySitemap,hubSitemap]){
+    const xml=await (await fn(mature.env,ORIGIN)).text();
+    assert.ok(xml.includes('<loc>'+ORIGIN+'/en/uae/category/grocery</loc>'));
+    assert.ok(xml.includes('<loc>'+ORIGIN+'/en/uae/product/iphone-18-pro-max</loc>'));
+  }
 });
 test('priority sitemap retains verified canonical English search recovery targets, not redirecting slugs',async()=>{
   const {env}=fakeR2({englishAvailable:false});
