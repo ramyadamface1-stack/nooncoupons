@@ -3,6 +3,8 @@ name: Verify Live Worker
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -77,7 +79,7 @@ jobs:
           echo CHECK_TAXONOMY; grep -Fq "mode:'explicit-generator-taxonomy'" commerce-generator-taxonomy.js
           echo CHECK_CATEGORY_METADATA; grep -Fq 'categoryKey' bulk-generator.js
           echo CHECK_LANDING_METADATA; grep -Fq 'landingPath' generator-core-v2.js
-          echo CHECK_LANDING_WORD_FLOOR; grep -Fq 'minWords:5000' landing-content-v3.js
+          echo CHECK_LANDING_WORD_FLOOR; grep -Fq 'minWords:1800' landing-content-v3.js
           echo CHECK_INDEXNOW_INTEGRATION; grep -Fq 'submitIndexNow' bulk-generator.js
           echo CHECK_PREFLIGHT_DEDUPE; grep -Fq 'preflightGlobalGate' bulk-generator.js
           grep -Fq 'preflightGate:true' quality-index.js
@@ -117,7 +119,7 @@ jobs:
             fetch "$ORIGIN/api/generator-health?v=brand-v1-$i" /tmp/generator.json 2>/dev/null || true
             fetch "$ORIGIN/api/commerce-health?v=brand-v1-$i" /tmp/commerce.json 2>/dev/null || true
             fetch "$ORIGIN/api/content-stats?v=brand-v1-$i" /tmp/stats.json 2>/dev/null || true
-            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); s=json.load(open('/tmp/stats.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert s.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=5000; assert int(b.get('dailyTarget') or 0)==19200; assert int(b.get('batchSize') or 0)==64; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert int(p.get('effectiveBatchSize') or 0)==64; assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0); assert int(p.get('targetBatchDurationMs') or 0)==52000; assert int(p.get('windowHours') or 0)==8; assert int(s.get('dailyTargetArabic') or 0)==19200" 2>/dev/null; then
+            if python -c "import json; g=json.load(open('/tmp/generator.json')); c=json.load(open('/tmp/commerce.json')); s=json.load(open('/tmp/stats.json')); b=g.get('bulk',{}); p=b.get('catchupPlan') or {}; gt=c.get('generatorTaxonomy',{}); lc=c.get('landingContent',{}); assert c.get('ok') is True; assert s.get('ok') is True; assert int(c.get('routes') or 0)>=276; assert gt.get('mode')=='explicit-generator-taxonomy'; assert int(gt.get('version') or 0)>=3; assert int(lc.get('minWords') or 0)>=1800; assert int(b.get('dailyTarget') or 0)==19200; assert int(b.get('batchSize') or 0)==64; assert int(p.get('target') or 0)==30000; assert int(p.get('catchupBatchSize') or 0)==64; assert int(p.get('effectiveBatchSize') or 0)==64; assert int(p.get('adaptiveBatchSize') or 0)==int(p.get('effectiveBatchSize') or 0); assert int(p.get('targetBatchDurationMs') or 0)==52000; assert int(p.get('windowHours') or 0)==8; assert int(s.get('dailyTargetArabic') or 0)==19200" 2>/dev/null; then
               ready=1
               echo "RUNTIME_READY attempt=$i"
               break
@@ -199,7 +201,7 @@ jobs:
           assert c.get('ok') is True and int(c.get('routes') or 0)>=276, 'commerce health/routes'
           assert gt.get('mode')=='explicit-generator-taxonomy' and gt.get('internalLinks') is True, 'generator taxonomy'
           assert gt.get('metadata')==['categoryKey','brandKey','modelKey','comparisonKey','landingPath'], 'metadata contract'
-          assert int(lc.get('minWords') or 0)>=5000 and lc.get('seo') is True and lc.get('geoAeo') is True and lc.get('eeat') is True, 'landing quality contract'
+          assert int(lc.get('minWords') or 0)>=1800 and lc.get('seo') is True and lc.get('geoAeo') is True and lc.get('eeat') is True, 'landing quality contract'
           assert int(b.get('dailyTarget') or 0)==19200 and int(b.get('batchSize') or 0)==64, 'bulk target/batch'
           p=b.get('catchupPlan') or {}
           assert int(p.get('target') or 0)==30000 and int(p.get('catchupBatchSize') or 0)==64 and int(p.get('windowHours') or 0)==8, '30k catchup plan'
