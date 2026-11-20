@@ -628,9 +628,11 @@ export async function commerceLanding(path, origin, env) {
   if (m) return directoryPage(m[1], origin, env);
   m = path.match(/^\/(saudi|uae)\/category\/([a-z0-9-]+)$/);
   if (m) return categoryPage(m[1],m[2],origin,env);
-  m = path.match(/^\/(saudi|uae)\/brand\/([a-z0-9-]+)$/);
+  // Taxonomy keys are canonical and case-sensitive: americanTourister has a
+  // capital T. Rejecting uppercase here made six sitemap URLs return 404.
+  m = path.match(/^\/(saudi|uae)\/brand\/([a-zA-Z0-9-]+)$/);
   if (m) return brandPage(m[1],m[2],origin,env);
-  m = path.match(/^\/(saudi|uae)\/model\/([a-z0-9-]+)\/([a-z0-9-]+)$/);
+  m = path.match(/^\/(saudi|uae)\/model\/([a-zA-Z0-9-]+)\/([a-zA-Z0-9-]+)$/);
   if (m) return modelPage(m[1],m[2],m[3],origin,env);
   m = path.match(/^\/(saudi|uae)\/compare\/([a-z0-9-]+)$/);
   if (m) return comparisonPage(m[1],m[2],origin,env);

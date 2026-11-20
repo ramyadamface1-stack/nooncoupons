@@ -152,7 +152,8 @@ function faqBlock(ctx,seed){
     categoryKeys.some(k=>technicalKeys.has(k))?QA[9]:
     [`ما الذي يجب مطابقته قبل طلب ${ctx.label}؟`,`راجع المنتج والكمية أو السعة والبائع والشحن وأهلية الكوبون، ثم قارن إجمالي السلة النهائي على ${ctx.mk.name}.`];
   const qs=[...general,special];
-  return {html:`<section class="section faq"><h2>أسئلة شائعة عن ${esc(ctx.label)}</h2>${qs.map(([q,a])=>`<details><summary>${esc(q)}</summary><p>${esc(a)} في سياق ${esc(ctx.label)} على ${esc(ctx.mk.name)}، راجع دائمًا تفاصيل السلة الحية قبل الدفع.</p></details>`).join('')}</section>`,items:qs.map(([q,a])=>({'@type':'Question',name:q,acceptedAnswer:{'@type':'Answer',text:`${a} في سياق ${ctx.label} على ${ctx.mk.name}، راجع تفاصيل السلة الحية قبل الدفع.`}}))};
+  const answer=a=>`${a} في سياق ${ctx.label} على ${ctx.mk.name}، راجع دائمًا تفاصيل السلة الحية قبل الدفع.`;
+  return {html:`<section class="section faq"><h2>أسئلة شائعة عن ${esc(ctx.label)}</h2>${qs.map(([q,a])=>`<details><summary>${esc(q)}</summary><p>${esc(answer(a))}</p></details>`).join('')}</section>`,items:qs.map(([q,a])=>({'@type':'Question',name:q,acceptedAnswer:{'@type':'Answer',text:answer(a)}}))};
 }
 
 function extraSchema(origin,path,ctx,faqItems){

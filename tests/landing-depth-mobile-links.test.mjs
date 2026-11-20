@@ -101,3 +101,16 @@ test('Arabic commercial routes emit one unambiguous canonical breadcrumb and org
     assert.equal(graph.filter(x=>x['@type']==='FAQPage').length,1);
   }
 });
+
+test('Case-sensitive American Tourister brand and model routes in the sitemap stay reachable',async()=>{
+  for(const market of ['saudi','uae']){
+    for(const tail of ['brand/americanTourister','model/americanTourister/luggage','model/americanTourister/backpacks']){
+      const path=`/${market}/${tail}`;
+      const res=await commerceLanding(path,ORIGIN,{});
+      assert.equal(res?.status,200,`${path} is in the commerce sitemap and must resolve`);
+      const html=await res.text();
+      assert.ok(html.includes(`rel="canonical" href="${ORIGIN}${path}"`),`wrong canonical for ${path}`);
+      assert.ok(html.includes('American Tourister'),`brand details missing for ${path}`);
+    }
+  }
+});
