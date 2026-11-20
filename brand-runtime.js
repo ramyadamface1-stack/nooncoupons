@@ -4,7 +4,7 @@ import {getSeoSettings} from './admin-runtime.js';
 export {ControlPlane,GeneratorControl} from './network-entry.js';
 
 const safeJson=x=>JSON.stringify(x).replace(/</g,'\\u003c');
-const SVG=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#111827"/><path d="M15 18h34v8H15zm0 12h25v8H15zm0 12h18v8H15z" fill="#facc15"/></svg>`;
+const SVG=`<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="#111827"/><path d="M15 18h34v8H15zm0 12h25v8H15zm0 12h18v8H15z" fill="#facc15"/></svg>`;
 const APPROVED=new Set(APPROVED_COUPON_CODES.map(x=>String(x).toUpperCase()));
 const CORE_ROUTE_OVERRIDES={
   '/':{title:'Noon Deals Now | بوابة نون للسعودية والإمارات',description:'بوابة مستقلة لتنظيم أسواق نون والأقسام والأدلة وصفحات الأكواد في السعودية والإمارات.'},
@@ -146,12 +146,15 @@ function walk(node,origin,state,settings){
     state.organizations++;
     const id=String(node['@id']||''),root=id===origin+'/#organization'||(!id&&String(node.url||'').replace(/\/$/,'')===origin.replace(/\/$/,''));
     const logoPath=String(settings?.organizationLogo||'/favicon.svg'),logoUrl=logoPath.startsWith('/')?origin+logoPath:origin+'/favicon.svg';
+    const logo={'@type':'ImageObject',url:logoUrl,contentUrl:logoUrl};
+    // Only assert dimensions for our built-in SVG. Custom admin logos may vary.
+    if(logoPath==='/favicon.svg'){logo.width=256;logo.height=256}
     if(root){
       node.name=settings?.organizationName||node.name||'Noon Deals Now';
       node.alternateName=settings?.organizationAlternateName||node.alternateName||'كوبونات نون';
       if(Array.isArray(settings?.organizationSameAs)&&settings.organizationSameAs.length)node.sameAs=settings.organizationSameAs;
-      node.logo={'@type':'ImageObject',url:logoUrl,contentUrl:logoUrl,width:64,height:64};state.rootCustomized++;
-    }else if(!node.logo){node.logo={'@type':'ImageObject',url:logoUrl,contentUrl:logoUrl,width:64,height:64};state.fixed++}
+      node.logo=logo;state.rootCustomized++;
+    }else if(!node.logo){node.logo=logo;state.fixed++}
     if(!node.url)node.url=root?origin+'/':node.url;
   }
   for(const [key,value] of Object.entries(node)){
