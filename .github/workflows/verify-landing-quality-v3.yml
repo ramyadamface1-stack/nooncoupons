@@ -32,12 +32,12 @@ jobs:
           assert d['routes'] >= 288
           assert d['uniqueRenders'] == d['routes']
           assert d['uniqueSeeds'] == d['routes']
-          assert d['minWords'] >= 5000
+          assert 1800 <= d['minWords'] <= d['maxWords'] <= 2500
           assert d.get('minChars',0) >= 5000
           assert d.get('imagesPerLanding',0) >= 3
           assert d.get('definitions') is True and d.get('keywordClusters') is True and d.get('couponGuide') is True
           assert d['seo'] is True and d['geoAeo'] is True and d['eeat'] is True
-          assert {'WebPage','FAQPage','Organization'}.issubset(set(d['schema']))
+          assert {'CollectionPage','BreadcrumbList','FAQPage','Organization'}.issubset(set(d['schema']))
           print('LANDING_QUALITY_V3_SOURCE_PASS',d)
           PY
       - name: Live sample verification
@@ -50,11 +50,11 @@ jobs:
             ok=1
             for path in /saudi/category/shoes /uae/category/bags /saudi/brand/apple /saudi/model/apple/iphone-pro /saudi/compare/iphone-vs-galaxy; do
               curl -sS -D /tmp/h -o /tmp/p --max-time 20 "$ORIGIN$path?landing-v3=1" || ok=0
-              grep -qi '^x-landing-content: v3' /tmp/h || ok=0
+              grep -qi '^x-landing-content: v5' /tmp/h || ok=0
               wc="$(tr -d '\r' </tmp/h | awk -F': ' 'tolower($1)=="x-landing-word-count"{print $2}' | tail -1)"
               cc="$(tr -d '\r' </tmp/h | awk -F': ' 'tolower($1)=="x-landing-char-count"{print $2}' | tail -1)"
               imgs="$(tr -d '\r' </tmp/h | awk -F': ' 'tolower($1)=="x-landing-images"{print $2}' | tail -1)"
-              [ "${wc:-0}" -ge 5000 ] || ok=0
+              [ "${wc:-0}" -ge 1800 ] && [ "${wc:-0}" -le 2500 ] || ok=0
               [ "${cc:-0}" -ge 5000 ] || ok=0
               [ "${imgs:-0}" -ge 3 ] || ok=0
               grep -Fq 'landing-depth-v3' /tmp/p || ok=0
@@ -75,7 +75,7 @@ jobs:
           d=json.load(open('/tmp/health.json'))
           x=d.get('landingContent',{})
           assert d.get('ok') is True
-          assert int(x.get('minWords') or 0)>=5000
+          assert int(x.get('minWords') or 0)==1800
           assert x.get('seo') is True and x.get('geoAeo') is True and x.get('eeat') is True
           print('LIVE_LANDING_V3_PASS',{'routes':d.get('routes'),'landingContent':x,'metadataCoverage':d.get('metadataCoverage')})
           PY

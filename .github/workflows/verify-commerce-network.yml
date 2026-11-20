@@ -3,7 +3,7 @@ name: Verify Commerce Landing Network (diagnostic)
 on:
   push:
     branches: [main]
-    paths: ['topic-hubs.js','commerce-entry.js','commerce-taxonomy.js','commerce-generator-taxonomy.js','landing-content-v3.js','landing-quality-selftest.mjs','.github/workflows/verify-commerce-network.yml']
+    paths: ['topic-hubs.js','commerce-entry.js','commerce-pages-v2.js','commerce-taxonomy.js','commerce-generator-taxonomy.js','landing-content-v3.js','landing-quality-selftest.mjs','.github/workflows/verify-commerce-network.yml']
   workflow_dispatch:
 
 permissions:
@@ -29,7 +29,8 @@ jobs:
           d=json.load(open('/tmp/landing-audit.json'))
           assert d['routes']>=110
           assert d['uniqueRenders']==d['routes']
-          assert d['minWords']>=5000
+          assert 1800<=d['minWords']<=d['maxWords']<=2500
+          assert {'CollectionPage','BreadcrumbList','FAQPage','Organization'}.issubset(set(d['schema']))
           PY
       - name: Live spider network checks
         shell: bash
