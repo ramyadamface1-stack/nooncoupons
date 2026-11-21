@@ -6,6 +6,8 @@ on:
       - '.github/workflows/noondealsnow-new-account-production-ready.yml'
       - 'wrangler.new-account-production.jsonc'
       - 'scripts/build-ndn-static-seo-assets.mjs'
+      - 'scripts/build-ndn-quota-static-fallback.mjs'
+      - 'tests/ndn-quota-static-fallback.test.mjs'
       - 'scripts/build-ndn-static-market-sitemaps.mjs'
       - 'tests/static-seo-assets.test.mjs'
       - 'scripts/build-ndn-static-root-sitemap.py'
@@ -288,6 +290,17 @@ jobs:
           print('NDN_STATIC_DISCOVERY_XML_INTEGRITY=PASS;CANONICAL_FILES=4;URL_ENTRIES='+str(all_urls))
           print('DYNAMIC_LIVE_RECENT_PRESERVED=TRUE;R2_SOURCE_WRITES=ZERO;AI_GENERATION=ZERO')
           PY
+
+      - name: Prebuild public HTML recovery pages as quota-free static assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/build-ndn-quota-static-fallback.mjs
+          node --test tests/ndn-quota-static-fallback.test.mjs
+          test "$(find .ndn-static-assets -type f -name '*.html' | wc -l)" -eq 28
+          test ! -e .ndn-static-assets/admin.html
+          test ! -e .ndn-static-assets/api/health.html
+          echo 'NDN_PUBLIC_HTML_EMERGENCY_STATIC=READY;API_ADMIN_ARTICLES_UNTOUCHED=TRUE'
 
       - name: Check native gate and authenticated secret manager regressions
         run: node --test tests/native-bound-ai-v2-fast.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs
