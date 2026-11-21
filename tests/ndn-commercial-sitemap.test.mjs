@@ -15,7 +15,8 @@ test('commercial and trust sitemaps list only confirmed indexable canonical page
   assert.ok(html.includes('<meta name="robots" content="index,follow,max-image-preview:large">'),path);
  }
  assert.ok(urls.includes(origin+'/editorial-policy'));
- assert.ok(urls.includes(origin+'/saudi/noon-coupon-code'));
+ assert.ok(urls.includes(origin+'/saudi-arabia/noon-coupon-code'));
+ assert.ok(!urls.includes(origin+'/saudi/noon-coupon-code'));// duplicate route consolidates to historic canonical
  assert.ok(urls.includes(origin+'/uae/noon-coupon-code'));
  assert.ok(!urls.includes(origin+'/saudi/category/electronics'));
  const rootXml=readFileSync(root+'/sitemap.xml','utf8');
@@ -25,6 +26,6 @@ test('commercial and trust sitemaps list only confirmed indexable canonical page
  assert.ok(robots.includes('Sitemap: '+origin+'/sitemap.xml'));
  const llms=readFileSync(root+'/llms.txt','utf8');
  assert.ok(llms.includes('Country-specific coupon buying guides'));
- assert.ok(llms.includes('/saudi/noon-coupon-code (Saudi Arabia: NOV170)'));
+ assert.ok(llms.includes('/saudi-arabia/noon-coupon-code (Saudi Arabia: NOV170)'));
  assert.ok(llms.includes('/uae/noon-coupon-code (United Arab Emirates: NOV188)'));
 });

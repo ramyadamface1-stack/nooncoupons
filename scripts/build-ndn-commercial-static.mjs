@@ -54,7 +54,7 @@ const baseUrl=(m)=>'/'+m+'/noon-coupon-code';
 const guideUrl=t=>'/'+t.m+'/buying-guide/'+t.slug;
 const guideLinks=(m)=>seo.filter(t=>t.m===m).map(t=>'<li><a href="'+guideUrl(t)+'">'+E(t.key)+'</a></li>').join('');
 function page(m,path,title,desc,body,{indexable=true,faq=[],kind='WebPage'}={}){
- const canonical=origin+path;const locale=dirs[m];
+ const canonical=origin+(path==='/saudi/noon-coupon-code'?'/saudi-arabia/noon-coupon-code':path);const locale=dirs[m];
  const structured={'@context':'https://schema.org','@graph':[
   {'@type':'Organization','@id':origin+'/#organization',name:'Noon Deals Now',url:origin},
   {'@type':'WebPage','@id':canonical+'#page',url:canonical,name:title,description:desc,inLanguage:locale.lang},
@@ -83,7 +83,8 @@ function page(m,path,title,desc,body,{indexable=true,faq=[],kind='WebPage'}={}){
 }
 const save=async(path,html)=>{
  if(!/^\/[a-z0-9/-]+$/.test(path)||path.includes('//'))throw Error('UNSAFE_PUBLIC_PATH_'+path);
- if(!html.includes('href="'+origin+path+'"')||!html.includes('<h1>'))throw Error('BAD_COMMERCIAL_HTML_'+path);
+ const publicCanonical=path==='/saudi/noon-coupon-code'?origin+'/saudi-arabia/noon-coupon-code':origin+path;
+ if(!html.includes('href="'+publicCanonical+'"')||!html.includes('<h1>'))throw Error('BAD_COMMERCIAL_HTML_'+path);
  const dst=resolve(root,path.slice(1)+'.html');
  await mkdir(dirname(dst),{recursive:true});await writeFile(dst,html,'utf8');
 };

@@ -17,7 +17,8 @@ test('no missing market root, category, or buying-intent pages under quota exhau
    for(const p of ['/'+m+'/categories','/'+m+'/noon-coupon-code','/'+m+'/shopping-guide']){
      const html=page(p);
      assert.ok(html.includes('<h1>'),p);
-     assert.ok(html.includes('<link rel="canonical" href="https://noondealsnow.com'+p+'">'),p);
+     const canonical=p==='/saudi/noon-coupon-code'?'/saudi-arabia/noon-coupon-code':p;
+     assert.ok(html.includes('<link rel="canonical" href="https://noondealsnow.com'+canonical+'">'),p);
      assert.ok(html.includes(coupon),p);
      assert.ok(html.includes('id="ndn-static-ga4"'),p);
    }

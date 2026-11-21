@@ -11,7 +11,7 @@ const slugRoutes={
 const routes=[
  '/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer',
  ...['saudi','uae'].flatMap(m=>[
-  '/'+m+'/categories','/'+m+'/noon-coupon-code','/'+m+'/shopping-guide',
+  '/'+m+'/categories',(m==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code'),'/'+m+'/shopping-guide',
   '/'+m+'/brand/apple','/'+m+'/brand/samsung',
   ...slugRoutes[m].map(slug=>'/'+m+'/buying-guide/'+slug)
  ])
@@ -49,7 +49,7 @@ const llmsPath=resolve(root,'llms.txt');
 let llms=await readFile(llmsPath,'utf8');
 if(!llms.includes('## Country-specific coupon buying guides')){
  llms+='\n## Country-specific coupon buying guides\n'+
- '- '+origin+'/saudi/noon-coupon-code (Saudi Arabia: NOV170)\n'+
+ '- '+origin+'/saudi-arabia/noon-coupon-code (Saudi Arabia: NOV170)\n'+
  '- '+origin+'/uae/noon-coupon-code (United Arab Emirates: NOV188)\n'+
  '- '+origin+'/saudi/categories\n'+
  '- '+origin+'/uae/categories\n'+
