@@ -110,7 +110,7 @@ test('old generated editorial-review claims are replaced by accurate attribution
   const other='Reviewed by an independent reviewer | https://noondealsnow.com/articles/existing';
   assert.equal(neutralizeUnverifiedEditorialReview(other),other);
   const file=readFileSync(new URL('../r2-emergency-readonly.js',import.meta.url),'utf8');
-  assert.ok(file.includes('body=neutralizeUnverifiedEditorialReview(body)'),
+  assert.ok(file.includes('body=repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(body),slug,english)'),
     'legacy fallback must also fix this unsupported claim');
 });
 
