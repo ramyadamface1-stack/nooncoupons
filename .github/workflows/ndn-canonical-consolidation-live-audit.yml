@@ -1,0 +1,44 @@
+name: NDN Live Saudi Canonical and Commercial Sitemap Parity
+on:
+  workflow_run:
+    workflows:
+      - 'NoonDealsNow New Cloudflare Account Production Worker Prepared (No DNS Cutover)'
+    types: [completed]
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  canonical:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Validate Google canonical owner and no duplicated Saudi sitemap
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re,urllib.request,urllib.error,json
+          ORIGIN='https://noondealsnow.com'
+          def get(path):
+            with urllib.request.urlopen(urllib.request.Request(ORIGIN+path,
+                headers={'User-Agent':'NoonDealsNow-canonical-integration/1.0'}),timeout=20) as r:
+              assert r.status==200,(path,r.status)
+              return r.read(160000).decode('utf8','replace')
+          old='/saudi-arabia/noon-coupon-code'
+          new='/saudi/noon-coupon-code'
+          uae='/uae/noon-coupon-code'
+          for path,expected,code in [(old,old,'NOV170'),(new,old,'NOV170'),(uae,uae,'NOV188')]:
+            html=get(path)
+            canonical=re.search(r'<link rel="canonical" href="([^"]+)"',html)
+            found=canonical.group(1) if canonical else ''
+            print('CANONICAL_PUBLIC='+json.dumps({'path':path,'canonical':found,
+              'hasCoupon':code in html,'hasH1':'<h1' in html},ensure_ascii=False),flush=True)
+            assert found==ORIGIN+expected,(path,found)
+            assert code in html and '<h1' in html,(path,'missing commercial content')
+          xml=get('/sitemap-commercial.xml')
+          urls=re.findall(r'<loc>([^<]+)</loc>',xml)
+          assert ORIGIN+old in urls and ORIGIN+new not in urls,'SAUDI_SITEMAP_DUPLICATE'
+          assert ORIGIN+uae in urls,'UAE_SITEMAP_MISSING'
+          print('COMMERCIAL_SITEMAP_SA_CANONICAL=PASS;TOTAL_URLS='+str(len(urls)),flush=True)
+          llms=get('/llms.txt')
+          assert old in llms and '(Saudi Arabia: NOV170)' in llms
+          print('NDN_SAUDI_CANONICAL_CONSOLIDATION_LIVE=PASS;R2_WRITES=ZERO',flush=True)
+          PY
