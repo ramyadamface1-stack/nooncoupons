@@ -232,3 +232,38 @@ test('SEO snippet keeps the buyer guidance as a complete sentence after removing
  assert.ok(!snippet.includes('…')&&!snippet.includes('ادعاء'),'no clipped disclaimer');
  assert.equal((snippet.match(/American Tourister Backpacks/g)||[]).length,1);
 });
+
+
+test('legacy Nintendo Switch 2 English article uses its true checkout answer instead of duplicated clipped metadata',async()=>{
+ const slug='en-noon-uae-final-price-guide-nintendo-switch-2-coupon-eligibility';
+ const u='https://noondealsnow.com/en/articles/'+slug;
+ const heading='Noon UAE final price guide Nintendo Switch 2 coupon eligibility';
+ const expected='Nintendo Switch 2 on Noon UAE — Start with a stable cart, copy NOV188, and use the final Noon checkout total as the reference.';
+ const faq={'@context':'https://schema.org','@type':'FAQPage',mainEntity:[{
+   '@type':'Question',name:'Can NOV188 be tested on Noon UAE?',acceptedAnswer:{'@type':'Answer',text:'Use the actual Noon UAE checkout.'}
+ }]};
+ const source='<article lang="en" data-market="AE"><p class="eyebrow">Noon UAE · gaming consoles</p>'+
+  '<h1>'+heading+'</h1>'+
+  '<p class="direct-answer"><strong>Quick answer:</strong> Start with a stable cart, copy NOV188, and use the final Noon checkout total as the reference instead of assuming a fixed discount.</p>'+
+  '<h2>Value analysis</h2><p>Compare the exact console model and seller before checking the final cart.</p>'+
+  '<script type="application/ld+json">'+JSON.stringify(faq)+'</script></article>';
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{
+   async get(key){return key==='articles/'+slug+'.html'?{
+     text:async()=>source,customMetadata:{status:'published',c:'AE',at:'2026-10-24T17:45:00Z'}
+   }:null}
+ }};
+ const page=await nativeBoundLegacyPublicFastResponse(new Request(u),env);
+ assert.equal(page.status,200);
+ const html=await page.text();
+ assert.match(html,new RegExp('<h1>'+heading+'</h1>'));
+ assert.ok(html.includes('<meta name="description" content="'+expected+'">'));
+ assert.ok(html.includes('<meta property="og:description" content="'+expected+'">'));
+ const schemas=[...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(x=>JSON.parse(x[1]));
+ assert.equal(schemas.filter(x=>x['@type']==='Article').length,1);
+ assert.equal(schemas.find(x=>x['@type']==='Article').description,expected);
+ assert.deepEqual(schemas.find(x=>x['@type']==='FAQPage'),faq);
+ assert.ok(html.includes('<link rel="canonical" href="'+u+'">'));
+ assert.ok(html.includes('data-rescue-copy="NOV188"'));
+ assert.match(html,/<html lang="en-AE" dir="ltr"/);
+ assert.equal(source.includes('instead of assuming a fixed discount.'),true,'original stored English article unchanged');
+});
