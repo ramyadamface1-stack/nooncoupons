@@ -11,6 +11,9 @@ on:
       - 'scripts/build-ndn-static-root-sitemap.py'
       - 'scripts/build-ndn-static-ai-v2-sitemaps.py'
       - 'scripts/build-ndn-static-bulk-article-sitemaps.py'
+      - 'scripts/stage-ndn-static-rescue-inputs.py'
+      - 'scripts/render-ndn-static-rescue-sitemaps.mjs'
+      - 'tests/test_ndn_static_rescue_sitemaps.py'
       - 'tests/test_ndn_static_bulk_article_sitemaps.py'
       - 'tests/test_ndn_static_ai_v2_sitemaps.py'
       - 'tests/test_ndn_static_root_sitemap.py'
@@ -216,6 +219,41 @@ jobs:
           print('R2_OBJECT_LIST_CALLS=0;R2_WRITES=0;ARTICLE_GENERATION=0;WORKERS_FREE_ASSET_FILES='+str(len(list(root.iterdir()))))
           PY
 
+      - name: Prebuild R2 rescue Arabic/English article, image and catalog XML from ORIGINAL renderer
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_ndn_static_rescue_sitemaps.py' -v
+          python3 scripts/stage-ndn-static-rescue-inputs.py
+          node scripts/render-ndn-static-rescue-sitemaps.mjs
+          python3 - <<'PY'
+          import pathlib,re,xml.etree.ElementTree as ET
+          root=pathlib.Path('.ndn-static-assets')
+          ns={'s':'http://www.sitemaps.org/schemas/sitemap/0.9'}
+          index=ET.parse(root/'sitemap.xml').getroot()
+          matcher=r'https://noondealsnow\.com/sitemap-rescue-(?:(?:articles|images|english|english-images)-\d{1,4}|(?:catalog|english-catalog))\.xml'
+          expected={x.text.split('/')[-1] for x in index.findall('s:sitemap/s:loc',ns)
+                    if re.fullmatch(matcher,x.text or '')}
+          actual={x.name for x in root.glob('sitemap-rescue-*.xml')}
+          assert expected==actual, 'RESCUE_STATIC_INCOMPLETE_CANONICAL_SET'
+          assert 1<=len(actual)<=600, 'RESCUE_STATIC_NO_OR_TOO_MANY_ASSETS'
+          assert len(list(root.iterdir()))<20000, 'WORKERS_FREE_STATIC_ASSET_FILE_COUNT_EXCEEDED'
+          entries=0
+          for filename in actual:
+            tree=ET.parse(root/filename).getroot()
+            assert tree.tag.endswith('urlset'),filename
+            locs=[x.text for x in tree.findall('s:url/s:loc',ns)]
+            assert locs and all(x and x.startswith('https://noondealsnow.com/') for x in locs),filename
+            entries+=len(locs)
+          print('NDN_RESCUE_STATIC_XML_INTEGRITY=PASS;CANONICAL_FILES='+str(len(expected))+
+                ';ARTICLE_OR_CATALOG_LOC_ENTRIES='+str(entries)+
+                ';WORKERS_FREE_STATIC_FILES='+str(len(list(root.iterdir()))))
+          PY
+
       - name: Check native gate and authenticated secret manager regressions
         run: node --test tests/native-bound-ai-v2-fast.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs
       - name: Prevent incorrect AI-readable NOV coupon market mappings
@@ -342,6 +380,30 @@ jobs:
           else
             echo 'BULK_STATIC_HISTORIC_ARTICLE_SHARDS_LIVE_SAMPLE=NO_BULK_SHARDS_IN_ROOT'
           fi
+          # Read back several independently built Arabic, English and image
+          # shards from the public domain. Google must see each as XML 200.
+          mapfile -t rescue_samples < <(find .ndn-static-assets -maxdepth 1 \
+            \( -name 'sitemap-rescue-articles-*.xml' -o -name 'sitemap-rescue-images-*.xml' \
+               -o -name 'sitemap-rescue-english-*.xml' -o -name 'sitemap-rescue-english-images-*.xml' \
+               -o -name 'sitemap-rescue-catalog.xml' \) -printf '%f\n' | sort)
+          rescue_total="${#rescue_samples[@]}"
+          if [ "$rescue_total" -gt 0 ]; then
+            for index in 0 $((rescue_total / 4)) $((rescue_total / 2)) $((3 * rescue_total / 4)) $((rescue_total - 1)); do
+              file="${rescue_samples[$index]}"
+              status=0
+              for attempt in 1 2 3 4 5 6; do
+                status=$(curl -sS --max-time 20 -o /tmp/ndn-rescue-static-live-xml -w '%{http_code}' \
+                  -H 'User-Agent: NDN-rescue-archive-static-xml-probe' "https://noondealsnow.com/$file" || true)
+                echo "RESCUE_STATIC_XML_LIVE_FILE=$file;TRY=$attempt;HTTP=$status"
+                if [ "$status" = 200 ] && grep -q '<urlset' /tmp/ndn-rescue-static-live-xml; then break; fi
+                sleep 2
+              done
+              test "$status" = 200
+              grep -q '<urlset' /tmp/ndn-rescue-static-live-xml
+            done
+            echo "NDN_RESCUE_STATIC_XML_LIVE_CRAWL=PASS;TOTAL_FILES=$rescue_total;SAMPLED=5"
+          fi
+
           echo 'STATIC_SEO_ZERO_WORKER_QUOTA_DEPENDENCE=VERIFIED'
       - name: Smoke test public mobile-critical routes after deployment
         shell: bash
