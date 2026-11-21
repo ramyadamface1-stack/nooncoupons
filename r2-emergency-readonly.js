@@ -295,6 +295,34 @@ export function readableMetaDescription(value,maxLength=170){
   const boundary=space>=Math.floor(maxLength*.65)?space:maxLength;
   return slice.slice(0,boundary).replace(/[\s،,;:.-]+$/u,'').trim()+'…';
 }
+// Archive templates occasionally ended Arabic H1 with dangling "مع".
+// Repair only plain-text H1; preserve slugs, other content and R2 bytes.
+export function tidyLegacyArabicH1(html,english=false){
+  const source=String(html??'');
+  if(english)return source;
+  return source.replace(/(<h1\b[^>]*>)([^<>]{25,240})(<\/h1>)/i,(whole,open,inner,close)=>{
+    if(!/\sمع\s*$/u.test(inner))return whole;
+    const repaired=inner.replace(/\s+مع\s*$/u,'').trimEnd();
+    return repaired.length>=25?open+repaired+close:whole;
+  });
+}
+// Legacy snippets repeated article eyebrow and H1 instead of explaining the
+// buyer decision. Prefer the actual checkout sentence already visible in
+// a direct-answer paragraph, restricted to the article's opening HTML.
+export function legacyDirectAnswerSnippet(html,title,english=false){
+  const source=String(html??'').slice(0,12000);
+  const match=source.match(/<p\b(?=[^>]*\bclass\s*=\s*["'][^"']*\bdirect-answer\b)[^>]*>([\s\S]*?)<\/p>/i);
+  if(!match)return null;
+  const intro=cleanText(match[1]);
+  const sentence=intro.split(/(?<=[.!؟])\s+/u).reverse().find(part=>
+    /^(?:جرّب|اختبر|راجع|تحقق|انسخ|Try|Check|Compare|Apply)\s/i.test(part)&&
+    /(?:\bNOV\d{3}\b|سلة|checkout|cart)/i.test(part)&&part.length>=55&&part.length<=235
+  );
+  const heading=String(title||'').replace(/\s+/g,' ').trim();
+  if(!sentence||heading.length<22)return null;
+  const shortTitle=heading.length>90?heading.slice(0,91).replace(/\s+\S*$/u,'').trim():heading;
+  return readableMetaDescription(shortTitle+' — '+sentence.replace(/\s+/g,' ').trim(),165);
+}
 export function refreshArtworkUrlsInHtml(html){
   return String(html||'').replace(/(\/assets\/coupon-svg\/[^"'\s<>]+\/[1-5]\.svg\?)v=\d+/g,'$1v=11');
 }
@@ -517,9 +545,9 @@ async function serveArticle(env,u,english){
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
   const source=localizeLegacySiteNavigation(unwrapLegacyArticleDocument(obj.body),slug,country);
   let body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(source),country),country,null,english),country),country,english),{english}).html);
-  body=normalizeArabicUaeMentions(repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(body),slug,english),country,english);
+  body=tidyLegacyArabicH1(normalizeArabicUaeMentions(repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(body),slug,english),country,english),english);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
-  const description=readableMetaDescription(cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,''))),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
+  const description=legacyDirectAnswerSnippet(body,title,english)||readableMetaDescription(cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,''))),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const snippet=rescueGscSnippet(slug,title,description,english);
   const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1,title);
   const date=dateIso(obj.meta.publishedAt||obj.meta.createdAt||obj.meta.datePublished||obj.meta.at);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {verifiedEditorialModifiedAt,emergencyPublicR2Response,nativeBoundLegacyPublicFastResponse,unwrapLegacyArticleDocument,localizeLegacySiteNavigation} from '../r2-emergency-readonly.js';
+import {verifiedEditorialModifiedAt,emergencyPublicR2Response,nativeBoundLegacyPublicFastResponse,unwrapLegacyArticleDocument,localizeLegacySiteNavigation,tidyLegacyArabicH1,legacyDirectAnswerSnippet} from '../r2-emergency-readonly.js';
 import {readFileSync} from 'node:fs';
 
 const published='2026-08-06T11:20:00.000Z';
@@ -158,4 +158,63 @@ test('legacy Arabic UAE titles, intro and FAQ schema say نون الإمارات
  assert.match(faq.mainEntity[0].name,/نون الإمارات/);
  assert.match(faq.mainEntity[0].acceptedAnswer.text,/نون الإمارات/);
  assert.equal(src.includes('نون uae'),true,'original source stays unmodified');
+});
+
+
+test('legacy Arabic headline ending in dangling مع is cleaned only in the visible H1',()=>{
+ const text='<article><h1>American Tourister Backpacks السعر النهائي بعد تجربة الكود نون الإمارات مع </h1>'+
+   '<p>المقارنة مع البائع والشحن قبل الدفع.</p><h2>طريقة الشراء مع التأكد من الشحن</h2></article>';
+ const result=tidyLegacyArabicH1(text,false);
+ assert.match(result,/<h1>American Tourister Backpacks السعر النهائي بعد تجربة الكود نون الإمارات<\/h1>/);
+ assert.match(result,/<h2>طريقة الشراء مع التأكد من الشحن<\/h2>/);
+ assert.equal(tidyLegacyArabicH1(result,false),result,'idempotent');
+ assert.equal(tidyLegacyArabicH1(text,true),text,'English content must never change');
+ assert.equal(tidyLegacyArabicH1('<h1>تجربة الكود مع نون الإمارات</h1>',false),'<h1>تجربة الكود مع نون الإمارات</h1>');
+});
+
+test('archived Arabic UAE page uses nonduplicative buyer-focused snippet and consistent original schema without mutating R2',async()=>{
+ const slug='american-tourister-backpacks-final-price-legacy-audit';
+ const oldHeading='American Tourister Backpacks السعر النهائي بعد تجربة الكود نون uae مع ';
+ const raw='<article lang="ar-AE"><p class="eyebrow">مقارنة سعر · نون uae · American Tourister Backpacks السعر النهائي بعد تجربة الكود</p>'+
+   '<h1>'+oldHeading+'</h1>'+
+   '<p class="direct-answer"><strong>الخلاصة العملية:</strong> إذا كان بحثك هو «American Tourister Backpacks السعر النهائي بعد تجربة الكود نون الإمارات»، فابدأ بمراجعة المواصفات والبائع والشحن. وفي هذا الدليل نركز على الاختيار المناسب قبل الدفع. جرّب NOV188 على سلة ثابتة في نون uae، واجعل الإجمالي النهائي هو المرجع بدل أي نسبة خصم غير موثقة.</p>'+
+   '<h2>مقارنة بديلين على أساس واحد</h2><p>كوّن جدول مقارنة بين بديلين من حيث البائع والشحن والإرجاع.</p>'+
+   '<a href="https://noondealsnow.com/categories">التصنيفات</a>'+
+   '<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@type':'FAQPage',mainEntity:[{'@type':'Question',name:'كيف أختبر NOV188 على نون uae؟',acceptedAnswer:{'@type':'Answer',text:'راجع سلة نون uae.'}}]})+'</script></article>';
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{async get(key){
+   return key==='articles/'+slug+'.html'?{text:async()=>raw,
+     customMetadata:{status:'published',c:'AE',at:'2026-10-14T06:32:32.875Z'}}:null;
+ }}};
+ const u='https://noondealsnow.com/articles/'+slug;
+ const result=await nativeBoundLegacyPublicFastResponse(new Request(u),env);
+ assert.equal(result.status,200);
+ const html=await result.text();
+ const title='American Tourister Backpacks السعر النهائي بعد تجربة الكود نون الإمارات';
+ assert.ok(html.includes('<h1>'+title+'</h1>'),'visible H1 ends on a complete term');
+ assert.ok(html.includes('<title>'+title+' | كوبونات نون</title>'),'title matches cleaned H1');
+ const snippet=html.match(/<meta name="description" content="([^"]+)"/)?.[1];
+ assert.ok(snippet,'meta description exists');
+ assert.ok(snippet.startsWith(title+' — جرّب NOV188'),'snippet uses a source-backed checkout sentence');
+ assert.equal((snippet.match(/American Tourister Backpacks/g)||[]).length,1,'no repeated keyword block');
+ assert.ok(!snippet.endsWith('مع')&&!snippet.endsWith('الد'),'snippet must not end on dangling connector');
+ assert.ok(html.includes('<meta property="og:description" content="'+snippet+'">'));
+ const json=[...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)]
+    .map(m=>JSON.parse(m[1]));
+ const article=json.find(x=>x['@type']==='Article'),faq=json.find(x=>x['@type']==='FAQPage');
+ assert.equal(article.headline,title);
+ assert.equal(article.description,snippet);
+ assert.equal(article.mainEntityOfPage,u);
+ assert.ok(faq.mainEntity[0].name.includes('نون الإمارات'));
+ assert.ok(html.includes('href="https://noondealsnow.com/categories"'),'working category URL remains unchanged');
+ assert.ok(html.includes('data-rescue-copy="NOV188"'));
+ assert.ok(html.includes('datePublished'));
+ assert.ok(raw.includes('نون uae مع'),'original R2 article body remains intact');
+});
+
+test('snippet enhancement uses only existing direct answers and leaves unrelated archive formats alone',()=>{
+ const heading='كود نون الإمارات للحقائب والمنتجات';
+ const archived='<p>تصفح المقارنة واتبع دليل الشراء.</p><h1>'+heading+'</h1>';
+ assert.equal(legacyDirectAnswerSnippet(archived,heading,false),null);
+ assert.equal(legacyDirectAnswerSnippet(
+  '<p class="direct-answer">يجب أن تتأكد من البائع بدون ادعاء خصم معين.</p>',heading,false),null);
 });
