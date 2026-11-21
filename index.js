@@ -298,3 +298,6 @@ async function handle(request,env){
 }
 
 export default {fetch:handle,async scheduled(controller,env,ctx){/* reserved for due scheduled publications */}};
+
+// Shared read-only category taxonomy for zero-worker-quota public SEO static pages.
+export {CATEGORIES as PUBLIC_CATEGORIES};
