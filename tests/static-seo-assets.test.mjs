@@ -24,10 +24,12 @@ test('Only canonical public SEO files may bypass Worker request quota',()=>{
   for(const code of ['nov170','nov188'])assert.ok(core.includes('https://noondealsnow.com/coupon/'+code));
   assert.ok(llms.includes('NOV170')&&llms.includes('NOV188'));
   const getGroup=(agent)=>{
-    const start=robots.indexOf('User-agent: '+agent+'\\n');
-    assert.ok(start>=0);
-    const following=robots.slice(start+('User-agent: '+agent+'\\n').length);
-    return following.split(/\\nUser-agent: |\\nSitemap: /)[0];
+    const lines=robots.split(String.fromCharCode(10));
+    const i=lines.indexOf('User-agent: '+agent);
+    assert.ok(i>=0);
+    const following=lines.slice(i+1);
+    const finish=following.findIndex(line=>line.startsWith('User-agent:')||line.startsWith('Sitemap:'));
+    return following.slice(0,finish>=0?finish:undefined).join(' ');
   };
   assert.ok(getGroup('GPTBot').includes('Disallow: /articles/'));
   assert.ok(getGroup('GPTBot').includes('Disallow: /en/articles/'));
