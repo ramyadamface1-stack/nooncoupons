@@ -192,6 +192,13 @@ export function rescueGscSnippet(slug,title,description,english){
   const row=english?RESCUE_GSC_SNIPPETS[String(slug||'')]:null;
   return row?{title:row.title,description:row.description,optimized:true}:{title,description,optimized:false};
 }
+// Legacy generated articles sometimes claim an individual human review that
+// is not substantiated by the article's recorded provenance. Do not fabricate
+// a reviewer or freshness date: neutralize only this exact historical label
+// at read time, leaving the R2 source and all article identifiers intact.
+export function neutralizeUnverifiedEditorialReview(html){
+  return String(html??'').replace(/Reviewed by Noon Deals Now Editorial Team/gi,'Noon Deals Now shopping guide');
+}
 // Old R2 descriptions were cut at an arbitrary character, sometimes leaving
 // half of an Arabic or English word in the public Google snippet. Keep source
 // bytes untouched; prefer a complete nearby sentence and otherwise cut on a
@@ -310,7 +317,7 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  // Do not parse or rewrite large legacy HTML in a fast-path eligibility check.
  // Archived articles use the legacy renderer below; this prevents two costly
  // full-body passes on every request and keeps R2 bytes untouched.
- const source=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(String(obj?.body||''),{english}).html);
+ const source=neutralizeUnverifiedEditorialReview(refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(String(obj?.body||''),{english}).html));
  if(
     source.length<4000||source.length>240000||!source.includes(code)||
     !/<article\b/i.test(source)||!/<h1\b/i.test(source))return null;
@@ -392,7 +399,8 @@ async function serveArticle(env,u,english){
   if(fast)return fast;
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
   const source=localizeLegacySiteNavigation(unwrapLegacyArticleDocument(obj.body),slug,country);
-  const body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(source),country),country),country),country,english),{english}).html);
+  let body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(source),country),country),country),country,english),{english}).html);
+  body=neutralizeUnverifiedEditorialReview(body);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
   const description=readableMetaDescription(cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,''))),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const snippet=rescueGscSnippet(slug,title,description,english);

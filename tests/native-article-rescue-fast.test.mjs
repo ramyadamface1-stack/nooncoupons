@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml} from '../r2-emergency-readonly.js';
+import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml,neutralizeUnverifiedEditorialReview} from '../r2-emergency-readonly.js';
 const url=new URL('https://noondealsnow.com/articles/saudi-buyer-samsung-tablet-offline-annotation-workflow-nov170-2026-n5');
 const source='<article><h1>جدول مقارنة سامسونج تابلت</h1><p>'+('معايير مقارنة الكود NOV170 والمواصفات والضمان وشروط نون السعودية. '.repeat(110))+'</p></article>';
 const item={body:source,meta:{status:'published',p:'ai-v2-native',c:'SA',cp:'NOV170',q:'100',w:'1775',
@@ -93,4 +93,23 @@ test('legacy image query versions are refreshed in HTML without altering article
   assert.match(html,/href="\/articles\/saudi-guide"/);
   assert.ok(!html.includes('v=9'));
   assert.equal(refreshArtworkUrlsInHtml(html),html);
+});
+
+test('old generated editorial-review claims are replaced by accurate attribution without changing stored article bytes',async()=>{
+  const original=source.replace('<article>','<article><p>Reviewed by Noon Deals Now Editorial Team · Published 02 Oct 2026</p>');
+  const archived={...item,body:original};
+  const res=renderApprovedNativeAiV2Fast(archived,url.pathname.split('/').pop(),url,false);
+  assert.equal(res?.status,200);
+  const html=await res.text();
+  assert.match(html,/Noon Deals Now shopping guide · Published 02 Oct 2026/);
+  assert.doesNotMatch(html,/Reviewed by Noon Deals Now Editorial Team/);
+  assert.match(archived.body,/Reviewed by Noon Deals Now Editorial Team/,
+    'stored source must never be mutated');
+  assert.match(html,/NOV170/);
+  assert.match(html,/rel="canonical"/);
+  const other='Reviewed by an independent reviewer | https://noondealsnow.com/articles/existing';
+  assert.equal(neutralizeUnverifiedEditorialReview(other),other);
+  const file=readFileSync(new URL('../r2-emergency-readonly.js',import.meta.url),'utf8');
+  assert.ok(file.includes('body=neutralizeUnverifiedEditorialReview(body)'),
+    'legacy fallback must also fix this unsupported claim');
 });
