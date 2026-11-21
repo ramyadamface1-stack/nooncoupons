@@ -43,12 +43,13 @@ const isSA=m=>m==='saudi';
 const code=m=>market[m].code;
 const couponAction=m=>{
  const button='<button class="btn" type="button" data-code="'+code(m)+'" data-market="'+(isSA(m)?'SA':'AE')+'">'+(isSA(m)?'نسخ الكود':'Copy code')+'</button>';
- const official='<a class="btn alt" href="'+market[m].official+'" rel="noopener sponsored" target="_blank">'+(isSA(m)?'فتح نون السعودية':'Open Noon UAE')+'</a>';
+ const official='<a class="btn alt" data-shop-click="'+code(m)+'" data-market="'+(isSA(m)?'SA':'AE')+'" href="'+market[m].official+'" rel="noopener sponsored" target="_blank">'+(isSA(m)?'فتح نون السعودية':'Open Noon UAE')+'</a>';
  const notice=isSA(m)?'الكود مدرج للسعودية من مالك الموقع. لا توجد هنا نسبة خصم أو شروط أهلية مؤكدة لكل منتج؛ راجع إجمالي السلة في نون.':
  'NOV188 is owner-listed for the UAE. The final checkout determines eligibility, savings and any restrictions.';
  return '<section class="box" id="coupon"><h2>'+(isSA(m)?'استخدم الكود على السلة':'Try the code on your basket')+'</h2><span class="code">'+code(m)+'</span> '+button+' '+official+'<p class="notice">'+notice+'</p></section>';
 };
-const extraJS='<script>document.addEventListener("click",async e=>{let b=e.target.closest("button[data-code]");if(!b)return;let v=b.dataset.code;try{await navigator.clipboard.writeText(v);let t=b.textContent;b.textContent="تم النسخ / Copied";setTimeout(()=>b.textContent=t,1300);if(typeof gtag==="function")gtag("event","coupon_copy_success",{coupon_code:v,market:b.dataset.market,placement:"commercial_static",source:"confirmed_clipboard_write"})}catch(e){prompt("Copy coupon",v)}})</script>';
+const staticAnalytics='<script id="ndn-static-ga4">(function(){if(navigator.doNotTrack==="1"||window.doNotTrack==="1")return;var t=document.createElement("script");t.async=true;t.src="https://www.googletagmanager.com/gtag/js?id=G-1551Z7DJ2C";document.head.appendChild(t);window.dataLayer=window.dataLayer||[];window.gtag=function(){dataLayer.push(arguments)};gtag("js",new Date());gtag("config","G-1551Z7DJ2C")})()</script>';
+const extraJS='<script>document.addEventListener("click",async e=>{let out=e.target.closest("a[data-shop-click]");if(out&&typeof gtag==="function"){gtag("event","store_outbound_click",{coupon_code:out.dataset.shopClick,market:out.dataset.market,source:"commercial_static"})}let b=e.target.closest("button[data-code]");if(!b)return;let v=b.dataset.code;try{await navigator.clipboard.writeText(v);let t=b.textContent;b.textContent="تم النسخ / Copied";setTimeout(()=>b.textContent=t,1300);if(typeof gtag==="function")gtag("event","coupon_copy_success",{coupon_code:v,market:b.dataset.market,placement:"commercial_static",source:"confirmed_clipboard_write"})}catch(e){prompt("Copy coupon",v)}})</script>';
 const baseUrl=(m)=>'/'+m+'/noon-coupon-code';
 const guideUrl=t=>'/'+t.m+'/buying-guide/'+t.slug;
 const guideLinks=(m)=>seo.filter(t=>t.m===m).map(t=>'<li><a href="'+guideUrl(t)+'">'+E(t.key)+'</a></li>').join('');
@@ -72,11 +73,11 @@ function page(m,path,title,desc,body,{indexable=true,faq=[],kind='WebPage'}={}){
   '<meta name="viewport" content="width=device-width,initial-scale=1"><title>'+E(title)+'</title>'+
   '<meta name="description" content="'+E(desc).slice(0,160)+'"><meta name="robots" content="'+(indexable?'index,follow,max-image-preview:large':'noindex,follow')+'">'+
   '<link rel="canonical" href="'+canonical+'"><meta property="og:title" content="'+E(title)+'">'+
-  '<meta property="og:url" content="'+canonical+'">'+schema+css+'</head><body>'+
+  '<meta property="og:url" content="'+canonical+'">'+schema+css+staticAnalytics+'</head><body>'+
   '<header style="background:#fff;padding:12px 3vw"><a href="/" style="font-weight:900">كوبونات نون / Noon Deals Now</a></header>'+NAV+
   '<section class="hero"><div class="w"><p><a href="/">الرئيسية</a> / <a href="/'+m+'">'+locale.name+'</a></p>'+
   '<h1>'+E(title)+'</h1><p class="muted">'+E(desc)+'</p></div></section>'+
-  '<div class="w columns"><main>'+body+faqHtml+couponAction(m)+'</main>'+side+'</div>'+
+  '<div class="w columns"><main>'+couponAction(m)+body+faqHtml+'</main>'+side+'</div>'+
   '<footer><div class="w"><strong>Noon Deals Now</strong><p>Independent shopping guide. Final prices and conditions are determined by Noon checkout.</p>'+
   '<a href="/about">About</a> · <a href="/privacy">Privacy</a> · <a href="/contact">Contact</a></div></footer>'+extraJS+'</body></html>';
 }
@@ -176,7 +177,22 @@ for(const name of files){
  if(!html.includes('</header>'))continue;
  await writeFile(file,html.replace('</header>','</header>'+NAV),'utf8');updated++;
 }
+// Every static page bypasses Worker HTML injection. Restore the existing
+// live GA4 ID to original home, blog, archive and public article HTML exactly
+// once; respect Do Not Track and keep admin/API untouched.
+const publicHTML=(await readdir(root,{recursive:true})).filter(x=>x.endsWith('.html')&&!x.includes('/admin'));
+let analyticsAdded=0;
+for(const name of publicHTML){
+ const dst=resolve(root,name);
+ let html=await readFile(dst,'utf8');
+ if(html.includes('id="ndn-static-ga4"')||html.includes('id="rescue-site-analytics"')||
+    html.includes('gtag/js?id=G-1551Z7DJ2C'))continue;
+ if(!html.includes('</head>'))continue;
+ html=html.replace('</head>',staticAnalytics+'</head>');
+ await writeFile(dst,html,'utf8');
+ analyticsAdded++;
+}
 const report={generatedPages:generated,categoryPages:categories.length*2,keywordGuides:seo.length,
- homeOptimized:true,blogNavigationUpdated:updated,primarySaudiCode:'NOV170',uaeCode:'NOV188'};
+ homeOptimized:true,blogNavigationUpdated:updated,analyticsRestoredPages:analyticsAdded,primarySaudiCode:'NOV170',uaeCode:'NOV188'};
 await writeFile('.ndn-blog-staging/market-seo-report.json',JSON.stringify(report,null,2),'utf8');
 console.log('NDN_MARKET_BUYER_INTENT='+JSON.stringify(report));
