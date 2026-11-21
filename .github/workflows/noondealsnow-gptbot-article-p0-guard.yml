@@ -1,0 +1,55 @@
+name: NoonDealsNow - P0 Training Crawler Quota Guard for Public Articles
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Apply or explicitly disable GPTBot article-only quota guard
+        required: true
+        type: choice
+        options: [apply, disable]
+        default: apply
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-gptbot-article-p0-guard.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  quota-guard:
+    if: github.repository == 'ramyadamface1-stack/nooncoupons'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CF_ACCOUNT: e4c35f8a50a7b2e4cfb9d6c534962603
+      NDN_TRAINING_BOT_ARTICLE_MODE: ${{ inputs.mode || 'apply' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate and apply or roll back training crawler quota guard
+        run: |
+          node --check scripts/ndn-gptbot-article-p0-guard.mjs
+          node scripts/ndn-gptbot-article-p0-guard.mjs
+      - name: Prove GET from GPTBot blocked on article HTML before Worker
+        if: env.NDN_TRAINING_BOT_ARTICLE_MODE == 'apply'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /articles/ndn-p0-guard-test /en/articles/ndn-p0-guard-test; do
+            code=''
+            for i in 1 2 3 4 5; do
+              code=$(curl -sS --max-time 15 -o /tmp/ndn-gptbot-article-probe -w '%{http_code}' \
+                -H 'User-Agent: Mozilla/5.0 (compatible; GPTBot/1.4; +https://openai.com/gptbot)' \
+                "https://noondealsnow.com$path" || true)
+              echo "GPTBOT_ARTICLE_TEST=$path;TRY=$i;HTTP=$code"
+              if [ "$code" = 403 ]; then break;fi
+              sleep 3
+            done
+            test "$code" = 403
+          done
+          echo 'NDN_GPTBOT_ARTICLE_GUARD_EDGE_VERIFIED=YES'
