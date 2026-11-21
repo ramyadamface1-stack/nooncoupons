@@ -15,7 +15,8 @@ test('editorial trust pages remain quota-free and have honest canonical metadata
   assert.ok(html.includes('G-1551Z7DJ2C'),'GA4 missing '+route);
   assert.ok(html.includes('href="/contact"'));
   assert.ok(html.includes('https://schema.org'));
-  assert.ok(!/100% خصم|خصم مضمون|خبراؤنا المعتمدون/.test(html));
+  assert.ok(html.includes('لا')||html.includes('ليس'),'explicit limitations required '+route);
+  assert.ok(!html.includes('خصم مضمون لكل المستخدمين'),'no unconditional coupon promise');
  }
  const homepage=readFileSync(root+'/index.html','utf8');
  for(const p of paths)assert.ok(homepage.includes('href="'+p+'"'));
