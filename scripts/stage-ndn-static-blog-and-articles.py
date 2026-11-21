@@ -23,7 +23,7 @@ def main():
   client=boto3.client("s3",region_name="auto",
     endpoint_url="https://"+ACCOUNT+".r2.cloudflarestorage.com",
     aws_access_key_id=access,aws_secret_access_key=secret,
-    config=Config(connect_timeout=12,read_timeout=35,retries={"max_attempts":2,"mode":"standard"}))
+    config=Config(connect_timeout=12,read_timeout=35,max_pool_connections=36,retries={"max_attempts":2,"mode":"standard"}))
   def read(key,optional=False):
     from botocore.exceptions import ClientError
     try:
@@ -74,10 +74,60 @@ def main():
   if len(copied)<24:fail("TOO_FEW_NATIVE_FRAGMENTS_"+str(len(copied)))
   if min(sum(1 for x in target if x["country"]==c and x["slug"] in copied) for c in ("SA","AE"))<12:
     fail("MARKET_STATIC_COVERAGE_TOO_LOW")
+
+  # Verify EVERY canonical published URL exists and collect original native
+  # title/description metadata, not guesses derived from slugs.
+  from concurrent.futures import ThreadPoolExecutor,as_completed
+  rows={x["slug"]:x for x in native}
+  for x in compact["articles"]:
+    if not isinstance(x,dict) or not SLUG.fullmatch(str(x.get("slug",""))) or x.get("country") not in ("SA","AE"):continue
+    if x.get("status")!="published" or x.get("indexable") is False:continue
+    rows.setdefault(x["slug"],x)
+  known=set(copied)
+  missing_all=[]
+  failed_head=[]
+  native_ids={r["slug"] for r in native}
+  def verify_row(item):
+    slug,row=item
+    key="articles/"+slug+".html"
+    try:
+      obj=client.head_object(Bucket=BUCKET,Key=key)
+      meta=obj.get("Metadata") or {}
+      if slug in native_ids and (meta.get("p")!="ai-v2-native" or meta.get("status")!="published" or meta.get("c")!=row["country"]):
+        return slug,None,"not_approved_native"
+      return slug,meta,None
+    except Exception as err:
+      return slug,None,str(type(err).__name__)
+  # boto3 S3 client is thread-safe; head_object is read only. No list/put/delete.
+  stage_tasks=[(slug,row) for slug,row in rows.items() if slug not in known]
+  with ThreadPoolExecutor(max_workers=24) as pool:
+    for fut in as_completed(pool.submit(verify_row,item) for item in stage_tasks):
+      slug,meta,err=fut.result()
+      if err:
+        failed_head.append((slug,err))
+      else:
+        metadata["articles/"+slug+".html"]=meta
+        known.add(slug)
+  if len(known)<int(len(rows)*0.97):
+    fail("R2_ARTICLE_HEAD_INTEGRITY_"+str(len(known))+"_OF_"+str(len(rows)))
+  # Public catalog contains only objects proven present; R2 metadata is retained
+  # unmodified and all older source rows remain in R2.
+  verified=sorted(known)
+  public_native=[x for x in ledger["articles"] if x.get("slug") in known]
+  public_compact=[x for x in compact["articles"] if x.get("slug") in known and
+    x.get("status")=="published" and x.get("indexable") is not False]
+  source_rows=len(rows)
+  print("NDN_FULL_PUBLISHED_R2_HEAD_CHECK="+str(len(known))+"/"+str(source_rows)+
+    ";MISSING="+str(len(failed_head))+";SA="+str(sum(rows[s]["country"]=="SA" for s in known))+
+    ";AE="+str(sum(rows[s]["country"]=="AE" for s in known)))
+  if failed_head:
+    print("NDN_UNAVAILABLE_PUBLISHED_SAMPLE="+repr(failed_head[:12]))
+
   DEST.parent.mkdir(parents=True,exist_ok=True)
   snapshot={"version":1,"createdAt":datetime.datetime.now(datetime.timezone.utc).isoformat(),
-    "objects":{LEDGER:ledger,COMPACT:compact},"heads":metadata,
-    "journal":journal,"cachedArticleSlugs":copied}
+    "objects":{LEDGER:{**ledger,"articles":public_native},COMPACT:{**compact,"articles":public_compact}},"heads":metadata,
+    "journal":journal,"cachedArticleSlugs":copied,"verifiedArticleSlugs":verified,
+    "sourcePublishedCount":source_rows,"verifiedPublishedCount":len(verified)}
   DEST.write_text(json.dumps(snapshot,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
   print("NDN_R2_PUBLISHED_LEDGER="+str(len(native))+";COMPACT="+str(len(compact["articles"])))
   print("NDN_REAL_STATIC_ARTICLE_HTML="+str(len(copied))+";MISSING="+str(len(missing))+
