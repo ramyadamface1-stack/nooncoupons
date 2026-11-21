@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/noondealsnow-gptbot-svg-quota-guard.yml'
+      - 'scripts/ndn-apply-gptbot-svg-guard.mjs'
 
 permissions:
   contents: read
