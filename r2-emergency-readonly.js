@@ -228,6 +228,20 @@ export function repairArchivedProductCategoryHtml(html,slug,english=false){
   if(baseline.test(corrected)||specifics.test(corrected))return source;
   return corrected.replace(/laptops and computing/gi,'gaming consoles');
 }
+// R2 custom metadata from historical native publishers may be URI-encoded
+// twice (e.g. %25D8%25AF rather than the Arabic description itself). Decode
+// boundedly for human-readable title/meta/OG only; never decode canonical URLs,
+// slugs, coupon codes, dates or the persisted article object.
+export function decodeNativeMetadataText(value){
+ let current=String(value??'');
+ for(let i=0;i<3&&/%[0-9a-f]{2}/i.test(current);i++){
+  let next;
+  try{next=decodeURIComponent(current)}catch{break}
+  if(next===current)break;
+  current=next;
+ }
+ return current;
+}
 // Old R2 descriptions were cut at an arbitrary character, sometimes leaving
 // half of an Arabic or English word in the public Google snippet. Keep source
 // bytes untouched; prefer a complete nearby sentence and otherwise cut on a
@@ -394,7 +408,7 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  if(
     source.length<4000||source.length>240000||!source.includes(code)||
     !/<article\b/i.test(source)||!/<h1\b/i.test(source))return null;
- const fromMeta=value=>{try{return decodeURIComponent(String(value||''))}catch{return String(value||'')}};
+ const fromMeta=decodeNativeMetadataText;
  // Publisher stores title and description as URL-encoded R2 custom metadata.
  // Avoid running multiple full-document HTML regex passes on each public hit.
  const title=fromMeta(md.t).slice(0,180);
