@@ -80,6 +80,12 @@ await query('PUT_204_PATHS','dimensions { clientRequestPath }',{edgeResponseStat
 await query('GET_504_COUNTRY','dimensions { clientCountryName }',{edgeResponseStatus:504,clientRequestHTTPMethodName:'GET'},12);
 await query('GET_504_PATHS','dimensions { clientRequestPath }',{edgeResponseStatus:504,clientRequestHTTPMethodName:'GET'},12);
 await query('EMPTY_AGENT_504_ARTICLE','',{clientRequestPath_like:'/articles/%',edgeResponseStatus:504,userAgent:''},1);
+await query('EMPTY_AGENT_200_ARTICLE','',{clientRequestPath_like:'/articles/%',edgeResponseStatus:200,userAgent:''},1);
+await query('EMPTY_AGENT_ALL_ARTICLE','',{clientRequestPath_like:'/articles/%',userAgent:''},1);
+await query('EMPTY_AGENT_ALL_SVG','',{clientRequestPath_like:'/assets/coupon-svg/%',userAgent:''},1);
+await query('EMPTY_AGENT_ALL_API','',{clientRequestPath_like:'/api/%',userAgent:''},1);
+await query('EMPTY_AGENT_EMPTY_UA_STATUS','dimensions { edgeResponseStatus }',{clientRequestPath_like:'/articles/%',userAgent:''},10);
+
 await query('ARTICLES_504_AGENTS','dimensions { userAgent }',{clientRequestPath_like:'/articles/%',edgeResponseStatus:504},12);
 await query('SVG_504_AGENTS','dimensions { userAgent }',{clientRequestPath_like:'/assets/coupon-svg/%',edgeResponseStatus:504},12);
 for(const [label,prefix] of [['ARTICLES','/articles/%'],['SVG','/assets/coupon-svg/%'],['API','/api/%']]){
