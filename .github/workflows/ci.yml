@@ -37,6 +37,9 @@ jobs:
       - name: Guard approved NOV consistency in native English pages
         run: node --test tests/english-coupon-consistency.test.mjs
 
+      - name: Guard language, reading direction and localized links on homepage discovery cards
+        run: node --test tests/discovery-card-language.test.mjs
+
       - name: Verify direct official Noon checkout CTA on every approved coupon detail
         run: node --test tests/coupon-official-shop-cta.test.mjs
 

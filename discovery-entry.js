@@ -225,17 +225,22 @@ function discoveryRows(articles,market){
     .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')))
     .slice(0,8);
 }
-function discoveryHtml(path,articles){
+export function discoveryHtml(path,articles){
   const market=marketForPath(path);
   const rows=discoveryRows(articles,market);
   if(!rows.length)return '';
   const country=market==='AE'?'الإمارات':market==='SA'?'السعودية':'السعودية والإمارات';
   const cards=rows.map(a=>{
-    const m=a.country==='AE'?'الإمارات':'السعودية';
-    const title=esc(refreshCurrentSeasonLabel(a.title||a.primaryKeyword||a.slug));
-    const desc=esc(refreshCurrentSeasonLabel(a.metaDescription||'دليل عملي قبل الشراء واستخدام الكوبون.').slice(0,115));
     const href=articleHref(a);
-    return `<article class="dl-card"><small>${m}</small><h3><a href="${href}">${title}</a></h3><p>${desc}</p><a class="dl-read" href="${href}">اقرأ المقال ←</a></article>`;
+    const english=a.english===true||String(a.language||'').toLowerCase()==='en'||
+      a.languageSource==='native-intent-v6-canary'||href.startsWith('/en/');
+    const m=english?(a.country==='AE'?'UAE':'Saudi Arabia'):(a.country==='AE'?'الإمارات':'السعودية');
+    const title=esc(refreshCurrentSeasonLabel(a.title||a.primaryKeyword||a.slug));
+    const fallback=english?'Compare product suitability, seller, delivery and final cart total before checking coupon eligibility.':'دليل عملي قبل الشراء واستخدام الكوبون.';
+    const desc=esc(refreshCurrentSeasonLabel(a.metaDescription||fallback).slice(0,115));
+    const direction=english?' dir="ltr" lang="en"':' dir="rtl" lang="ar"';
+    const read=english?'Read article':'اقرأ المقال';
+    return `<article class="dl-card"${direction}><small>${m}</small><h3><a href="${href}">${title}</a></h3><p>${desc}</p><a class="dl-read" href="${href}">${read} ←</a></article>`;
   }).join('');
   return `<section id="crawl-discovery-links" class="latest-editorial" dir="rtl" aria-label="أحدث مقالات نون"><style>.latest-editorial{padding:42px 0;background:#fff}.dl-wrap{width:min(1180px,92%);margin:auto}.dl-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:20px}.dl-head h2{margin:0;font:900 29px Tahoma,Arial,sans-serif;color:#101828}.dl-head p{margin:7px 0 0;color:#667085;line-height:1.8}.dl-head>a{font-weight:900;color:#111827;text-decoration:none}.dl-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.dl-card{border:1px solid #e7e9ee;border-radius:16px;padding:17px;background:#fff}.dl-card small{color:#7a6400;font-weight:900}.dl-card h3{font:900 17px/1.65 Tahoma,Arial,sans-serif;margin:8px 0}.dl-card h3 a,.dl-read{text-decoration:none;color:#111827}.dl-card p{color:#667085;font:13px/1.8 Tahoma,Arial,sans-serif}.dl-read{font-weight:900}@media(max-width:900px){.dl-grid{grid-template-columns:1fr 1fr}}@media(max-width:600px){.dl-grid{grid-template-columns:1fr}.dl-head{display:block}}</style><div class="dl-wrap"><div class="dl-head"><div><small style="color:#7a6400;font-weight:900">من المدونة</small><h2>أحدث مقالات نون ${country}</h2><p>أدلة جديدة عن الكوبونات والأقسام وقرارات الشراء قبل الدفع.</p></div><a href="/blog">كل المقالات ←</a></div><div class="dl-grid">${cards}</div></div></section>`;
 }
