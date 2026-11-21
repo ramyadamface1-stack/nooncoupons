@@ -177,6 +177,20 @@ function discoveryEligible(a){
   if(a.indexation&&a.indexation.indexable===false)return false;
   return true;
 }
+// Report a sitemap lastmod only when the original publication or an explicit,
+// substantive editorial revision is verifiable. Ordinary record updatedAt,
+// storage migrations and automatic seasonal label rewrites are not edits.
+export function sitemapArticleLastmod(article,now=new Date()){
+  const source=article?.publishedAt||article?.datePublished||article?.createdAt;
+  if(!source)return null;
+  const published=Date.parse(String(source));
+  const today=now instanceof Date?now.getTime():Date.parse(String(now));
+  if(!Number.isFinite(published)||!Number.isFinite(today)||published>today)return null;
+  const review=article?.editorialUpdatedAt||article?.substantiveUpdatedAt;
+  const revision=review?Date.parse(String(review)):NaN;
+  const verified=Number.isFinite(revision)&&revision>published&&revision<=today;
+  return new Date(verified?revision:published).toISOString();
+}
 // Match the English category renderer's index/noindex evidence thresholds.
 // A sitemap should not invite crawlers to thin pages that explicitly noindex.
 function englishCategoryIndexable(market,key,count){
@@ -280,14 +294,14 @@ export async function prioritySitemap(env,origin){
   const data=await latest(env);
   const articles=(data.articles||[])
     .filter(discoveryEligible)
-    .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')))
+    .sort((a,b)=>String(sitemapArticleLastmod(b)||'').localeCompare(String(sitemapArticleLastmod(a)||'')))
     .slice(0,500)
-    .map(a=>({loc:origin+'/articles/'+enc(a.slug),lastmod:a.updatedAt||a.createdAt||null}));
+    .map(a=>({loc:origin+'/articles/'+enc(a.slug),lastmod:sitemapArticleLastmod(a)}));
   const english=await boundedEnglishSitemapRecords(env);
   const englishArticles=english
-    .sort((a,b)=>String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||'')))
+    .sort((a,b)=>String(sitemapArticleLastmod(b)||'').localeCompare(String(sitemapArticleLastmod(a)||'')))
     .slice(0,500)
-    .map(a=>({loc:origin+(a.urlPath||('/en/articles/'+enc(a.slug))),lastmod:a.updatedAt||a.createdAt||null}));
+    .map(a=>({loc:origin+(a.urlPath||('/en/articles/'+enc(a.slug))),lastmod:sitemapArticleLastmod(a)}));
   const englishPages=[
     {loc:origin+'/en/coupons',lastmod:null},
     {loc:origin+'/en/uae/saving-guide',lastmod:null},
@@ -309,7 +323,7 @@ export async function prioritySitemap(env,origin){
     const marketRows=english.filter(a=>a.country===country);
     if(!marketRows.length)continue;
     englishPages.push({loc:origin+'/en/'+market,lastmod:null});
-    englishPages.push({loc:origin+'/en/'+market+'/noon-coupon-code',lastmod:marketRows.map(a=>a.updatedAt||a.createdAt||'').sort().slice(-1)[0]||null});
+    englishPages.push({loc:origin+'/en/'+market+'/noon-coupon-code',lastmod:marketRows.map(sitemapArticleLastmod).filter(Boolean).sort().slice(-1)[0]||null});
     const byCategory=new Map();
     for(const a of marketRows){if(a.categoryKey)byCategory.set(a.categoryKey,(byCategory.get(a.categoryKey)||0)+1)}
     for(const [categoryKey,count] of byCategory)if(englishCategoryIndexable(market,categoryKey,count))englishPages.push({loc:origin+'/en/'+market+'/category/'+encodeURIComponent(categoryKey),lastmod:null});
@@ -321,7 +335,7 @@ export async function prioritySitemap(env,origin){
       ];
       for(const [key,pattern] of productHubs){
         const matches=marketRows.filter(a=>pattern.test(String(a.title||'')+' '+String(a.primaryKeyword||'')));
-        if(matches.length>=2)englishPages.push({loc:origin+'/en/uae/product/'+key,lastmod:matches.map(a=>a.updatedAt||a.createdAt||'').sort().slice(-1)[0]||null});
+        if(matches.length>=2)englishPages.push({loc:origin+'/en/uae/product/'+key,lastmod:matches.map(sitemapArticleLastmod).filter(Boolean).sort().slice(-1)[0]||null});
       }
     }
   }
@@ -351,7 +365,7 @@ export async function hubSitemap(env,origin){
   };
   for(const a of (data.articles||[]).filter(discoveryEligible)){
     const market=a.country==='AE'?'uae':'saudi';
-    const lastmod=a.updatedAt||a.createdAt||null;
+    const lastmod=sitemapArticleLastmod(a);
     add('/'+market,lastmod);add('/'+market+'/categories',lastmod);
     if(a.categoryKey)add('/'+market+'/category/'+encodeURIComponent(a.categoryKey),lastmod);
     if(a.brandKey)add('/'+market+'/brand/'+encodeURIComponent(a.brandKey),lastmod);
@@ -375,7 +389,7 @@ export async function hubSitemap(env,origin){
     }
   }
   for(const a of english){
-    const market=a.country==='AE'?'uae':'saudi',lastmod=a.updatedAt||a.createdAt||null;
+    const market=a.country==='AE'?'uae':'saudi',lastmod=sitemapArticleLastmod(a);
     add('/en/'+market,lastmod);
     add('/en/'+market+'/noon-coupon-code',lastmod);
     if(a.categoryKey&&englishCategoryIndexable(market,a.categoryKey,categoryCounts.get(market+':'+a.categoryKey)||0))add('/en/'+market+'/category/'+encodeURIComponent(a.categoryKey),lastmod);
@@ -400,7 +414,7 @@ export async function englishRecentSitemap(env,origin){
     const path=articleHref(a);
     if(!path.startsWith('/en/articles/')||seen.has(path))continue;
     seen.add(path);
-    const updated=a.updatedAt||a.createdAt||null;
+    const updated=sitemapArticleLastmod(a);
     entries.push('<url><loc>'+esc(origin+path)+'</loc>'+(updated?'<lastmod>'+esc(updated)+'</lastmod>':'')+'</url>');
   }
   const xml='<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+entries.join('')+'</urlset>';
