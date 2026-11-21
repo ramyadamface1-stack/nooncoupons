@@ -218,3 +218,17 @@ test('snippet enhancement uses only existing direct answers and leaves unrelated
  assert.equal(legacyDirectAnswerSnippet(
   '<p class="direct-answer">يجب أن تتأكد من البائع بدون ادعاء خصم معين.</p>',heading,false),null);
 });
+
+
+test('SEO snippet keeps the buyer guidance as a complete sentence after removing the old repetitive disclaimer',()=>{
+ const title='American Tourister Backpacks السعر النهائي بعد تجربة الكود نون الإمارات';
+ const checkout='جرّب NOV188 على سلة ثابتة في نون الإمارات، واجعل الإجمالي النهائي هو المرجع بدل أي ادعاء غير موثق عن نسبة الخصم.';
+ const html='<article><h1>'+title+'</h1><p class="direct-answer"><strong>الخلاصة العملية:</strong> إذا كان بحثك عن الحقائب، راجع البائع أولًا. '+checkout+'</p></article>';
+ const snippet=legacyDirectAnswerSnippet(html,title,false);
+ const expected=title+' — جرّب NOV188 على سلة ثابتة في نون الإمارات، واجعل الإجمالي النهائي هو المرجع.';
+ assert.equal(snippet,expected);
+ assert.ok(snippet.length<=170,'Google snippet remains concise');
+ assert.ok(snippet.endsWith('المرجع.'),'no trailing fragment');
+ assert.ok(!snippet.includes('…')&&!snippet.includes('ادعاء'),'no clipped disclaimer');
+ assert.equal((snippet.match(/American Tourister Backpacks/g)||[]).length,1);
+});

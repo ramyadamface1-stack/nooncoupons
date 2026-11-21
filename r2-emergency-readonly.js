@@ -321,7 +321,22 @@ export function legacyDirectAnswerSnippet(html,title,english=false){
   const heading=String(title||'').replace(/\s+/g,' ').trim();
   if(!sentence||heading.length<22)return null;
   const shortTitle=heading.length>90?heading.slice(0,91).replace(/\s+\S*$/u,'').trim():heading;
-  return readableMetaDescription(shortTitle+' — '+sentence.replace(/\s+/g,' ').trim(),165);
+  const originalSentence=sentence.replace(/\s+/g,' ').trim();
+  // The inherited template repeated this unsupported-savings disclaimer after
+  // an already complete buyer action. Keep that existing action intact and
+  // end at a complete thought instead of cutting off "ادعاء..." in the SERP.
+  const usefulSentence=originalSentence.replace(
+    /\s+بدل\s+أي\s+ادعاء\s+غير\s+موثق\s+عن\s+نسبة\s+الخصم\s*[.!؟]*$/u,'.');
+  const complete=shortTitle+' — '+usefulSentence;
+  if(complete.length<=170)return complete;
+  // On unusually long article titles, preserve a real checkout instruction
+  // rather than chopping an Arabic word halfway through its sentence.
+  const firstClause=usefulSentence.split('،')[0]?.replace(/[.!؟\s]+$/u,'').trim();
+  if(firstClause&&firstClause.length>=34){
+    const compact=shortTitle+' — '+firstClause+'.';
+    if(compact.length<=170)return compact;
+  }
+  return readableMetaDescription(complete,165);
 }
 export function refreshArtworkUrlsInHtml(html){
   return String(html||'').replace(/(\/assets\/coupon-svg\/[^"'\s<>]+\/[1-5]\.svg\?)v=\d+/g,'$1v=11');
