@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml,neutralizeUnverifiedEditorialReview,repairArchivedProductCategoryHtml,supplementNativeArticleJsonLd} from '../r2-emergency-readonly.js';
+import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml,neutralizeUnverifiedEditorialReview,repairArchivedProductCategoryHtml,supplementNativeArticleJsonLd,decodeNativeMetadataText} from '../r2-emergency-readonly.js';
 const url=new URL('https://noondealsnow.com/articles/saudi-buyer-samsung-tablet-offline-annotation-workflow-nov170-2026-n5');
 const source='<article><h1>جدول مقارنة سامسونج تابلت</h1><p>'+('معايير مقارنة الكود NOV170 والمواصفات والضمان وشروط نون السعودية. '.repeat(110))+'</p></article>';
 const item={body:source,meta:{status:'published',p:'ai-v2-native',c:'SA',cp:'NOV170',q:'100',w:'1775',
@@ -220,4 +220,25 @@ test('native schema supplement preserves verified existing dates, FAQ and graph;
  assert.equal(supplementNativeArticleJsonLd(once,{publishedAt:published,canonical}),once,'idempotent');
  const onlyFaq='<script type="application/ld+json">'+JSON.stringify({'@type':'FAQPage'})+'</script>';
  assert.equal(supplementNativeArticleJsonLd(onlyFaq,{publishedAt:published,canonical}),onlyFaq);
+});
+
+test('native R2 double-encoded Arabic descriptions become human-readable in metadata without altering content',async()=>{
+ const title='دليل سامسونج تابلت نون السعودية NOV170';
+ const desc='دليل عملي لمقارنة التدوين دون إنترنت، مواصفات تابلت سامسونج والضمان والشحن على نون السعودية قبل الدفع.';
+ const twice=s=>encodeURIComponent(encodeURIComponent(s));
+ assert.equal(decodeNativeMetadataText(twice(desc)),desc);
+ assert.equal(decodeNativeMetadataText(encodeURIComponent(desc)),desc);
+ assert.equal(decodeNativeMetadataText(desc),desc);
+ assert.equal(decodeNativeMetadataText('%E0%A4%A'),'%E0%A4%A','invalid metadata escapes remain untouched');
+ const record={...item,meta:{...item.meta,t:twice(title),m:twice(desc),at:'2026-11-08T05:51:01.892Z'}};
+ const res=renderApprovedNativeAiV2Fast(record,url.pathname.split('/').at(-1),url,false);
+ assert.equal(res?.status,200);
+ const html=await res.text();
+ assert.ok(html.includes('<title>'+title+' | كوبونات نون</title>'),'title must decode to Arabic');
+ assert.ok(html.includes('<meta name="description" content="'+desc+'">'),'description must decode to Arabic');
+ assert.ok(html.includes('<meta property="og:description" content="'+desc+'">'),'OpenGraph description must agree');
+ assert.ok(!html.includes('%D8%AF'),'escaped Arabic must not appear in HTML metadata');
+ assert.ok(html.includes('href="'+url.href+'"'),'canonical remains original');
+ assert.ok(html.includes('NOV170'),'coupon remains unchanged');
+ assert.equal(record.meta.m,twice(desc),'source R2 record remains intact');
 });
