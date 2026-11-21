@@ -1,0 +1,53 @@
+name: NoonDealsNow - Guard Read-Only Article Routes From PUT Flood
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Apply the exact public article/media PUT guard, or disable just that rule'
+        required: true
+        type: choice
+        options: [apply, disable]
+        default: apply
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-public-put-quota-guard.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ndn-waf-put-public-only
+  cancel-in-progress: false
+
+jobs:
+  protect-readonly-routes:
+    if: github.repository == 'ramyadamface1-stack/nooncoupons'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CF_ACCOUNT: e4c35f8a50a7b2e4cfb9d6c534962603
+      NDN_PUBLIC_PUT_GUARD_MODE: ${{ inputs.mode || 'apply' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check exact WAF policy and source syntax
+        run: node --check scripts/ndn-public-put-guard.mjs
+      - name: Apply or revert exact read-only public PUT guard
+        run: node scripts/ndn-public-put-guard.mjs
+      - name: Prove targeted PUT requests no longer consume public Worker invocations
+        if: env.NDN_PUBLIC_PUT_GUARD_MODE == 'apply'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /articles/ndn-guard-test /en/articles/ndn-guard-test /assets/coupon-svg/ndn-guard-test/1.svg; do
+            code=$(curl -sS --max-time 15 -o /tmp/ndn-public-put-check -w '%{http_code}' -X PUT \
+              "https://noondealsnow.com$path" || true)
+            echo "PUBLIC_PUT_PROBE_PATH=$path;HTTP=$code"
+            test "$code" = 403
+          done
+          echo 'PUBLIC_PUT_GUARD_VERIFIED=YES;NO_DATA_UPLOADS_OR_CONTENT_MUTATIONS=true'
