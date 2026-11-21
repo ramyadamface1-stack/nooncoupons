@@ -215,6 +215,7 @@ export function repairArchivedProductCategoryHtml(html,slug,english=false){
     !/laptops and computing/i.test(source))return source;
   const baseline=/<h2\b[^>]*>\s*Category baseline for laptops and computing\s*<\/h2>(?:\s*<p\b[^>]*>[^<]*<\/p>){2}/i;
   const specifics=/<h2\b[^>]*>\s*Category-specific checks for laptops and computing\s*<\/h2>(?:\s*<p\b[^>]*>[^<]*<\/p>){2}/i;
+  if(!baseline.test(source)||!specifics.test(source))return source;
   const corrected=source
     .replace(baseline,'<h2>Category baseline for gaming consoles</h2>'+
       '<p>Before comparing console prices, confirm the exact model or edition, included controller and accessories, storage, game compatibility and the seller warranty. A bundle and a standalone console are not equivalent when their contents differ.</p>'+
