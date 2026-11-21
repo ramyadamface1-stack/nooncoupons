@@ -589,7 +589,7 @@ async function serveArticle(env,u,english){
   let body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(source),country),country,null,english),country),country,english),{english}).html);
   body=tidyLegacyArabicH1(normalizeArabicUaeMentions(repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(body),slug,english),country,english),english);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
-  const description=legacyDirectAnswerSnippet(body,title,english)||readableMetaDescription(cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,''))),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
+  const description=(english?nativeCompleteSearchSnippet(body,title,true):legacyDirectAnswerSnippet(body,title,false))||readableMetaDescription(cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,''))),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const snippet=rescueGscSnippet(slug,title,description,english);
   const featured='https://noondealsnow.com'+rescueImageUrl(slug,country,code,1,title);
   const date=dateIso(obj.meta.publishedAt||obj.meta.createdAt||obj.meta.datePublished||obj.meta.at);
