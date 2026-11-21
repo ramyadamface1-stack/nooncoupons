@@ -189,3 +189,27 @@ jobs:
           set -euo pipefail
           python3 -m unittest discover -s tests -p 'test_ndn_live_article_crawl_smoke.py' -v
           python3 scripts/ndn-live-article-crawl-smoke.py
+
+      - name: Independently verify native AI scheduler and direct worker public health
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          # No keys, provider calls, mutation, admin access, or paid cron.
+          for spec in \
+            'scheduler|https://noondealsnow-ai-scheduler-v2.ndn-e4c35f8a50.workers.dev/health' \
+            'direct|https://noondealsnow-ai-direct-r2.ndn-e4c35f8a50.workers.dev/health'; do
+            label="${spec%%|*}"
+            endpoint="${spec#*|}"
+            http=$(curl -sS --max-time 22 -o /tmp/ndn-independent-ai-health -w '%{http_code}' \
+              -H 'User-Agent: NDN-readonly-native-worker-health/1.0' "$endpoint" || true)
+            echo "NDN_INDEPENDENT_AI_WORKER=$label;HEALTH_HTTP=$http"
+            if [ "$http" != 200 ]; then
+              echo "::warning::NDN_$label-NATIVE-WORKER-UNAVAILABLE-HTTP-$http"
+            else
+              jq -c '{ok,schedulerEnabled,intervalMinutes,controlStatus,source,freeOnly,directStage,verifiedMarkets}' \
+                /tmp/ndn-independent-ai-health || true
+              echo "NDN_INDEPENDENT_AI_WORKER_$label=REACHABLE_200"
+            fi
+          done
+          echo 'NATIVE_AI_HEALTH_PROBES=READ_ONLY;GEMINI_CALLS=0;GROQ_CALLS=0;R2_WRITES=0'
