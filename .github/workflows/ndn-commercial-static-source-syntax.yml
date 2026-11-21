@@ -1,0 +1,28 @@
+name: NDN Commercial Static Source Syntax & Categories
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ndn-commercial-static-source-syntax.yml'
+      - 'scripts/build-ndn-commercial-static.mjs'
+      - 'index.js'
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse code and verify categories are exported
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/build-ndn-commercial-static.mjs
+          node --check index.js
+          node --input-type=module -e "import('./index.js').then(({PUBLIC_CATEGORIES})=>{if(!Array.isArray(PUBLIC_CATEGORIES)||PUBLIC_CATEGORIES.length!==42)throw Error('EXPECTED_42_CATEGORIES'); console.log('PUBLIC_CATEGORY_COUNT='+PUBLIC_CATEGORIES.length)})"
+          echo 'NDN_MARKET_SOURCE_SYNTAX=PASS'
