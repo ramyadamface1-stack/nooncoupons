@@ -40,6 +40,21 @@ test('copy UI is keyboard accessible, makes no guaranteed discount claim, and ha
   assert.match(rescueArticleStyles,/a:not\(\.rescue-shop\)/);
   assert.match(rescueArticleStyles,/position:static!important/);
 });
+test('absolute same-site /guides 404 links are repaired only for the right market',()=>{
+ const source='<a href="https://noondealsnow.com/guides">Guide</a>'+
+   '<a href="http://www.noondealsnow.com/guides/">Guide 2</a>'+
+   '<a href="/guides">Guide 3</a>'+
+   '<a href="https://other.example/guides">Other</a>'+
+   '<a href="/guides/seller-checks">Deep guide</a>'+
+   '<a href="https://noondealsnow.com/articles/original">Original</a>';
+ const sa=repairLegacyGuideLinks(source,'SA'),ae=repairLegacyGuideLinks(source,'AE');
+ assert.equal((sa.match(/href="\/saudi\/shopping-guide"/g)||[]).length,3);
+ assert.equal((ae.match(/href="\/uae\/shopping-guide"/g)||[]).length,3);
+ assert.match(sa,/https:\/\/other\.example\/guides/);
+ assert.match(sa,/href="\/guides\/seller-checks"/);
+ assert.match(sa,/href="https:\/\/noondealsnow\.com\/articles\/original"/);
+ assert.equal(repairLegacyGuideLinks(sa,'SA'),sa,'idempotent read-only repair');
+});
 test('related article suggestions only come from published, right-market, genuinely distinct URLs',()=>{
   const items=[
     {slug:'saudi-sunscreen-review',title:'تقييم sunscreen نون السعودية',country:'SA',status:'published',createdAt:'2026-10-25T00:00:00Z'},
