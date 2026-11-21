@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: |
           python3 - <<'PY'
-          import os,boto3,json,collections
+          import os,boto3,json,collections,re
           from botocore.config import Config
           c=boto3.client('s3',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
             region_name='auto',aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
@@ -36,7 +36,10 @@ jobs:
           try:
             obj=c.get_object(Bucket=b,Key='bulk/public-compact-v1.json')
             rows=json.loads(obj['Body'].read()).get('articles',[])
-            print('COMPACT_PUBLIC_ROWS='+str(len(rows))+
+            lengths=[len(str(x.get('slug') or '')) for x in rows if isinstance(x,dict)]
+          print('COMPACT_SLUG_LENGTHS='+str({'min':min(lengths),'max':max(lengths),'over120':sum(x>120 for x in lengths),
+            'badcharacters':sum(not re.fullmatch(r'[a-z0-9-]+',str(x.get('slug') or '')) for x in rows if isinstance(x,dict))}),flush=True)
+          print('COMPACT_PUBLIC_ROWS='+str(len(rows))+
               ';STATUS_COUNTS='+str(collections.Counter(str(x.get('status','MISSING')) for x in rows if isinstance(x,dict)))+
               ';PUBLISHED_AT_PRESENT='+str(sum(bool(x.get('publishedAt')) for x in rows if isinstance(x,dict))),flush=True)
           except Exception as e:
