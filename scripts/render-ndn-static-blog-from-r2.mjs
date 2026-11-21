@@ -3,7 +3,7 @@
 import app from '../auto-platform.js';
 import {renderApprovedNativeAiV2Fast} from '../r2-emergency-readonly.js';
 import {readFile,writeFile,stat,mkdir} from 'node:fs/promises';
-import {resolve} from 'node:path';
+import {resolve,dirname} from 'node:path';
 
 const base='https://noondealsnow.com',root=resolve('.ndn-static-assets');
 const snap=JSON.parse(await readFile('.ndn-blog-staging/public-snapshot.json','utf8'));
@@ -54,6 +54,7 @@ for(const path of ['/blog','/blog/saudi','/blog/uae']){
     '<meta name="ndn-blog-snapshot" content="'+esc(snap.createdAt)+'">';
   html=html.replace('</head>',info+'</head>');
   const filename=path.slice(1)+'.html';
+  await mkdir(dirname(resolve(root,filename)),{recursive:true});
   await writeFile(resolve(root,filename),html,'utf8');
   all.push(...slugs);
   console.log('NDN_LIVE_VERIFIED_STATIC_BLOG='+path+';CARDS='+cards+';CACHED_ARTICLE_LINKS='+slugs.length);
