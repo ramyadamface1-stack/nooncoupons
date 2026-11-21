@@ -123,6 +123,27 @@ jobs:
             test "$status" = 200
           done
           echo 'NDN_STATIC_SEO_AND_AI_SEARCH_CRAWL_ACCESS=VERIFIED'
+          # Canonical sitemap root must stay available even when Worker quota is exhausted.
+          root_http=$(curl -sS --max-time 20 -o /tmp/ndn-live-root-sitemap -w '%{http_code}' \
+            -H 'User-Agent: NDN-index-health-check' 'https://noondealsnow.com/sitemap.xml' || true)
+          echo "NDN_STATIC_ROOT_SITEMAP_HTTP=$root_http"
+          test "$root_http" = 200
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          body=Path('/tmp/ndn-live-root-sitemap').read_text()
+          root=ET.fromstring(body)
+          assert root.tag.endswith('sitemapindex'), 'root sitemap must be sitemapindex'
+          ns={'s':'http://www.sitemaps.org/schemas/sitemap/0.9'}
+          rows=[node.text for node in root.findall('s:sitemap/s:loc',ns)]
+          assert len(rows)>=10, 'unreasonably sparse root sitemap'
+          assert all(url.startswith('https://noondealsnow.com/sitemap-') and url.endswith('.xml') for url in rows), 'cross-domain or malformed nested sitemap'
+          for path in ('sitemap-core.xml','sitemap-ai-v2.xml','sitemap-pages.xml'):
+            assert 'https://noondealsnow.com/'+path in rows, 'missing '+path
+          assert len(set(rows))==len(rows), 'duplicate nested sitemap references'
+          print('NDN_STATIC_ROOT_SITEMAP_ENTRIES='+str(len(rows)))
+          print('NDN_STATIC_ROOT_SITEMAP_XML=VALID')
+          PY
           problem=0
           for path in / /blog /coupon/nov170 /coupon/nov188 /sitemap-core.xml; do
             code=$(curl -sS --max-time 18 -o /tmp/ndn-public-smoke -w '%{http_code}' \
