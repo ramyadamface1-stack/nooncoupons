@@ -156,6 +156,51 @@ for(const s of seo){
   '<h2>'+(isArabic?'أدلة مشابهة للسوق نفسه':'Explore other guides in this market')+'</h2><ul>'+guideLinks(m)+'</ul></article>';
  await save(p,page(m,p,title,s.short,body,{faq,kind:'Article'}));generated++;
 }
+// These legacy brand URLs were intermittently 429 under Workers Free 1027.
+// Keep the same canonical URLs, provide brand-specific buying content, and
+// link only to the correct market code and market-specific public articles.
+for(const m of ['saudi','uae']){
+ for(const brand of ['apple','samsung']){
+  const p='/'+m+'/brand/'+brand,country=isSA(m)?'السعودية':'UAE';
+  const brandName=brand==='apple'?'Apple':'Samsung';
+  const title=isSA(m)?'دليل '+brandName+' على نون السعودية | كود '+code(m):
+    brandName+' on Noon UAE | Buying Guide and '+code(m);
+  const desc=isSA(m)?'قبل شراء أجهزة '+brandName+' على نون السعودية، قارن الموديل والضمان والبائع والشحن واختبر '+code(m)+' في السلة.':
+    'Compare '+brandName+' model, storage, regional version, seller, warranty and delivery on Noon UAE before trying '+code(m)+'.';
+  const details=brand==='apple'?[
+    ['رقم موديل الجهاز','Check the exact iPhone, iPad, MacBook or accessory identifier and storage size; similar names may refer to different generations.'],
+    ['النسخة والتوافق','Verify regional cellular support, SIM format, charger accessories and the service policy shown for the listing.'],
+    ['الضمان وملحقات العلبة','Read seller warranty, return terms and whether a charger or peripheral is included, rather than assuming all bundles match.'],
+    ['تكلفة الملحقات','Add required protection, keyboard or charger costs only where you actually need those items.']
+  ]:[
+    ['الموديل وسنة الإصدار','Confirm the exact Galaxy phone, tablet, watch or appliance model and its storage, screen or capacity.'],
+    ['النسخة والتوافق','Compare regional bands, software version, power requirements or included accessories according to the product type.'],
+    ['الضمان والبائع','Read the actual listing seller, warranty and after-sales support conditions; avoid assuming all marketplace sellers are identical.'],
+    ['تكلفة إجمالية','Include shipping, setup and any necessary accessories in the final comparison.']
+  ];
+  const checks=details.map(([h,b])=>'<section><h2>'+E(h)+'</h2><p>'+E(b)+'</p></section>').join('');
+  const content='<article class="box"><p>'+E(desc)+'</p>'+checks+
+    '<h2>'+(isSA(m)?'السعر النهائي بعد تجربة الكوبون':'The final total after the coupon')+'</h2><p>'+
+    (isSA(m)?'بعد تحديد الجهاز نفسه والبائع ورسوم الشحن في نون السعودية، جرّب '+code(m)+' على سلة ثابتة. لا تقارن عرضين مختلفين وتعتبر الفرق توفيرًا من الكود.':
+      'Once the device, seller and delivery fee are fixed in Noon UAE, try '+code(m)+' on that exact basket. Use the AED payable total to decide whether the offer makes sense.')+
+    '</p><h2>'+(isSA(m)?'مقالات السوق':'Market articles')+'</h2><ul>'+recentLinks(m)+'</ul>'+
+    '<p><a href="/'+m+'/categories">'+(isSA(m)?'استعرض أقسام السعودية':'Explore UAE categories')+'</a></p></article>';
+  await save(p,page(m,p,title,desc,content,{kind:'Article'}));generated++;
+ }
+}
+// Legacy English UAE coupon route must be reachable without a Worker invocation,
+// but must canonicalize to the single current UAE coupon guide to avoid a
+// second nearly identical coupon page competing in search.
+{
+ const p='/en/uae/noon-coupon-code',target='/uae/noon-coupon-code';
+ const html='<!doctype html><html lang="en-AE" dir="ltr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
+  '<title>Noon UAE Promo Code NOV188 | Current UAE Coupon Guide</title><meta name="robots" content="noindex,follow">'+
+  '<link rel="canonical" href="'+origin+target+'"><meta http-equiv="refresh" content="0;url='+target+'">'+
+  css+staticAnalytics+'</head><body>'+NAV+'<main class="w"><h1>Noon UAE promo code NOV188</h1><p>This URL now points to the main UAE market coupon guide.</p>'+
+  '<p><a href="'+target+'">Open the Noon UAE coupon guide</a></p></main></body></html>';
+ const dst=resolve(root,p.slice(1)+'.html');
+ await mkdir(dirname(dst),{recursive:true});await writeFile(dst,html,'utf8');generated++;
+}
 const slogan='<section class="section" id="commercial-buying-intent"><div class="shell"><div class="head"><h2>كود خصم نون السعودية NOV170 — أقسام وأدلة التسوق</h2>'+
  '<p>اختر فئتك، قارن السعر النهائي، انسخ الكود من الصفحة الرئيسية ثم راجع قبوله في سلة نون السعودية.</p></div>'+
  '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">'+
