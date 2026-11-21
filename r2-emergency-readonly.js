@@ -349,7 +349,7 @@ export function nativeCompleteSearchSnippet(source,title,english=false){
  }
  const match=html.match(/<p\b(?=[^>]*\bclass\s*=\s*["'][^"']*\bdirect-answer\b)[^>]*>([\s\S]*?)<\/p>/i);
  if(!match)return null;
- const text=cleanText(match[1]);
+ const text=cleanText(match[1]).replace(/^Quick answer:\s*/i,'');
  const original=text.split(/(?<=[.!?])\s+/u).reverse().find(v=>
    /^(?:Start|Copy|Check|Apply|Compare|Try)\s/i.test(v)&&
    /\bNOV\d{3}\b/i.test(v)&&v.length>=45&&v.length<=240
