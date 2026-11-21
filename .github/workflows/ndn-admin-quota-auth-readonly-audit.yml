@@ -1,0 +1,39 @@
+name: NDN Admin Quota Versus Authentication Read Only Audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ndn-admin-quota-auth-readonly-audit.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check routing codes with no credentials and no state changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json
+          paths=['/admin','/admin/system1','/admin/legacy',
+            '/api/admin/system1/summary','/api/admin/system1/keywords','/api/health']
+          for path in paths:
+            req=urllib.request.Request('https://noondealsnow.com'+path,
+              headers={'User-Agent':'NoonDealsNow-no-credentials-admin-audit/1.0'})
+            try:
+              with urllib.request.urlopen(req,timeout=20) as res:
+                status=res.status
+                location=res.headers.get('location','')
+                content_type=res.headers.get('content-type','')
+            except urllib.error.HTTPError as e:
+              status=e.code
+              location=e.headers.get('location','')
+              content_type=e.headers.get('content-type','')
+            except Exception as e:
+              print('ADMIN_ROUTE_OBSERVATION='+json.dumps({'path':path,'error':type(e).__name__}),flush=True)
+              continue
+            print('ADMIN_ROUTE_OBSERVATION='+json.dumps({'path':path,'status':status,
+              'contentType':content_type[:40],'location':location[:100]}),flush=True)
+          print('ADMIN_AUDIT_UNAUTHENTICATED=TRUE;NO_PASSWORDS_NO_WRITES=TRUE')
+          PY
