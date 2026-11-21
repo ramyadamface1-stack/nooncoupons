@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml,neutralizeUnverifiedEditorialReview,repairArchivedProductCategoryHtml,supplementNativeArticleJsonLd,decodeNativeMetadataText} from '../r2-emergency-readonly.js';
+import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml,neutralizeUnverifiedEditorialReview,repairArchivedProductCategoryHtml,supplementNativeArticleJsonLd,decodeNativeMetadataText,articleJsonLdDescription,nativeMetaDescription} from '../r2-emergency-readonly.js';
 const url=new URL('https://noondealsnow.com/articles/saudi-buyer-samsung-tablet-offline-annotation-workflow-nov170-2026-n5');
 const source='<article><h1>جدول مقارنة سامسونج تابلت</h1><p>'+('معايير مقارنة الكود NOV170 والمواصفات والضمان وشروط نون السعودية. '.repeat(110))+'</p></article>';
 const item={body:source,meta:{status:'published',p:'ai-v2-native',c:'SA',cp:'NOV170',q:'100',w:'1775',
@@ -241,4 +241,36 @@ test('native R2 double-encoded Arabic descriptions become human-readable in meta
  assert.ok(html.includes('href="'+url.href+'"'),'canonical remains original');
  assert.ok(html.includes('NOV170'),'coupon remains unchanged');
  assert.equal(record.meta.m,twice(desc),'source R2 record remains intact');
+});
+
+test('native Arabic metadata truncated inside encoded UTF-8 uses its own Article JSON-LD description instead of percent escapes',async()=>{
+ const heading='مراجعة تابلت سامسونج وضمان البائع في نون السعودية';
+ const originalDesc='دليل شامل عن سامسونج تابلت على نون السعودية: قارن المواصفات والبائع والضمان والشحن، وتحقق من السعر النهائي قبل الدفع.';
+ const malformed=encodeURIComponent(originalDesc).slice(0,135)+'%D8%';
+ const slug='saudi-buyer-samsung-tablet-offline-annotation-workflow-nov170-2026-n5';
+ const u=new URL('https://noondealsnow.com/articles/'+slug);
+ const json={'@context':'https://schema.org','@type':'Article',headline:heading,
+   description:originalDesc,inLanguage:'ar-SA',datePublished:'2026-11-08T05:51:01.892Z'};
+ const body='<article><h1>'+heading+'</h1><p>'+('قارن المواصفات والضمان والشحن قبل الشراء. NOV170. '.repeat(120))+'</p>'+
+  '<script type="application/ld+json">'+JSON.stringify(json)+'</script></article>';
+ const record={body,meta:{...item.meta,t:encodeURIComponent(heading),m:malformed,at:'2026-11-08T05:51:01.892Z'}};
+ assert.equal(articleJsonLdDescription(body),originalDesc);
+ assert.equal(nativeMetaDescription(malformed,body),originalDesc);
+ const response=renderApprovedNativeAiV2Fast(record,slug,u,false);
+ assert.equal(response?.status,200);
+ const html=await response.text();
+ assert.ok(html.includes('<meta name="description" content="'+originalDesc+'">'));
+ assert.ok(html.includes('<meta property="og:description" content="'+originalDesc+'">'));
+ assert.doesNotMatch(html,/<meta name="description" content="%/);
+ assert.ok(html.includes('href="'+u.href+'"'));
+ assert.equal((html.match(/"@type":"Article"/g)||[]).length,1,'no extra Article entity');
+ assert.ok(html.includes('NOV170'),'market code preserved');
+ assert.equal(record.meta.m,malformed,'R2 metadata unchanged');
+ assert.equal(record.body,body,'R2 article unchanged');
+});
+test('source JSON-LD fallback ignores FAQ schema and cannot invent a description',()=>{
+ const source='<script type="application/ld+json">'+JSON.stringify({'@type':'FAQPage',description:'Not the article description'})+'</script>';
+ assert.equal(articleJsonLdDescription(source),'');
+ const good='Healthy complete description of the coupon workflow before checkout.';
+ assert.equal(nativeMetaDescription(encodeURIComponent(good),source),good);
 });
