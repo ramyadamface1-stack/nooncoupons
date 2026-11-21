@@ -10,6 +10,8 @@ on:
     paths:
       - '.github/workflows/diagnose-ndn-workers-1027.yml'
       - 'scripts/ndn-quota-triage.mjs'
+      - 'scripts/ndn-live-article-crawl-smoke.py'
+      - 'tests/test_ndn_live_article_crawl_smoke.py'
 
 permissions:
   contents: read
@@ -161,3 +163,10 @@ jobs:
           done
           if [ "$problem" != 0 ]; then exit 1;fi
           echo 'NDN_PUBLIC_POST_RESET_CORE_ROUTES=ALL_200'
+
+      - name: Sample real published article HTML and nested XML after recovery (read only)
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_ndn_live_article_crawl_smoke.py' -v
+          python3 scripts/ndn-live-article-crawl-smoke.py
