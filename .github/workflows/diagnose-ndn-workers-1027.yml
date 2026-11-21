@@ -2,6 +2,9 @@ name: NoonDealsNow - Diagnose Cloudflare Worker 1027 Quota (Read Only)
 
 on:
   workflow_dispatch:
+  schedule:
+    # Four free read-only probes daily; no Cloudflare Cron or AI generation.
+    - cron: '20 1,7,13,19 * * *'
   push:
     paths:
       - '.github/workflows/diagnose-ndn-workers-1027.yml'
@@ -59,6 +62,8 @@ jobs:
               const n=rows.reduce((acc,x)=>acc+Number(x.sum?.requests||0),0);
               const e=rows.reduce((acc,x)=>acc+Number(x.sum?.errors||0),0);
               note('| '+script+' | '+n.toLocaleString('en-US')+' | '+e.toLocaleString('en-US')+' | '+rows.length+' |');
+              if(script==='noondealsnow-production-new'&&n>=80000)
+                note('::warning::NDN_WORKER_REQUEST_BUDGET_HIGH='+n+' reported today UTC (sampled analytics); investigate before 100k/day Free plan cap');
               if(rows.length===5000)note('WARNING '+script+' is capped at 5000 rows, not an exact full-day total');
             }catch(err){note('| '+script+' | unavailable | unavailable | '+String(err.message).slice(0,95)+' |')}
           }
@@ -106,4 +111,6 @@ jobs:
           if grep -q 'Error 1027' /tmp/ndn-1027-body; then
             echo 'PUBLIC_ERROR_1027_CONFIRMED=TRUE'
             echo 'Public homepage currently blocked by Workers daily request limit, not WAF user-agent challenge.' >> "$GITHUB_STEP_SUMMARY"
+            echo '::error::NOONDEALSNOW_PUBLIC_1027_ACTIVE'
+            exit 1
           fi
