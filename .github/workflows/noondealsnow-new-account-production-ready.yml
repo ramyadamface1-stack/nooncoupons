@@ -19,6 +19,7 @@ on:
       - 'tests/ndn-commercial-static.test.mjs'
       - 'tests/ndn-quota-static-fallback.test.mjs'
       - 'scripts/stage-ndn-static-blog-and-articles.py'
+      - 'tests/ndn-static-native-market-coverage.test.mjs'
       - 'scripts/render-ndn-static-blog-from-r2.mjs'
       - 'scripts/build-ndn-static-archive-and-images.mjs'
       - 'tests/ndn-static-complete-blog.test.mjs'
@@ -330,6 +331,7 @@ jobs:
           set -euo pipefail
           python3 scripts/stage-ndn-static-blog-and-articles.py
           node scripts/render-ndn-static-blog-from-r2.mjs
+          node --test tests/ndn-static-native-market-coverage.test.mjs
           node scripts/build-ndn-static-archive-and-images.mjs
           python3 scripts/stage-ndn-complete-r2-article-keys.py
           node scripts/render-ndn-complete-r2-archive.mjs

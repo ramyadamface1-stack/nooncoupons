@@ -45,16 +45,20 @@ def main():
   if len(native)<30:fail("INSUFFICIENT_REAL_PUBLISHED_ARTICLES")
   native.sort(key=lambda x:x["publishedAt"],reverse=True)
   # Build compact 2-market cover; only real, already-published article objects.
+  # 400 native R2 HTML documents per market are copied and wrapped as static
+  # assets. Current source inventory leaves more than 4,000 files of headroom
+  # under Cloudflare Static Assets Free's 20,000-file cap.
+  per_market_static_cap=400
   target=[];market_counts={"SA":0,"AE":0}
   for row in native:
     market=row["country"]
-    if market_counts[market]>=75:continue
+    if market_counts[market]>=per_market_static_cap:continue
     target.append(row)
     market_counts[market]+=1
-    if all(n>=75 for n in market_counts.values()):break
+    if all(n>=per_market_static_cap for n in market_counts.values()):break
   # The four native article URLs are used by the live production smoke.
   # Include them as real, verified R2 fragments even if newer publications
-  # push them outside the 75-per-market latest-window.
+  # push them outside the market static latest-window.
   priority_slugs=["saudi-buyer-baseus-powerbank-multiport-power-budget-sharing-nov170-2026-n6","uae-buyer-baseus-powerbank-multiport-power-budget-sharing-nov188-2026-n6","saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n10","uae-buyer-xiaomi-phone-nfc-wallet-regional-compatibility-nov188-2026-n10"]
   native_by_slug={row["slug"]:row for row in native}
   requested={row["slug"] for row in target}
@@ -87,6 +91,7 @@ def main():
       missing.append(slug)
   for slug in priority_slugs:
     if slug not in copied:fail("PRIORITY_R2_NATIVE_ARTICLE_INVALID_"+slug)
+  if len(copied)<760:fail("STATIC_NATIVE_COVERAGE_BELOW_SAFE_TARGET_"+str(len(copied)))
   if len(copied)<24:fail("TOO_FEW_NATIVE_FRAGMENTS_"+str(len(copied)))
   if min(sum(1 for x in target if x["country"]==c and x["slug"] in copied) for c in ("SA","AE"))<12:
     fail("MARKET_STATIC_COVERAGE_TOO_LOW")
