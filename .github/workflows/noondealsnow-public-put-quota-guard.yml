@@ -9,10 +9,6 @@ on:
         type: choice
         options: [apply, disable]
         default: apply
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/noondealsnow-public-put-quota-guard.yml'
 
 permissions:
   contents: read
