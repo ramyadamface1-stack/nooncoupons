@@ -1,0 +1,48 @@
+name: NDN Priority Original Article R2 Preflight Readonly
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ndn-priority-article-r2-readonly-preflight.yml'
+      - 'scripts/stage-ndn-static-blog-and-articles.py'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet boto3
+      - name: Validate four original native articles exist and are eligible
+        run: |
+          python3 - <<'PY'
+          import boto3,os,json
+          from botocore.config import Config
+          client=boto3.client('s3',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            region_name='auto',aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+            aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+            config=Config(connect_timeout=9,read_timeout=25,retries={'max_attempts':2}))
+          bucket='nooncoupons-content-v2'
+          rows=json.loads(client.get_object(Bucket=bucket,Key='_ops/ai-v2-publication-ledger-v1.json')['Body'].read())['articles']
+          byslug={x.get('slug'):x for x in rows}
+          samples=[
+            ('saudi-buyer-baseus-powerbank-multiport-power-budget-sharing-nov170-2026-n6','SA','NOV170'),
+            ('uae-buyer-baseus-powerbank-multiport-power-budget-sharing-nov188-2026-n6','AE','NOV188'),
+            ('saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n10','SA','NOV170'),
+            ('uae-buyer-xiaomi-phone-nfc-wallet-regional-compatibility-nov188-2026-n10','AE','NOV188')]
+          for slug,market,coupon in samples:
+            row=byslug.get(slug)
+            print('PRIORITY_IN_LEDGER='+market+';SLUG='+slug+';PRESENT='+str(bool(row)),flush=True)
+            assert row and row.get('country')==market and row.get('publishedAt'),slug+'_not_published'
+            obj=client.get_object(Bucket=bucket,Key='articles/'+slug+'.html')
+            md=obj.get('Metadata') or {}
+            body=obj['Body'].read(2000001).decode('utf8')
+            okay=md.get('p')=='ai-v2-native' and md.get('status')=='published' and md.get('c')==market and md.get('cp')==coupon and float(md.get('q') or 0)>=95 and int(md.get('w') or 0)>=1500 and '<h1' in body and '<article' in body and coupon in body
+            print('PRIORITY_ORIGINAL_R2='+market+';PASS='+str(okay)+';CONTENT_BYTES='+str(len(body)),flush=True)
+            assert okay,slug+'_not_approved'
+          print('PRIORITY_R2_METADATA_PREFLIGHT=PASS;R2_WRITES=ZERO')
+          PY
