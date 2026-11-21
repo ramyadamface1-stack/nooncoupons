@@ -65,6 +65,37 @@ test('related links require a shared product or topic, not country/guide filler 
   const none=renderRelatedArticles(rows,'saudi-laptop-hp-guide','SA');
   assert.equal(none,'');
 });
+test('related console guides never recommend laptops or skincare via shared checkout-intent filler',()=>{
+  const rows=[
+    {slug:'en-noon-uae-final-price-guide-dell-laptop-coupon-eligibility',title:'Noon UAE final price guide Dell laptop coupon eligibility',country:'AE',status:'published'},
+    {slug:'en-noon-uae-total-cost-guide-korean-skincare-coupon-eligibility',title:'Noon UAE total cost guide Korean skincare coupon eligibility',country:'AE',status:'published'},
+    {slug:'en-noon-uae-final-price-nintendo-switch-2-seller-comparison',title:'Noon UAE Nintendo Switch 2 seller comparison',country:'AE',status:'published'},
+    {slug:'en-nintendo-switch-2-mario-kart-bundle-noon-sharjah-guide',title:'Nintendo Switch 2 Mario Kart bundle guide',country:'AE',status:'published'},
+    {slug:'en-noon-final-price-guide-playstation-5-returns',title:'Noon UAE final price guide PlayStation 5 returns',country:'AE',status:'published'},
+    {slug:'en-nintendo-switch-2-unpublished',title:'Nintendo Switch 2 news',country:'AE',status:'draft'},
+    {slug:'en-nintendo-switch-2-saudi',title:'Nintendo Switch 2 Noon Saudi',country:'SA',status:'published'}
+  ];
+  const html=renderRelatedArticles(rows,'en-noon-uae-final-price-guide-nintendo-switch-2-coupon-eligibility','AE',true);
+  assert.match(html,/en-noon-uae-final-price-nintendo-switch-2-seller-comparison/);
+  assert.match(html,/en-nintendo-switch-2-mario-kart-bundle-noon-sharjah-guide/);
+  assert.doesNotMatch(html,/dell-laptop|korean-skincare|playstation-5|unpublished|saudi/);
+  const unrelatedOnly=renderRelatedArticles(rows.slice(0,2),'en-noon-uae-final-price-guide-nintendo-switch-2-coupon-eligibility','AE',true);
+  assert.equal(unrelatedOnly,'','an empty recommendation is safer than irrelevant links');
+  const sony=renderRelatedArticles(rows,'en-ps5-pro-noon-uae-returns','AE',true);
+  assert.match(sony,/playstation-5-returns/,'PS5 and PlayStation 5 belong to the same console family');
+  assert.doesNotMatch(sony,/nintendo-switch-2|dell-laptop/);
+});
+
+test('related article ranking preserves explicitly Saudi English market metadata',()=>{
+  const rows=[
+    {slug:'en-saudi-iphone-battery-checklist',title:'Saudi iPhone battery checklist',country:'SA',status:'published'},
+    {slug:'en-uae-iphone-battery-checklist',title:'UAE iPhone battery checklist',country:'AE',status:'published'}
+  ];
+  const html=renderRelatedArticles(rows,'en-saudi-iphone-battery-guide','SA',true);
+  assert.match(html,/en-saudi-iphone-battery-checklist/);
+  assert.doesNotMatch(html,/en-uae-iphone-battery-checklist/);
+});
+
 test('actual emergency R2 article responds with market-specific copy CTA, contrast links and canonical',async()=>{
   const realFetch=globalThis.fetch;
   const pageHtml='<h1>تجربة NOV174 في نون السعودية</h1><p>جرّب NOV174 بعد المقارنة.</p><p><a href="/saudi">دليل السعودية</a> و<a href="/guides">دليل الشراء</a> و<a href="https://www.noon.com/saudi-ar/">نون</a></p>';
