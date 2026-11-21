@@ -61,6 +61,43 @@ jobs:
           }
           note('Worker invoice/usage total across the whole account must be checked in Cloudflare dashboard; row-level analytics may be sampled or truncated.');
           JS
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          const log=s=>{console.log(s);if(process.env.GITHUB_STEP_SUMMARY)appendFileSync(process.env.GITHUB_STEP_SUMMARY,s+'\n')};
+          try{
+            const token=process.env.CF_TOKEN;
+            if(!token)throw Error('Cloudflare token not configured');
+            const rz=await fetch('https://api.cloudflare.com/client/v4/zones?name=noondealsnow.com',{
+              headers:{authorization:'Bearer '+token},signal:AbortSignal.timeout(12000)});
+            const zoneData=await rz.json();
+            const z=(zoneData?.result||[]).find(x=>x?.account?.id===process.env.CF_ACCOUNT);
+            if(!rz.ok||!z?.id)throw Error('Zone read unavailable on this token');
+            const now=new Date(),start=new Date(now);start.setUTCHours(0,0,0,0);
+            const query=`query PathCounts($zoneTag: string,$start: string,$end: string) {
+              viewer {zones(filter:{zoneTag:$zoneTag}) {
+                topPaths:httpRequestsAdaptiveGroups(limit:40,orderBy:[count_DESC],
+                  filter:{datetime_geq:$start,datetime_leq:$end}) {
+                    count
+                    dimensions {clientRequestPath}
+                  }
+              }}
+            }`;
+            const r=await fetch('https://api.cloudflare.com/client/v4/graphql',{
+              method:'POST',headers:{authorization:'Bearer '+token,'content-type':'application/json'},
+              body:JSON.stringify({query,variables:{zoneTag:z.id,start:start.toISOString(),end:now.toISOString()}}),
+              signal:AbortSignal.timeout(18000)});
+            const data=await r.json();
+            if(!r.ok||data.errors?.length)throw Error('Top-path zone analytics unavailable: '+String(data.errors?.[0]?.message||r.status).slice(0,70));
+            const rows=data?.data?.viewer?.zones?.[0]?.topPaths;
+            if(!Array.isArray(rows))throw Error('Zone path dataset not returned');
+            log('### Top public request paths (sampled/aggregated zone analytics, diagnostic only)');
+            log('| Path | Count |');log('|---|---:|');
+            for(const x of rows.slice(0,25)){
+              const path=String(x.dimensions?.clientRequestPath||'').replace(/\|/g,'%7C').slice(0,160);
+              log('| '+path+' | '+Number(x.count||0).toLocaleString('en-US')+' |');
+            }
+          }catch(e){log('::warning::ZONE_TOP_PATHS_UNAVAILABLE '+String(e.message).slice(0,120))}
+          JS
           status=$(curl -sS --max-time 12 -o /tmp/ndn-1027-body -w '%{http_code}' 'https://noondealsnow.com/?ndn_quota_probe=readonly' || true)
           echo "PUBLIC_HOMEPAGE_HTTP=$status"
           if grep -q 'Error 1027' /tmp/ndn-1027-body; then
