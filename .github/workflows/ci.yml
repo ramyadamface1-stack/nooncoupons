@@ -52,6 +52,9 @@ jobs:
       - name: Verify root sitemap index matches bounded R2 manifests and preserves all historical shards
         run: python3 -m unittest discover -s tests -p 'test_ndn_static_root_sitemap.py' -v
 
+      - name: Check native AI article sitemap snapshot matches published-only ledger and cannot expose secrets
+        run: python3 -m unittest discover -s tests -p 'test_ndn_static_ai_v2_sitemaps.py' -v
+
       - name: Test safe bounded real article crawl probe without making network calls
         run: python3 -m unittest discover -s tests -p 'test_ndn_live_article_crawl_smoke.py' -v
 
