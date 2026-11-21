@@ -27,9 +27,9 @@ export function presentMarketCouponText(source,country='SA',preferredCode=null){
 // URLs, data attributes, slugs, script/style contents or original R2 bytes.
 export function normalizeArabicUaeMentions(source,country='SA',english=false){
  const raw=String(source??'');
- if(country!=='AE'||english||!/نون\\s+uae\\b/i.test(raw))return raw;
- return raw.split(/(<script\\b[^>]*>[\\s\\S]*?<\\/script>|<style\\b[^>]*>[\\s\\S]*?<\\/style>|<[^>]+>)/gi)
-   .map(part=>part.startsWith('<')?part:part.replace(/نون[\\s\\u00a0]+uae\\b/gi,'نون الإمارات')).join('');
+ if(country!=='AE'||english||!/نون\s+uae\b/i.test(raw))return raw;
+ return raw.split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>|<[^>]+>)/gi)
+   .map(part=>part.startsWith('<')?part:part.replace(/نون[\s\u00a0]+uae\b/gi,'نون الإمارات')).join('');
 }
 // R2 stores older FAQ JSON-LD under the original promotion code. The public
 // reader now displays the market primary code; keep FAQ schema in agreement
@@ -39,7 +39,7 @@ export function reconcileSourceCouponJsonLd(html,country='SA',preferredCode=null
   const tokens=/\b(?:NOV|RAMY|OPS)\d{2,4}\b/gi;
   const textualFields=new Set(['name','headline','description','text','alternateName','step','suggestedAnswer','itemText']);
   const replaceText=value=>{const current=String(value).replace(tokens,code);
-    return country==='AE'&&!english?current.replace(/نون[\\s\\u00a0]+uae\\b/gi,'نون الإمارات'):current;
+    return country==='AE'&&!english?current.replace(/نون[\s\u00a0]+uae\b/gi,'نون الإمارات'):current;
   };
   function clean(node){
     if(Array.isArray(node))return node.map(clean);
