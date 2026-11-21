@@ -7,6 +7,8 @@ on:
       - 'wrangler.new-account-production.jsonc'
       - 'scripts/build-ndn-static-seo-assets.mjs'
       - 'tests/static-seo-assets.test.mjs'
+      - 'scripts/build-ndn-static-root-sitemap.py'
+      - 'tests/test_ndn_static_root_sitemap.py'
       - 'auto-platform.js'
       - 'admin-page.js'
       - 'system1-control-center.js'
@@ -111,6 +113,27 @@ jobs:
         run: |
           node scripts/build-ndn-static-seo-assets.mjs
           node --test tests/static-seo-assets.test.mjs
+      - name: Build quota-independent complete sitemap index from destination R2 READ ONLY
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_ndn_static_root_sitemap.py' -v
+          python3 -m pip install --quiet --disable-pip-version-check boto3
+          python3 scripts/build-ndn-static-root-sitemap.py
+          python3 - <<'PY'
+          import pathlib,xml.etree.ElementTree as ET
+          root=pathlib.Path('.ndn-static-assets')
+          assert sorted(x.name for x in root.iterdir())==['llms.txt','robots.txt','sitemap-core.xml','sitemap.xml']
+          data=(root/'sitemap.xml').read_text()
+          assert ET.fromstring(data).tag.endswith('sitemapindex')
+          for suffix in ['/sitemap-core.xml','/sitemap-ai-v2.xml','/sitemap-pages.xml']:
+            assert 'https://noondealsnow.com'+suffix in data
+          print('ROOT_SITEMAP_SOURCE_AND_FILE_WHITELIST=PASS')
+          PY
       - name: Check native gate and authenticated secret manager regressions
         run: node --test tests/native-bound-ai-v2-fast.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs
       - name: Prevent incorrect AI-readable NOV coupon market mappings
@@ -168,7 +191,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for path in /robots.txt /sitemap-core.xml /llms.txt; do
+          for path in /robots.txt /sitemap-core.xml /llms.txt /sitemap.xml; do
             code=$(curl -sS --max-time 20 -o /tmp/ndn-static-seo-live -w '%{http_code}' \
               -H 'User-Agent: NDN-static-asset-quota-probe' "https://noondealsnow.com$path" || true)
             echo "STATIC_ASSET_LIVE_PATH=$path;HTTP=$code"
@@ -177,6 +200,7 @@ jobs:
               /robots.txt) grep -q 'User-agent: OAI-SearchBot' /tmp/ndn-static-seo-live ;;
               /sitemap-core.xml) grep -q '<urlset' /tmp/ndn-static-seo-live ;;
               /llms.txt) grep -q 'NOV170' /tmp/ndn-static-seo-live ;;
+              /sitemap.xml) grep -q '<sitemapindex' /tmp/ndn-static-seo-live ;;
             esac
           done
           echo 'STATIC_SEO_ZERO_WORKER_QUOTA_DEPENDENCE=VERIFIED'
