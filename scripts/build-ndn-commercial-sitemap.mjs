@@ -2,17 +2,21 @@
 // Only include file-backed canonical pages with INDEX status. Do not invent
 // dates or include thin noindex category pages. No R2 writes or Worker calls.
 import {readFile,writeFile} from 'node:fs/promises';
+import {BRANDS} from '../commerce-taxonomy.js';
 import {resolve} from 'node:path';
 const origin='https://noondealsnow.com',root=resolve('.ndn-static-assets');
 const slugRoutes={
  saudi:['first-order','mobile-phones','home-appliances','electronics','perfumes-beauty','baby'],
  uae:['first-order','electronics','beauty','home-appliances']
 };
+const allBrandSlugs=Object.keys(BRANDS).filter(slug=>/^[a-z0-9-]+$/.test(slug)&&BRANDS[slug]?.label);
+if(allBrandSlugs.length!==30)throw Error('COMMERCIAL_SITEMAP_BRAND_COUNT_CHANGED');
 const routes=[
+ '/brands',
  '/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer',
  ...['saudi','uae'].flatMap(m=>[
   '/'+m+'/categories',(m==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code'),'/'+m+'/shopping-guide',
-  '/'+m+'/brand/apple','/'+m+'/brand/samsung',
+  ...allBrandSlugs.map(slug=>'/'+m+'/brand/'+slug),
   ...slugRoutes[m].map(slug=>'/'+m+'/buying-guide/'+slug)
  ])
 ];

@@ -9,6 +9,8 @@ on:
       - 'scripts/build-ndn-quota-static-fallback.mjs'
       - 'scripts/build-ndn-commercial-static.mjs'
       - 'scripts/build-ndn-legacy-conversion-landing-rescue.mjs'
+      - 'scripts/build-ndn-static-all-brand-hubs.mjs'
+      - 'tests/ndn-static-all-brand-hubs.test.mjs'
       - 'tests/ndn-legacy-commercial-static.test.mjs'
       - 'scripts/build-ndn-commercial-sitemap.mjs'
       - 'tests/ndn-commercial-sitemap.test.mjs'
@@ -334,6 +336,8 @@ jobs:
           node scripts/build-ndn-static-trust-pages.mjs
           node scripts/build-ndn-commercial-static.mjs
           node scripts/build-ndn-legacy-conversion-landing-rescue.mjs
+          node scripts/build-ndn-static-all-brand-hubs.mjs
+          node --test tests/ndn-static-all-brand-hubs.test.mjs
           node --test tests/ndn-legacy-commercial-static.test.mjs
           node scripts/build-ndn-commercial-sitemap.mjs
           node --test tests/ndn-commercial-sitemap.test.mjs
