@@ -31,6 +31,52 @@ export function normalizeArabicUaeMentions(source,country='SA',english=false){
  return raw.split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>|<[^>]+>)/gi)
    .map(part=>part.startsWith('<')?part:part.replace(/نون[\s\u00a0]+uae\b/gi,'نون الإمارات')).join('');
 }
+// Public QA found two specific legacy Arabic UAE articles with clothing
+// advice incorrectly applied to backpacks or malformed "لـهدية" sentences.
+// Repair the exact previously verified prose in visible text nodes ONLY.
+// Restrict this to the two audited slugs, never all brand articles. Preserve
+// scripts, structured data, hrefs, markup, the coupon and original R2 bytes.
+export function repairAuditedLegacyBuyerGuidance(html,slug,country='SA',english=false){
+ const source=String(html??'');
+ if(country!=='AE'||english)return source;
+ const key=String(slug??'');
+ const backpack=key==='american-tourister-backpacks-السعر-النهائي-بعد-تجربة-الكود-نون-الإمارات';
+ const adidas=key==='إرجاع-adidas-originals-للطلب-الأول-وكوبون-نون-الإمارات-من-المتصفح-هدية-اللون';
+ if(!backpack&&!adidas)return source;
+ const pairs=backpack?[
+  ['فابدأ بصلاحية American Tourister Backpacks السعر النهائي بعد تجربة الكود لـالرياضة ثم راجع اللون والبائع والشحن.',
+   'فابدأ بمقارنة سعة حقيبة الظهر ومقاسها وخامتها والبائع والشحن.'],
+  ['وفي هذا الدليل نركز على مع أولوية سهولة الاستخدام.',
+   'وفي هذا الدليل نركز على راحة حمل الحقيبة وملاءمتها للاستخدام.'],
+  ['قبل التفكير في القسيمة، ثبّت ما تحتاجه فعلًا في American Tourister Backpacks السعر النهائي بعد تجربة الكود. في حالة الرياضة، ركّز أولًا على المقاس والخامة، ثم راجع القصة.',
+   'قبل التفكير في القسيمة، حدد السعة المناسبة لحقيبة الظهر، ثم راجع المقاس والخامة وتوزيع الجيوب وراحة الحمل.'],
+  ['افترض أنك وجدت خيارين من American Tourister Backpacks السعر النهائي بعد تجربة الكود مناسبين لـالرياضة.',
+   'إذا وجدت حقيبتي ظهر مناسبتين لاحتياجك،'],
+  ['أكمل عندما يكون American Tourister Backpacks السعر النهائي بعد تجربة الكود مناسبًا لـالرياضة،',
+   'أكمل عندما تكون حقيبة الظهر مناسبة لاستخدامك،'],
+  ['قارن ملاءمة المنتج لـالرياضة والبائع والإرجاع والشحن والإجمالي النهائي؛',
+   'قارن سعة الحقيبة وراحة حملها والبائع والإرجاع والشحن والإجمالي النهائي؛']
+ ]:[
+  ['فابدأ بصلاحية adidas Originals للطلب الأول لـهدية ثم راجع اللون والبائع والشحن.',
+   'فابدأ بمراجعة مقاس المنتج وخامته ولونه وشروط الإرجاع والبائع، خصوصًا عند شراء هدية.'],
+  ['قبل التفكير في القسيمة، ثبّت ما تحتاجه فعلًا في adidas Originals للطلب الأول. في حالة هدية، ركّز أولًا على المقاس والخامة، ثم راجع القصة.',
+   'قبل التفكير في القسيمة، راجع مقاس المنتج وخامته ولونه وشروط إرجاعه، خصوصًا إذا كان هدية.'],
+  ['افترض أنك وجدت خيارين من adidas Originals للطلب الأول مناسبين لـهدية.',
+   'إذا وجدت منتجين من adidas Originals مناسبين كهدية،'],
+  ['أكمل عندما يكون adidas Originals للطلب الأول مناسبًا لـهدية،',
+   'أكمل عندما يكون المنتج المختار مناسبًا للشخص الذي سيتلقى الهدية،'],
+  ['قارن ملاءمة المنتج لـهدية',
+   'قارن ملاءمة المنتج كهدية']
+ ];
+ return source.split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>|<[^>]+>)/gi)
+  .map(part=>{
+   if(part.startsWith('<'))return part;
+   let clean=part;
+   for(const [oldText,newText] of pairs)clean=clean.replaceAll(oldText,newText);
+   return clean.replaceAll('سوق uae','سوق الإمارات');
+  }).join('');
+}
+
 // R2 stores older FAQ JSON-LD under the original promotion code. The public
 // reader now displays the market primary code; keep FAQ schema in agreement
 // with the *visible* FAQ without touching canonical URLs, item IDs or source R2.
