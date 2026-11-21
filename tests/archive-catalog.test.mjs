@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {emergencyPublicR2Response,rescueSitemapResponse,rescueSitemapIndexPaths} from '../r2-emergency-readonly.js';
+import {emergencyPublicR2Response,rescueSitemapResponse,rescueSitemapIndexPaths,nativeBoundRescueCatalogResponse} from '../r2-emergency-readonly.js';
+import {archiveLanding} from '../archive-pages.js';
 import {publicRouteKind,publicEdgeCacheEligible,publicEdgePolicyRevision} from '../r2-public-cache-policy.js';
 
 const env={R2_RESCUE_READONLY_ENABLED:'true',NOON_RESCUE_R2_ACCESS_KEY_ID:'TEST_ID',NOON_RESCUE_R2_SECRET_ACCESS_KEY:'TEST_SECRET'};
@@ -104,4 +105,69 @@ test('English stable directory is cacheable but never caches URL params',()=>{
   assert.equal(publicRouteKind('/blog/archive/english/catalog/2'),'page');
   assert.equal(publicEdgeCacheEligible(new Request('https://noondealsnow.com/blog/archive/english/catalog/2')),true);
   assert.equal(publicEdgeCacheEligible(new Request('https://noondealsnow.com/blog/archive/english/catalog/2?ref=abc')),false);
+});
+
+
+test('destination native R2 serves both already-sitemapped catalogs with original 100-link pages',async()=>{
+ const keys={'seo-rescue/index.json':{version:1,count:250,englishCount:230,segments:[{n:0,key:'seo-rescue/part-0.json',count:250}],englishSegments:[{n:0,key:'seo-rescue/english-0.json',count:230}]},
+  'seo-rescue/part-0.json':{version:1,articles:list},
+  'seo-rescue/english-0.json':{version:1,articles:englishList}};
+ const calls=[];
+ const bound={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{
+  async get(key){calls.push(key);return Object.hasOwn(keys,key)?{async text(){return JSON.stringify(keys[key])}}:null},
+  async put(){throw Error('read-only catalogs cannot write R2')},
+  async list(){throw Error('catalog route cannot list all objects')}
+ }};
+ for(const [path,expected] of [
+   ['/blog/archive/catalog',100],['/blog/archive/catalog/2',100],['/blog/archive/catalog/3',50],
+   ['/blog/archive/english/catalog',100],['/blog/archive/english/catalog/2',100],['/blog/archive/english/catalog/3',30]
+ ]){
+   const res=await nativeBoundRescueCatalogResponse(new Request('https://noondealsnow.com'+path),bound);
+   assert.equal(res?.status,200,path);
+   const html=await res.text();
+   assert.equal((html.match(/<li>/g)||[]).length,expected,path);
+   assert.match(html,/name="robots" content="index,follow"/);
+   assert.ok(html.includes('rel="canonical" href="https://noondealsnow.com'+path+'"'));
+   if(path.includes('/english/')){
+     assert.match(html,/<html lang="en-AE" dir="ltr"/);
+     assert.match(html,/\/en\/articles\/en-uae-guide-/);
+     assert.doesNotMatch(html,/\/articles\/guide-0000/);
+   }else assert.match(html,/\/articles\/guide-0000|\/articles\/guide-0100|\/articles\/guide-0200/);
+ }
+ assert.ok(calls.every(key=>key.startsWith('seo-rescue/')));
+ assert.equal((await nativeBoundRescueCatalogResponse(new Request('https://noondealsnow.com/blog/archive/english/catalog/4'),bound))?.status,404);
+ assert.equal((await nativeBoundRescueCatalogResponse(new Request('https://noondealsnow.com/blog/archive/catalog/4'),bound))?.status,404);
+ for(const path of ['/blog','/blog/archive/english','/admin','/blog/archive/english/catalog/0']){
+   assert.equal(await nativeBoundRescueCatalogResponse(new Request('https://noondealsnow.com'+path),bound),null);
+ }
+ assert.equal(await nativeBoundRescueCatalogResponse(new Request('https://noondealsnow.com/blog/archive/catalog',{method:'POST'}),bound),null);
+ assert.equal(await nativeBoundRescueCatalogResponse(new Request('https://noondealsnow.com/blog/archive/catalog'),{...bound,R2_RESCUE_READONLY_ENABLED:'true'}),null);
+});
+
+test('English browse archive uses English HTML semantics, safe hubs and unchanged noindex',async()=>{
+ const entries=Array.from({length:17},(_,i)=>({
+  slug:'en-uae-guide-'+i,title:'Noon UAE guide '+i,status:'published',createdAt:'2026-10-20T00:00:00Z'
+ }));
+ const bound={CONTENT_FINAL:{async get(key){return key==='english-canary/state.json'?{
+  async json(){return{records:entries}}
+ }:null}}};
+ for(const page of [1,2]){
+   const url=new URL('https://noondealsnow.com/blog/archive/english'+(page===2?'?page=2':''));
+   const res=await archiveLanding(url.pathname,url,bound),html=await res.text();
+   assert.equal(res.status,200);
+   assert.match(html,/<html lang="en-AE" dir="ltr"/);
+   assert.match(html,/<title>English UAE archive \| Noon Deals Now<\/title>/);
+   assert.match(html,/name="robots" content="noindex,follow"/);
+   assert.match(res.headers.get('x-robots-tag'),/noindex/);
+   for(const href of ['/blog/archive/english/catalog','/en/uae','/en/uae/noon-coupon-code','/en/uae/saving-guide'])
+     assert.ok(html.includes('href="'+href+'"'),href);
+   assert.doesNotMatch(html,/>← الأرشيف<\/a>/);
+   assert.equal((html.match(/<article class="card"/g)||[]).length,page===1?15:2);
+   assert.match(html,/\/en\/articles\/en-uae-guide-/);
+ }
+ const url=new URL('https://noondealsnow.com/blog/archive');
+ const html=await (await archiveLanding(url.pathname,url,bound)).text();
+ assert.match(html,/<html lang="ar" dir="rtl"/);
+ assert.match(html,/name="robots" content="noindex,follow"/);
+ assert.match(html,/href="\/blog\/archive\/catalog"/);
 });
