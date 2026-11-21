@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/noondealsnow-new-account-production-ready.yml'
       - 'wrangler.new-account-production.jsonc'
+      - 'scripts/build-ndn-static-seo-assets.mjs'
+      - 'tests/static-seo-assets.test.mjs'
       - 'auto-platform.js'
       - 'admin-page.js'
       - 'system1-control-center.js'
@@ -91,6 +93,8 @@ jobs:
           assert c['name']=='noondealsnow-production-new'
           assert c['main']=='discovery-entry.js'
           assert c['workers_dev'] is False
+          assert c['assets']=={'directory':'./.ndn-static-assets','run_worker_first':False}
+          assert c.get('assets',{}).get('not_found_handling') is None
           assert c['triggers']['crons']==[]
           assert c['vars']['GLOBAL_PUBLISH_MIN_INTERVAL_SECONDS']=='30'
           assert c['vars']['GLOBAL_PUBLISH_MAX_PER_MINUTE']=='2'
@@ -103,6 +107,10 @@ jobs:
           PY
       - name: Install dependencies for approved source and test suite
         run: npm install --no-audit --no-fund --ignore-scripts
+      - name: Build and validate quota-independent public SEO assets
+        run: |
+          node scripts/build-ndn-static-seo-assets.mjs
+          node --test tests/static-seo-assets.test.mjs
       - name: Check native gate and authenticated secret manager regressions
         run: node --test tests/native-bound-ai-v2-fast.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs
       - name: Prevent incorrect AI-readable NOV coupon market mappings
@@ -156,6 +164,22 @@ jobs:
           jq -e '.success==true' /tmp/ndn-worker-ready.json >/dev/null
           echo 'NEW_PRODUCTION_WORKER_DEPLOYED=TRUE'
           echo 'DNS_CHANGED=FALSE;CUSTOM_DOMAIN_ATTACHED=FALSE;OLD_SITE_MODIFIED=FALSE'
+      - name: Confirm static SEO remains HTTP 200 under daily Worker quota exhaustion
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /robots.txt /sitemap-core.xml /llms.txt; do
+            code=$(curl -sS --max-time 20 -o /tmp/ndn-static-seo-live -w '%{http_code}' \
+              -H 'User-Agent: NDN-static-asset-quota-probe' "https://noondealsnow.com$path" || true)
+            echo "STATIC_ASSET_LIVE_PATH=$path;HTTP=$code"
+            test "$code" = 200
+            case "$path" in
+              /robots.txt) grep -q 'User-agent: OAI-SearchBot' /tmp/ndn-static-seo-live ;;
+              /sitemap-core.xml) grep -q '<urlset' /tmp/ndn-static-seo-live ;;
+              /llms.txt) grep -q 'NOV170' /tmp/ndn-static-seo-live ;;
+            esac
+          done
+          echo 'STATIC_SEO_ZERO_WORKER_QUOTA_DEPENDENCE=VERIFIED'
       - name: Smoke test public mobile-critical routes after deployment
         shell: bash
         run: |
