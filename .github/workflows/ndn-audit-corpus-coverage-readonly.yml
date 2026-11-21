@@ -1,0 +1,53 @@
+name: NoonDealsNow - Read Only All Corpus Coverage Audit
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ndn-audit-corpus-coverage-readonly.yml'
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Inspect existing native, legacy, rescue, and full-corpus metadata with no writes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import boto3,json,os
+          from botocore.config import Config
+          client=boto3.client('s3',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+             region_name='auto',aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+             config=Config(connect_timeout=10,read_timeout=30,retries={'max_attempts':1}))
+          bucket='nooncoupons-content-v2'
+          for key in [
+            '_ops/ai-v2-publication-ledger-v1.json',
+            'bulk/public-compact-v1.json',
+            'bulk/latest.json',
+            'bulk/days.json',
+            'blog/latest-live-v1.json',
+            'seo-rescue/index.json',
+            'maintenance/article-discovery-v1/current.json',
+            '_ops/article-count.json'
+          ]:
+            try:
+              r=client.get_object(Bucket=bucket,Key=key)
+              data=json.loads(r['Body'].read(12000000))
+              attrs={k:v for k,v in data.items() if k in ('version','count','total','shards','complete','generatedAt','updatedAt','runId','dayCount')}
+              for item in ('articles','days','segments','englishSegments'):
+                if isinstance(data.get(item),list):
+                  attrs[item+'_length']=len(data[item])
+                  if item=='days':
+                    attrs['sum_day_counts']=sum(int(x.get('count') or 0) for x in data[item] if isinstance(x,dict))
+                  if item=='segments':
+                    attrs['sum_segment_counts']=sum(int(x.get('count') or 0) for x in data[item] if isinstance(x,dict))
+              print('R2_CORPUS_KEY='+key+';METRICS='+json.dumps(attrs,ensure_ascii=False,sort_keys=True),flush=True)
+            except Exception as e:
+              print('R2_CORPUS_KEY='+key+';ERROR='+type(e).__name__,flush=True)
+          print('R2_CORPUS_AUDIT_READ_ONLY=TRUE;NO_LIST_NO_PUT_NO_DELETE',flush=True)
+          PY
