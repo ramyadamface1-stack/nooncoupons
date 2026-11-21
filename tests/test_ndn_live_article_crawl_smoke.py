@@ -36,6 +36,18 @@ class CrawlSmokeTests(unittest.TestCase):
             BASE + "/sitemap-audit-articles-0.xml",
         ])
 
+    def test_native_ai_root_all_shards_and_strict_order(self):
+        paths = [BASE + f"/sitemap-ai-v2-{n}.xml" for n in range(1, 6)]
+        self.assertEqual(mod.ai_v2_shard_paths(index(paths)), paths)
+        with self.assertRaisesRegex(ValueError, "AI_V2_NONCANONICAL_SHARD_ORDER"):
+            mod.ai_v2_shard_paths(index([paths[1], paths[0]]))
+        with self.assertRaisesRegex(ValueError, "AI_V2_DUPLICATE_SHARD_URLS"):
+            mod.ai_v2_shard_paths(index([paths[0], paths[0]]))
+        with self.assertRaisesRegex(ValueError, "AI_V2_FOREIGN_SHARD_URL"):
+            mod.ai_v2_shard_paths(index(["https://evil.example/sitemap-ai-v2-1.xml"]))
+        with self.assertRaisesRegex(ValueError, "AI_V2_UNEXPECTED_SHARD_COUNT"):
+            mod.ai_v2_shard_paths(index([]))
+
     def test_falls_back_to_day_article_sitemaps(self):
         result = mod.choose_sitemaps(index([
             BASE + "/sitemap-pages.xml",

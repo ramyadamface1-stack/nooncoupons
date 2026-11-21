@@ -4,7 +4,8 @@ Do not confuse a working GitHub deployment / static sitemap with live
 article indexability. This probe runs only when homepage is HTTP 200 and never
 writes to R2, Cloudflare, Search Console, or the publishing API.
 
-No API secrets, no remote redirects, and <= 2 nested sitemaps + 2 HTML pages.
+No API secrets, no remote redirects, up to 50 canonical static AI XML shards,
+plus <= 2 dynamic nested sitemaps and <= 2 HTML article pages after recovery.
 """
 from __future__ import annotations
 
@@ -60,6 +61,48 @@ def article_urls(xml):
     return [x for x in urls if re.search(r"^/((en/)?articles/|blog/)", urllib.parse.urlsplit(x).path)]
 
 
+def ai_v2_shard_paths(xml):
+    """All verified native AI V2 sitemap leaves, not just a random canary."""
+    root = ET.fromstring(xml)
+    if not root.tag.endswith("sitemapindex"):
+        raise ValueError("AI_V2_ROOT_NOT_SITEMAP_INDEX")
+    paths = [node.text or "" for node in root.findall("s:sitemap/s:loc", NAMESPACE)]
+    if not 1 <= len(paths) <= 50:
+        raise ValueError("AI_V2_UNEXPECTED_SHARD_COUNT")
+    if len(set(paths)) != len(paths):
+        raise ValueError("AI_V2_DUPLICATE_SHARD_URLS")
+    for i, url in enumerate(paths, 1):
+        if not safe_url(url):
+            raise ValueError("AI_V2_FOREIGN_SHARD_URL")
+        if urllib.parse.urlsplit(url).path != "/sitemap-ai-v2-" + str(i) + ".xml":
+            raise ValueError("AI_V2_NONCANONICAL_SHARD_ORDER")
+    return paths
+
+
+def verify_static_ai_v2():
+    """Read-only static asset inspection, even if all dynamic HTML is HTTP 429."""
+    code, mime, body = get(BASE + "/sitemap-ai-v2.xml", limit=3000000)
+    print("NDN_STATIC_AI_V2_ROOT_HTTP=" + str(code))
+    if code != 200 or "xml" not in mime:
+        raise RuntimeError("STATIC_AI_V2_ROOT_NOT_200_XML")
+    paths = ai_v2_shard_paths(body)
+    count = 0
+    for path in paths:
+        status, mime, data = get(path, limit=4000000)
+        print("NDN_STATIC_AI_V2_SHARD=" + path + ";HTTP=" + str(status))
+        if status != 200 or "xml" not in mime:
+            raise RuntimeError("STATIC_AI_V2_SHARD_NOT_200_XML")
+        rows = article_urls(data)
+        total_in_xml = len(ET.fromstring(data).findall("s:url", NAMESPACE))
+        if not 1 <= len(rows) <= 2000 or len(rows) != total_in_xml or len(rows) != len(set(rows)):
+            raise RuntimeError("STATIC_AI_V2_INVALID_OR_DUPLICATE_ARTICLE_URLS")
+        count += len(rows)
+    print("NDN_STATIC_AI_V2_GOOGLE_CRAWL_DISCOVERY=VERIFIED;SHARDS="
+          + str(len(paths)) + ";PUBLICATION_LEDGER_URLS=" + str(count))
+    # This proves XML availability only, NOT Google indexing or article HTTP 200.
+    return count
+
+
 def get(url, limit=600000):
     if not safe_url(url):
         raise ValueError("INVALID_URL_HOST")
@@ -80,6 +123,7 @@ class NoCrossHostRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def run():
+    verify_static_ai_v2()
     status, _, _ = get(BASE + "/")
     print("NDN_DYNAMIC_HOMEPAGE_HTTP=" + str(status))
     if status == 429:
