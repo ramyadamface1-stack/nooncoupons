@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {APPROVED_COUPON_CODES} from '../approved-coupons.js';
-import {coreSitemap,prioritySitemap,hubSitemap,imageSitemap,englishRecentSitemap,boundedEnglishSitemapRecords} from '../discovery-entry.js';
+import {coreSitemap,prioritySitemap,hubSitemap,imageSitemap,englishRecentSitemap,boundedEnglishSitemapRecords,sitemapArticleLastmod} from '../discovery-entry.js';
 
 const ORIGIN='https://noondealsnow.com';
-function fakeR2({englishAvailable=true,englishArticles=null}={}){
+function fakeR2({englishAvailable=true,englishArticles=null,arabicArticles=null}={}){
   const calls=[];
   const sa={slug:'saudi-article-nov170',country:'SA',status:'published',quality:98,qualityFloor:92,wordCount:1900,
     createdAt:'2026-11-07T14:00:00Z',updatedAt:'2026-11-08T14:00:00Z',
@@ -21,7 +21,7 @@ function fakeR2({englishAvailable=true,englishArticles=null}={}){
     if(key==='english-canary/public-recent-v1.json'&&englishAvailable)
       return {json:async()=>({version:1,articles:englishArticles??[ae]})};
     if(key==='bulk/public-compact-v1.json')
-      return {json:async()=>({version:1,articles:[sa]})};
+      return {json:async()=>({version:1,articles:arabicArticles??[sa]})};
     return null;
   }}};
   return {env,calls};
@@ -103,4 +103,29 @@ test('priority sitemap retains verified canonical English search recovery target
     '/en/articles/en-iphone-duo-noon-abu-dhabi-coupon-code'
   ])assert.ok(xml.includes('<loc>'+ORIGIN+path+'</loc>'),path);
   assert.ok(!xml.includes('/en/articles/en-iphone-duo-noon-abu-dhabi-deals</loc>'));
+});
+
+test('sitemap lastmod uses real publication and verified editorial revisions, not sync timestamps',async()=>{
+  const published='2026-10-05T09:00:00.000Z';
+  const revision='2026-11-18T16:00:00.000Z';
+  const snapshot={slug:'sample-safe',country:'SA',status:'published',quality:98,qualityFloor:92,wordCount:1800,
+    createdAt:published,updatedAt:'2026-11-20T22:50:00.000Z',categoryKey:'mobiles'};
+  assert.equal(sitemapArticleLastmod(snapshot,new Date('2026-11-21T00:00:00Z')),published);
+  assert.equal(sitemapArticleLastmod({...snapshot,editorialUpdatedAt:revision},new Date('2026-11-21T00:00:00Z')),revision);
+  assert.equal(sitemapArticleLastmod({...snapshot,editorialUpdatedAt:'2026-12-10T00:00:00Z'},new Date('2026-11-21T00:00:00Z')),published);
+  assert.equal(sitemapArticleLastmod({...snapshot,publishedAt:'2026-12-10T00:00:00Z'},new Date('2026-11-21T00:00:00Z')),null);
+  assert.equal(sitemapArticleLastmod({...snapshot,createdAt:'nonsense'},new Date('2026-11-21T00:00:00Z')),null);
+  const reviewed={...snapshot,slug:'reviewed',editorialUpdatedAt:revision};
+  const env=fakeR2({arabicArticles:[snapshot,reviewed]});
+  const priority=await (await prioritySitemap(env.env,ORIGIN)).text();
+  assert.ok(priority.includes('<loc>'+ORIGIN+'/articles/sample-safe</loc><lastmod>'+published+'</lastmod>'));
+  assert.ok(priority.includes('<loc>'+ORIGIN+'/articles/reviewed</loc><lastmod>'+revision+'</lastmod>'));
+  const hubs=await (await hubSitemap(env.env,ORIGIN)).text();
+  assert.ok(hubs.includes('<loc>'+ORIGIN+'/saudi/category/mobiles</loc><lastmod>'+revision+'</lastmod>'));
+  const english={...snapshot,slug:'english-safe',urlPath:'/en/articles/english-safe',country:'AE',
+    languageSource:'native-intent-v6-canary',wordCount:1400};
+  const englishEnv=fakeR2({englishArticles:[english]});
+  const enXml=await (await englishRecentSitemap(englishEnv.env,ORIGIN)).text();
+  assert.ok(enXml.includes('<loc>'+ORIGIN+'/en/articles/english-safe</loc><lastmod>'+published+'</lastmod>'));
+  assert.ok(!enXml.includes('<lastmod>'+snapshot.updatedAt+'</lastmod>'));
 });
