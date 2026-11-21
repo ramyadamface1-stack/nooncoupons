@@ -74,6 +74,12 @@ await query('GPTBOT_204','',{userAgent_like:'%GPTBot%',edgeResponseStatus:204},1
 await query('METHODS','dimensions { clientRequestHTTPMethodName }',{},10);
 await query('ERROR_504_METHODS','dimensions { clientRequestHTTPMethodName }',{edgeResponseStatus:504},10);
 await query('STATUS_204_METHODS','dimensions { clientRequestHTTPMethodName }',{edgeResponseStatus:204},10);
+await query('PUT_204_AGENTS','dimensions { userAgent }',{edgeResponseStatus:204,clientRequestHTTPMethodName:'PUT'},18);
+await query('PUT_204_COUNTRY','dimensions { clientCountryName }',{edgeResponseStatus:204,clientRequestHTTPMethodName:'PUT'},12);
+await query('PUT_204_PATHS','dimensions { clientRequestPath }',{edgeResponseStatus:204,clientRequestHTTPMethodName:'PUT'},12);
+await query('GET_504_COUNTRY','dimensions { clientCountryName }',{edgeResponseStatus:504,clientRequestHTTPMethodName:'GET'},12);
+await query('GET_504_PATHS','dimensions { clientRequestPath }',{edgeResponseStatus:504,clientRequestHTTPMethodName:'GET'},12);
+await query('EMPTY_AGENT_504_ARTICLE','',{clientRequestPath_like:'/articles/%',edgeResponseStatus:504,userAgent:''},1);
 await query('ARTICLES_504_AGENTS','dimensions { userAgent }',{clientRequestPath_like:'/articles/%',edgeResponseStatus:504},12);
 await query('SVG_504_AGENTS','dimensions { userAgent }',{clientRequestPath_like:'/assets/coupon-svg/%',edgeResponseStatus:504},12);
 for(const [label,prefix] of [['ARTICLES','/articles/%'],['SVG','/assets/coupon-svg/%'],['API','/api/%']]){
