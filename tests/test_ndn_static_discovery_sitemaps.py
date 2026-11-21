@@ -40,7 +40,7 @@ class DiscoveryStaticTests(unittest.TestCase):
             "saudi-buyer-verified-nov170-2026","SA","NOV170")]},
           "bulk/latest.json":None,
           "english-canary/public-recent-v1.json":{"version":1,"articles":[article(
-            "en-uae-buyer-verified-nov188-2026","AE","NOV188")]},
+            "en-uae-buyer-verified-nov188-2026","AE","NOV188") | {"urlPath":"/en/articles/en-uae-buyer-verified-nov188-2026","languageSource":"native-intent-v6-canary"}]},
           "maintenance/article-discovery-v1/current.json":{"complete":True,"version":1,
             "shards":5,"generatedAt":"2026-11-21T09:00:00Z"}
         }
