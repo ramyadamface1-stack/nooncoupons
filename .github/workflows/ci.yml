@@ -43,6 +43,9 @@ jobs:
       - name: Check crawler-specific robots directives against images and OAI search
         run: node --test tests/robots-training-svg-budget.test.mjs
 
+      - name: Verify quota-independent static SEO assets are safe and non-overlapping
+        run: node --test tests/static-seo-assets.test.mjs
+
       - name: Enforce public legacy rescue prose regressions on every pull request
         run: node --test tests/rescue-article-conversion.test.mjs
 
