@@ -11,7 +11,10 @@ on:
       - 'scripts/stage-ndn-static-blog-and-articles.py'
       - 'scripts/render-ndn-static-blog-from-r2.mjs'
       - 'scripts/build-ndn-static-archive-and-images.mjs'
-      - 'tests/ndn-static-complete-blog.test.mjs tests/ndn-complete-r2-archive.test.mjs'
+      - 'tests/ndn-static-complete-blog.test.mjs'
+      - 'scripts/stage-ndn-complete-r2-article-keys.py'
+      - 'scripts/render-ndn-complete-r2-archive.mjs'
+      - 'tests/ndn-complete-r2-archive.test.mjs'
       - 'tests/ndn-static-blog-from-r2.test.mjs'
       - 'scripts/build-ndn-static-market-sitemaps.mjs'
       - 'tests/static-seo-assets.test.mjs'
@@ -320,7 +323,7 @@ jobs:
           node scripts/build-ndn-static-archive-and-images.mjs
           python3 scripts/stage-ndn-complete-r2-article-keys.py
           node scripts/render-ndn-complete-r2-archive.mjs
-          node --test tests/ndn-static-blog-from-r2.test.mjs tests/ndn-static-complete-blog.test.mjs
+          node --test tests/ndn-static-blog-from-r2.test.mjs tests/ndn-static-complete-blog.test.mjs tests/ndn-complete-r2-archive.test.mjs
           echo 'LIVE_BLOG_SOURCE=R2_VERIFIED_PUBLICATIONS;NO_FAKE_GUIDE_ONLY_BLOG=TRUE'
 
       - name: Check native gate and authenticated secret manager regressions
