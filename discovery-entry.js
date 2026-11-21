@@ -323,7 +323,7 @@ export async function prioritySitemap(env,origin){
     const marketRows=english.filter(a=>a.country===country);
     if(!marketRows.length)continue;
     englishPages.push({loc:origin+'/en/'+market,lastmod:null});
-    englishPages.push({loc:origin+'/en/'+market+'/noon-coupon-code',lastmod:marketRows.map(sitemapArticleLastmod).filter(Boolean).sort().slice(-1)[0]||null});
+    englishPages.push({loc:origin+'/en/'+market+'/noon-coupon-code',lastmod:marketRows.map(a=>sitemapArticleLastmod(a)).filter(Boolean).sort().slice(-1)[0]||null});
     const byCategory=new Map();
     for(const a of marketRows){if(a.categoryKey)byCategory.set(a.categoryKey,(byCategory.get(a.categoryKey)||0)+1)}
     for(const [categoryKey,count] of byCategory)if(englishCategoryIndexable(market,categoryKey,count))englishPages.push({loc:origin+'/en/'+market+'/category/'+encodeURIComponent(categoryKey),lastmod:null});
@@ -335,7 +335,7 @@ export async function prioritySitemap(env,origin){
       ];
       for(const [key,pattern] of productHubs){
         const matches=marketRows.filter(a=>pattern.test(String(a.title||'')+' '+String(a.primaryKeyword||'')));
-        if(matches.length>=2)englishPages.push({loc:origin+'/en/uae/product/'+key,lastmod:matches.map(sitemapArticleLastmod).filter(Boolean).sort().slice(-1)[0]||null});
+        if(matches.length>=2)englishPages.push({loc:origin+'/en/uae/product/'+key,lastmod:matches.map(a=>sitemapArticleLastmod(a)).filter(Boolean).sort().slice(-1)[0]||null});
       }
     }
   }
@@ -345,11 +345,15 @@ export async function prioritySitemap(env,origin){
     const d=o?await o.json():null;
     if(d?.complete&&Number(d?.version)===1&&Number(d?.shards||0)>0)auditArchive.push({loc:origin+'/blog/archive',lastmod:d.generatedAt||null});
   }catch{}
-  const seen=new Set(),rows=[];
+  // Static hubs may also appear in the bounded dynamic projection. Keep one
+  // canonical URL, but retain its verified lastmod instead of the older null.
+  const byUrl=new Map();
   for(const row of [...keyPages(origin),...auditArchive,...englishPages,...evergreenEnglishArticles,...articles,...englishArticles]){
-    if(seen.has(row.loc))continue;
-    seen.add(row.loc);rows.push(row);
+    const previous=byUrl.get(row.loc);
+    if(!previous||(row.lastmod&&(!previous.lastmod||String(row.lastmod)>String(previous.lastmod))))
+      byUrl.set(row.loc,row);
   }
+  const rows=[...byUrl.values()];
   const xml=`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${rows.map(x=>`<url><loc>${esc(x.loc)}</loc>${x.lastmod?`<lastmod>${esc(x.lastmod)}</lastmod>`:''}</url>`).join('')}</urlset>`;
   return new Response(xml,{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=300, s-maxage=900, stale-while-revalidate=86400','x-robots-tag':'all','x-priority-sitemap-count':String(rows.length),'x-priority-sitemap':'v2','x-english-priority-count':String(englishArticles.length),'x-english-priority-hubs':String(englishPages.length)}});
 }

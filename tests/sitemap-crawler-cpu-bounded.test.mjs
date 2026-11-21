@@ -55,6 +55,14 @@ test('CPU-bounded priority, hubs and images use only precomputed R2 public snaps
   assert.ok(!calls.includes('english-canary/state.json'),'Must never parse full English state on public sitemap');
   assert.ok(!calls.includes('bulk/latest.json'),'Must prefer the 300-entry compact public manifest');
 });
+test('priority sitemap deduplicates a static English hub without losing a verified lastmod',async()=>{
+  const {env}=fakeR2();
+  const xml=await (await prioritySitemap(env,ORIGIN)).text();
+  const canonical='<loc>'+ORIGIN+'/en/uae/noon-coupon-code</loc>';
+  assert.equal(xml.split(canonical).length-1,1,'the hub must appear only once');
+  assert.ok(xml.includes(canonical+'<lastmod>2026-11-08T10:00:00.000Z</lastmod>'),
+    'the dynamic article update must not be hidden by a static sitemap entry: '+xml.slice(xml.indexOf(canonical),xml.indexOf(canonical)+180));
+});
 test('missing English snapshot degrades to stable valid XML without heavy-state fallback',async()=>{
   const {env,calls}=fakeR2({englishAvailable:false});
   const english=await boundedEnglishSitemapRecords(env);
