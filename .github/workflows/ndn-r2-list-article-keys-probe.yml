@@ -1,0 +1,45 @@
+name: NoonDealsNow - Readonly Article Key Listing Availability
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ndn-r2-list-article-keys-probe.yml'
+permissions: {contents: read}
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet boto3
+      - name: Read only list of article objects and public compact entry status shapes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,boto3,json,collections
+          from botocore.config import Config
+          c=boto3.client('s3',endpoint_url='https://e4c35f8a50a7b2e4cfb9d6c534962603.r2.cloudflarestorage.com',
+            region_name='auto',aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+            config=Config(connect_timeout=12,read_timeout=30,retries={'max_attempts':1}))
+          b='nooncoupons-content-v2'
+          try:
+            r=c.list_objects_v2(Bucket=b,Prefix='articles/',MaxKeys=8)
+            keys=[x.get('Key','') for x in r.get('Contents',[])]
+            print('ARTICLE_LIST_AUTHORIZED=TRUE;SAMPLE_KEY_COUNT='+str(len(keys))+
+              ';KEY_EXTENSIONS='+str(collections.Counter(x.split('.')[-1] for x in keys))+
+              ';HAS_NEXT='+str(bool(r.get('NextContinuationToken'))),flush=True)
+          except Exception as e:
+            print('ARTICLE_LIST_AUTHORIZED=FALSE;EXCEPTION='+type(e).__name__,flush=True)
+          try:
+            obj=c.get_object(Bucket=b,Key='bulk/public-compact-v1.json')
+            rows=json.loads(obj['Body'].read()).get('articles',[])
+            print('COMPACT_PUBLIC_ROWS='+str(len(rows))+
+              ';STATUS_COUNTS='+str(collections.Counter(str(x.get('status','MISSING')) for x in rows if isinstance(x,dict)))+
+              ';PUBLISHED_AT_PRESENT='+str(sum(bool(x.get('publishedAt')) for x in rows if isinstance(x,dict))),flush=True)
+          except Exception as e:
+            print('COMPACT_STATUS_SHAPE_UNAVAILABLE='+type(e).__name__,flush=True)
+          print('READ_ONLY=TRUE')
+          PY
