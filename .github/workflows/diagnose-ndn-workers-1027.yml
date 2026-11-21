@@ -12,7 +12,7 @@ permissions:
 jobs:
   quotas:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 8
     env:
       CF_ACCOUNT: e4c35f8a50a7b2e4cfb9d6c534962603
       CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
@@ -21,6 +21,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Examine zone Worker routes, request mix and top autonomous clients (read only)
+        run: node scripts/ndn-quota-triage.mjs
       - name: Read Cloudflare request use and diagnose public Error 1027 (no mutations)
         run: |
           node --input-type=module <<'JS'
