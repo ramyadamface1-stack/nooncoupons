@@ -45,9 +45,14 @@ jobs:
         run: |
           set -euo pipefail
           for path in /articles/ndn-guard-test /en/articles/ndn-guard-test /assets/coupon-svg/ndn-guard-test/1.svg; do
-            code=$(curl -sS --max-time 15 -o /tmp/ndn-public-put-check -w '%{http_code}' -X PUT \
-              "https://noondealsnow.com$path" || true)
-            echo "PUBLIC_PUT_PROBE_PATH=$path;HTTP=$code"
-            test "$code" = 403
+            pass=0
+            for attempt in 1 2 3 4 5 6; do
+              code=$(curl -sS --max-time 15 -o /tmp/ndn-public-put-check -w '%{http_code}' -X PUT \
+                "https://noondealsnow.com$path" || true)
+              echo "PUBLIC_PUT_PROBE_PATH=$path;TRY=$attempt;HTTP=$code"
+              if [ "$code" = 403 ]; then pass=1;break;fi
+              sleep 3
+            done
+            test "$pass" = 1 || { echo '::error::Cloudflare WAF rule exists but edge did not return 403; do not claim protection is active';exit 1; }
           done
           echo 'PUBLIC_PUT_GUARD_VERIFIED=YES;NO_DATA_UPLOADS_OR_CONTENT_MUTATIONS=true'
