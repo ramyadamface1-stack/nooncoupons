@@ -31,9 +31,12 @@ function harden(res){
   return new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
 }
 
-function robots(origin){
+export function robots(origin){
   const rules=['User-agent: *','Allow: /','Disallow: /admin','Disallow: /api/','',
-    'User-agent: GPTBot','Allow: /','Disallow: /admin','Disallow: /api/','',
+    // GPTBot is the model-training crawler, not OAI-SearchBot. Its 2026-11-21
+    // SVG flood exhausted the free Worker quota; tell compliant clients not
+    // to re-fetch generated images, while retaining indexable HTML and APIs.
+    'User-agent: GPTBot','Allow: /','Disallow: /admin','Disallow: /api/','Disallow: /assets/coupon-svg/','',
     'User-agent: OAI-SearchBot','Allow: /','Disallow: /admin','Disallow: /api/','',
     'User-agent: Google-Extended','Allow: /','Disallow: /admin','Disallow: /api/','',
     'User-agent: CCBot','Allow: /','Disallow: /admin','Disallow: /api/','',
