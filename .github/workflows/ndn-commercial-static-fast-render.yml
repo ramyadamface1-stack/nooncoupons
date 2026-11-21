@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/ndn-commercial-static-fast-render.yml'
       - 'scripts/build-ndn-commercial-static.mjs'
+      - 'scripts/build-ndn-commercial-sitemap.mjs'
+      - 'tests/ndn-commercial-sitemap.test.mjs'
       - 'scripts/build-ndn-static-trust-pages.mjs'
       - 'tests/ndn-static-trust-pages.test.mjs'
   workflow_dispatch:
@@ -23,10 +25,14 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/build-ndn-quota-static-fallback.mjs > /tmp/builder.log
+          node scripts/build-ndn-static-seo-assets.mjs > /tmp/seo.log
+          printf '<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>https://noondealsnow.com/sitemap-core.xml</loc></sitemap></sitemapindex>' > .ndn-static-assets/sitemap.xml
           mkdir -p .ndn-blog-staging
           printf '{"objects":{"_ops/ai-v2-publication-ledger-v1.json":{"articles":[]}},"cachedArticleSlugs":[]}' > .ndn-blog-staging/public-snapshot.json
           node scripts/build-ndn-static-trust-pages.mjs
           node scripts/build-ndn-commercial-static.mjs
+          node scripts/build-ndn-commercial-sitemap.mjs
+          node --test tests/ndn-commercial-sitemap.test.mjs
           node --test tests/ndn-static-trust-pages.test.mjs
           node --input-type=module <<'NODE'
           import {readFileSync,existsSync} from 'node:fs';
