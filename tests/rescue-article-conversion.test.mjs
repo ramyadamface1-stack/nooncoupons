@@ -260,7 +260,7 @@ test('audited backpack and gift pages replace false clothing advice only in visi
  assert.match(fixed,/مراجعة مقاس المنتج وخامته/);
  assert.match(fixed,/شروط إرجاعه/);
  assert.match(fixed,/مناسبين كهدية/);
- assert.match(fixed,/الشخص الذي سيتلقى الهدية/);
+ assert.match(fixed,/للشخص الذي سيتلقى الهدية/);
  assert.match(fixed,/ملاءمة المنتج كهدية/);
  assert.doesNotMatch(fixed,/(?:لـهدية|في حالة هدية|راجع القصة)/u);
  assert.equal(repairAuditedLegacyBuyerGuidance(fixed,gift,'AE'),fixed);
