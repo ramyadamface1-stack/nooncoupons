@@ -125,6 +125,25 @@ jobs:
             test "$status" = 200
           done
           echo 'NDN_STATIC_SEO_AND_AI_SEARCH_CRAWL_ACCESS=VERIFIED'
+
+          # All five canonical country/coupon/guide sitemaps must remain
+          # reachable when free-tier Worker traffic is blocked with 1027.
+          for path in /sitemap-pages.xml /sitemap-guides.xml /sitemap-coupons.xml /sitemap-coupons-saudi.xml /sitemap-coupons-uae.xml; do
+            status=$(curl -sS --max-time 18 -o /tmp/ndn-live-static-market -w '%{http_code}' \
+              -H 'User-Agent: NDN-static-market-sitemap-health-check' "https://noondealsnow.com$path" || true)
+            echo "NDN_STATIC_MARKET_SITEMAP_PATH=$path;HTTP=$status"
+            test "$status" = 200
+            grep -q '<urlset' /tmp/ndn-live-static-market
+            case "$path" in
+              /sitemap-coupons-saudi.xml)
+                grep -q '/coupon/nov170' /tmp/ndn-live-static-market
+                ! grep -q '/coupon/nov188' /tmp/ndn-live-static-market ;;
+              /sitemap-coupons-uae.xml)
+                grep -q '/coupon/nov188' /tmp/ndn-live-static-market
+                ! grep -q '/coupon/nov170' /tmp/ndn-live-static-market ;;
+            esac
+          done
+          echo 'NDN_NINE_STATIC_SEO_RESOURCES=LIVE_200;SA_AE_CODE_PARITY=VERIFIED'
           # Canonical sitemap root must stay available even when Worker quota is exhausted.
           root_http=$(curl -sS --max-time 20 -o /tmp/ndn-live-root-sitemap -w '%{http_code}' \
             -H 'User-Agent: NDN-index-health-check' 'https://noondealsnow.com/sitemap.xml' || true)
