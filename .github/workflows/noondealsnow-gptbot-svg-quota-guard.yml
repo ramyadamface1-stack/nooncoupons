@@ -2,11 +2,13 @@ name: NoonDealsNow - Apply Targeted GPTBot SVG Quota Guard
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/noondealsnow-gptbot-svg-quota-guard.yml'
-      - 'scripts/ndn-apply-gptbot-svg-guard.mjs'
+    inputs:
+      mode:
+        description: 'Apply protection or explicitly disable the exact owned rule'
+        required: true
+        type: choice
+        options: [apply, disable]
+        default: apply
 
 permissions:
   contents: read
@@ -29,10 +31,19 @@ jobs:
         with:
           node-version: '22'
       - name: Validate scoped edge mitigation source
-        run: node --check scripts/ndn-apply-gptbot-svg-guard.mjs
+        run: |
+          node --check scripts/ndn-apply-gptbot-svg-guard.mjs
+          node --check scripts/ndn-disable-gptbot-svg-guard.mjs
       - name: Create or verify one narrow zone WAF rule (no DNS, R2 or publisher changes)
+        if: inputs.mode == 'apply'
         run: node scripts/ndn-apply-gptbot-svg-guard.mjs
+      - name: Explicit rollback of only this zone rule
+        if: inputs.mode == 'disable'
+        env:
+          NDN_ROLLBACK_MODE: disable
+        run: node scripts/ndn-disable-gptbot-svg-guard.mjs
       - name: Probe only the targeted SVG route with a synthetic test User-Agent
+        if: inputs.mode == 'apply'
         shell: bash
         run: |
           set -euo pipefail
