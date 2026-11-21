@@ -79,15 +79,15 @@ def make_paths(days, discovery=None, rescue=None, live=None, now=None):
     current = discovery if isinstance(discovery, dict) else {}
     complete = (
         current.get("complete") is True
-        and current.get("version") == 1
+        and str(current.get("version")) == "1"
+        and current.get("shards") is not None
+        and str(current.get("shards")).strip().isdigit()
         and 0 <= safe_shards(current.get("shards")) <= 10000
-        and isinstance(current.get("shards"), int)
-        and current.get("shards") >= 0
         and bool(current.get("runId")) and bool(current.get("sourceAuditRunId"))
     )
     entries = days["days"]
     if complete:
-        for i in range(current["shards"]):
+        for i in range(safe_shards(current["shards"])):
             paths.append("/sitemap-audit-articles-" + str(i) + ".xml")
         cutoff = stamp(current.get("generatedAt"))
         for day in entries:
