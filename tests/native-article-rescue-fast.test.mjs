@@ -329,3 +329,22 @@ test('English native Nintendo Switch 2 snippet no longer repeats title or ends w
  assert.ok(html.includes('data-rescue-copy="NOV188"'));
  assert.equal(rec.body,source,'no storage mutations');
 });
+
+
+test('complete approved native snippet is preserved even if the article contains a direct-answer checkout paragraph',async()=>{
+ const heading='Noon UAE seller comparison and checkout guide';
+ const metaDescription='A clear Noon UAE buying guide with specific checkout steps, seller checks and return conditions.';
+ const source='<article><h1>'+heading+'</h1><p class="direct-answer"><strong>Quick answer:</strong> Start with the correct Noon cart, copy NOV188, and check the final checkout total instead of assuming a fixed discount.</p>'+
+  '<p>'+('Compare the seller, delivery and product model before applying NOV188 to the final Noon UAE cart. '.repeat(110))+'</p>'+
+  '<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@type':'Article',headline:heading,description:metaDescription})+'</script></article>';
+ const u=new URL('https://noondealsnow.com/en/articles/en-uae-seller-checkout-existing-snippet');
+ const rec={body:source,meta:{...item.meta,c:'AE',cp:'NOV188',t:encodeURIComponent(heading),m:encodeURIComponent(metaDescription)}};
+ const res=renderApprovedNativeAiV2Fast(rec,u.pathname.split('/').pop(),u,true);
+ assert.equal(res?.status,200);
+ const html=await res.text();
+ assert.ok(html.includes('<meta name="description" content="'+metaDescription+'">'));
+ const article=JSON.parse([...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)][0][1]);
+ assert.equal(article.description,metaDescription,'do not rewrite an already accurate native schema description');
+ assert.equal(rec.body,source);
+ assert.equal(nativeCompleteSearchSnippet('<article><p>No direct checkout proof.</p></article>',heading,true),null);
+});
