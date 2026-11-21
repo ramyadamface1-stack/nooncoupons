@@ -23,8 +23,20 @@ test('Only canonical public SEO files may bypass Worker request quota',()=>{
   assert.ok(core.includes('<urlset'));
   for(const code of ['nov170','nov188'])assert.ok(core.includes('https://noondealsnow.com/coupon/'+code));
   assert.ok(llms.includes('NOV170')&&llms.includes('NOV188'));
-  assert.ok(!robots.includes('Disallow: /articles/'));
-  assert.ok(!robots.includes('Disallow: /en/articles/'));
+  const getGroup=(agent)=>{
+    const lines=robots.split(String.fromCharCode(10));
+    const i=lines.indexOf('User-agent: '+agent);
+    assert.ok(i>=0);
+    const following=lines.slice(i+1);
+    const finish=following.findIndex(line=>line.startsWith('User-agent:')||line.startsWith('Sitemap:'));
+    return following.slice(0,finish>=0?finish:undefined).join(' ');
+  };
+  assert.ok(getGroup('GPTBot').includes('Disallow: /articles/'));
+  assert.ok(getGroup('GPTBot').includes('Disallow: /en/articles/'));
+  for(const agent of ['*','OAI-SearchBot']){
+    assert.ok(!getGroup(agent).includes('Disallow: /articles/'));
+    assert.ok(!getGroup(agent).includes('Disallow: /en/articles/'));
+  }
   assert.ok(!robots.includes('Disallow: /coupon/'));
   assert.ok(!names.some(x=>x.endsWith('.html')));
 });

@@ -34,9 +34,10 @@ function harden(res){
 export function robots(origin){
   const rules=['User-agent: *','Allow: /','Disallow: /admin','Disallow: /api/','',
     // GPTBot is the model-training crawler, not OAI-SearchBot. Its 2026-11-21
-    // SVG flood exhausted the free Worker quota; tell compliant clients not
-    // to re-fetch generated images, while retaining indexable HTML and APIs.
-    'User-agent: GPTBot','Allow: /','Disallow: /admin','Disallow: /api/','Disallow: /assets/coupon-svg/','',
+    // Heavy SVG and article training crawls exhausted the free Worker quota.
+    // Temporary quota protection is agent-specific: Google's indexable pages,
+    // normal visitors, ChatGPT Search via OAI-SearchBot and API remain open.
+    'User-agent: GPTBot','Allow: /','Disallow: /admin','Disallow: /api/','Disallow: /assets/coupon-svg/','Disallow: /articles/','Disallow: /en/articles/','',
     'User-agent: OAI-SearchBot','Allow: /','Disallow: /admin','Disallow: /api/','',
     'User-agent: Google-Extended','Allow: /','Disallow: /admin','Disallow: /api/','',
     'User-agent: CCBot','Allow: /','Disallow: /admin','Disallow: /api/','',
