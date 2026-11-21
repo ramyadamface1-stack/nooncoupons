@@ -1,0 +1,52 @@
+name: NDN Legacy Conversion URL HTTP Audit Read Only
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ndn-legacy-conversion-url-audit.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Probe existing public internal-link targets for 1027 or canonical breaks
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,re,json
+          paths=[
+            '/saudi-arabia',
+            '/saudi-arabia/noon-coupon-code',
+            '/saudi',
+            '/uae',
+            '/saudi/noon-coupon-code',
+            '/uae/noon-coupon-code',
+            '/en/uae/noon-coupon-code',
+            '/brands',
+            '/categories',
+            '/golden-keywords',
+            '/coupon/noon-discount-50',
+            '/guide/noon-yellow-friday',
+            '/guide/noon-refund-credit',
+            '/guide/how-to-use-noon-coupon',
+            '/blog/archive/all/page/2547',
+            '/blog/saudi/page/305',
+            '/blog/uae/page/326'
+          ]
+          for path in paths:
+            try:
+              request=urllib.request.Request('https://noondealsnow.com'+path,headers={'User-Agent':'NoonDealsNow-legacy-visitor-audit/1.0'})
+              with urllib.request.urlopen(request,timeout=18) as res:
+                status=res.status;html=res.read(150000).decode('utf8','replace')
+                canonical=re.search(r'<link rel="canonical" href="([^"]+)"',html)
+                result={'path':path,'http':status,'canonical':canonical.group(1) if canonical else '',
+                  'has_h1':'<h1' in html,'nov170':'NOV170' in html,'nov188':'NOV188' in html}
+            except urllib.error.HTTPError as ex:
+              result={'path':path,'http':ex.code}
+            except Exception as ex:
+              result={'path':path,'error':type(ex).__name__}
+            print('NDN_LEGACY_INTERNAL_LINK='+json.dumps(result,ensure_ascii=False),flush=True)
+          print('NDN_LINK_AUDIT_ONLY_NO_WRITES=TRUE')
+          PY
