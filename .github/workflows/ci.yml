@@ -40,6 +40,9 @@ jobs:
       - name: Guard language, reading direction and localized links on homepage discovery cards
         run: node --test tests/discovery-card-language.test.mjs
 
+      - name: Check crawler-specific robots directives against images and OAI search
+        run: node --test tests/robots-training-svg-budget.test.mjs
+
       - name: Enforce public legacy rescue prose regressions on every pull request
         run: node --test tests/rescue-article-conversion.test.mjs
 
