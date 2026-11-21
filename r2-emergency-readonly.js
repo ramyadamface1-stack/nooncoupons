@@ -1,6 +1,6 @@
 import {completeBlogResponse} from './complete-blog-listing.js';
 import {refreshLiveTemporalArticleHtml} from './article-temporal-freshness.js';
-import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
+import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,normalizeArabicUaeMentions,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
 // Temporary, READ-ONLY fallback for public pages when the old account's R2 is NotEntitled (10042).
 // Source of article bytes: existing mirrored R2 in destination Cloudflare account.
 // No writes, no new Durable Objects, no extra publisher, no DNS changes, no private endpoints.
@@ -228,6 +228,20 @@ export function repairArchivedProductCategoryHtml(html,slug,english=false){
   if(baseline.test(corrected)||specifics.test(corrected))return source;
   return corrected.replace(/laptops and computing/gi,'gaming consoles');
 }
+// R2 custom metadata from historical native publishers may be URI-encoded
+// twice (e.g. %25D8%25AF rather than the Arabic description itself). Decode
+// boundedly for human-readable title/meta/OG only; never decode canonical URLs,
+// slugs, coupon codes, dates or the persisted article object.
+export function decodeNativeMetadataText(value){
+ let current=String(value??'');
+ for(let i=0;i<3&&/%[0-9a-f]{2}/i.test(current);i++){
+  let next;
+  try{next=decodeURIComponent(current)}catch{break}
+  if(next===current)break;
+  current=next;
+ }
+ return current;
+}
 // Old R2 descriptions were cut at an arbitrary character, sometimes leaving
 // half of an Arabic or English word in the public Google snippet. Keep source
 // bytes untouched; prefer a complete nearby sentence and otherwise cut on a
@@ -394,7 +408,7 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  if(
     source.length<4000||source.length>240000||!source.includes(code)||
     !/<article\b/i.test(source)||!/<h1\b/i.test(source))return null;
- const fromMeta=value=>{try{return decodeURIComponent(String(value||''))}catch{return String(value||'')}};
+ const fromMeta=decodeNativeMetadataText;
  // Publisher stores title and description as URL-encoded R2 custom metadata.
  // Avoid running multiple full-document HTML regex passes on each public hit.
  const title=fromMeta(md.t).slice(0,180);
@@ -473,8 +487,8 @@ async function serveArticle(env,u,english){
   if(fast)return fast;
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
   const source=localizeLegacySiteNavigation(unwrapLegacyArticleDocument(obj.body),slug,country);
-  let body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(source),country),country),country),country,english),{english}).html);
-  body=repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(body),slug,english);
+  let body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(source),country),country,null,english),country),country,english),{english}).html);
+  body=normalizeArabicUaeMentions(repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(body),slug,english),country,english);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
   const description=readableMetaDescription(cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,''))),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const snippet=rescueGscSnippet(slug,title,description,english);
