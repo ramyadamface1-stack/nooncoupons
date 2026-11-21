@@ -46,6 +46,9 @@ jobs:
       - name: Verify quota-independent static SEO assets are safe and non-overlapping
         run: node --test tests/static-seo-assets.test.mjs
 
+      - name: Check narrow scope and primary crawler exclusions for fifth Cloudflare WAF guard
+        run: node --test tests/ndn-secondary-svg-automated-crawler-guard.test.mjs
+
       - name: Verify root sitemap index matches bounded R2 manifests and preserves all historical shards
         run: python3 -m unittest discover -s tests -p 'test_ndn_static_root_sitemap.py' -v
 
