@@ -1,0 +1,42 @@
+name: NDN Commercial Static Fast Render Smoke
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ndn-commercial-static-fast-render.yml'
+      - 'scripts/build-ndn-commercial-static.mjs'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  fast-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build independent commercial pages without R2 network access
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/build-ndn-quota-static-fallback.mjs > /tmp/builder.log
+          mkdir -p .ndn-blog-staging
+          printf '{"objects":{"_ops/ai-v2-publication-ledger-v1.json":{"articles":[]}},"cachedArticleSlugs":[]}' > .ndn-blog-staging/public-snapshot.json
+          node scripts/build-ndn-commercial-static.mjs
+          node --input-type=module <<'NODE'
+          import {readFileSync,existsSync} from 'node:fs';
+          import {PUBLIC_CATEGORIES} from './index.js';
+          const r=JSON.parse(readFileSync('.ndn-blog-staging/market-seo-report.json','utf8'));
+          if(r.generatedPages!==100||r.keywordGuides!==10||r.categoryPages!==84)throw Error(JSON.stringify(r));
+          for(const p of ['/saudi/categories','/uae/categories','/saudi/noon-coupon-code','/uae/noon-coupon-code',
+                          '/saudi/buying-guide/mobile-phones','/uae/buying-guide/beauty']){
+            const path='.ndn-static-assets'+p+'.html';
+            if(!existsSync(path))throw Error('MISSING '+path);
+            const html=readFileSync(path,'utf8');
+            if(!html.includes('id="ndn-static-ga4"')||!html.includes('<h1>'))throw Error('BAD_HTML '+p);
+          }
+          const home=readFileSync('.ndn-static-assets/index.html','utf8');
+          if(!home.includes('id="commercial-buying-intent"'))throw Error('MISSING_HOME_SECTION');
+          console.log('NDN_FAST_MARKET_BUILD_PASS='+JSON.stringify(r));
+          NODE
