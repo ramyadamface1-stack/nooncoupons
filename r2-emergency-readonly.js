@@ -1,6 +1,6 @@
 import {completeBlogResponse} from './complete-blog-listing.js';
 import {refreshLiveTemporalArticleHtml} from './article-temporal-freshness.js';
-import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
+import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,normalizeArabicUaeMentions,renderCouponAction,renderRelatedArticles,rescueArticleStyles,rescueCopyScript} from './rescue-article-conversion.js';
 // Temporary, READ-ONLY fallback for public pages when the old account's R2 is NotEntitled (10042).
 // Source of article bytes: existing mirrored R2 in destination Cloudflare account.
 // No writes, no new Durable Objects, no extra publisher, no DNS changes, no private endpoints.
@@ -487,8 +487,8 @@ async function serveArticle(env,u,english){
   if(fast)return fast;
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
   const source=localizeLegacySiteNavigation(unwrapLegacyArticleDocument(obj.body),slug,country);
-  let body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(source),country),country),country),country,english),{english}).html);
-  body=repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(body),slug,english);
+  let body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(source),country),country,null,english),country),country,english),{english}).html);
+  body=normalizeArabicUaeMentions(repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(body),slug,english),country,english);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
   const description=readableMetaDescription(cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,''))),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const snippet=rescueGscSnippet(slug,title,description,english);
