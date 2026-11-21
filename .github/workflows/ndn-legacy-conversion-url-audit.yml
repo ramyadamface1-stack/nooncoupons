@@ -5,6 +5,10 @@ on:
     paths:
       - '.github/workflows/ndn-legacy-conversion-url-audit.yml'
   workflow_dispatch:
+  workflow_run:
+    workflows:
+      - 'NoonDealsNow New Cloudflare Account Production Worker Prepared (No DNS Cutover)'
+    types: [completed]
 permissions: {contents: read}
 jobs:
   audit:
@@ -35,6 +39,11 @@ jobs:
             '/blog/saudi/page/305',
             '/blog/uae/page/326'
           ]
+          rescued={
+            '/saudi-arabia','/saudi-arabia/noon-coupon-code','/brands',
+            '/golden-keywords','/coupon/noon-discount-50',
+            '/guide/noon-yellow-friday','/guide/noon-refund-credit'}
+          rescued_ok={}
           for path in paths:
             try:
               request=urllib.request.Request('https://noondealsnow.com'+path,headers={'User-Agent':'NoonDealsNow-legacy-visitor-audit/1.0'})
@@ -42,11 +51,19 @@ jobs:
                 status=res.status;html=res.read(150000).decode('utf8','replace')
                 canonical=re.search(r'<link rel="canonical" href="([^"]+)"',html)
                 result={'path':path,'http':status,'canonical':canonical.group(1) if canonical else '',
-                  'has_h1':'<h1' in html,'nov170':'NOV170' in html,'nov188':'NOV188' in html}
+                  'has_h1':'<h1' in html,'nov170':'NOV170' in html,'nov188':'NOV188' in html,
+                  'legacyStatic':'name="ndn-legacy-static-bridge"' in html}
             except urllib.error.HTTPError as ex:
               result={'path':path,'http':ex.code}
             except Exception as ex:
               result={'path':path,'error':type(ex).__name__}
+            if path in rescued:
+              expected='https://noondealsnow.com'+('/saudi' if path=='/saudi-arabia' else path)
+              rescued_ok[path]=(result.get('http')==200 and result.get('canonical')==expected and
+                result.get('legacyStatic') is True and result.get('has_h1') is True)
             print('NDN_LEGACY_INTERNAL_LINK='+json.dumps(result,ensure_ascii=False),flush=True)
+          print('NDN_LEGACY_PUBLIC_RESCUE='+json.dumps({'checked':len(rescued),'passed':sum(rescued_ok.values()),
+            'failed':[p for p,v in rescued_ok.items() if not v]},ensure_ascii=False),flush=True)
+          assert set(rescued_ok)==rescued and all(rescued_ok.values()),'LEGACY_STATIC_RESCUE_NOT_LIVE'
           print('NDN_LINK_AUDIT_ONLY_NO_WRITES=TRUE')
           PY
