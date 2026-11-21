@@ -26,6 +26,8 @@ test('entire brand directory has country-specific quota-free market URLs',()=>{
      assert.ok(html.includes('coupon_copy_success')&&html.includes('store_outbound_click'),path);
      assert.ok(html.includes('href="/brands"'),path);
      assert.ok(!html.includes('Please check back later'),path);
+     if(['nike','adidas','puma','skechers'].includes(slug))assert.ok(html.includes('/'+m+'/category/shoes')||html.includes('/'+m+'/category/sports'),'fashion link not relevant '+path);
+     if(slug==='samsonite')assert.ok(html.includes('/'+m+'/category/bags'),'travel brand goes to bags '+path);
    }
  }
 });

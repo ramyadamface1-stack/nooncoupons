@@ -52,8 +52,26 @@ function deepLinks(m,brand){
  for(const [category,guide] of ids){
   if(types.has(category)&&!out.includes(guide))out.push(guide);
  }
- if(!out.length)out.push(ar(m)?'electronics':'electronics');
- return out.slice(0,3).map(x=>'/'+m+'/buying-guide/'+x);
+ if(!out.length){
+   // Avoid directing fashion and travel shoppers to unrelated electronics guides.
+   const categoryDest={
+     shoes:'shoes',sports:'sports',bags:'bags',travel:'travel',
+     'men-fashion':'fashion-men','women-fashion':'fashion-women',
+     fashion:'fashion-women','baby-kids':'baby',grocery:'grocery',
+     automotive:'automotive',gifts:'gifts','home-kitchen':'kitchen',
+     'school-supplies':'stationery',gaming:'gaming',
+     pets:'pet-supplies',audio:'audio',tvs:'tv',tablets:'tablets',
+     computers:'office',beauty:'beauty',appliances:'home-appliances'
+   };
+   for(const category of brand.categories||[]){
+     const dest=categoryDest[category];
+     if(dest&&!out.includes('category:'+dest))out.push('category:'+dest);
+   }
+ }
+ if(!out.length)out.push('category:deals');
+ return out.slice(0,3).map(x=>x.startsWith('category:')
+  ?'/'+m+'/category/'+x.slice(9)
+  :'/'+m+'/buying-guide/'+x);
 }
 function brandHtml(m,slug,b){
  const loc=market[m],code=loc.code,path='/'+m+'/brand/'+slug,canonical=origin+path;
