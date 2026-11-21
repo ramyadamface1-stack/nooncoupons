@@ -1,0 +1,45 @@
+name: NoonDealsNow - Apply Targeted GPTBot SVG Quota Guard
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-gptbot-svg-quota-guard.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ndn-waf-svg-quota-guard
+  cancel-in-progress: false
+
+jobs:
+  protect-article-images:
+    if: github.repository == 'ramyadamface1-stack/nooncoupons'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CF_ACCOUNT: e4c35f8a50a7b2e4cfb9d6c534962603
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate scoped edge mitigation source
+        run: node --check scripts/ndn-apply-gptbot-svg-guard.mjs
+      - name: Create or verify one narrow zone WAF rule (no DNS, R2 or publisher changes)
+        run: node scripts/ndn-apply-gptbot-svg-guard.mjs
+      - name: Probe only the targeted SVG route with a synthetic test User-Agent
+        shell: bash
+        run: |
+          set -euo pipefail
+          code=$(curl -sS --retry 2 --max-time 15 -o /tmp/ndn-guard-svg-body -w '%{http_code}' \
+            -H 'User-Agent: Mozilla/5.0 (compatible; GPTBot/1.4; +https://openai.com/gptbot)' \
+            'https://noondealsnow.com/assets/coupon-svg/ndn-probe/1.svg?v=11&coupon=NOV170&country=SA' || true)
+          echo "GPTBOT_SVG_GUARD_HTTP=$code"
+          if [ "$code" != 403 ]; then
+            echo "::warning::Expected Cloudflare 403. Check whether edge rules are still propagating or a higher priority rule overrides the guard."
+          fi
+          echo 'Googlebot, Bingbot, OAI-SearchBot, HTML articles, Sitemaps and public DNS remain outside the targeted rule.'
