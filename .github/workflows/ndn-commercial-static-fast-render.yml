@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/ndn-commercial-static-fast-render.yml'
       - 'scripts/build-ndn-commercial-static.mjs'
+      - 'scripts/build-ndn-static-trust-pages.mjs'
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -23,7 +24,9 @@ jobs:
           node scripts/build-ndn-quota-static-fallback.mjs > /tmp/builder.log
           mkdir -p .ndn-blog-staging
           printf '{"objects":{"_ops/ai-v2-publication-ledger-v1.json":{"articles":[]}},"cachedArticleSlugs":[]}' > .ndn-blog-staging/public-snapshot.json
+          node scripts/build-ndn-static-trust-pages.mjs
           node scripts/build-ndn-commercial-static.mjs
+          node --test tests/ndn-static-trust-pages.test.mjs
           node --input-type=module <<'NODE'
           import {readFileSync,existsSync} from 'node:fs';
           import {PUBLIC_CATEGORIES} from './index.js';
