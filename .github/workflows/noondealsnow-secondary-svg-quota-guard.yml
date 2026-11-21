@@ -1,0 +1,63 @@
+name: NoonDealsNow - Secondary Automated SVG Crawler Quota Guard (Reversible)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-secondary-svg-quota-guard.yml'
+      - 'scripts/ndn-secondary-svg-automated-crawler-guard.mjs'
+      - 'tests/ndn-secondary-svg-automated-crawler-guard.test.mjs'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Apply the narrow guard, or explicitly disable just this guard'
+        required: true
+        type: choice
+        options: [apply, disable]
+        default: apply
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ndn-secondary-svg-guard
+  cancel-in-progress: false
+
+jobs:
+  scoped-guard:
+    if: github.repository == 'ramyadamface1-stack/nooncoupons'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CF_ACCOUNT: e4c35f8a50a7b2e4cfb9d6c534962603
+      NDN_SECONDARY_SVG_MODE: ${{ github.event_name == 'push' && 'apply' || inputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify the fifth guard expression cannot block primary SEO or AI search
+        run: |
+          node --check scripts/ndn-secondary-svg-automated-crawler-guard.mjs
+          node --test tests/ndn-secondary-svg-automated-crawler-guard.test.mjs
+      - name: Apply or rollback ONLY the 5th rule and verify live Cloudflare WAF state
+        run: node scripts/ndn-secondary-svg-automated-crawler-guard.mjs
+      - name: Probe 403 only for secondary crawler SVGs
+        if: env.NDN_SECONDARY_SVG_MODE == 'apply'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for agent in 'SemrushBot/7' 'AhrefsBot/7' 'ClaudeBot/1.0' 'Bytespider/1.0'; do
+            code=0
+            for attempt in 1 2 3 4 5; do
+              code=$(curl -sS --max-time 15 -o /tmp/ndn-secondary-svg-guard -w '%{http_code}' \
+                -H "User-Agent: $agent" \
+                'https://noondealsnow.com/assets/coupon-svg/ndn-p0-nonexistent-probe/1.svg?country=SA&coupon=NOV170' || true)
+              echo "SECONDARY_BOT_SVG=$agent;TRY=$attempt;HTTP=$code"
+              if [ "$code" = 403 ]; then break; fi
+              sleep 2
+            done
+            test "$code" = 403
+          done
+          echo 'SECONDARY_SVG_WAF=LIVE_BLOCK_403_VERIFIED;PRIMARY_BOTS_OUT_OF_SCOPE'
