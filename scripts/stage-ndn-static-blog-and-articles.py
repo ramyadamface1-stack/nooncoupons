@@ -9,7 +9,7 @@ import datetime,json,os,pathlib,re,sys
 
 ACCOUNT="e4c35f8a50a7b2e4cfb9d6c534962603"
 BUCKET="nooncoupons-content-v2"
-OUT=pathlib.Path(".ndn-static-assets")
+STAGE=pathlib.Path(".ndn-blog-staging/native-article-fragments")
 DEST=pathlib.Path(".ndn-blog-staging/public-snapshot.json")
 LEDGER="_ops/ai-v2-publication-ledger-v1.json"
 COMPACT="bulk/public-compact-v1.json"
@@ -51,7 +51,7 @@ def main():
     market_counts[market]+=1
     if all(n>=75 for n in market_counts.values()):break
   metadata={};copied=[];missing=[];denied=[]
-  (OUT/"articles").mkdir(parents=True,exist_ok=True)
+  STAGE.mkdir(parents=True,exist_ok=True)
   for row in target:
     slug=row["slug"];country=row["country"];key="articles/"+slug+".html"
     try:
@@ -59,20 +59,19 @@ def main():
       raw=obj["Body"].read(2_000_001)
       if len(raw)>2_000_000:denied.append(slug+":oversize");continue
       html=raw.decode("utf-8",errors="strict")
-      canonical="https://noondealsnow.com/articles/"+slug
-      # R2 original is already public, but assert it is the intended document.
-      if ("<html" not in html.lower() or "<title" not in html.lower() or
-          canonical not in html or "NOV170" not in html and country=="SA" or
-          "NOV188" not in html and country=="AE"):
-        denied.append(slug+":canonical_or_market");continue
-      if re.search(r"<meta\s+name=['\"]robots['\"]\s+content=['\"]noindex",html,re.I):
-        denied.append(slug+":noindex");continue
-      (OUT/"articles"/(slug+".html")).write_bytes(raw)
+      meta=obj.get("Metadata") or {}
+      if (meta.get("p")!="ai-v2-native" or meta.get("status")!="published" or
+          (country=="SA" and meta.get("c")!="SA") or
+          (country=="AE" and meta.get("c")!="AE") or
+          "<article" not in html.lower() or "<h1" not in html.lower() or
+          ("NOV170" not in html if country=="SA" else "NOV188" not in html)):
+        denied.append(slug+":native_or_market");continue
+      (STAGE/(slug+".html")).write_bytes(raw)
       metadata[key]=obj.get("Metadata") or {}
       copied.append(slug)
     except Exception as err:
       missing.append(slug)
-  if len(copied)<24:fail("TOO_FEW_ACCESSIBLE_ARTICLES_"+str(len(copied)))
+  if len(copied)<24:fail("TOO_FEW_NATIVE_FRAGMENTS_"+str(len(copied)))
   if min(sum(1 for x in target if x["country"]==c and x["slug"] in copied) for c in ("SA","AE"))<12:
     fail("MARKET_STATIC_COVERAGE_TOO_LOW")
   DEST.parent.mkdir(parents=True,exist_ok=True)

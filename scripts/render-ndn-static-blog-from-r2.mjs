@@ -1,14 +1,37 @@
 // Reuse the actual dynamic blog renderer with local read-only R2 snapshots.
 // Unlike the old fallback, these cards come from *real* published ledger rows.
 import app from '../auto-platform.js';
-import {readFile,writeFile,stat} from 'node:fs/promises';
+import {renderApprovedNativeAiV2Fast} from '../r2-emergency-readonly.js';
+import {readFile,writeFile,stat,mkdir} from 'node:fs/promises';
 import {resolve} from 'node:path';
 
 const base='https://noondealsnow.com',root=resolve('.ndn-static-assets');
 const snap=JSON.parse(await readFile('.ndn-blog-staging/public-snapshot.json','utf8'));
 if(snap.version!==1||!snap.objects?.['_ops/ai-v2-publication-ledger-v1.json']?.articles?.length)
   throw Error('NDN_BLOG_SOURCE_NOT_VERIFIED');
-const cached=new Set(snap.cachedArticleSlugs);
+// Turn the approved R2 article fragments into the public HTML produced
+// by the original live renderer. Never expose an unwrapped fragment.
+const built=[];
+await mkdir(resolve(root,'articles'),{recursive:true});
+for(const slug of snap.cachedArticleSlugs){
+  const key='articles/'+slug+'.html',meta=snap.heads[key]||{};
+  if(meta.p!=='ai-v2-native'||meta.status!=='published')continue;
+  let source='';
+  try{source=await readFile(resolve('.ndn-blog-staging/native-article-fragments',slug+'.html'),'utf8');}catch{continue;}
+  const url=new URL(base+'/articles/'+slug);
+  const result=renderApprovedNativeAiV2Fast({body:source,meta},slug,url,meta.c==='AE');
+  if(!result||result.status!==200)continue;
+  const html=await result.text();
+  if(!html.includes('<html')||!html.includes('<link rel="canonical" href="'+url.href+'"')||
+      !html.includes('<meta name="robots" content="index,follow,max-image-preview:large">'))continue;
+  await writeFile(resolve(root,'articles',slug+'.html'),html,'utf8');
+  built.push(slug);
+}
+const cached=new Set(built);
+snap.cachedArticleSlugs=built;
+await writeFile('.ndn-blog-staging/public-snapshot.json',JSON.stringify(snap),'utf8');
+if(built.length<24)throw Error('NDN_APPROVED_STATIC_ARTICLE_RENDERER_TOO_FEW_'+built.length);
+console.log('NDN_APPROVED_PUBLIC_ARTICLE_RENDERER_OUTPUT='+built.length);
 const r2={
  async get(key){const data=snap.objects[key];return data==null?null:{etag:'readonly-build-snapshot',json:async()=>data};},
  async head(key){const metadata=snap.heads?.[key];return metadata?{customMetadata:metadata}:null}
