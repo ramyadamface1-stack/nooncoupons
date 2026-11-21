@@ -35,10 +35,22 @@ export function coherentArticleDates(rawPublished,rawModified,rawUploaded,clock=
   // An R2 object upload may be a migration, not an editorial update. Only
   // explicit update metadata may change the displayed dateModified.
   const attemptedUpdate=normalized(rawModified)||published;
-  // Imported update metadata can predate the original publication timestamp.
-  // Do not invent a fresh edit: a modified timestamp may never precede publish.
-  const modified=Date.parse(attemptedUpdate)>=Date.parse(published)?attemptedUpdate:published;
+  const current=normalized(clock)||now();
+  // Imported edits can predate publication or lie in the future. Neither is
+  // evidence that a reader-visible article has actually been revised.
+  const valid=Date.parse(attemptedUpdate)>=Date.parse(published)&&Date.parse(attemptedUpdate)<=Date.parse(current);
+  const modified=valid?attemptedUpdate:published;
   return {published,modified};
+}
+// Generic updatedAt/modifiedAt can reflect an R2 copy, metadata sync or
+// scheduling operation. Only explicit editorial metadata can make a publicly
+// displayed article look newly modified to readers or search crawlers.
+export function verifiedBulkArticleDates(meta={},uploaded=null,clock=now()){
+  return coherentArticleDates(
+    meta.at||meta.publishedAt||meta.datePublished||meta.createdAt,
+    meta.editorialUpdatedAt||meta.substantiveUpdatedAt,
+    uploaded,clock
+  );
 }
 const cairoArticleTime=iso=>new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',day:'numeric',month:'long',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(iso));
 const json=(x,s=200)=>new Response(JSON.stringify(x,null,2),{status:s,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
@@ -110,7 +122,7 @@ async function bulkArticlePage(u,env){
   if(md.status&&md.status!=='published')return null;
   const country=(md.c||md.country)==='AE'?'AE':'SA',fallbackCoupon=country==='AE'?'NOV188':'NOV170';
   const rawTitle=dec(md.t||md.title)||slug,rawMeta=dec(md.m||md.metaDescription||''),coupon=normalizeMarketCoupon(md.cp||md.coupon,country),keyword=dec(md.kw||md.primaryKeyword)||rawTitle,quality=Number(md.q||md.quality||0),qualityFloor=Number(md.qf||md.qualityFloor||0),checks=Number(md.qc||md.qualityChecks||0),origin=env.SITE_ORIGIN||u.origin,market=country==='SA'?'السعودية':'الإمارات',title=normalizeRuntimeTitle(rawTitle,{keyword,market});
-  const rawText=await o.text(),couponSafeRaw=replaceWrongMarketCouponTokens(rawText,country),safeRawBase=couponSafeRaw.replace(/(\/assets\/coupon-svg\/[^"'\s<>]+\/[1-5]\.svg\?)v=\d+/g,(m,prefix)=>prefix+'v=11'),runtimeQuality=ensureRuntimeArticleQuality(safeRawBase,{slug,coupon,country,keyword,title}),safeRaw=runtimeQuality.html,plainMeta=safeRaw.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),meta=normalizeRuntimeMeta(rawMeta,{keyword,market,coupon,plain:plainMeta}),headingDensity=normalizeArticleHeadingDensity(safeRaw,12),decorated=decorateArticleBody(headingDensity.html),body=decorated.body,canonical=origin+'/articles/'+encodeURI(slug),lang=country==='SA'?'ar-SA':'ar-AE',marketPath=country==='SA'?'/saudi':'/uae',officialStore=country==='SA'?'https://www.noon.com/saudi-ar/':'https://www.noon.com/uae-ar/',{published,modified}=coherentArticleDates(md.at||md.createdAt,md.updatedAt||md.modifiedAt,o.uploaded);
+  const rawText=await o.text(),couponSafeRaw=replaceWrongMarketCouponTokens(rawText,country),safeRawBase=couponSafeRaw.replace(/(\/assets\/coupon-svg\/[^"'\s<>]+\/[1-5]\.svg\?)v=\d+/g,(m,prefix)=>prefix+'v=11'),runtimeQuality=ensureRuntimeArticleQuality(safeRawBase,{slug,coupon,country,keyword,title}),safeRaw=runtimeQuality.html,plainMeta=safeRaw.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim(),meta=normalizeRuntimeMeta(rawMeta,{keyword,market,coupon,plain:plainMeta}),headingDensity=normalizeArticleHeadingDensity(safeRaw,12),decorated=decorateArticleBody(headingDensity.html),body=decorated.body,canonical=origin+'/articles/'+encodeURI(slug),lang=country==='SA'?'ar-SA':'ar-AE',marketPath=country==='SA'?'/saudi':'/uae',officialStore=country==='SA'?'https://www.noon.com/saudi-ar/':'https://www.noon.com/uae-ar/',{published,modified}=verifiedBulkArticleDates(md,o.uploaded);
   const imgPath=`/assets/coupon-svg/${encodeURIComponent(slug)}/1.svg?v=11&coupon=${encodeURIComponent(coupon)}&country=${country}`,featured=origin+imgPath;
   const images=[1,2,3,4,5].map(v=>origin+`/assets/coupon-svg/${encodeURIComponent(slug)}/${v}.svg?v=11&coupon=${encodeURIComponent(coupon)}&country=${country}`);
   const graph={'@context':'https://schema.org','@graph':[
