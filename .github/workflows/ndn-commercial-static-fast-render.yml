@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/ndn-commercial-static-fast-render.yml'
       - 'scripts/build-ndn-commercial-static.mjs'
+      - 'scripts/build-ndn-legacy-conversion-landing-rescue.mjs'
+      - 'tests/ndn-legacy-commercial-static.test.mjs'
       - 'scripts/build-ndn-commercial-sitemap.mjs'
       - 'tests/ndn-commercial-sitemap.test.mjs'
       - 'scripts/build-ndn-static-trust-pages.mjs'
@@ -31,6 +33,8 @@ jobs:
           printf '{"objects":{"_ops/ai-v2-publication-ledger-v1.json":{"articles":[]}},"cachedArticleSlugs":[]}' > .ndn-blog-staging/public-snapshot.json
           node scripts/build-ndn-static-trust-pages.mjs
           node scripts/build-ndn-commercial-static.mjs
+          node scripts/build-ndn-legacy-conversion-landing-rescue.mjs
+          node --test tests/ndn-legacy-commercial-static.test.mjs
           node scripts/build-ndn-commercial-sitemap.mjs
           node --test tests/ndn-commercial-sitemap.test.mjs
           node --test tests/ndn-static-trust-pages.test.mjs
