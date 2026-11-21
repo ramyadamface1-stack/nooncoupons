@@ -6,6 +6,7 @@ on:
       - '.github/workflows/noondealsnow-new-account-production-ready.yml'
       - 'wrangler.new-account-production.jsonc'
       - 'scripts/build-ndn-static-seo-assets.mjs'
+      - 'scripts/build-ndn-static-market-sitemaps.mjs'
       - 'tests/static-seo-assets.test.mjs'
       - 'scripts/build-ndn-static-root-sitemap.py'
       - 'tests/test_ndn_static_root_sitemap.py'
@@ -117,6 +118,7 @@ jobs:
       - name: Build and validate quota-independent public SEO assets
         run: |
           node scripts/build-ndn-static-seo-assets.mjs
+          node scripts/build-ndn-static-market-sitemaps.mjs
           node --test tests/static-seo-assets.test.mjs
       - name: Build quota-independent complete sitemap index from destination R2 READ ONLY
         shell: bash
@@ -132,7 +134,7 @@ jobs:
           python3 - <<'PY'
           import pathlib,xml.etree.ElementTree as ET
           root=pathlib.Path('.ndn-static-assets')
-          assert sorted(x.name for x in root.iterdir())==['llms.txt','robots.txt','sitemap-core.xml','sitemap.xml']
+          assert sorted(x.name for x in root.iterdir())==['llms.txt','robots.txt','sitemap-core.xml','sitemap-coupons-saudi.xml','sitemap-coupons-uae.xml','sitemap-coupons.xml','sitemap-guides.xml','sitemap-pages.xml','sitemap.xml']
           data=(root/'sitemap.xml').read_text()
           assert ET.fromstring(data).tag.endswith('sitemapindex')
           for suffix in ['/sitemap-core.xml','/sitemap-ai-v2.xml','/sitemap-pages.xml']:
@@ -196,7 +198,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for path in /robots.txt /sitemap-core.xml /llms.txt /sitemap.xml; do
+          for path in /robots.txt /sitemap-core.xml /llms.txt /sitemap.xml /sitemap-pages.xml /sitemap-guides.xml /sitemap-coupons.xml /sitemap-coupons-saudi.xml /sitemap-coupons-uae.xml; do
             code=$(curl -sS --max-time 20 -o /tmp/ndn-static-seo-live -w '%{http_code}' \
               -H 'User-Agent: NDN-static-asset-quota-probe' "https://noondealsnow.com$path" || true)
             echo "STATIC_ASSET_LIVE_PATH=$path;HTTP=$code"
@@ -206,6 +208,9 @@ jobs:
               /sitemap-core.xml) grep -q '<urlset' /tmp/ndn-static-seo-live ;;
               /llms.txt) grep -q 'NOV170' /tmp/ndn-static-seo-live ;;
               /sitemap.xml) grep -q '<sitemapindex' /tmp/ndn-static-seo-live ;;
+              /sitemap-pages.xml|/sitemap-guides.xml|/sitemap-coupons.xml) grep -q '<urlset' /tmp/ndn-static-seo-live ;;
+              /sitemap-coupons-saudi.xml) grep -q '/coupon/nov170' /tmp/ndn-static-seo-live ;;
+              /sitemap-coupons-uae.xml) grep -q '/coupon/nov188' /tmp/ndn-static-seo-live ;;
             esac
           done
           echo 'STATIC_SEO_ZERO_WORKER_QUOTA_DEPENDENCE=VERIFIED'
