@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,repairAuditedLegacyBuyerGuidance,marketNoonHome,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
+import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,repairAuditedLegacyBuyerGuidance,repairLegacyArabicBlueprintText,marketNoonHome,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
 import {emergencyPublicR2Response} from '../r2-emergency-readonly.js';
 
 test('primary code is locked to country; never show Saudi code to UAE shoppers',()=>{
@@ -264,4 +264,68 @@ test('audited backpack and gift pages replace false clothing advice only in visi
  assert.doesNotMatch(fixed,/(?:لـهدية|في حالة هدية|راجع القصة)/u);
  assert.equal(repairAuditedLegacyBuyerGuidance(fixed,gift,'AE'),fixed);
  assert.equal(repairAuditedLegacyBuyerGuidance(src,'other-adidas-originals','AE'),src);
+});
+
+
+test('blueprint-only Arabic legacy repair fixes malformed cases and Saudi naming without changing original storage',()=>{
+ const slug='قبل-شراء-adidas-الأحذية-من-نون-السعودية-من-التطبيق-هدية-القصة';
+ const article='<article lang="ar-SA" dir="rtl" data-blueprint="2" data-market="SA" data-coupon="NOV170">'+
+ '<h1>خطوات قبل الدفع adidas الأحذية نون saudi</h1>'+
+ '<p class="direct-answer">فابدأ بصلاحية adidas الأحذية لـهدية ثم راجع المقاس والبائع والشحن. جرّب NOV170 على سلة نون saudi قبل الدفع.</p>'+
+ '<p>قبل المقارنة، في حالة هدية، ركّز أولًا على المقاس والخامة، ثم راجع القصة.</p>'+
+ '<p>افترض أنك وجدت خيارين من adidas الأحذية مناسبين لـهدية. ابدأ بتثبيت السلة.</p>'+
+ '<p>راجع الخيار مع الشحن عند عند تغير السعر أو عند قبل الإرجاع.</p>'+
+ '<a href="https://noondealsnow.com/saudi">نون saudi</a>'+
+ '<script type="application/ld+json">{"name":"نون saudi","text":"مناسبين لـهدية"}</script>'+
+ '<style>.name::after{content:"نون saudi"}</style></article>';
+ const result=repairLegacyArabicBlueprintText(article,slug,'SA',false);
+ assert.match(result,/فابدأ بمراجعة ملاءمة adidas الأحذية لاحتياجك ثم راجع/);
+ assert.match(result,/عند اختيار حذاء، راجع المقاس والخامة وراحة الاستخدام وسياسة الإرجاع/);
+ assert.match(result,/مناسبين للاستخدام المطلوب/);
+ assert.match(result,/نون السعودية/);
+ assert.doesNotMatch(result,/نون saudi|لـهدية|في حالة هدية|عند عند تغير السعر|عند قبل الإرجاع/);
+ assert.match(result,/href="https:\/\/noondealsnow.com\/saudi"/,'valid country link untouched');
+ assert.match(result,/data-coupon="NOV170"/);
+ assert.match(result,/<script type="application\/ld\+json">\{"name":"نون saudi","text":"مناسبين لـهدية"\}<\/script>/,'structured-data script untouched by visible-text formatter');
+ assert.match(result,/\.name::after\{content:"نون saudi"\}/,'CSS untouched');
+ assert.equal(repairLegacyArabicBlueprintText(result,slug,'SA'),result,'idempotent');
+ assert.equal(repairLegacyArabicBlueprintText(article,slug,'SA',true),article,'English untouched');
+ assert.equal(repairLegacyArabicBlueprintText(article.replace('data-blueprint="2"','data-template="2"'),slug,'SA'),article.replace('data-blueprint="2"','data-template="2"'),'non-blueprint content untouched');
+ assert.equal(article.includes('نون saudi'),true,'stored source unchanged');
+});
+test('blueprint UAE cases are repaired to neutral usage, not erroneous cross-category purchase claims',()=>{
+ const examples=[
+  ['إرجاع-الديكور-وكوبون-نون-الإمارات-قبل-تغيير-الدفع-مراجعة-السعر','وجبات سريعة','عند اختيار ديكور، راجع الأبعاد والخامة وطريقة التركيب'],
+  ['إرجاع-الحقائب-وكوبون-نون-الإمارات-وقت-العروض-السفر-القصة','السفر','عند اختيار الحقيبة، راجع السعة والخامة والتقسيم الداخلي'],
+  ['إرجاع-adidas-معدات-التخييم-وكوبون-نون-الإمارات-قبل-اختيار-البائع-حسم-الاختيار','مبتدئ','عند اختيار معدات التخييم، راجع الوزن والخامة وسهولة التخزين'],
+  ['إرجاع-acer-nitro-للطلب-الأول-وكوبون-نون-الإمارات-وقت-العروض-تقييم-الاستخدام','التنقل',null]
+ ];
+ for(const [slug,scenario,focused] of examples){
+  const original='<article data-blueprint="5" data-market="AE"><p>فابدأ بصلاحية المنتج لـ'+scenario+' ثم راجع البائع والشحن.</p>'+
+   '<p>افترض أنك وجدت خيارين مناسبين لـ'+scenario+'.</p>'+
+   '<p>في حالة '+scenario+'، ركّز أولًا على المقاس والخامة، ثم راجع القصة.</p>'+
+   '<p>في حسابك عند عند تغير السعر أو عند قبل الإرجاع سجّل إجمالي سلة NOV188.</p>'+
+   '<a href="/coupon/nov188" data-coupon="NOV188">تجربة الكوبون</a></article>';
+  const out=repairLegacyArabicBlueprintText(original,slug,'AE');
+  assert.doesNotMatch(out,/فابدأ بصلاحية|مناسبين لـ|عند عند تغير السعر|عند قبل الإرجاع/);
+  assert.match(out,/ملاءمة المنتج لاحتياجك/);
+  assert.match(out,/مناسبين للاستخدام المطلوب/);
+  assert.match(out,/data-coupon="NOV188"/);
+  if(focused)assert.ok(out.includes(focused),slug+' must get category-appropriate advice');
+  assert.equal(repairLegacyArabicBlueprintText(out,slug,'AE'),out);
+ }
+});
+test('Saudi FAQ textual JSON-LD country normalization is consistent with visible Arabic but preserves URL attributes',()=>{
+ const html='<article><p>نون saudi</p><script type="application/ld+json">'+JSON.stringify({
+ '@context':'https://schema.org','@type':'FAQPage',mainEntity:[{'@type':'Question',
+ name:'كيف أستخدم NOV170 على نون saudi؟',acceptedAnswer:{'@type':'Answer',text:'تحقق من نون saudi قبل الدفع.'}}],
+ url:'https://noondealsnow.com/articles/test-saudi-slug'
+ })+'</script></article>';
+ const transformed=reconcileSourceCouponJsonLd(html,'SA',null,false);
+ const match=transformed.match(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/i);
+ const json=JSON.parse(match[1]);
+ assert.match(json.mainEntity[0].name,/نون السعودية/);
+ assert.match(json.mainEntity[0].acceptedAnswer.text,/نون السعودية/);
+ assert.equal(json.url,'https://noondealsnow.com/articles/test-saudi-slug');
+ assert.equal(reconcileSourceCouponJsonLd(html,'SA',null,true).includes('نون saudi'),true,'English pages unchanged');
 });
