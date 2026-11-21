@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml,neutralizeUnverifiedEditorialReview,repairArchivedProductCategoryHtml} from '../r2-emergency-readonly.js';
+import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml,neutralizeUnverifiedEditorialReview,repairArchivedProductCategoryHtml,supplementNativeArticleJsonLd} from '../r2-emergency-readonly.js';
 const url=new URL('https://noondealsnow.com/articles/saudi-buyer-samsung-tablet-offline-annotation-workflow-nov170-2026-n5');
 const source='<article><h1>جدول مقارنة سامسونج تابلت</h1><p>'+('معايير مقارنة الكود NOV170 والمواصفات والضمان وشروط نون السعودية. '.repeat(110))+'</p></article>';
 const item={body:source,meta:{status:'published',p:'ai-v2-native',c:'SA',cp:'NOV170',q:'100',w:'1775',
@@ -163,4 +163,61 @@ test('editorial publisher wording repair is narrowly scoped and idempotent',()=>
   assert.match(once,/Noon Deals Now treats coupon outcomes/);
   assert.match(once,/https:\/\/nooncoupons\.com\/about/);
   assert.equal(neutralizeUnverifiedEditorialReview(once),once);
+});
+
+
+test('native Arabic Article schema uses the same verified R2 publication date as its visible timestamp',async()=>{
+ const published='2026-11-08T05:51:01.892Z';
+ const slug='saudi-buyer-samsung-tablet-offline-annotation-workflow-nov170-2026-n5';
+ const u=new URL('https://noondealsnow.com/articles/'+slug);
+ const articleJson={'@context':'https://schema.org','@type':'Article',headline:'سامسونج تابلت: التدوين دون إنترنت',url:u.origin+u.pathname};
+ const faqJson={'@context':'https://schema.org','@type':'FAQPage',mainEntity:[{'@type':'Question',name:'ما هو NOV170؟',acceptedAnswer:{'@type':'Answer',text:'جرّب الكود في سلة نون'}}]};
+ const body='<article><h1>دليل سامسونج تابلت</h1>'+
+    '<nav><a href="https://noondealsnow.com/guides">أدلة التسوق</a></nav>'+
+    '<p>'+('قارن بين البائعين والضمان وشروط الخصم NOV170 في نون السعودية قبل الشراء. '.repeat(120))+'</p>'+
+    '<script type="application/ld+json">'+JSON.stringify(articleJson)+'</script>'+
+    '<script type="application/ld+json">'+JSON.stringify(faqJson)+'</script></article>';
+ const record={...item,body,meta:{...item.meta,at:published}};
+ const response=renderApprovedNativeAiV2Fast(record,slug,u,false);
+ assert.equal(response?.status,200);
+ const html=await response.text();
+ const schemas=[...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(x=>JSON.parse(x[1]));
+ assert.equal(schemas.filter(x=>x['@type']==='Article').length,1,'one Article node, not duplicates');
+ assert.equal(schemas.filter(x=>x['@type']==='FAQPage').length,1,'FAQ schema retained');
+ assert.equal(schemas.find(x=>x['@type']==='Article').datePublished,published);
+ assert.equal(schemas.find(x=>x['@type']==='Article').mainEntityOfPage,u.origin+u.pathname);
+ assert.equal(schemas.find(x=>x['@type']==='Article').dateModified,undefined,'no inferred editorial update');
+ assert.deepEqual(schemas.find(x=>x['@type']==='FAQPage'),faqJson);
+ assert.ok(html.includes('datetime="'+published+'"'),'visible date must match JSON-LD');
+ assert.ok(html.includes('property="article:published_time" content="'+published+'"'),'Open Graph date must match JSON-LD');
+ assert.ok(html.includes('href="/saudi/shopping-guide"'),'absolute known-404 legacy link repaired');
+ assert.ok(!html.includes('href="https://noondealsnow.com/guides"'));
+ assert.ok(html.includes('NOV170'),'coupon remains intact');
+ assert.equal(record.body,body,'original stored R2 body never altered');
+});
+
+test('native schema supplement preserves verified existing dates, FAQ and graph; never invents dateModified',()=>{
+ const published='2026-11-08T05:51:01.892Z';
+ const canonical='https://noondealsnow.com/articles/sample';
+ const given={'@context':'https://schema.org','@graph':[
+  {'@type':'Article',datePublished:'2026-11-05T12:00:00.000Z',mainEntityOfPage:canonical},
+  {'@type':'BreadcrumbList',itemListElement:[{position:1,name:'Noon'}]}
+ ]};
+ const source='<script type="application/ld+json">'+JSON.stringify(given)+'</script>';
+ const changed=supplementNativeArticleJsonLd(source,{publishedAt:published,canonical});
+ assert.equal(changed,source,'existing date and canonical must not be overwritten');
+ const fresh=supplementNativeArticleJsonLd(source,{publishedAt:published,modifiedAt:null,canonical});
+ assert.equal(fresh,source);
+ const noDate=supplementNativeArticleJsonLd(source,{publishedAt:null,canonical});
+ assert.equal(noDate,source,'absence of verified date must never create one');
+ const patch={'@context':'https://schema.org','@graph':[{'@type':'Article'},given['@graph'][1]]};
+ const text='<script type="application/ld+json">'+JSON.stringify(patch)+'</script>';
+ const once=supplementNativeArticleJsonLd(text,{publishedAt:published,canonical});
+ const json=JSON.parse(once.match(/<script[^>]*>([\s\S]*?)<\/script>/)[1]);
+ assert.equal(json['@graph'][0].datePublished,published);
+ assert.equal(json['@graph'][0].mainEntityOfPage,canonical);
+ assert.deepEqual(json['@graph'][1],given['@graph'][1],'BreadcrumbList must be untouched');
+ assert.equal(supplementNativeArticleJsonLd(once,{publishedAt:published,canonical}),once,'idempotent');
+ const onlyFaq='<script type="application/ld+json">'+JSON.stringify({'@type':'FAQPage'})+'</script>';
+ assert.equal(supplementNativeArticleJsonLd(onlyFaq,{publishedAt:published,canonical}),onlyFaq);
 });
