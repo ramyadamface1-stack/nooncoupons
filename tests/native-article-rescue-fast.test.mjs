@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml,neutralizeUnverifiedEditorialReview} from '../r2-emergency-readonly.js';
+import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml,neutralizeUnverifiedEditorialReview,repairArchivedProductCategoryHtml} from '../r2-emergency-readonly.js';
 const url=new URL('https://noondealsnow.com/articles/saudi-buyer-samsung-tablet-offline-annotation-workflow-nov170-2026-n5');
 const source='<article><h1>جدول مقارنة سامسونج تابلت</h1><p>'+('معايير مقارنة الكود NOV170 والمواصفات والضمان وشروط نون السعودية. '.repeat(110))+'</p></article>';
 const item={body:source,meta:{status:'published',p:'ai-v2-native',c:'SA',cp:'NOV170',q:'100',w:'1775',
@@ -110,6 +110,51 @@ test('old generated editorial-review claims are replaced by accurate attribution
   const other='Reviewed by an independent reviewer | https://noondealsnow.com/articles/existing';
   assert.equal(neutralizeUnverifiedEditorialReview(other),other);
   const file=readFileSync(new URL('../r2-emergency-readonly.js',import.meta.url),'utf8');
-  assert.ok(file.includes('body=neutralizeUnverifiedEditorialReview(body)'),
+  assert.ok(file.includes('body=repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(body),slug,english)'),
     'legacy fallback must also fix this unsupported claim');
+});
+
+
+test('archived console article gets gaming-console guidance without touching coupon, URL or stored R2',async()=>{
+  const slug='en-nintendo-switch-2-noon-sharjah-budget-shopping-guide';
+  const u=new URL('https://noondealsnow.com/en/articles/'+slug);
+  const original='<article><h1>Nintendo Switch 2 Noon Sharjah budget shopping guide</h1>'+
+    '<p>NoonCoupons treats coupon outcomes as variable checkout observations. NOV188</p>'+
+    '<p>Noon UAE · laptops and computing</p>'+
+    '<h2>Category baseline for laptops and computing</h2>'+
+    '<p>For laptops and computing products, verify processor, memory and keyboard layout.</p>'+
+    '<p>Computing value depends on the included charger and operating system.</p>'+
+    '<h2>Category-specific checks for laptops and computing</h2>'+
+    '<p>Check processor class and keyboard layout before paying.</p>'+
+    '<p>Inspect operating system, charger and port configuration.</p>'+
+    '<h2>UAE checkout evidence</h2><p>'+('Keep this Nintendo Switch 2 cart stable and verify NOV188 at checkout. '.repeat(130))+'</p></article>';
+  const article={body:original,meta:{status:'published',p:'ai-v2-native',c:'AE',cp:'NOV188',q:'99',w:'1750',
+    t:encodeURIComponent('Nintendo Switch 2 Noon Sharjah budget shopping guide'),
+    m:encodeURIComponent('Compare Nintendo Switch 2 console bundle and UAE checkout conditions before purchase.')}};
+  const res=renderApprovedNativeAiV2Fast(article,slug,u,true);
+  assert.equal(res.status,200);
+  const html=await res.text();
+  assert.match(html,/Category baseline for gaming consoles/);
+  assert.match(html,/Category-specific checks for gaming consoles/);
+  assert.match(html,/included controllers and games/);
+  assert.doesNotMatch(html,/laptops and computing|processor class|keyboard layout|operating system/);
+  assert.match(html,/Noon Deals Now treats coupon outcomes/);
+  assert.doesNotMatch(html,/NoonCoupons treats coupon outcomes/);
+  assert.match(html,/NOV188/);
+  assert.match(html,/rel="canonical" href="https:\/\/noondealsnow\.com\/en\/articles\/en-nintendo-switch-2-noon-sharjah-budget-shopping-guide"/);
+  assert.equal(article.body,original,'R2 source body is unchanged');
+  assert.equal(repairArchivedProductCategoryHtml(original,slug,false),original,'Arabic route is untouched');
+  assert.equal(repairArchivedProductCategoryHtml(original,'en-nintendo-switch-2',true).includes('gaming consoles'),true);
+  assert.equal(repairArchivedProductCategoryHtml(original,'en-ipad-price-uae',true),original,'non-console article is untouched');
+  const good=original.replaceAll('laptops and computing','gaming consoles');
+  assert.equal(repairArchivedProductCategoryHtml(good,slug,true),good,'already-correct category is untouched');
+});
+
+test('editorial publisher wording repair is narrowly scoped and idempotent',()=>{
+  const input='<p>NoonCoupons treats coupon outcomes as variable checkout observations.</p>'+
+    '<a href="https://nooncoupons.com/about">independent other website</a>';
+  const once=neutralizeUnverifiedEditorialReview(input);
+  assert.match(once,/Noon Deals Now treats coupon outcomes/);
+  assert.match(once,/https:\/\/nooncoupons\.com\/about/);
+  assert.equal(neutralizeUnverifiedEditorialReview(once),once);
 });

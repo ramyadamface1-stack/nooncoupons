@@ -197,7 +197,36 @@ export function rescueGscSnippet(slug,title,description,english){
 // a reviewer or freshness date: neutralize only this exact historical label
 // at read time, leaving the R2 source and all article identifiers intact.
 export function neutralizeUnverifiedEditorialReview(html){
-  return String(html??'').replace(/Reviewed by Noon Deals Now Editorial Team/gi,'Noon Deals Now shopping guide');
+  return String(html??'')
+    .replace(/Reviewed by Noon Deals Now Editorial Team/gi,'Noon Deals Now shopping guide')
+    // An earlier article template used a different site's name as its
+    // publisher. Repair that exact prose claim, never URLs or stored R2.
+    .replace(/\bNoonCoupons treats coupon outcomes\b/gi,'Noon Deals Now treats coupon outcomes');
+}
+
+// Existing archived English articles sometimes label a gaming console as
+// "laptops and computing" and explain keyboard/processor specifications.
+// Correct only unmistakable console slugs with that exact wrong category;
+// preserve every title, slug, coupon, link, source record and other article.
+export function repairArchivedProductCategoryHtml(html,slug,english=false){
+  const source=String(html??'');
+  if(!english||
+    !/(?:^|-)(?:nintendo-switch(?:-2)?|ps5(?:-pro)?|playstation-5(?:-pro)?|xbox-series-[xs])(?:-|$)/i.test(String(slug||''))||
+    !/laptops and computing/i.test(source))return source;
+  const baseline=/<h2\b[^>]*>\s*Category baseline for laptops and computing\s*<\/h2>(?:\s*<p\b[^>]*>[^<]*<\/p>){2}/i;
+  const specifics=/<h2\b[^>]*>\s*Category-specific checks for laptops and computing\s*<\/h2>(?:\s*<p\b[^>]*>[^<]*<\/p>){2}/i;
+  if(!baseline.test(source)||!specifics.test(source))return source;
+  const corrected=source
+    .replace(baseline,'<h2>Category baseline for gaming consoles</h2>'+
+      '<p>Before comparing console prices, confirm the exact model or edition, included controller and accessories, storage, game compatibility and the seller warranty. A bundle and a standalone console are not equivalent when their contents differ.</p>'+
+      '<p>Keep the seller, region, included items and quantity fixed during coupon tests. Check delivery, return terms and the final payable total for the exact listing instead of assuming a coupon makes an unsuitable bundle better value.</p>')
+    .replace(specifics,'<h2>Category-specific checks for gaming consoles</h2>'+
+      '<p>Check the exact console edition, included controllers and games, storage needs, compatible accessories and regional support. Verify bundle contents in the actual seller listing rather than assuming extras are included.</p>'+
+      '<p>Compare only like-for-like console listings and warranty terms. Apply the coupon to a stable cart and use the current Noon checkout to confirm the outcome.</p>');
+  // If either old two-paragraph section has unexpected markup, do not replace
+  // a label alone and leave the unrelated laptop buying advice in place.
+  if(baseline.test(corrected)||specifics.test(corrected))return source;
+  return corrected.replace(/laptops and computing/gi,'gaming consoles');
 }
 // Old R2 descriptions were cut at an arbitrary character, sometimes leaving
 // half of an Arabic or English word in the public Google snippet. Keep source
@@ -317,7 +346,7 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  // Do not parse or rewrite large legacy HTML in a fast-path eligibility check.
  // Archived articles use the legacy renderer below; this prevents two costly
  // full-body passes on every request and keeps R2 bytes untouched.
- const source=neutralizeUnverifiedEditorialReview(refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(String(obj?.body||''),{english}).html));
+ const source=repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(String(obj?.body||''),{english}).html)),slug,english);
  if(
     source.length<4000||source.length>240000||!source.includes(code)||
     !/<article\b/i.test(source)||!/<h1\b/i.test(source))return null;
@@ -400,7 +429,7 @@ async function serveArticle(env,u,english){
   const country=english?'AE':marketOf({country:obj.meta.c||obj.meta.country,slug});
   const source=localizeLegacySiteNavigation(unwrapLegacyArticleDocument(obj.body),slug,country);
   let body=refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(repairGenericNoonLinks(repairLegacyGuideLinks(reconcileSourceCouponJsonLd(presentMarketCouponText(removeRedundantSourceArticleJsonLd(source),country),country),country),country,english),{english}).html);
-  body=neutralizeUnverifiedEditorialReview(body);
+  body=repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(body),slug,english);
   const match=body.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i),title=cleanText(match?match[1]:slug.replace(/[-_]/g,' ')).slice(0,180);
   const description=readableMetaDescription(cleanText(body.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,''))),code=primaryCodeForMarket(country),canonical='https://noondealsnow.com'+u.pathname;
   const snippet=rescueGscSnippet(slug,title,description,english);
