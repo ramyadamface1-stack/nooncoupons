@@ -8,6 +8,8 @@ on:
       - 'scripts/build-ndn-static-seo-assets.mjs'
       - 'scripts/build-ndn-quota-static-fallback.mjs'
       - 'scripts/build-ndn-commercial-static.mjs'
+      - 'scripts/build-ndn-static-trust-pages.mjs'
+      - 'tests/ndn-static-trust-pages.test.mjs'
       - 'tests/ndn-commercial-static.test.mjs'
       - 'tests/ndn-quota-static-fallback.test.mjs'
       - 'scripts/stage-ndn-static-blog-and-articles.py'
@@ -325,8 +327,9 @@ jobs:
           node scripts/build-ndn-static-archive-and-images.mjs
           python3 scripts/stage-ndn-complete-r2-article-keys.py
           node scripts/render-ndn-complete-r2-archive.mjs
+          node scripts/build-ndn-static-trust-pages.mjs
           node scripts/build-ndn-commercial-static.mjs
-          node --test tests/ndn-commercial-static.test.mjs
+          node --test tests/ndn-commercial-static.test.mjs tests/ndn-static-trust-pages.test.mjs
           node --test tests/ndn-static-blog-from-r2.test.mjs tests/ndn-static-complete-blog.test.mjs tests/ndn-complete-r2-archive.test.mjs
           echo 'LIVE_BLOG_SOURCE=R2_VERIFIED_PUBLICATIONS;NO_FAKE_GUIDE_ONLY_BLOG=TRUE'
 
