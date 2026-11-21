@@ -242,6 +242,35 @@ export function decodeNativeMetadataText(value){
  }
  return current;
 }
+// Some archived R2 metadata was CUT mid-percent-encoded UTF-8 (e.g. %D8%AF
+// ... %D8%). decodeURIComponent cannot recover malformed truncated bytes,
+// so do not publish the percent escapes as a Google snippet. Reuse the
+// description already present in that exact article's Article JSON-LD.
+// No crawler assertions, new claims, R2 writes, or unknown publisher data.
+export function articleJsonLdDescription(html){
+ const source=String(html??'');
+ const pattern=/<script\b[^>]*\btype\s*=\s*["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+ let match,seen=0;
+ while((match=pattern.exec(source))&&++seen<=5){
+  let data;
+  try{data=JSON.parse(match[1])}catch{continue}
+  const entries=Array.isArray(data)?data:Array.isArray(data?.['@graph'])?data['@graph']:[data];
+  for(const obj of entries){
+   if(!obj||typeof obj!=='object')continue;
+   const types=Array.isArray(obj['@type'])?obj['@type']:[obj['@type']];
+   if(!types.includes('Article')&&!types.includes('BlogPosting'))continue;
+   const desc=String(obj.description||'').replace(/\s+/g,' ').trim();
+   if(desc.length>=30&&!/%(?:25)*(?:d8|d9)/i.test(desc))return desc;
+  }
+ }
+ return '';
+}
+export function nativeMetaDescription(value,source){
+ const decoded=decodeNativeMetadataText(value);
+ const unreadable=/%(?:25)*(?:d8|d9|c[2-9a-f]|e[0-9a-f])/i.test(decoded);
+ const grounded=unreadable?articleJsonLdDescription(source):'';
+ return readableMetaDescription(grounded||decoded);
+}
 // Old R2 descriptions were cut at an arbitrary character, sometimes leaving
 // half of an Arabic or English word in the public Google snippet. Keep source
 // bytes untouched; prefer a complete nearby sentence and otherwise cut on a
@@ -412,7 +441,7 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  // Publisher stores title and description as URL-encoded R2 custom metadata.
  // Avoid running multiple full-document HTML regex passes on each public hit.
  const title=fromMeta(md.t).slice(0,180);
- const description=readableMetaDescription(fromMeta(md.m));
+ const description=nativeMetaDescription(md.m,source);
  if(title.length<8||description.length<20)return null;
  const snippet=rescueGscSnippet(slug,title,description,english);
  const canonical='https://noondealsnow.com'+u.pathname;
