@@ -1,0 +1,46 @@
+name: NDN Live 60 Brand Market Routes and Coupon Test
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - 'NoonDealsNow New Cloudflare Account Production Worker Prepared (No DNS Cutover)'
+    types: [completed]
+permissions: {contents: read}
+jobs:
+  live-brands:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify every brand URL from /brands has a static original canonical and correct coupon
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import {BRANDS} from './commerce-taxonomy.js';
+          const names=Object.keys(BRANDS).filter(slug=>/^[a-z0-9-]+$/.test(slug)&&BRANDS[slug]?.label);
+          if(names.length!==30)throw Error('EXPECTED_30_PUBLIC_BRAND_NAMES');
+          const all=names.flatMap(slug=>['saudi','uae'].map(m=>({slug,m,path:'/'+m+'/brand/'+slug,
+            coupon:m==='saudi'?'NOV170':'NOV188'})));
+          const failures=[];let passed=0;
+          async function verify(x){
+            const r=await fetch('https://noondealsnow.com'+x.path,{headers:{'User-Agent':'NDN-public-brand-matrix-readonly/1.0'}});
+            const h=await r.text();
+            const base='https://noondealsnow.com'+x.path;
+            const checks={http:r.status===200,canonical:h.includes('<link rel="canonical" href="'+base+'">'),
+              code:h.includes('data-code="'+x.coupon+'"'),schema:h.includes('"@type":"FAQPage"'),
+              static:h.includes('name="ndn-static-brand-catalog" content="v1"'),
+              heading:h.includes('<h1>')};
+            const ok=Object.values(checks).every(Boolean);
+            console.log('LIVE_BRAND_ROUTE='+JSON.stringify({path:x.path,ok,...checks}));
+            return {path:x.path,ok,checks};
+          }
+          for(let i=0;i<all.length;i+=6){
+            const group=await Promise.all(all.slice(i,i+6).map(verify));
+            for(const r of group){if(r.ok)passed++;else failures.push(r);}
+          }
+          console.log('NDN_LIVE_BRAND_60_COVERAGE='+JSON.stringify({checked:all.length,passed,failed:failures.length,failures:failures.map(x=>x.path)}));
+          if(failures.length)throw Error('BRAND_STATIC_ROUTES_NOT_LIVE_'+failures.map(x=>x.path).join(','));
+          JS
