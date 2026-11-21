@@ -317,6 +317,8 @@ test('real legacy route fixes Adidas gift grammar only for the audited canonical
  assert.ok(html.includes('مناسبين كهدية'));
  assert.doesNotMatch(html,/لـهدية|في حالة هدية|راجع القصة/);
  assert.ok(html.includes('data-rescue-copy="NOV188"'));
+ assert.match(html,/<article[^>]*data-market="AE"[^>]*data-coupon="NOV188"/);
+ assert.doesNotMatch(html,/<article[^>]*data-market="AE"[^>]*data-coupon="NOV153"/);
  assert.ok(html.includes('<link rel="canonical" href="'+u+'">'));
  assert.match(html,/"datePublished":"2026-10-14T06:32:32.875Z"/);
  assert.equal(body.includes('لـهدية'),true);
