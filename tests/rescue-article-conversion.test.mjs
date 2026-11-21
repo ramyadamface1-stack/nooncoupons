@@ -231,10 +231,21 @@ test('audited backpack and gift pages replace false clothing advice only in visi
  for(const text of ['سعة حقيبة الظهر','راحة حمل الحقيبة','توزيع الجيوب','حقيبتي ظهر مناسبتين','الحقيبة مناسبة لاستخدامك','راحة حملها','سوق الإمارات'])
   assert.ok(x.includes(text),text);
  assert.doesNotMatch(x,/(?:لـالرياضة|نركز على مع|في حالة الرياضة|راجع القصة)/u);
- assert.match(x,/data-coupon="NOV153"/);
+ assert.match(x,/<article data-coupon="NOV153"/,'no market attribute means no coupon-data rewrite');
  assert.match(x,/href="https:\/\/noondealsnow.com\/uae"/);
  assert.match(x,/<script type="application\/ld\+json">\{"text":"لـالرياضة","code":"NOV153"\}<\/script>/);
  assert.match(x,/\.broken:after\{content:"لـالرياضة"\}/);
+
+ const active='<article lang="ar-AE" data-market="AE" data-coupon="NOV153">'+
+   '<a href="/coupon/nov153" data-coupon="NOV153">رابط داخلي</a>'+
+   '<script>const stale=\'data-coupon="NOV153"\'</script></article>';
+ const aligned=repairAuditedLegacyBuyerGuidance(active,brand,'AE');
+ assert.match(aligned,/<article lang="ar-AE" data-market="AE" data-coupon="NOV188">/);
+ assert.match(aligned,/href="\/coupon\/nov153" data-coupon="NOV153"/,'other attributes and links unchanged');
+ assert.match(aligned,/<script>const stale=/,'script untouched');
+ assert.equal(repairAuditedLegacyBuyerGuidance(aligned,brand,'AE'),aligned);
+ assert.equal(repairAuditedLegacyBuyerGuidance(active,gift,'AE'),active,'other audited article has no corresponding stale attribute');
+
  assert.equal(repairAuditedLegacyBuyerGuidance(x,brand,'AE'),x,'idempotent');
  assert.equal(repairAuditedLegacyBuyerGuidance(a,brand,'SA'),a);
  assert.equal(repairAuditedLegacyBuyerGuidance(a,brand,'AE',true),a);
