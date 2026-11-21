@@ -61,6 +61,59 @@ def article_urls(xml):
     return [x for x in urls if re.search(r"^/((en/)?articles/|blog/)", urllib.parse.urlsplit(x).path)]
 
 
+def canonical_bulk_sitemap_paths(xml):
+    """Select only first-party historical bulk shards listed in canonical root."""
+    root = ET.fromstring(xml)
+    if not root.tag.endswith("sitemapindex"):
+        raise ValueError("BULK_CANONICAL_ROOT_NOT_INDEX")
+    all_refs = [n.text or "" for n in root.findall("s:sitemap/s:loc", NAMESPACE)]
+    pattern = re.compile(r"^/sitemap-articles-20\d{2}-\d{2}-\d{2}-(0|[1-9]\d{0,3})\.xml$")
+    urls = []
+    for url in all_refs:
+        if not safe_url(url):
+            raise ValueError("BULK_CANONICAL_ROOT_UNSAFE_FOREIGN_URL")
+        if pattern.fullmatch(urllib.parse.urlsplit(url).path):
+            urls.append(url)
+    if len(urls) != len(set(urls)) or len(urls) > 5000:
+        raise ValueError("BULK_CANONICAL_ROOT_DUPLICATE_OR_TOO_LARGE")
+    return urls
+
+
+def verify_static_bulk_archive():
+    """Sample old R2 article XML even when homepage and AI Workers are 429."""
+    status, mime, data = get(BASE + "/sitemap.xml", limit=3000000)
+    if status != 200 or "xml" not in mime:
+        raise RuntimeError("BULK_CANONICAL_STATIC_ROOT_UNAVAILABLE")
+    paths = canonical_bulk_sitemap_paths(data)
+    if not paths:
+        print("NDN_STATIC_BULK_ARCHIVE_MONITOR=NO_HISTORICAL_BULK_PATHS_IN_ROOT")
+        return 0
+    sample = list(dict.fromkeys([paths[0], paths[len(paths) // 2], paths[-1]]))
+    found = 0
+    for path in sample:
+        code, content_type, body = get(path, limit=4000000)
+        print("NDN_STATIC_BULK_SAMPLE_PATH=" + path + ";HTTP=" + str(code))
+        if code != 200 or "xml" not in content_type:
+            raise RuntimeError("BULK_STATIC_SAMPLE_NOT_200_XML")
+        doc = ET.fromstring(body)
+        if not doc.tag.endswith("urlset"):
+            raise RuntimeError("BULK_STATIC_SAMPLE_NOT_URLSET")
+        urls = [node.text or "" for node in doc.findall("s:url/s:loc", NAMESPACE)]
+        if len(urls) != len(set(urls)):
+            raise RuntimeError("BULK_STATIC_SAMPLE_DUPLICATE_ARTICLE_URLS")
+        if any(not safe_url(url) or not urllib.parse.urlsplit(url).path.startswith("/articles/") for url in urls):
+            raise RuntimeError("BULK_STATIC_SAMPLE_FOREIGN_OR_NONARTICLE_URL")
+        found += len(urls)
+        print("NDN_STATIC_BULK_SAMPLE_PUBLICATION_URLS=" + str(len(urls)))
+    if found == 0:
+        raise RuntimeError("BULK_STATIC_ARCHIVE_ALL_SAMPLED_XML_EMPTY")
+    print("NDN_STATIC_BULK_ARCHIVE_CRAWL=VERIFIED;ROOT_SHARDS=" + str(len(paths))
+          + ";SAMPLED_SHARDS=" + str(len(sample)) + ";SAMPLED_URL_ENTRIES=" + str(found))
+    # Historical XML is reachable; this does NOT prove the HTML routes or
+    # Google's actual indexing have recovered from shared Workers 1027.
+    return len(paths)
+
+
 def ai_v2_shard_paths(xml):
     """All verified native AI V2 sitemap leaves, not just a random canary."""
     root = ET.fromstring(xml)
@@ -123,6 +176,7 @@ class NoCrossHostRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def run():
+    verify_static_bulk_archive()
     verify_static_ai_v2()
     status, _, _ = get(BASE + "/")
     print("NDN_DYNAMIC_HOMEPAGE_HTTP=" + str(status))
