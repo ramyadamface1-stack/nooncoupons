@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,marketNoonHome,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
+import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,repairAuditedLegacyBuyerGuidance,marketNoonHome,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
 import {emergencyPublicR2Response} from '../r2-emergency-readonly.js';
 
 test('primary code is locked to country; never show Saudi code to UAE shoppers',()=>{
@@ -213,4 +213,44 @@ test('old generic noon homepage links resolve to right market without rewriting 
   assert.match(ar,/href="https:\/\/www.noon.com\/uae-en\/some-product"/);
   assert.match(ar,/href="https:\/\/other.com\/"/);
   assert.match(source,/href="https:\/\/www.noon.com\/"/,'immutable source');
+});
+
+
+test('audited backpack and gift pages replace false clothing advice only in visible text; all data and links remain intact',()=>{
+ const brand='american-tourister-backpacks-السعر-النهائي-بعد-تجربة-الكود-نون-الإمارات';
+ const gift='إرجاع-adidas-originals-للطلب-الأول-وكوبون-نون-الإمارات-من-المتصفح-هدية-اللون';
+ const a='<article data-coupon="NOV153"><p class="direct-answer">فابدأ بصلاحية American Tourister Backpacks السعر النهائي بعد تجربة الكود لـالرياضة ثم راجع اللون والبائع والشحن. وفي هذا الدليل نركز على مع أولوية سهولة الاستخدام.</p>'+
+  '<p>قبل التفكير في القسيمة، ثبّت ما تحتاجه فعلًا في American Tourister Backpacks السعر النهائي بعد تجربة الكود. في حالة الرياضة، ركّز أولًا على المقاس والخامة، ثم راجع القصة.</p>'+
+  '<p>افترض أنك وجدت خيارين من American Tourister Backpacks السعر النهائي بعد تجربة الكود مناسبين لـالرياضة. ابدأ بالخيار الأول.</p>'+
+  '<p>أكمل عندما يكون American Tourister Backpacks السعر النهائي بعد تجربة الكود مناسبًا لـالرياضة، بعد فحص السعر.</p>'+
+  '<p>قارن ملاءمة المنتج لـالرياضة والبائع والإرجاع والشحن والإجمالي النهائي؛ لا تعتمد على الكوبون وحده.</p>'+
+  '<a href="https://noondealsnow.com/uae">سوق uae</a>'+
+  '<script type="application/ld+json">{"text":"لـالرياضة","code":"NOV153"}</script>'+
+  '<style>.broken:after{content:"لـالرياضة"}</style></article>';
+ const x=repairAuditedLegacyBuyerGuidance(a,brand,'AE',false);
+ for(const text of ['سعة حقيبة الظهر','راحة حمل الحقيبة','توزيع الجيوب','حقيبتي ظهر مناسبتين','الحقيبة مناسبة لاستخدامك','راحة حملها','سوق الإمارات'])
+  assert.ok(x.includes(text),text);
+ assert.doesNotMatch(x,/(?:لـالرياضة|نركز على مع|في حالة الرياضة|راجع القصة)/u);
+ assert.match(x,/data-coupon="NOV153"/);
+ assert.match(x,/href="https:\/\/noondealsnow.com\/uae"/);
+ assert.match(x,/<script type="application\/ld\+json">\{"text":"لـالرياضة","code":"NOV153"\}<\/script>/);
+ assert.match(x,/\.broken:after\{content:"لـالرياضة"\}/);
+ assert.equal(repairAuditedLegacyBuyerGuidance(x,brand,'AE'),x,'idempotent');
+ assert.equal(repairAuditedLegacyBuyerGuidance(a,brand,'SA'),a);
+ assert.equal(repairAuditedLegacyBuyerGuidance(a,brand,'AE',true),a);
+ assert.equal(repairAuditedLegacyBuyerGuidance(a,brand+'-unverified','AE'),a);
+ const src='<article><p>فابدأ بصلاحية adidas Originals للطلب الأول لـهدية ثم راجع اللون والبائع والشحن.</p>'+
+ '<p>قبل التفكير في القسيمة، ثبّت ما تحتاجه فعلًا في adidas Originals للطلب الأول. في حالة هدية، ركّز أولًا على المقاس والخامة، ثم راجع القصة.</p>'+
+ '<p>افترض أنك وجدت خيارين من adidas Originals للطلب الأول مناسبين لـهدية. جرب كل خيار.</p>'+
+ '<p>أكمل عندما يكون adidas Originals للطلب الأول مناسبًا لـهدية، ثم راجع الشحن.</p>'+
+ '<p>قارن ملاءمة المنتج لـهدية والبائع والإرجاع والشحن والإجمالي النهائي.</p></article>';
+ const fixed=repairAuditedLegacyBuyerGuidance(src,gift,'AE');
+ assert.match(fixed,/مراجعة مقاس المنتج وخامته/);
+ assert.match(fixed,/شروط إرجاعه/);
+ assert.match(fixed,/مناسبين كهدية/);
+ assert.match(fixed,/الشخص الذي سيتلقى الهدية/);
+ assert.match(fixed,/ملاءمة المنتج كهدية/);
+ assert.doesNotMatch(fixed,/(?:لـهدية|في حالة هدية|راجع القصة)/u);
+ assert.equal(repairAuditedLegacyBuyerGuidance(fixed,gift,'AE'),fixed);
+ assert.equal(repairAuditedLegacyBuyerGuidance(src,'other-adidas-originals','AE'),src);
 });

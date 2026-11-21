@@ -267,3 +267,57 @@ test('legacy Nintendo Switch 2 English article uses its true checkout answer ins
  assert.match(html,/<html lang="en-AE" dir="ltr"/);
  assert.equal(source.includes('instead of assuming a fixed discount.'),true,'original stored English article unchanged');
 });
+
+
+test('real legacy route corrects American Tourister backpack advice but keeps metadata, FAQ, canonical, date and code',async()=>{
+ const slug='american-tourister-backpacks-السعر-النهائي-بعد-تجربة-الكود-نون-الإمارات';
+ const url='https://noondealsnow.com/articles/'+encodeURI(slug);
+ const heading='American Tourister Backpacks السعر النهائي بعد تجربة الكود نون الإمارات مع ';
+ const oldIntro='فابدأ بصلاحية American Tourister Backpacks السعر النهائي بعد تجربة الكود لـالرياضة ثم راجع اللون والبائع والشحن. وفي هذا الدليل نركز على مع أولوية سهولة الاستخدام.';
+ const oldAdvice='قبل التفكير في القسيمة، ثبّت ما تحتاجه فعلًا في American Tourister Backpacks السعر النهائي بعد تجربة الكود. في حالة الرياضة، ركّز أولًا على المقاس والخامة، ثم راجع القصة.';
+ const faq={'@context':'https://schema.org','@type':'FAQPage',mainEntity:[{'@type':'Question',name:'هل الكوبون مضمون؟',acceptedAnswer:{'@type':'Answer',text:'تحقق من إجمالي سلة نون الإمارات.'}}]};
+ const original='<article><h1>'+heading+'</h1><p class="direct-answer">الخلاصة العملية: '+oldIntro+' جرّب NOV153 على سلة ثابتة في نون الإمارات، واجعل الإجمالي النهائي هو المرجع بدل أي ادعاء غير موثق عن نسبة الخصم.</p>'+
+ '<p>'+oldAdvice+'</p><a href="https://noondealsnow.com/categories">أقسام نون</a>'+
+ '<script type="application/ld+json">'+JSON.stringify(faq)+'</script></article>';
+ let writes=0;
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{async get(k){return k==='articles/'+slug+'.html'?{
+  text:async()=>original,customMetadata:{status:'published',c:'AE',at:'2026-10-14T06:32:32.875Z'}
+ }:null},async put(){writes++;throw Error('no source writes allowed')}}};
+ const response=await nativeBoundLegacyPublicFastResponse(new Request(url),env);
+ assert.equal(response?.status,200);
+ const html=await response.text();
+ for(const text of ['سعة حقيبة الظهر','راحة حمل الحقيبة','توزيع الجيوب'])assert.ok(html.includes(text));
+ assert.doesNotMatch(html,/لـالرياضة|نركز على مع|في حالة الرياضة/);
+ assert.ok(html.includes('data-rescue-copy="NOV188"'));
+ assert.ok(html.includes('<link rel="canonical" href="'+url+'">'));
+ assert.ok(html.includes('href="https://noondealsnow.com/categories"'));
+ const schemas=[...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(v=>JSON.parse(v[1]));
+ assert.equal(schemas.filter(x=>x['@type']==='Article').length,1);
+ assert.equal(schemas.find(x=>x['@type']==='Article').mainEntityOfPage,url);
+ assert.deepEqual(schemas.find(x=>x['@type']==='FAQPage'),faq);
+ assert.match(html,/"datePublished":"2026-10-14T06:32:32.875Z"/);
+ assert.equal(writes,0);
+ assert.ok(original.includes('لـالرياضة'),'original R2 source untouched');
+});
+test('real legacy route fixes Adidas gift grammar only for the audited canonical slug',async()=>{
+ const slug='إرجاع-adidas-originals-للطلب-الأول-وكوبون-نون-الإمارات-من-المتصفح-هدية-اللون';
+ const u='https://noondealsnow.com/articles/'+encodeURI(slug);
+ const body='<article><h1>مراجعة الإرجاع adidas Originals للطلب الأول نون الإمارات</h1>'+
+ '<p class="direct-answer">فابدأ بصلاحية adidas Originals للطلب الأول لـهدية ثم راجع اللون والبائع والشحن. جرّب NOV153 على سلة نون الإمارات قبل الدفع.</p>'+
+ '<p>قبل التفكير في القسيمة، ثبّت ما تحتاجه فعلًا في adidas Originals للطلب الأول. في حالة هدية، ركّز أولًا على المقاس والخامة، ثم راجع القصة.</p>'+
+ '<p>افترض أنك وجدت خيارين من adidas Originals للطلب الأول مناسبين لـهدية. ابدأ بمقارنة البائع.</p></article>';
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{async get(k){return k==='articles/'+slug+'.html'?{
+  text:async()=>body,customMetadata:{status:'published',c:'AE',at:'2026-10-14T06:32:32.875Z'}
+ }:null}}};
+ const response=await nativeBoundLegacyPublicFastResponse(new Request(u),env);
+ assert.equal(response?.status,200);
+ const html=await response.text();
+ assert.ok(html.includes('مراجعة مقاس المنتج وخامته'));
+ assert.ok(html.includes('شروط إرجاعه'));
+ assert.ok(html.includes('مناسبين كهدية'));
+ assert.doesNotMatch(html,/لـهدية|في حالة هدية|راجع القصة/);
+ assert.ok(html.includes('data-rescue-copy="NOV188"'));
+ assert.ok(html.includes('<link rel="canonical" href="'+u+'">'));
+ assert.match(html,/"datePublished":"2026-10-14T06:32:32.875Z"/);
+ assert.equal(body.includes('لـهدية'),true);
+});
