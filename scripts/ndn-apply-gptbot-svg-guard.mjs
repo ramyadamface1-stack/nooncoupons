@@ -5,7 +5,7 @@
 // consume the Workers daily invocation allowance.
 const token=process.env.CF_TOKEN||'',account=process.env.CF_ACCOUNT||'';
 const origin='https://api.cloudflare.com/client/v4',name='NDN quota guard: GPTBot SVG requests only';
-const expr='(http.request.uri.path starts_with "/assets/coupon-svg/" and http.user_agent contains "GPTBot")';
+const expr='(starts_with(http.request.uri.path, "/assets/coupon-svg/") and http.user_agent contains "GPTBot")';
 function assert(x,msg){if(!x)throw Error(msg)}
 async function api(path,{method='GET',body}={}){
   const res=await fetch(origin+path,{method,headers:{authorization:'Bearer '+token,'content-type':'application/json'},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(18000)});
