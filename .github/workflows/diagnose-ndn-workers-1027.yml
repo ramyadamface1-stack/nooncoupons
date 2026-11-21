@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # Four free read-only probes daily; no Cloudflare Cron or AI generation.
+    - cron: '12 0 * * *'
     - cron: '20 1,7,13,19 * * *'
   push:
     paths:
@@ -106,11 +107,20 @@ jobs:
             }
           }catch(e){log('::warning::ZONE_TOP_PATHS_UNAVAILABLE '+String(e.message).slice(0,120))}
           JS
-          status=$(curl -sS --max-time 12 -o /tmp/ndn-1027-body -w '%{http_code}' 'https://noondealsnow.com/?ndn_quota_probe=readonly' || true)
-          echo "PUBLIC_HOMEPAGE_HTTP=$status"
-          if grep -q 'Error 1027' /tmp/ndn-1027-body; then
-            echo 'PUBLIC_ERROR_1027_CONFIRMED=TRUE'
-            echo 'Public homepage currently blocked by Workers daily request limit, not WAF user-agent challenge.' >> "$GITHUB_STEP_SUMMARY"
-            echo '::error::NOONDEALSNOW_PUBLIC_1027_ACTIVE'
-            exit 1
-          fi
+          problem=0
+          for path in / /blog /coupon/nov170 /coupon/nov188 /sitemap-core.xml; do
+            code=$(curl -sS --max-time 18 -o /tmp/ndn-public-smoke -w '%{http_code}' \
+              -H 'User-Agent: NDN-live-read-only-health-check' "https://noondealsnow.com$path" || true)
+            echo "PUBLIC_LIVE_SMOKE=$path;HTTP=$code"
+            echo "Public smoke $path: HTTP $code" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$code" != 200 ]; then
+              problem=1
+              if [ "$code" = 429 ] || grep -qi 'Error 1027' /tmp/ndn-public-smoke; then
+                echo "::error::NDN_PUBLIC_WORKER_QUOTA_EXHAUSTED $path HTTP=$code"
+              else
+                echo "::error::NDN_PUBLIC_ROUTE_UNHEALTHY $path HTTP=$code"
+              fi
+            fi
+          done
+          if [ "$problem" != 0 ]; then exit 1;fi
+          echo 'NDN_PUBLIC_POST_RESET_CORE_ROUTES=ALL_200'
