@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - '.github/workflows/diagnose-ndn-workers-1027.yml'
+      - 'scripts/ndn-quota-triage.mjs'
 
 permissions:
   contents: read
@@ -12,7 +13,7 @@ permissions:
 jobs:
   quotas:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     env:
       CF_ACCOUNT: e4c35f8a50a7b2e4cfb9d6c534962603
       CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
