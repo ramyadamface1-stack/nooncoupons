@@ -14,7 +14,8 @@ test('commercial and guide HTML remains quota-independent while sensitive paths 
     assert.match(html,/<meta name="ndn-quota-static-rescue" content="v1">/);
     assert.match(html,/<link rel="canonical" href="https:\/\/noondealsnow\.com\//);
     assert.match(html,/<html lang="ar" dir="rtl">/);
-    assert.match(html,/data-copy=/);
+    if(path!=='blog.html')assert.match(html,/data-copy=/);
+    else assert.match(html,/href="\/guide\//);
     assert.doesNotMatch(html,/Cloudflare.*1027/i);
   }
   for(const path of ['admin.html','admin/index.html','api/health.html','articles/index.html',
