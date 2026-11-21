@@ -127,6 +127,28 @@ export function repairLegacyArabicBlueprintText(html,slug,country='SA',english=f
  }).join('');
 }
 
+// One audited English archive page accidentally mixes two product categories:
+// its heading names a 2-in-1 laptop and PS5 Pro, yet only describes consoles.
+// Make the buying decision explicit before the checkout advice. This strictly
+// scoped, reader-only presentation edit does not assert product specs/prices,
+// rewrite the historical slug or R2 bytes, or affect other English articles.
+export function clarifyAuditedEnglishConsoleLaptopPage(html,slug,country='SA',english=false){
+ const raw=String(html??'');
+ if(!english||country!=='AE'||
+   String(slug)!=='en-2-in-1-laptop-noon-uae-ps5-pro-deals'||
+   !raw.includes('<h1>2-in-1 laptop Noon UAE PS5 Pro deals</h1>'))return raw;
+ const title='PS5 Pro vs 2-in-1 laptop: Noon UAE checkout comparison';
+ const note='<section class="article-category-clarification" aria-label="Console and laptop comparison">'+
+   '<h2>PS5 Pro or a 2-in-1 laptop? Choose your product category first</h2>'+
+   '<p>A PS5 Pro is a gaming console, while a 2-in-1 laptop is a computer designed for laptop and tablet-style use. These are different purchases; a discount shown for one does not establish the price or coupon eligibility of the other.</p>'+
+   '<ul><li>For the PS5 Pro, confirm the exact console edition, included controllers or games, and the seller warranty shown on the listing.</li>'+
+   '<li>For a 2-in-1 laptop, confirm the processor, memory, storage, screen, keyboard and stylus compatibility listed by the seller.</li>'+
+   '<li>Compare final payable totals only after choosing the correct product type, seller, shipping location and what is actually included. Test NOV188 on the relevant UAE cart rather than assuming a fixed savings rate.</li></ul></section>';
+ return raw.replace('<h1>2-in-1 laptop Noon UAE PS5 Pro deals</h1>','<h1>'+title+'</h1>')
+   .replace('Noon UAE · gaming consoles</p>','Noon UAE · console versus laptop shopping</p>')
+   .replace(/(<p\b[^>]*\bclass=["']direct-answer["'][^>]*>[\s\S]*?<\/p>)/i,'$1'+note);
+}
+
 // R2 stores older FAQ JSON-LD under the original promotion code. The public
 // reader now displays the market primary code; keep FAQ schema in agreement
 // with the *visible* FAQ without touching canonical URLs, item IDs or source R2.

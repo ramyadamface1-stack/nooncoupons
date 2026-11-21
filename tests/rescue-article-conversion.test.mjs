@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,repairAuditedLegacyBuyerGuidance,repairLegacyArabicBlueprintText,marketNoonHome,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
+import {primaryCodeForMarket,presentMarketCouponText,reconcileSourceCouponJsonLd,repairLegacyGuideLinks,repairGenericNoonLinks,repairAuditedLegacyBuyerGuidance,repairLegacyArabicBlueprintText,clarifyAuditedEnglishConsoleLaptopPage,marketNoonHome,renderCouponAction,renderRelatedArticles,rescueCopyScript,rescueArticleStyles} from '../rescue-article-conversion.js';
 import {emergencyPublicR2Response} from '../r2-emergency-readonly.js';
 
 test('primary code is locked to country; never show Saudi code to UAE shoppers',()=>{
@@ -329,4 +329,28 @@ test('Saudi FAQ textual JSON-LD country normalization is consistent with visible
  assert.match(json.mainEntity[0].acceptedAnswer.text,/نون السعودية/);
  assert.equal(json.url,'https://noondealsnow.com/articles/test-saudi-slug');
  assert.equal(reconcileSourceCouponJsonLd(html,'SA',null,true).includes('نون saudi'),true,'English pages unchanged');
+});
+
+
+test('an audited English PS5 Pro/laptop mismatch is clarified once without changing stored source or any other article',()=>{
+ const slug='en-2-in-1-laptop-noon-uae-ps5-pro-deals';
+ const raw='<article lang="en" data-market="AE"><p class="eyebrow">Noon UAE · gaming consoles</p>'+
+ '<h1>2-in-1 laptop Noon UAE PS5 Pro deals</h1>'+
+ '<p class="direct-answer"><strong>Quick answer:</strong> Start with a stable cart, copy NOV188, and use the final Noon checkout total as the reference instead of assuming a fixed discount.</p>'+
+ '<a href="https://www.noon.com/uae-en/">Shop at Noon</a><script type="application/ld+json">{"name":"PS5 Pro","url":"https://noondealsnow.com/en/articles/original"}</script></article>';
+ const html=clarifyAuditedEnglishConsoleLaptopPage(raw,slug,'AE',true);
+ assert.match(html,/<h1>PS5 Pro vs 2-in-1 laptop: Noon UAE checkout comparison<\/h1>/);
+ assert.match(html,/PS5 Pro or a 2-in-1 laptop\? Choose your product category first/);
+ assert.match(html,/A PS5 Pro is a gaming console, while a 2-in-1 laptop is a computer/);
+ assert.match(html,/confirm the processor, memory, storage/);
+ assert.match(html,/Test NOV188 on the relevant UAE cart/);
+ assert.match(html,/href="https:\/\/www.noon.com\/uae-en\/"/);
+ assert.match(html,/data-market="AE"/);
+ assert.match(html,/<script type="application\/ld\+json">\{"name":"PS5 Pro","url":"https:\/\/noondealsnow.com\/en\/articles\/original"\}<\/script>/);
+ assert.equal((html.match(/article-category-clarification/g)||[]).length,1,'not duplicate buyer section');
+ assert.equal(clarifyAuditedEnglishConsoleLaptopPage(html,slug,'AE',true),html,'idempotent');
+ assert.equal(clarifyAuditedEnglishConsoleLaptopPage(raw,slug,'SA',true),raw,'Saudi pages untouched');
+ assert.equal(clarifyAuditedEnglishConsoleLaptopPage(raw,slug,'AE',false),raw,'Arabic pages untouched');
+ assert.equal(clarifyAuditedEnglishConsoleLaptopPage(raw,'en-2-in-1-laptop-noon-uae-gaming-deals','AE',true),raw,'other valid laptop page untouched');
+ assert.equal(raw.includes('2-in-1 laptop Noon UAE PS5 Pro deals'),true,'original source not mutated');
 });

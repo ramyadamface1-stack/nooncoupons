@@ -373,3 +373,45 @@ test('published Saudi blueprint reader repairs market name, H1, meta, FAQ and br
  assert.equal(writes,0);
  assert.ok(source.includes('نون saudi')&&source.includes('لـهدية'),'R2 input unchanged');
 });
+
+
+test('legacy English PS5/laptop mismatch gets a truthful comparison H1 and matching Article metadata on live route',async()=>{
+ const slug='en-2-in-1-laptop-noon-uae-ps5-pro-deals',u='https://noondealsnow.com/en/articles/'+slug;
+ const oldHeading='2-in-1 laptop Noon UAE PS5 Pro deals';
+ const heading='PS5 Pro vs 2-in-1 laptop: Noon UAE checkout comparison';
+ const actual='Start with a stable cart, copy NOV188, and use the final Noon checkout total as the reference instead of assuming a fixed discount.';
+ const original='<article lang="en" data-market="AE"><p class="eyebrow">Noon UAE · gaming consoles</p><h1>'+oldHeading+'</h1>'+
+  '<p class="direct-answer"><strong>Quick answer:</strong> '+actual+'</p>'+
+  '<section><h2>Category baseline for gaming consoles</h2><p>Review seller details and console bundles before comparing the checkout amount.</p></section>'+
+  '<a href="https://www.noon.com/uae-en/">Official store</a>'+
+  '<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@type':'FAQPage',
+   mainEntity:[{'@type':'Question',name:'Is NOV188 guaranteed?',acceptedAnswer:{'@type':'Answer',text:'Check Noon UAE checkout.'}}]})+'</script>'+
+  '</article>';
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{async get(key){
+  return key==='articles/'+slug+'.html'?{text:async()=>original,customMetadata:{
+   status:'published',c:'AE',at:'2026-10-24T17:45:00Z'
+  }}:null;
+ }}};
+ const res=await nativeBoundLegacyPublicFastResponse(new Request(u),env);
+ assert.equal(res.status,200);
+ const html=await res.text(),desc=html.match(/<meta name="description" content="([^"]*)"/)?.[1];
+ assert.ok(html.includes('<h1>'+heading+'</h1>'));
+ assert.ok(html.includes('PS5 Pro or a 2-in-1 laptop? Choose your product category first'));
+ assert.match(html,/A PS5 Pro is a gaming console, while a 2-in-1 laptop is a computer/);
+ assert.match(html,/confirm the processor, memory, storage/);
+ assert.ok(desc.startsWith(heading+' — Start with a stable cart, copy NOV188,'));
+ assert.ok(desc.endsWith('the reference.'));
+ assert.ok(desc.length<=170);
+ assert.ok(html.includes('<meta property="og:description" content="'+desc+'">'));
+ const schemas=[...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(x=>JSON.parse(x[1]));
+ assert.equal(schemas.filter(x=>x['@type']==='Article').length,1);
+ assert.equal(schemas.find(x=>x['@type']==='Article').headline,heading);
+ assert.equal(schemas.find(x=>x['@type']==='Article').description,desc);
+ assert.equal(schemas.find(x=>x['@type']==='Article').mainEntityOfPage,u);
+ assert.ok(schemas.find(x=>x['@type']==='FAQPage'));
+ assert.match(html,/href="https:\/\/www.noon.com\/uae-en\/"/);
+ assert.match(html,/data-rescue-copy="NOV188"/);
+ assert.ok(html.includes('<link rel="canonical" href="'+u+'">'));
+ assert.match(html,/"datePublished":"2026-10-24T17:45:00.000Z"/);
+ assert.ok(original.includes(oldHeading)&&!original.includes(heading),'source R2 body still unchanged');
+});
