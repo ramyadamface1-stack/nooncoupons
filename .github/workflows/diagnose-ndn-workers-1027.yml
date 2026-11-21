@@ -107,6 +107,22 @@ jobs:
             }
           }catch(e){log('::warning::ZONE_TOP_PATHS_UNAVAILABLE '+String(e.message).slice(0,120))}
           JS
+          # SEO discovery must stay up when the free Worker quota runs out.
+          # Match only the GPTBot-specific group: do not accidentally deny Search.
+          robot_status=$(curl -sS --max-time 18 -o /tmp/ndn-live-robots -w '%{http_code}' \
+            -H 'User-Agent: NDN-crawler-policy-verifier' 'https://noondealsnow.com/robots.txt' || true)
+          echo "PUBLIC_STATIC_ROBOTS_HTTP=$robot_status"
+          test "$robot_status" = 200
+          grep -q '^User-agent: OAI-SearchBot' /tmp/ndn-live-robots
+          awk '/^User-agent: GPTBot$/{p=1;next}/^User-agent: OAI-SearchBot$/{p=0}p' /tmp/ndn-live-robots | grep -q '^Disallow: /articles/'
+          awk '/^User-agent: GPTBot$/{p=1;next}/^User-agent: OAI-SearchBot$/{p=0}p' /tmp/ndn-live-robots | grep -q '^Disallow: /en/articles/'
+          for agent in 'Mozilla/5.0 (compatible; OAI-SearchBot/1.0)' 'Mozilla/5.0 (compatible; Googlebot/2.1)'; do
+            status=$(curl -sS --max-time 18 -o /tmp/ndn-crawler-core -w '%{http_code}' \
+              -H "User-Agent: $agent" 'https://noondealsnow.com/sitemap-core.xml' || true)
+            echo "PUBLIC_STATIC_CRAWLER_CORE_HTTP=$status;AGENT=$agent"
+            test "$status" = 200
+          done
+          echo 'NDN_STATIC_SEO_AND_AI_SEARCH_CRAWL_ACCESS=VERIFIED'
           problem=0
           for path in / /blog /coupon/nov170 /coupon/nov188 /sitemap-core.xml; do
             code=$(curl -sS --max-time 18 -o /tmp/ndn-public-smoke -w '%{http_code}' \
