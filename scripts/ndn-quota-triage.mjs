@@ -85,6 +85,10 @@ await query('EMPTY_AGENT_ALL_ARTICLE','',{clientRequestPath_like:'/articles/%',u
 await query('EMPTY_AGENT_ALL_SVG','',{clientRequestPath_like:'/assets/coupon-svg/%',userAgent:''},1);
 await query('EMPTY_AGENT_ALL_API','',{clientRequestPath_like:'/api/%',userAgent:''},1);
 await query('EMPTY_AGENT_EMPTY_UA_STATUS','dimensions { edgeResponseStatus }',{clientRequestPath_like:'/articles/%',userAgent:''},10);
+await query('GPTBOT_ARTICLE_STATUSES','dimensions { edgeResponseStatus }',{clientRequestPath_like:'/articles/%',userAgent_like:'%GPTBot%'},12);
+await query('GPTBOT_SVG_STATUSES','dimensions { edgeResponseStatus }',{clientRequestPath_like:'/assets/coupon-svg/%',userAgent_like:'%GPTBot%'},12);
+await query('NON_GPTBOT_ARTICLE_200','',{clientRequestPath_like:'/articles/%',edgeResponseStatus:200},1);
+
 
 await query('ARTICLES_504_AGENTS','dimensions { userAgent }',{clientRequestPath_like:'/articles/%',edgeResponseStatus:504},12);
 await query('SVG_504_AGENTS','dimensions { userAgent }',{clientRequestPath_like:'/assets/coupon-svg/%',edgeResponseStatus:504},12);
