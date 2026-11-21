@@ -283,7 +283,8 @@ test('blueprint-only Arabic legacy repair fixes malformed cases and Saudi naming
  assert.match(result,/عند اختيار حذاء، راجع المقاس والخامة وراحة الاستخدام وسياسة الإرجاع/);
  assert.match(result,/مناسبين للاستخدام المطلوب/);
  assert.match(result,/نون السعودية/);
- assert.doesNotMatch(result,/نون saudi|لـهدية|في حالة هدية|عند عند تغير السعر|عند قبل الإرجاع/);
+ const visible=result.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi,'').replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi,'');
+ assert.doesNotMatch(visible,/نون saudi|لـهدية|في حالة هدية|عند عند تغير السعر|عند قبل الإرجاع/);
  assert.match(result,/href="https:\/\/noondealsnow.com\/saudi"/,'valid country link untouched');
  assert.match(result,/data-coupon="NOV170"/);
  assert.match(result,/<script type="application\/ld\+json">\{"name":"نون saudi","text":"مناسبين لـهدية"\}<\/script>/,'structured-data script untouched by visible-text formatter');
