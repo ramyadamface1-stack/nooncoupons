@@ -13,6 +13,9 @@ on:
       - 'scripts/build-ndn-static-bulk-article-sitemaps.py'
       - 'scripts/stage-ndn-static-rescue-inputs.py'
       - 'scripts/render-ndn-static-rescue-sitemaps.mjs'
+      - 'scripts/stage-ndn-static-discovery-inputs.py'
+      - 'scripts/render-ndn-static-discovery-sitemaps.mjs'
+      - 'tests/test_ndn_static_discovery_sitemaps.py'
       - 'tests/test_ndn_static_rescue_sitemaps.py'
       - 'tests/test_ndn_static_bulk_article_sitemaps.py'
       - 'tests/test_ndn_static_ai_v2_sitemaps.py'
@@ -254,6 +257,38 @@ jobs:
                 ';WORKERS_FREE_STATIC_FILES='+str(len(list(root.iterdir()))))
           PY
 
+      - name: Build canonical priority, English, hubs, image XML from read-only R2 inputs
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_ndn_static_discovery_sitemaps.py' -v
+          python3 scripts/stage-ndn-static-discovery-inputs.py
+          node scripts/render-ndn-static-discovery-sitemaps.mjs
+          python3 - <<'PY'
+          import pathlib, xml.etree.ElementTree as ET
+          root=pathlib.Path('.ndn-static-assets')
+          ns={'s':'http://www.sitemaps.org/schemas/sitemap/0.9'}
+          canonical=ET.parse(root/'sitemap.xml').getroot()
+          indexed={node.text for node in canonical.findall('s:sitemap/s:loc',ns)}
+          files=['sitemap-priority.xml','sitemap-en-articles.xml','sitemap-hubs.xml','sitemap-images.xml']
+          all_urls=0
+          for name in files:
+            assert 'https://noondealsnow.com/'+name in indexed, 'DISCOVERY_NOT_IN_CANONICAL_ROOT_'+name
+            tree=ET.parse(root/name).getroot()
+            assert tree.tag.endswith('urlset'),name
+            urls=[x.text for x in tree.findall('s:url/s:loc',ns)]
+            assert urls and all(u and u.startswith('https://noondealsnow.com/') for u in urls),name
+            all_urls+=len(urls)
+          assert not (root/'sitemap-live-recent.xml').exists(), 'DYNAMIC_LIVE_RECENT_MUST_REMAIN_UNOVERLAID'
+          assert len(list(root.iterdir()))<20000, 'CLOUDFLARE_FREE_STATIC_ASSET_COUNT_EXCEEDED'
+          print('NDN_STATIC_DISCOVERY_XML_INTEGRITY=PASS;CANONICAL_FILES=4;URL_ENTRIES='+str(all_urls))
+          print('DYNAMIC_LIVE_RECENT_PRESERVED=TRUE;R2_SOURCE_WRITES=ZERO;AI_GENERATION=ZERO')
+          PY
+
       - name: Check native gate and authenticated secret manager regressions
         run: node --test tests/native-bound-ai-v2-fast.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs
       - name: Prevent incorrect AI-readable NOV coupon market mappings
@@ -311,7 +346,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for path in /robots.txt /sitemap-core.xml /llms.txt /sitemap.xml /sitemap-pages.xml /sitemap-guides.xml /sitemap-coupons.xml /sitemap-coupons-saudi.xml /sitemap-coupons-uae.xml; do
+          for path in /robots.txt /sitemap-core.xml /llms.txt /sitemap.xml /sitemap-pages.xml /sitemap-guides.xml /sitemap-coupons.xml /sitemap-coupons-saudi.xml /sitemap-coupons-uae.xml /sitemap-priority.xml /sitemap-en-articles.xml /sitemap-hubs.xml /sitemap-images.xml; do
             code=$(curl -sS --max-time 20 -o /tmp/ndn-static-seo-live -w '%{http_code}' \
               -H 'User-Agent: NDN-static-asset-quota-probe' "https://noondealsnow.com$path" || true)
             echo "STATIC_ASSET_LIVE_PATH=$path;HTTP=$code"
@@ -324,6 +359,7 @@ jobs:
               /sitemap-pages.xml|/sitemap-guides.xml|/sitemap-coupons.xml) grep -q '<urlset' /tmp/ndn-static-seo-live ;;
               /sitemap-coupons-saudi.xml) grep -q '/coupon/nov170' /tmp/ndn-static-seo-live ;;
               /sitemap-coupons-uae.xml) grep -q '/coupon/nov188' /tmp/ndn-static-seo-live ;;
+              /sitemap-priority.xml|/sitemap-en-articles.xml|/sitemap-hubs.xml|/sitemap-images.xml) grep -q '<urlset' /tmp/ndn-static-seo-live ;;
             esac
           done
           # Unlike dynamic Worker XML, these native publication-ledger snapshots
