@@ -913,6 +913,26 @@ export async function nativeBoundLegacyCpuCanaryResponse(req,env){
   }
 }
 
+// The new-account production Worker uses its native R2 binding and keeps the
+// old emergency router disabled. Both catalog paths are nevertheless already
+// advertised by live public sitemaps. Restore ONLY those read-only, existing
+// indexed directory routes; do not switch on the wider fallback/generator.
+export async function nativeBoundRescueCatalogResponse(req,env){
+  if(req.method!=='GET'||String(env?.R2_RESCUE_READONLY_ENABLED||'')!=='false'||
+    typeof env?.CONTENT_FINAL?.get!=='function')return null;
+  const u=new URL(req.url),path=u.pathname.replace(/\/+$/,'');
+  const english=/^\/blog\/archive\/english\/catalog(?:\/[1-9]\d{0,4})?$/.test(path);
+  const arabic=/^\/blog\/archive\/catalog(?:\/[1-9]\d{0,4})?$/.test(path);
+  if(!english&&!arabic)return null;
+  try{return english?await serveEnglishCatalog(env,u):await serveCatalog(env,u)}
+  catch(error){
+    console.warn('r2_catalog_read_unavailable',String(error?.message||error).slice(0,90));
+    return new Response('Archive temporarily unavailable',{status:503,headers:{
+      'content-type':'text/plain; charset=utf-8','cache-control':'no-store',
+      'retry-after':'120','x-robots-tag':'noindex,nofollow'
+    }});
+  }
+}
 export async function emergencyPublicR2Response(req,env){
   const u=new URL(req.url);
   if(req.method!=='GET'||String(env.R2_RESCUE_READONLY_ENABLED||'')!=='true')return null;

@@ -6,7 +6,7 @@ import {nativeAiV2SitemapResponse} from './ai-v2-sitemap.js';
 import app from './brand-runtime.js';
 import {llms as canonicalCouponSourceGuide} from './final-platform.js';
 import {brandDirectoryResponse,enrichHomepageSchema} from './brand-directory-schema.js';
-import {emergencyPublicR2Response,nativeBoundAiV2ArticleFastResponse,nativeBoundLegacyCpuCanaryResponse,nativeBoundLegacyPublicFastResponse,rescueSitemapIndexPaths,rescueSitemapResponse,prebuiltRescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
+import {emergencyPublicR2Response,nativeBoundAiV2ArticleFastResponse,nativeBoundLegacyCpuCanaryResponse,nativeBoundLegacyPublicFastResponse,nativeBoundRescueCatalogResponse,rescueSitemapIndexPaths,rescueSitemapResponse,prebuiltRescueSitemapResponse,rescueManifestInventory} from './r2-emergency-readonly.js';
 import {runEnglishCanaryBatch,englishCanaryRecords,englishPublicRecentRecords} from './english-canary.js';
 import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime.js';
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
@@ -702,6 +702,10 @@ const discoveryEntrypoint={
     }
     const rescued=await emergencyPublicR2Response(req,env);
     if(rescued)return edgePageCachePut(req,u,rescued,ctx);
+    // Restore the two catalog paths already listed in the public sitemap index.
+    // They read existing destination R2 manifests; all other routing is intact.
+    const indexedCatalog=await nativeBoundRescueCatalogResponse(req,env);
+    if(indexedCatalog)return edgePageCachePut(req,u,indexedCatalog,ctx);
     const directory=brandDirectoryResponse(req);
     if(directory)return edgePageCachePut(req,u,directory,ctx);
     if(req.method==='GET'&&u.pathname==='/api/archive-inventory'){
