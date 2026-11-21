@@ -58,6 +58,12 @@ test('AE approved native article uses cheap metadata-backed fast renderer and th
  assert.ok(html.includes('NOV188'));
  assert.ok(!native.includes('NOV170'));
 
+ assert.match(html,/href="\\/en\\/uae\\/noon-coupon-code"/,'English coupon guide must not lead to Arabic');
+ assert.match(html,/href="\\/en\\/uae\\/saving-guide"/,'English article must link to the real saving guide');
+ assert.match(html,/href="\\/en\\/uae"/,'English article must link to the country hub');
+ assert.match(html,/href="\\/blog\\/archive\\/english"/,'English archive remains available');
+ assert.doesNotMatch(html,/href="\\/uae\\/noon-coupon-code"/,'no Arabic coupon landing from English article');
+ assert.doesNotMatch(html,/href="\\/en\\/uae\\/categories"/,'never link to known 404');
  assert.ok(!html.includes('Quality 100'),'No internal quality score in public HTML');
 });
 test('native fast eligibility correctly recognizes real HTML boundaries, not literal slash-b',()=>{
