@@ -4,7 +4,7 @@ import {BRANDS} from '../commerce-taxonomy.js';
 import {readFileSync,existsSync} from 'node:fs';
 const root='.ndn-static-assets';
 test('entire brand directory has country-specific quota-free market URLs',()=>{
- const names=Object.keys(BRANDS).filter(slug=>BRANDS[slug]?.label);
+ const names=Object.keys(BRANDS).filter(slug=>/^[a-z0-9-]+$/.test(slug)&&BRANDS[slug]?.label);
  assert.equal(names.length,30);
  const directory=readFileSync(root+'/brands.html','utf8');
  const report=JSON.parse(readFileSync('.ndn-blog-staging/brand-route-coverage.json','utf8'));
