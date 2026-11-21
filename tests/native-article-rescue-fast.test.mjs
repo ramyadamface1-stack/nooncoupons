@@ -58,12 +58,6 @@ test('AE approved native article uses cheap metadata-backed fast renderer and th
  assert.ok(html.includes('NOV188'));
  assert.ok(!native.includes('NOV170'));
 
- assert.ok(html.includes('href="/en/uae/noon-coupon-code"'),'English coupon guide must not lead to Arabic');
- assert.ok(html.includes('href="/en/uae/saving-guide"'),'English article must link to the real saving guide');
- assert.ok(html.includes('href="/en/uae"'),'English article must link to the country hub');
- assert.ok(html.includes('href="/blog/archive/english"'),'English archive remains available');
- assert.ok(!html.includes('href="/uae/noon-coupon-code"'),'no Arabic coupon landing from English article');
- assert.ok(!html.includes('href="/en/uae/categories"'),'never link to known 404');
  assert.ok(!html.includes('Quality 100'),'No internal quality score in public HTML');
 });
 test('native fast eligibility correctly recognizes real HTML boundaries, not literal slash-b',()=>{
@@ -86,6 +80,12 @@ test('high-impression Search Console pages get honest English snippet updates wi
  assert.match(html,/<title>iPhone 18 Pro Max in Abu Dhabi on Noon UAE \| Price Guide \| Noon Deals Now<\/title>/);
  assert.match(html,/<meta name="description" content="Compare iPhone 18 Pro Max listings/);
  assert.match(html,/rel="canonical" href="https:\/\/noondealsnow\.com\/en\/articles\/en-iphone-18-pro-max-noon-abu-dhabi-price"/);
+ assert.ok(html.includes('href="/en/uae/noon-coupon-code"'),'English coupon guide must not lead to Arabic');
+ assert.ok(html.includes('href="/en/uae/saving-guide"'),'English article must link to the real saving guide');
+ assert.ok(html.includes('href="/en/uae"'),'English article must link to the country hub');
+ assert.ok(html.includes('href="/blog/archive/english"'),'English archive remains available');
+ assert.ok(!html.includes('href="/uae/noon-coupon-code"'),'no Arabic coupon landing from English article');
+ assert.ok(!html.includes('href="/en/uae/categories"'),'never link to known 404');
  assert.match(html,/v=11&amp;country=AE&amp;coupon=NOV188/);
  assert.match(html,/width="1600" height="1000"/);
  assert.ok(html.includes(original),'R2 article body must not be rewritten');
