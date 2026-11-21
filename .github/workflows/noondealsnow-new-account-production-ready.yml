@@ -66,6 +66,11 @@ on:
       - 'tests/mobile-directory-no-heavy-manifest.test.mjs'
       - 'tests/ai-v2-blog-publication.test.mjs'
   workflow_dispatch:
+  schedule:
+    # Daily FREE static sitemap refresh using READ ONLY R2 manifests.
+    # This does NOT generate, schedule, or publish any article via GitHub.
+    # Avoid hourly/zero-minute congestion; GitHub cron is best effort.
+    - cron: '27 3 * * *'
 permissions: {contents: read}
 concurrency:
   group: ndn-new-account-production-prep
