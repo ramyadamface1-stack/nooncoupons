@@ -64,4 +64,12 @@ await query('API_EDGE_REQUESTS','',{clientRequestPath_like:'/api/%'},1);
 await query('BOT_AGENT_BREAKDOWN','dimensions { userAgent }',{requestSource:'eyeball'},20);
 await query('ASN_BREAKDOWN','dimensions { clientAsn }',{requestSource:'eyeball'},20);
 await query('EDGE_STATUSES','dimensions { edgeResponseStatus }',{},12);
+for(const [name,agent] of [['GPTBOT','%GPTBot%'],['GOOGLEBOT','%Googlebot%'],['OAI_SEARCHBOT','%OAI-SearchBot%'],['SEMRUSHBOT','%SemrushBot%'],['AHREFSBOT','%AhrefsBot%']]){
+  await query(name+'_ALL','',{userAgent_like:agent},1);
+  await query(name+'_SVG','',{userAgent_like:agent,clientRequestPath_like:'/assets/coupon-svg/%'},1);
+  await query(name+'_ARTICLES','',{userAgent_like:agent,clientRequestPath_like:'/articles/%'},1);
+}
+await query('GPTBOT_504','',{userAgent_like:'%GPTBot%',edgeResponseStatus:504},1);
+await query('GPTBOT_204','',{userAgent_like:'%GPTBot%',edgeResponseStatus:204},1);
+
 console.log('NDN_QUOTA_TRIAGE_READ_ONLY=true');
