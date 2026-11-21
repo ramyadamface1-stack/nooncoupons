@@ -323,3 +323,53 @@ test('real legacy route fixes Adidas gift grammar only for the audited canonical
  assert.match(html,/"datePublished":"2026-10-14T06:32:32.875Z"/);
  assert.equal(body.includes('لـهدية'),true);
 });
+
+
+test('published Saudi blueprint reader repairs market name, H1, meta, FAQ and broken advice without touching R2',async()=>{
+ const slug='قبل-شراء-adidas-الأحذية-من-نون-السعودية-من-التطبيق-هدية-القصة';
+ const path='https://noondealsnow.com/articles/'+encodeURI(slug);
+ const faq={'@context':'https://schema.org','@type':'FAQPage',mainEntity:[
+  {'@type':'Question',name:'كيف أستخدم NOV170 على نون saudi؟',
+   acceptedAnswer:{'@type':'Answer',text:'راجع سلة نون saudi قبل الدفع.'}}
+ ]};
+ const source='<article lang="ar-SA" dir="rtl" data-blueprint="2" data-market="SA"><p class="eyebrow">قبل الشراء · نون saudi · adidas الأحذية</p>'+
+  '<h1>خطوات قبل الدفع adidas الأحذية نون saudi</h1>'+
+  '<p class="direct-answer">الخلاصة العملية: قارن البائع والضمان. فابدأ بصلاحية adidas الأحذية لـهدية ثم راجع القصة والبائع والشحن. جرّب NOV170 على سلة ثابتة في نون saudi، واجعل الإجمالي النهائي هو المرجع بدل أي ادعاء غير موثق عن نسبة الخصم.</p>'+
+  '<p>قبل التفكير في القسيمة، في حالة هدية، ركّز أولًا على المقاس والخامة، ثم راجع القصة.</p>'+
+  '<p>افترض أنك وجدت خيارين مناسبين لـهدية. ثبّت سعر السلة.</p>'+
+  '<p>عند عند تغير السعر أو عند قبل الإرجاع، راجع تفاصيل المنتج.</p>'+
+  '<a href="/saudi/noon-coupon-code">السوق السعودي</a>'+
+  '<script type="application/ld+json">'+JSON.stringify(faq)+'</script>'+
+  '</article>';
+ let writes=0;
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{
+  async get(key){return key==='articles/'+slug+'.html'?{
+   text:async()=>source,customMetadata:{status:'published',c:'SA',at:'2026-10-08T05:51:01.892Z'}
+  }:null;},async put(){writes++;throw Error('R2 must remain read only')}
+ }};
+ const res=await nativeBoundLegacyPublicFastResponse(new Request(path),env);
+ assert.equal(res?.status,200);
+ const h=await res.text(),meta=h.match(/<meta name="description" content="([^"]*)"/)?.[1]||'';
+ assert.match(h,/<h1>خطوات قبل الدفع adidas الأحذية نون السعودية<\/h1>/);
+ assert.match(meta,/نون السعودية/);
+ assert.doesNotMatch(meta,/نون saudi/);
+ assert.match(h,/مراجعة ملاءمة adidas الأحذية لاحتياجك/);
+ assert.match(h,/عند اختيار حذاء، راجع المقاس والخامة وراحة الاستخدام/);
+ assert.match(h,/مناسبين للاستخدام المطلوب/);
+ assert.match(h,/عند تغير السعر أو قبل الإرجاع/);
+ assert.match(h,/data-rescue-copy="NOV170"/);
+ assert.match(h,/href="\/saudi\/noon-coupon-code"/);
+ assert.ok(h.includes('<link rel="canonical" href="'+path+'">'));
+ const json=[...h.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)]
+  .map(x=>JSON.parse(x[1]));
+ const article=json.find(x=>x['@type']==='Article'),faqSchema=json.find(x=>x['@type']==='FAQPage');
+ assert.equal(json.filter(x=>x['@type']==='Article').length,1);
+ assert.ok(article.headline.includes('نون السعودية'));
+ assert.equal(article.description,meta);
+ assert.equal(article.mainEntityOfPage,path);
+ assert.equal(faqSchema.mainEntity[0].name,'كيف أستخدم NOV170 على نون السعودية؟');
+ assert.equal(faqSchema.mainEntity[0].acceptedAnswer.text,'راجع سلة نون السعودية قبل الدفع.');
+ assert.match(h,/"datePublished":"2026-10-08T05:51:01.892Z"/);
+ assert.equal(writes,0);
+ assert.ok(source.includes('نون saudi')&&source.includes('لـهدية'),'R2 input unchanged');
+});
