@@ -259,17 +259,27 @@ const topicLinks=(country='SA',english=false)=>{
   const market=country==='AE'?'uae':'saudi';
   const landing=country==='AE'?'/uae/noon-coupon-code':'/saudi-arabia/noon-coupon-code';
   const label=english?'Useful shopping links':'روابط ذات صلة';
-  return '<nav id="article-topic-path" class="related" aria-label="'+esc(label)+'"><h2>'+esc(label)+'</h2><div class="related-links">'+[
-    [landing,english?'Noon coupon conditions':'كود خصم نون'],
-    ['/'+market,english?'Country shopping hub':'تسوق نون حسب الدولة'],
-    ['/'+market+'/categories',english?'Product categories':'أقسام المنتجات'],
-    ['/blog',english?'Latest guides':'أحدث المقالات'],
-    ['/blog/archive/all',english?'All archived guides':'أرشيف المقالات'],
-    [english?'/blog/archive/english':'/blog/archive',english?'Browse English guide directory':'فهرس المقالات القديمة'],
-    ['/topics/'+market,english?'More guides from this market':'مقالات هذا السوق'],
-    ['/topics/buying-guides',english?'Buying guides':'أدلة الشراء'],
-    ['/topics/coupon-help',english?'Coupon help':'مشاكل الكوبونات']
-  ].map(([href,title])=>'<a href="'+esc(href)+'">'+esc(title)+'</a>').join('')+'</div></nav>';
+  // Keep English UAE readers within verified, indexable English landing pages.
+  // /en/uae/categories is a 404; /uae/categories and /topics/uae are Arabic.
+  // Arabic readers retain their existing approved navigation and original URLs.
+  const links=english?[
+    ['/en/uae/noon-coupon-code','Noon UAE coupon conditions'],
+    ['/en/uae','UAE shopping hub'],
+    ['/en/uae/saving-guide','UAE saving guide'],
+    ['/blog/archive/english','Browse English shopping guides']
+  ]:[
+    [landing,'كود خصم نون'],
+    ['/'+market,'تسوق نون حسب الدولة'],
+    ['/'+market+'/categories','أقسام المنتجات'],
+    ['/blog','أحدث المقالات'],
+    ['/blog/archive/all','أرشيف المقالات'],
+    ['/blog/archive','فهرس المقالات القديمة'],
+    ['/topics/'+market,'مقالات هذا السوق'],
+    ['/topics/buying-guides','أدلة الشراء'],
+    ['/topics/coupon-help','مشاكل الكوبونات']
+  ];
+  return '<nav id="article-topic-path" class="related" aria-label="'+esc(label)+'"><h2>'+esc(label)+'</h2><div class="related-links">'+
+    links.map(([href,title])=>'<a href="'+esc(href)+'">'+esc(title)+'</a>').join('')+'</div></nav>';
 };
 function page(title,content,{lang='ar',dir='rtl',canonical='',description='',robots='noindex,follow',image=''}={}){
   const header='<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="'+esc(robots)+'">'+
