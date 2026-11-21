@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml,neutralizeUnverifiedEditorialReview,repairArchivedProductCategoryHtml,supplementNativeArticleJsonLd,decodeNativeMetadataText,articleJsonLdDescription,nativeMetaDescription} from '../r2-emergency-readonly.js';
+import {renderApprovedNativeAiV2Fast,rescueGscSnippet,refreshArtworkUrlsInHtml,neutralizeUnverifiedEditorialReview,repairArchivedProductCategoryHtml,supplementNativeArticleJsonLd,decodeNativeMetadataText,articleJsonLdDescription,nativeMetaDescription,nativeCompleteSearchSnippet} from '../r2-emergency-readonly.js';
 const url=new URL('https://noondealsnow.com/articles/saudi-buyer-samsung-tablet-offline-annotation-workflow-nov170-2026-n5');
 const source='<article><h1>جدول مقارنة سامسونج تابلت</h1><p>'+('معايير مقارنة الكود NOV170 والمواصفات والضمان وشروط نون السعودية. '.repeat(110))+'</p></article>';
 const item={body:source,meta:{status:'published',p:'ai-v2-native',c:'SA',cp:'NOV170',q:'100',w:'1775',
@@ -273,4 +273,78 @@ test('source JSON-LD fallback ignores FAQ schema and cannot invent a description
  assert.equal(articleJsonLdDescription(source),'');
  const good='Healthy complete description of the coupon workflow before checkout.';
  assert.equal(nativeMetaDescription(encodeURIComponent(good),source),good);
+});
+
+
+test('Saudi native clipped metadata falls back to the article actual complete checkout answer',async()=>{
+ const slug='saudi-buyer-samsung-tablet-offline-annotation-workflow-nov170-2026-n5';
+ const u=new URL('https://noondealsnow.com/articles/'+slug);
+ const heading='سامسونج تابلت: التدوين دون إنترنت — البائع والضمان | نون السعودية';
+ const truncated='دليل شامل عن سامسونج تابلت: التدوين دون إنترنت — البائع والضمان | نون السعودية على نون السعودية: قارن المواصفات والبائع والضمان والشحن وتحقق من السعر النهائي قبل الد';
+ const answer='جرّب NOV170 داخل سلة نون السعودية قبل الدفع، ولا نفترض أن القسيمة صالحة لكل حساب.';
+ const expected=heading+' — '+answer;
+ const schema={'@context':'https://schema.org','@type':'Article',headline:heading,description:truncated};
+ const faq={'@context':'https://schema.org','@type':'FAQPage',mainEntity:[{'@type':'Question',name:'كيف أستخدم NOV170؟',acceptedAnswer:{'@type':'Answer',text:'راجع السلة.'}}]};
+ const body='<article><h1>'+heading+'</h1><p class="direct-answer answer-box"><strong>الإجابة المباشرة:</strong> عند البحث عن سامسونج تابلت، راجع البائع والضمان وشروط التوصيل. '+answer+'</p>'+
+  '<p>'+('قارن مواصفات تابلت سامسونج والبائع والضمان في نون السعودية. NOV170. '.repeat(110))+'</p>'+
+  '<script type="application/ld+json">'+JSON.stringify(schema)+'</script>'+
+  '<script type="application/ld+json">'+JSON.stringify(faq)+'</script></article>';
+ const rec={body,meta:{...item.meta,t:encodeURIComponent(heading),m:encodeURIComponent(truncated),at:'2026-11-08T05:51:01.892Z'}};
+ assert.equal(nativeCompleteSearchSnippet(body,heading,false),expected);
+ const result=renderApprovedNativeAiV2Fast(rec,slug,u,false);
+ assert.equal(result?.status,200);
+ const html=await result.text(),jsons=[...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(v=>JSON.parse(v[1]));
+ assert.ok(html.includes('<meta name="description" content="'+expected+'">'));
+ assert.ok(html.includes('<meta property="og:description" content="'+expected+'">'));
+ assert.equal(jsons.filter(x=>x['@type']==='Article').length,1);
+ assert.equal(jsons.find(x=>x['@type']==='Article').description,expected);
+ assert.deepEqual(jsons.find(x=>x['@type']==='FAQPage'),faq);
+ assert.ok(html.includes('href="'+u.href+'"'));
+ assert.ok(html.includes('data-rescue-copy="NOV170"'));
+ assert.equal(rec.body,body,'stored R2 bytes immutable');
+ assert.equal(rec.meta.m,encodeURIComponent(truncated));
+});
+test('English native Nintendo Switch 2 snippet no longer repeats title or ends with an ellipsis',async()=>{
+ const slug='en-noon-uae-final-price-guide-nintendo-switch-2-coupon-eligibility';
+ const u=new URL('https://noondealsnow.com/en/articles/'+slug);
+ const heading='Noon UAE final price guide Nintendo Switch 2 coupon eligibility';
+ const oldDescription='Noon UAE · gaming consoles Noon UAE final price guide Nintendo Switch 2 coupon eligibility Quick answer: Start with a stable cart, copy NOV188, and use the final Noon…';
+ const expected='Nintendo Switch 2 on Noon UAE — Start with a stable cart, copy NOV188, and use the final Noon checkout total as the reference.';
+ const json={'@context':'https://schema.org','@type':'Article',headline:heading,description:oldDescription};
+ const source='<article lang="en"><h1>'+heading+'</h1><p class="direct-answer"><strong>Quick answer:</strong> Start with a stable cart, copy NOV188, and use the final Noon checkout total as the reference instead of assuming a fixed discount.</p>'+
+  '<p>'+('Before buying Nintendo Switch 2, compare consoles, seller, bundles, delivery and checkout in Noon UAE. NOV188. '.repeat(90))+'</p>'+
+  '<script type="application/ld+json">'+JSON.stringify(json)+'</script></article>';
+ const rec={body:source,meta:{...item.meta,c:'AE',cp:'NOV188',t:encodeURIComponent(heading),m:encodeURIComponent(oldDescription),at:'2026-10-24T17:45:00Z'}};
+ assert.equal(nativeCompleteSearchSnippet(source,heading,true),expected);
+ const result=renderApprovedNativeAiV2Fast(rec,slug,u,true);
+ assert.equal(result?.status,200);
+ const html=await result.text();
+ assert.ok(html.includes('<meta name="description" content="'+expected+'">'));
+ assert.ok(html.includes('<meta property="og:description" content="'+expected+'">'));
+ assert.ok(!expected.includes('…')&&expected.length<=170);
+ const article=JSON.parse([...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)][0][1]);
+ assert.equal(article.description,expected);
+ assert.equal(article.headline,heading,'H1 and headline must remain original');
+ assert.ok(html.includes('href="'+u.href+'"'));
+ assert.ok(html.includes('data-rescue-copy="NOV188"'));
+ assert.equal(rec.body,source,'no storage mutations');
+});
+
+
+test('complete approved native snippet is preserved even if the article contains a direct-answer checkout paragraph',async()=>{
+ const heading='Noon UAE seller comparison and checkout guide';
+ const metaDescription='A clear Noon UAE buying guide with specific checkout steps, seller checks and return conditions.';
+ const source='<article><h1>'+heading+'</h1><p class="direct-answer"><strong>Quick answer:</strong> Start with the correct Noon cart, copy NOV188, and check the final checkout total instead of assuming a fixed discount.</p>'+
+  '<p>'+('Compare the seller, delivery and product model before applying NOV188 to the final Noon UAE cart. '.repeat(110))+'</p>'+
+  '<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@type':'Article',headline:heading,description:metaDescription})+'</script></article>';
+ const u=new URL('https://noondealsnow.com/en/articles/en-uae-seller-checkout-existing-snippet');
+ const rec={body:source,meta:{...item.meta,c:'AE',cp:'NOV188',t:encodeURIComponent(heading),m:encodeURIComponent(metaDescription)}};
+ const res=renderApprovedNativeAiV2Fast(rec,u.pathname.split('/').pop(),u,true);
+ assert.equal(res?.status,200);
+ const html=await res.text();
+ assert.ok(html.includes('<meta name="description" content="'+metaDescription+'">'));
+ const article=JSON.parse([...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)][0][1]);
+ assert.equal(article.description,metaDescription,'do not rewrite an already accurate native schema description');
+ assert.equal(rec.body,source);
+ assert.equal(nativeCompleteSearchSnippet('<article><p>No direct checkout proof.</p></article>',heading,true),null);
 });

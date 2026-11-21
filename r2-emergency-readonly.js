@@ -338,6 +338,29 @@ export function legacyDirectAnswerSnippet(html,title,english=false){
   }
   return readableMetaDescription(complete,165);
 }
+// When native publisher metadata is visibly cut mid-sentence, use only the
+// actual checkout sentence in that article's direct-answer. Restrict reading
+// to the first 12 KB; no fabricated discount, date, link or R2 mutation.
+export function nativeCompleteSearchSnippet(source,title,english=false){
+ const html=String(source??'').slice(0,12000);
+ if(!english){
+   const candidate=legacyDirectAnswerSnippet(html,title,false);
+   return candidate&&candidate.length<=170&&/[.!؟]$/u.test(candidate)?candidate:null;
+ }
+ const match=html.match(/<p\b(?=[^>]*\bclass\s*=\s*["'][^"']*\bdirect-answer\b)[^>]*>([\s\S]*?)<\/p>/i);
+ if(!match)return null;
+ const text=cleanText(match[1]).replace(/^Quick answer:\s*/i,'');
+ const original=text.split(/(?<=[.!?])\s+/u).reverse().find(v=>
+   /^(?:Start|Copy|Check|Apply|Compare|Try)\s/i.test(v)&&
+   /\bNOV\d{3}\b/i.test(v)&&v.length>=45&&v.length<=240
+ );
+ if(!original)return null;
+ const sentence=original.replace(/\s+instead\s+of\s+assuming\s+a\s+fixed\s+discount[.!?]*$/i,'.');
+ const heading=String(title??'').trim(),product=heading.match(/^Noon UAE final price guide (.+) coupon eligibility$/i);
+ const subject=product?product[1]+' on Noon UAE':heading;
+ const candidate=subject+' — '+sentence.trim();
+ return candidate.length>=55&&candidate.length<=170&&/[.!?]$/.test(candidate)?candidate:null;
+}
 export function refreshArtworkUrlsInHtml(html){
   return String(html||'').replace(/(\/assets\/coupon-svg\/[^"'\s<>]+\/[1-5]\.svg\?)v=\d+/g,'$1v=11');
 }
@@ -435,7 +458,7 @@ export function removeRedundantSourceArticleJsonLd(content){
 // publication date, despite verified metadata powering the visible <time>.
 // Align source Article schema with that metadata without making a second
 // Article node, inventing an update, or rewriting stored R2. FAQ stays intact.
-export function supplementNativeArticleJsonLd(html,{publishedAt=null,modifiedAt=null,canonical=''}={}){
+export function supplementNativeArticleJsonLd(html,{publishedAt=null,modifiedAt=null,canonical='',description=null}={}){
  const source=String(html??''),published=dateIso(publishedAt);
  if(!published||!source.includes('application/ld+json'))return source;
  const modified=dateIso(modifiedAt);
@@ -451,6 +474,7 @@ export function supplementNativeArticleJsonLd(html,{publishedAt=null,modifiedAt=
      if(article){
        if(!node.datePublished)patch.datePublished=published;
        if(!node.mainEntityOfPage&&canonical)patch.mainEntityOfPage=canonical;
+       if(description&&node.description!==description)patch.description=description;
        if(modified&&!node.dateModified)patch.dateModified=modified;
      }
      let next=Object.keys(patch).length?{...node,...patch}:node;
@@ -484,7 +508,10 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  // Publisher stores title and description as URL-encoded R2 custom metadata.
  // Avoid running multiple full-document HTML regex passes on each public hit.
  const title=fromMeta(md.t).slice(0,180);
- const description=nativeMetaDescription(md.m,source);
+ const originalDescription=nativeMetaDescription(md.m,source);
+ const truncated=originalDescription.endsWith('…')||(originalDescription.length>=155&&!/[.!؟]$/u.test(originalDescription));
+ const recovered=truncated?nativeCompleteSearchSnippet(source,title,english):null;
+ const description=recovered||originalDescription;
  if(title.length<8||description.length<20)return null;
  const snippet=rescueGscSnippet(slug,title,description,english);
  const canonical='https://noondealsnow.com'+u.pathname;
@@ -492,7 +519,7 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  const figure='<figure class="featured">'+imgTag(slug,country,code,1,title)+'</figure>';
  const published=dateIso(md.at);
  const modified=verifiedEditorialModifiedAt(md,published);
- source=supplementNativeArticleJsonLd(source,{publishedAt:published,modifiedAt:modified,canonical});
+ source=supplementNativeArticleJsonLd(source,{publishedAt:published,modifiedAt:modified,canonical,description:recovered});
  const publishTime=visibleEditorialDates(published,modified,english);
  const contents=figure+publishTime+'<article class="rescue-article" data-market="'+country+'">'+
    renderCouponAction(country,english,'top')+source+
