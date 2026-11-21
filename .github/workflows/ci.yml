@@ -40,6 +40,9 @@ jobs:
       - name: Guard language, reading direction and localized links on homepage discovery cards
         run: node --test tests/discovery-card-language.test.mjs
 
+      - name: Enforce public legacy rescue prose regressions on every pull request
+        run: node --test tests/rescue-article-conversion.test.mjs
+
       - name: Verify direct official Noon checkout CTA on every approved coupon detail
         run: node --test tests/coupon-official-shop-cta.test.mjs
 
