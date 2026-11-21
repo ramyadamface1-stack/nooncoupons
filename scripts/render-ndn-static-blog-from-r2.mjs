@@ -1,0 +1,59 @@
+// Reuse the actual dynamic blog renderer with local read-only R2 snapshots.
+// Unlike the old fallback, these cards come from *real* published ledger rows.
+import app from '../auto-platform.js';
+import {readFile,writeFile,stat} from 'node:fs/promises';
+import {resolve} from 'node:path';
+
+const base='https://noondealsnow.com',root=resolve('.ndn-static-assets');
+const snap=JSON.parse(await readFile('.ndn-blog-staging/public-snapshot.json','utf8'));
+if(snap.version!==1||!snap.objects?.['_ops/ai-v2-publication-ledger-v1.json']?.articles?.length)
+  throw Error('NDN_BLOG_SOURCE_NOT_VERIFIED');
+const cached=new Set(snap.cachedArticleSlugs);
+const r2={
+ async get(key){const data=snap.objects[key];return data==null?null:{etag:'readonly-build-snapshot',json:async()=>data};},
+ async head(key){const metadata=snap.heads?.[key];return metadata?{customMetadata:metadata}:null}
+};
+const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const all=[];
+for(const path of ['/blog','/blog/saudi','/blog/uae']){
+  const response=await app.fetch(new Request(base+path),{SITE_ORIGIN:base,CONTENT_FINAL:r2},{waitUntil(){}});
+  if(response.status!==200||response.headers.get('x-blog-page-size')!=='15')
+    throw Error('NDN_BLOG_NOT_REAL_RENDERER_'+path+'_'+response.status);
+  let html=await response.text();
+  const cards=[...html.matchAll(/<article class="card[^"]*">/g)].length;
+  const slugs=[...new Set([...html.matchAll(/href="\/articles\/([a-z0-9-]{16,120})"/g)].map(x=>x[1]))];
+  if(cards!==15||slugs.length!==15||slugs.some(x=>!cached.has(x)))
+    throw Error('NDN_BLOG_ARTICLE_LINKS_NOT_ALL_CACHED_'+path+'_CARDS_'+cards+'_UNCACHED_'+slugs.filter(x=>!cached.has(x)).join(',').slice(0,250));
+  if(!html.includes('<link rel="canonical" href="'+base+path+'"')||
+     !html.includes('"@type":"ItemList"'))
+    throw Error('NDN_BLOG_SEO_PARITY_'+path);
+  const info='<meta name="ndn-verified-r2-article-listing" content="v1">'+
+    '<meta name="ndn-blog-snapshot" content="'+esc(snap.createdAt)+'">';
+  html=html.replace('</head>',info+'</head>');
+  const filename=path.slice(1)+'.html';
+  await writeFile(resolve(root,filename),html,'utf8');
+  all.push(...slugs);
+  console.log('NDN_LIVE_VERIFIED_STATIC_BLOG='+path+';CARDS='+cards+';CACHED_ARTICLE_LINKS='+slugs.length);
+}
+const recent=[...snap.objects['_ops/ai-v2-publication-ledger-v1.json'].articles]
+  .filter(x=>cached.has(x.slug))
+  .sort((a,b)=>String(b.publishedAt||'').localeCompare(String(a.publishedAt||''))).slice(0,8);
+const rows=recent.map(a=>{
+  const market=a.country==='AE'?'الإمارات':'السعودية';
+  const meta=snap.heads['articles/'+a.slug+'.html']||{};
+  let title='';
+  try{title=decodeURIComponent(meta.t||'')}catch{}
+  title=title||a.slug.replace(/-/g,' ');
+  return '<li><a style="color:#1558c0;text-decoration:underline" href="/articles/'+esc(a.slug)+'">'+esc(title)+'</a> <small>نون '+market+'</small></li>';
+}).join('');
+if(recent.length<6)throw Error('NDN_HOMEPAGE_RECENT_ARTICLES_UNAVAILABLE');
+const homepage=resolve(root,'index.html');
+const original=await readFile(homepage,'utf8');
+const section='<section class="section" id="latest-published-articles"><div class="shell">'+
+  '<h2>أحدث المقالات المنشورة</h2><p>مقالات من سجل النشر الفعلي بالموقع.</p>'+
+  '<ul style="line-height:2">'+rows+'</ul><p><a href="/blog" style="color:#1558c0;text-decoration:underline">عرض آخر 15 مقالًا في المدونة</a></p></div></section>';
+if(!original.includes('class="footer"'))throw Error('NDN_HOMEPAGE_FOOTER_NOT_FOUND');
+const final=original.replace('<footer class="footer">',section+'<footer class="footer">');
+await writeFile(homepage,final,'utf8');
+if((await stat(homepage)).size<1000)throw Error('NDN_HOMEPAGE_BROKEN');
+console.log('NDN_HOMEPAGE_LATEST_REAL_ARTICLES='+recent.length+';INDEXABLE_STATIC_BLOGS=3;R2_WRITES=ZERO');

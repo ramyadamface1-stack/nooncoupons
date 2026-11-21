@@ -8,6 +8,9 @@ on:
       - 'scripts/build-ndn-static-seo-assets.mjs'
       - 'scripts/build-ndn-quota-static-fallback.mjs'
       - 'tests/ndn-quota-static-fallback.test.mjs'
+      - 'scripts/stage-ndn-static-blog-and-articles.py'
+      - 'scripts/render-ndn-static-blog-from-r2.mjs'
+      - 'tests/ndn-static-blog-from-r2.test.mjs'
       - 'scripts/build-ndn-static-market-sitemaps.mjs'
       - 'tests/static-seo-assets.test.mjs'
       - 'scripts/build-ndn-static-root-sitemap.py'
@@ -297,10 +300,23 @@ jobs:
           set -euo pipefail
           node scripts/build-ndn-quota-static-fallback.mjs
           node --test tests/ndn-quota-static-fallback.test.mjs
-          test "$(find .ndn-static-assets -type f -name '*.html' | wc -l)" -eq 28
+          test "$(find .ndn-static-assets -type f -name '*.html' | wc -l)" -eq 27
           test ! -e .ndn-static-assets/admin.html
           test ! -e .ndn-static-assets/api/health.html
           echo 'NDN_PUBLIC_HTML_EMERGENCY_STATIC=READY;API_ADMIN_ARTICLES_UNTOUCHED=TRUE'
+
+      - name: Restore REAL published article cards and emergency article HTML from original R2
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: |
+          set -euo pipefail
+          python3 scripts/stage-ndn-static-blog-and-articles.py
+          node scripts/render-ndn-static-blog-from-r2.mjs
+          node --test tests/ndn-static-blog-from-r2.test.mjs
+          echo 'LIVE_BLOG_SOURCE=R2_VERIFIED_PUBLICATIONS;NO_FAKE_GUIDE_ONLY_BLOG=TRUE'
 
       - name: Check native gate and authenticated secret manager regressions
         run: node --test tests/native-bound-ai-v2-fast.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs

@@ -9,7 +9,7 @@ import {resolve,dirname} from 'node:path';
 const ORIGIN='https://noondealsnow.com';
 const OUT=resolve(process.cwd(),'.ndn-static-assets');
 const pages=['/','/coupons','/saudi','/uae','/categories','/shopping-world',
-  '/about','/contact','/privacy','/blog',
+  '/about','/contact','/privacy',
   '/guide/how-to-use-noon-coupon','/guide/coupon-not-working',
   '/guide/saudi-noon-saving-guide','/guide/uae-noon-saving-guide',
   '/guide/first-order-guide','/guide/payment-methods-and-coupons',

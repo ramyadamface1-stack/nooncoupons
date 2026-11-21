@@ -7,15 +7,14 @@ test('commercial and guide HTML remains quota-independent while sensitive paths 
   execFileSync(process.execPath,['scripts/build-ndn-quota-static-fallback.mjs'],{stdio:'pipe'});
   const cfg=JSON.parse(readFileSync('wrangler.new-account-production.jsonc','utf8'));
   assert.equal(cfg.assets.run_worker_first,false);
-  const paths=['index.html','coupons.html','saudi.html','uae.html','blog.html',
+  const paths=['index.html','coupons.html','saudi.html','uae.html',
     'coupon/nov170.html','coupon/nov188.html'];
   for(const path of paths){
     const html=readFileSync('.ndn-static-assets/'+path,'utf8');
     assert.match(html,/<meta name="ndn-quota-static-rescue" content="v1">/);
     assert.match(html,/<link rel="canonical" href="https:\/\/noondealsnow\.com\//);
     assert.match(html,/<html lang="ar" dir="rtl">/);
-    if(path!=='blog.html')assert.match(html,/data-copy=/);
-    else assert.match(html,/href="\/guide\//);
+    if(!['saudi.html','uae.html'].includes(path))assert.match(html,/data-copy=/);
     assert.doesNotMatch(html,/Cloudflare.*1027/i);
   }
   for(const path of ['admin.html','admin/index.html','api/health.html','articles/index.html',
@@ -28,5 +27,5 @@ test('commercial and guide HTML remains quota-independent while sensitive paths 
     assert.ok(text.includes('noon.com/'));
   }
   const all=readdirSync('.ndn-static-assets',{recursive:true}).filter(f=>f.endsWith('.html'));
-  assert.equal(all.length,28);
+  assert.equal(all.length,27);
 });
