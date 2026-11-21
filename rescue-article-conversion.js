@@ -105,12 +105,14 @@ export function renderRelatedArticles(items,slug,country,english=false){
     if(itemMarket!==market)continue;
     // A console query must not recommend unrelated laptops, skincare or
     // general checkout pages merely because their buying-intent terms match.
-    if(family&&consoleFamily(String(x.title||'')+' '+x.slug)!==family)continue;
+    const sameFamily=Boolean(family&&consoleFamily(String(x.title||'')+' '+x.slug)===family);
+    if(family&&!sameFamily)continue;
     seen.add(x.slug);
     const shared=new Set(words(String(x.title||'')+' '+x.slug).filter(w=>focus.has(w)));
-    // Zero overlap means a random cross-product link: avoid noisy SEO.
-    if(!shared.size)continue;
-    choices.push({x,score:shared.size});
+    // Keep PS5 ↔ PlayStation 5 aliases related even when token overlap is zero;
+    // otherwise an intent-only match never justifies a related link.
+    if(!shared.size&&!sameFamily)continue;
+    choices.push({x,score:shared.size+(sameFamily?3:0)});
   }
   choices.sort((a,b)=>b.score-a.score||String(b.x.publishedAt||b.x.createdAt||'').localeCompare(String(a.x.publishedAt||a.x.createdAt||'')));
   const rows=choices.slice(0,4);
