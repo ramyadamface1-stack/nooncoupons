@@ -61,7 +61,7 @@ test('priority sitemap deduplicates a static English hub without losing a verifi
   const canonical='<loc>'+ORIGIN+'/en/uae/noon-coupon-code</loc>';
   assert.equal(xml.split(canonical).length-1,1,'the hub must appear only once');
   assert.ok(xml.includes(canonical+'<lastmod>2026-11-08T10:00:00.000Z</lastmod>'),
-    'the dynamic article update must not be hidden by a static sitemap entry');
+    'the dynamic article update must not be hidden by a static sitemap entry: '+xml.slice(xml.indexOf(canonical),xml.indexOf(canonical)+180));
 });
 test('missing English snapshot degrades to stable valid XML without heavy-state fallback',async()=>{
   const {env,calls}=fakeR2({englishAvailable:false});
