@@ -1,0 +1,84 @@
+name: NDN Live 1027 Editorial Market and Conversion Audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ndn-live-1027-editorial-market-audit.yml'
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - 'NoonDealsNow New Cloudflare Account Production Worker Prepared (No DNS Cutover)'
+    types: [completed]
+permissions:
+  contents: read
+jobs:
+  live-public:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Verify previously 1027 pages and both market conversion funnels on public domain
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,re,urllib.request,urllib.error,time
+          BASE='https://noondealsnow.com'
+          routes=[
+           ('/','home'),
+           ('/editorial-policy','editorial'),
+           ('/coupon-verification','editorial'),
+           ('/authors/editorial-team','editorial'),
+           ('/disclaimer','editorial'),
+           ('/saudi/categories','saudi'),
+           ('/uae/categories','uae'),
+           ('/saudi/noon-coupon-code','saudi'),
+           ('/uae/noon-coupon-code','uae'),
+           ('/saudi/shopping-guide','saudi'),
+           ('/uae/shopping-guide','uae'),
+           ('/saudi/buying-guide/mobile-phones','saudi_article'),
+           ('/uae/buying-guide/electronics','uae_article'),
+           ('/saudi/brand/apple','saudi'),
+           ('/uae/brand/samsung','uae'),
+           ('/blog','blog'),
+           ('/blog/page/2','blog'),
+           ('/blog/saudi','blog'),
+           ('/blog/uae','blog'),
+           ('/blog/archive/all','archive'),
+           ('/blog/archive/all/page/1250','archive')
+          ]
+          def check(path,kind):
+            request=urllib.request.Request(BASE+path,headers={
+              'Accept':'text/html,application/xhtml+xml',
+              'User-Agent':'NoonDealsNow-live-recovery-check/1.0',
+              'Cache-Control':'no-cache'})
+            try:
+              with urllib.request.urlopen(request,timeout=20) as r:
+                status=r.status;ctype=r.headers.get('content-type','');html=r.read(350000).decode('utf8','replace')
+            except urllib.error.HTTPError as e:
+              status=e.code;ctype=e.headers.get('content-type','');html=e.read(5000).decode('utf8','replace')
+            except Exception as e:
+              return {'path':path,'ok':False,'error':type(e).__name__+':'+str(e)[:100]}
+            okay=status==200 and 'text/html' in ctype and '<h1' in html
+            if kind=='editorial':
+              okay=okay and 'ndn-static-editorial-policy' in html and 'G-1551Z7DJ2C' in html
+            if kind in ('saudi','saudi_article'):
+              okay=okay and 'NOV170' in html and '/saudi/noon-coupon-code' in html
+            if kind in ('uae','uae_article'):
+              okay=okay and 'NOV188' in html and '/uae/noon-coupon-code' in html
+            if kind in ('saudi_article','uae_article'):
+              okay=okay and 'coupon_copy_success' in html and '<article' in html
+            if kind=='blog':
+              okay=okay and len(re.findall(r'<article class="card',html))==15
+            if kind=='archive':
+              okay=okay and 'ndn-complete-r2-archive' in html and len(re.findall(r'class="article-link"',html))==100
+            okay=okay and 'Please check back later' not in html
+            return {'path':path,'http':status,'ok':bool(okay),'type':ctype[:35],
+                    'bytes':len(html)}
+          checks=[check(*item) for item in routes]
+          for item in checks:print('LIVE_ROUTE_AUDIT='+json.dumps(item,ensure_ascii=False),flush=True)
+          failures=[v for v in checks if not v['ok']]
+          print('NOONDEALSNOW_LIVE_RECOVERY='+json.dumps({
+            'tested':len(checks),'passed':len(checks)-len(failures),
+            'failed':len(failures),'failedPaths':[v['path'] for v in failures],
+            'timestamp':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}),flush=True)
+          assert not failures,'LIVE_ROUTES_STILL_FAIL: '+','.join(x['path'] for x in failures)
+          PY
