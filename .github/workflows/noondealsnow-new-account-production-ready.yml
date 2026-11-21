@@ -9,6 +9,8 @@ on:
       - 'scripts/build-ndn-static-market-sitemaps.mjs'
       - 'tests/static-seo-assets.test.mjs'
       - 'scripts/build-ndn-static-root-sitemap.py'
+      - 'scripts/build-ndn-static-ai-v2-sitemaps.py'
+      - 'tests/test_ndn_static_ai_v2_sitemaps.py'
       - 'tests/test_ndn_static_root_sitemap.py'
       - 'auto-platform.js'
       - 'admin-page.js'
@@ -141,6 +143,45 @@ jobs:
             assert 'https://noondealsnow.com'+suffix in data
           print('ROOT_SITEMAP_SOURCE_AND_FILE_WHITELIST=PASS')
           PY
+
+      - name: Build native AI V2 sitemap index and every published shard without consuming Worker quotas
+        shell: bash
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+          AWS_EC2_METADATA_DISABLED: 'true'
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_ndn_static_ai_v2_sitemaps.py' -v
+          python3 scripts/build-ndn-static-ai-v2-sitemaps.py
+          python3 - <<'PY'
+          import pathlib,re,xml.etree.ElementTree as ET
+          root=pathlib.Path('.ndn-static-assets')
+          names={p.name for p in root.iterdir()}
+          baseline={'llms.txt','robots.txt','sitemap-core.xml','sitemap-coupons-saudi.xml',
+                    'sitemap-coupons-uae.xml','sitemap-coupons.xml','sitemap-guides.xml',
+                    'sitemap-pages.xml','sitemap.xml','sitemap-ai-v2.xml'}
+          shards=sorted(x for x in names if re.fullmatch(r'sitemap-ai-v2-[1-9]\d{0,3}\.xml',x))
+          assert len(shards)>=1, 'NO_NATIVE_PUBLISHED_SHARDS'
+          assert names==baseline|set(shards), 'UNEXPECTED_STATIC_ASSETS'
+          index=(root/'sitemap-ai-v2.xml').read_text()
+          source=ET.fromstring(index)
+          assert source.tag.endswith('sitemapindex'), 'AI_SITEMAP_NO_INDEX'
+          ns={'s':'http://www.sitemaps.org/schemas/sitemap/0.9'}
+          locs=[node.text for node in source.findall('s:sitemap/s:loc',ns)]
+          assert len(locs)==len(shards), 'AI_SHARD_COUNT_MISMATCH'
+          urls=0
+          for path in shards:
+            assert 'https://noondealsnow.com/'+path in locs
+            leaf=ET.fromstring((root/path).read_text())
+            assert leaf.tag.endswith('urlset')
+            links=[x.text for x in leaf.findall('s:url/s:loc',ns)]
+            assert 1<=len(links)<=2000
+            assert all(s.startswith('https://noondealsnow.com/articles/') for s in links)
+            assert len(links)==len(set(links))
+            urls+=len(links)
+          print('NDN_STATIC_AI_V2_XML_PARITY=PASS;SHARDS='+str(len(shards))+';PUBLISHED_URLS='+str(urls))
+          PY
       - name: Check native gate and authenticated secret manager regressions
         run: node --test tests/native-bound-ai-v2-fast.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs
       - name: Prevent incorrect AI-readable NOV coupon market mappings
@@ -213,6 +254,23 @@ jobs:
               /sitemap-coupons-uae.xml) grep -q '/coupon/nov188' /tmp/ndn-static-seo-live ;;
             esac
           done
+          # Unlike dynamic Worker XML, these native publication-ledger snapshots
+          # remain accessible to crawlers during Cloudflare Error 1027.
+          for file in .ndn-static-assets/sitemap-ai-v2*.xml; do
+            path="/${file##*/}"
+            code=$(curl -sS --max-time 20 -o /tmp/ndn-ai-v2-static-xml -w '%{http_code}' \
+              -H 'User-Agent: NDN-ai-v2-static-quota-probe' "https://noondealsnow.com$path" || true)
+            echo "AI_V2_STATIC_SITEMAP_LIVE_PATH=$path;HTTP=$code"
+            test "$code" = 200
+            if [ "$path" = "/sitemap-ai-v2.xml" ]; then
+              grep -q '<sitemapindex' /tmp/ndn-ai-v2-static-xml
+              grep -q '/sitemap-ai-v2-1.xml' /tmp/ndn-ai-v2-static-xml
+            else
+              grep -q '<urlset' /tmp/ndn-ai-v2-static-xml
+              grep -q '/articles/' /tmp/ndn-ai-v2-static-xml
+            fi
+          done
+          echo 'AI_V2_PUBLISHED_ARTICLE_SITEMAPS_FREE_QUOTA_INDEPENDENT=VERIFIED'
           echo 'STATIC_SEO_ZERO_WORKER_QUOTA_DEPENDENCE=VERIFIED'
       - name: Smoke test public mobile-critical routes after deployment
         shell: bash
