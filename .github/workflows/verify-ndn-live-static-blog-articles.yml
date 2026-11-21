@@ -1,0 +1,55 @@
+name: NoonDealsNow - Verify Live Published Blog Article Links (Read Only)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-ndn-live-static-blog-articles.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  live-article-links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Ensure 15 real published cards open in each public blog under Worker 1027
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re,urllib.request,urllib.error
+          ORIGIN='https://noondealsnow.com'
+          def get(path):
+            req=urllib.request.Request(ORIGIN+path,headers={
+              'User-Agent':'NoonDealsNow-verified-published-article-smoke/1.0',
+              'Accept':'text/html,application/xhtml+xml'})
+            try:
+              with urllib.request.urlopen(req,timeout=22) as response:
+                status=response.status
+                body=response.read(500000).decode('utf-8',errors='replace')
+                content_type=response.headers.get('content-type','')
+                return status,body,content_type
+            except urllib.error.HTTPError as ex:
+              return ex.code,ex.read(10000).decode('utf-8',errors='replace'),''
+          unique=set()
+          for market,path in [('ALL','/blog'),('SA','/blog/saudi'),('AE','/blog/uae')]:
+            status,html,content_type=get(path)
+            print('LIVE_BLOG_MARKET='+market+';HTTP='+str(status)+';HTML_BYTES='+str(len(html)))
+            assert status==200 and 'text/html' in content_type,(market,'blog_not_html_200',status)
+            assert '<meta name="ndn-verified-r2-article-listing" content="v1">' in html,(market,'not_r2_published_list')
+            slugs=list(dict.fromkeys(re.findall(r'href="/articles/([a-z0-9-]{16,120})"',html)))
+            assert len(slugs)==15,(market,'published_cards_not_15',len(slugs))
+            assert len(re.findall(r'<article class="card[^"]*">',html))==15,(market,'article_card_count_invalid')
+            for slug in slugs:
+              status,article,atype=get('/articles/'+slug)
+              assert status==200 and 'text/html' in atype,(market,slug,'article_http',status)
+              assert '<link rel="canonical" href="'+ORIGIN+'/articles/'+slug+'">' in article,(market,slug,'canonical_missing')
+              assert '<meta name="robots" content="index,follow,max-image-preview:large">' in article,(market,slug,'indexability_missing')
+              assert '<h1' in article and '<article' in article,(market,slug,'article_body_missing')
+              if market=='SA': assert 'NOV170' in article,(slug,'wrong_sa_coupon')
+              if market=='AE': assert 'NOV188' in article,(slug,'wrong_ae_coupon')
+              unique.add(slug)
+            print('LIVE_BLOG_PUBLISHED_CARDS='+market+';CARDS=15;ARTICLE_HTTP_200=15;FIRST_SLUG='+slugs[0])
+          status,home,_=get('/')
+          assert status==200 and 'id="latest-published-articles"' in home,('home_latest_articles_absent',status)
+          print('LIVE_HOMEPAGE_REAL_ARTICLES=HTTP_200;TOTAL_UNIQUE_TESTED='+str(len(unique)))
+          print('NOONDEALSNOW_REAL_ARTICLE_VISIBILITY=PASS;R2_WRITES=ZERO;GENERATION_CHANGED=FALSE')
+          PY
