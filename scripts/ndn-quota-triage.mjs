@@ -71,7 +71,11 @@ for(const [name,agent] of [['GPTBOT','%GPTBot%'],['GOOGLEBOT','%Googlebot%'],['O
 }
 await query('GPTBOT_504','',{userAgent_like:'%GPTBot%',edgeResponseStatus:504},1);
 await query('GPTBOT_204','',{userAgent_like:'%GPTBot%',edgeResponseStatus:204},1);
-await query('METHODS','dimensions { clientRequestHTTPMethod }',{},10);
+await query('METHODS','dimensions { clientRequestHTTPMethodName }',{},10);
+await query('ERROR_504_METHODS','dimensions { clientRequestHTTPMethodName }',{edgeResponseStatus:504},10);
+await query('STATUS_204_METHODS','dimensions { clientRequestHTTPMethodName }',{edgeResponseStatus:204},10);
+await query('ARTICLES_504_AGENTS','dimensions { userAgent }',{clientRequestPath_like:'/articles/%',edgeResponseStatus:504},12);
+await query('SVG_504_AGENTS','dimensions { userAgent }',{clientRequestPath_like:'/assets/coupon-svg/%',edgeResponseStatus:504},12);
 for(const [label,prefix] of [['ARTICLES','/articles/%'],['SVG','/assets/coupon-svg/%'],['API','/api/%']]){
   await query('STATUS_504_'+label,'',{clientRequestPath_like:prefix,edgeResponseStatus:504},1);
   await query('STATUS_204_'+label,'',{clientRequestPath_like:prefix,edgeResponseStatus:204},1);
