@@ -1,0 +1,44 @@
+name: NoonDealsNow - Verify Live Blog SVG and Deep Pagination Readonly
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/ndn-verify-live-blog-svg-and-pagination.yml'
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - name: Verify live thumbnail HTTP SVG and deep article catalogs under 1027
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import re,urllib.request,urllib.error
+          BASE='https://noondealsnow.com'
+          def req(path):
+            u=BASE+path
+            try:
+              with urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':'NDN-Static-Archive-Image-Audit/1.0'}),timeout=25) as r:
+                return r.status,r.headers.get('Content-Type',''),r.read(500000).decode('utf-8',errors='replace')
+            except urllib.error.HTTPError as e:
+              return e.code,e.headers.get('Content-Type',''),e.read(8000).decode('utf-8',errors='replace')
+          for path in ['/blog','/blog/page/2','/blog/saudi','/blog/saudi/page/2',
+                       '/blog/uae','/blog/uae/page/2']:
+            code,ct,html=req(path)
+            cards=len(re.findall('<article class="card',html))
+            print('LIVE_STATIC_BLOG='+path+';HTTP='+str(code)+';CARDS='+str(cards)+';TYPE='+ct,flush=True)
+            assert code==200 and cards==15 and 'ndn-verified-r2-article-listing' in html,(path,code,cards)
+            imgs=re.findall(r'<img src="(/assets/coupon-svg/[^"]+)"',html)
+            assert len(imgs)==15,(path,'THUMB_URLS',len(imgs))
+            for img in [imgs[0],imgs[-1]]:
+              status,ctype,body=req(img)
+              print('LIVE_IMAGE='+img[:85]+';HTTP='+str(status)+';TYPE='+ctype,flush=True)
+              assert status==200 and '<svg' in body and '</svg>' in body,(img,status,ctype)
+          for path in ['/blog/page/611','/blog/saudi/page/297','/blog/uae/page/314']:
+            code,ct,html=req(path)
+            links=len(re.findall('<article class="card',html))
+            print('LIVE_DEEP_ARCHIVE='+path+';HTTP='+str(code)+';CARDS='+str(links),flush=True)
+            assert code==200 and 1<=links<=15,(path,code,links)
+          print('LIVE_SVG_AND_BLOG_PAGINATION=PASS;WRITE_OPERATIONS=ZERO',flush=True)
+          PY
