@@ -6,6 +6,7 @@ on:
       - '.github/workflows/ndn-commercial-static-fast-render.yml'
       - 'scripts/build-ndn-commercial-static.mjs'
       - 'scripts/build-ndn-static-trust-pages.mjs'
+      - 'tests/ndn-static-trust-pages.test.mjs'
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
