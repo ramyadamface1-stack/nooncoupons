@@ -22,7 +22,7 @@ for(let n=1;n<=pages;n++){
   const description='تصفح جميع المقالات المحفوظة من نون السعودية والإمارات باللغة العربية والإنجليزية؛ صفحة '+n+' من '+pages+'.';
   const links=slice.map((slug,i)=>{
     const en=slug.startsWith('en-'),country=slug.includes('uae')||slug.includes('emirates')?'الإمارات':'السعودية أو الإمارات';
-    const url=(en?'/en/articles/':'/articles/')+slug;
+    const url=(en?'/en/articles/':'/articles/')+encodeURIComponent(slug);
     return '<li><a href="'+url+'" class="article-link" '+(en?'lang="en" dir="ltr"':'')+'>'+
       esc(asTitle(slug))+'</a><small> · '+(en?'English UAE':country)+'</small></li>';
   }).join('');
@@ -34,7 +34,7 @@ for(let n=1;n<=pages;n++){
   const schema=JSON.stringify({'@context':'https://schema.org','@type':'CollectionPage',
     name:title,url:base+pathname,mainEntity:{'@type':'ItemList',numberOfItems:slice.length,
       itemListElement:slice.map((slug,i)=>({'@type':'ListItem',position:(n-1)*pageSize+i+1,
-        url:base+(slug.startsWith('en-')?'/en/articles/':'/articles/')+slug}))}}).replace(/</g,'\\u003c');
+        url:base+(slug.startsWith('en-')?'/en/articles/':'/articles/')+encodeURIComponent(slug)}))}}).replace(/</g,'\\u003c');
   const css='<style>*{box-sizing:border-box}body{margin:0;font-family:Tahoma,Arial;background:#f8fafc;color:#172033;line-height:1.85}.wrap{max-width:1100px;width:94%;margin:auto}header{background:#111827;color:#fff;padding:15px 0}header a{color:white;text-decoration:none;font-weight:bold}.hero{background:#fff;border-bottom:1px solid #ddd;padding:22px 0}.hero h1{font-size:clamp(23px,3vw,36px);line-height:1.5}.topnav{display:flex;gap:15px;flex-wrap:wrap}.topnav a{color:#1558c0}.list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:0;list-style:none}.list li{background:white;border:1px solid #e2e8f0;border-radius:10px;padding:11px;overflow-wrap:anywhere}.article-link{color:#1558c0;text-decoration:underline;font-weight:700}.list small{color:#64748b}.pager{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:30px 0}.pager a{background:white;border:1px solid #cbd5e1;padding:8px 12px;color:#1558c0;border-radius:10px;text-decoration:underline}@media(max-width:720px){.list{grid-template-columns:1fr}}</style>';
   const html='<!doctype html><html lang="ar" dir="rtl"><head>'+
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+

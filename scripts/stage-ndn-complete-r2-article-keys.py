@@ -9,7 +9,7 @@ from botocore.config import Config
 ACCOUNT="e4c35f8a50a7b2e4cfb9d6c534962603"
 BUCKET="nooncoupons-content-v2"
 DEST=pathlib.Path(".ndn-blog-staging/full-r2-article-keys.json")
-SLUG=re.compile(r"^[a-z0-9-]{1,280}$")
+SLUG=re.compile(r"^[\w\-]{1,280}$",re.UNICODE)
 
 def main():
   access=os.environ.get("AWS_ACCESS_KEY_ID","").strip()

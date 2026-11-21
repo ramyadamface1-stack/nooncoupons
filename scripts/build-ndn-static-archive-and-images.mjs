@@ -16,7 +16,7 @@ if(!Array.isArray(ledger?.articles)||!Array.isArray(bulk?.articles)||
    !Array.isArray(snap.verifiedArticleSlugs)||snap.verifiedArticleSlugs.length<1000)
   throw Error('NDN_ARCHIVE_SOURCE_NOT_VERIFIED');
 const verified=new Set(snap.verifiedArticleSlugs);
-const slugSafe=/^[a-z0-9-]{16,120}$/;
+const slugSafe=/^[\p{L}\p{N}\p{M}_-]{1,280}$/u;
 const decode=s=>{try{return decodeURIComponent(String(s||''))}catch{return String(s||'')}};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rows=new Map();
@@ -92,8 +92,8 @@ for(const [base,items] of allSeries){
       const at=a.publishedAt||a.createdAt||a.updatedAt||'';
       const published=at&&Number.isFinite(Date.parse(at))?new Intl.DateTimeFormat('ar-EG',{
         day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'Africa/Cairo'}).format(new Date(at)):'';
-      const src='/assets/coupon-svg/'+a.slug+'/1.svg';
-      const anchor='/articles/'+a.slug;
+      const src='/assets/coupon-svg/'+encodeURIComponent(a.slug)+'/1.svg';
+      const anchor='/articles/'+encodeURIComponent(a.slug);
       return '<article class="card'+(n===1&&i===0?' leadCard':'')+'">'+
         '<a class="thumb" href="'+anchor+'"><img src="'+src+'" alt="'+esc(a.title)+' - نون '+market+
         '" width="1600" height="1000" loading="'+(i<3?'eager':'lazy')+'" decoding="async"></a>'+

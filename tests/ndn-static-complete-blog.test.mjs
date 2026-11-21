@@ -16,7 +16,7 @@ test('every physically verified published R2 article is listed exactly once per 
      const html=readFileSync(root+path+'.html','utf8');
      assert.ok(html.includes('<link rel="canonical" href="https://noondealsnow.com'+path+'">'),path);
      assert.ok(html.includes('ndn-verified-r2-article-listing'),path);
-     const slugs=[...html.matchAll(/href="\/articles\/([a-z0-9-]{16,120})"/g)].map(x=>x[1]);
+     const slugs=[...html.matchAll(/href="\/articles\/([^"]+)"/g)].map(x=>decodeURIComponent(x[1]));
      assert.equal(slugs.length,3*Math.min(15,audit.markets[base]-(n-1)*15),path);
      const uniq=new Set(slugs);
      assert.equal(uniq.size,Math.min(15,audit.markets[base]-(n-1)*15),path);

@@ -15,7 +15,7 @@ test('full R2 HTML corpus has accessible canonical index pages for every saved a
    const html=readFileSync('.ndn-static-assets'+path+'.html','utf8');
    assert.ok(html.includes('href="https://noondealsnow.com'+path+'"'),path);
    assert.ok(html.includes('name="ndn-complete-r2-archive" content="v1"'),path);
-   const links=[...html.matchAll(/<a href="\/(?:en\/)?articles\/([a-z0-9-]{1,280})" class="article-link"/g)].map(x=>x[1]);
+   const links=[...html.matchAll(/<a href="\/(?:en\/)?articles\/([^"]+)" class="article-link"/g)].map(x=>decodeURIComponent(x[1]));
    assert.equal(links.length,Math.min(100,b.archiveObjects-(n-1)*100),path);
    for(const slug of links){
       assert.ok(expected.has(slug),slug);

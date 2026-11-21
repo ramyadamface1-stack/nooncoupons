@@ -15,6 +15,8 @@ LEDGER="_ops/ai-v2-publication-ledger-v1.json"
 COMPACT="bulk/public-compact-v1.json"
 JOURNAL="blog/latest-live-v1.json"
 SLUG=re.compile(r"^[a-z0-9-]{16,120}$")
+def valid_public_slug(slug):
+  return isinstance(slug,str) and 1<=len(slug)<=280 and bool(re.fullmatch(r'[\w\-]+',slug,re.UNICODE)) and '..' not in slug
 def fail(message): raise ValueError("NDN_STATIC_BLOG_"+message)
 def main():
   access=os.environ.get("AWS_ACCESS_KEY_ID","").strip()
@@ -80,7 +82,7 @@ def main():
   from concurrent.futures import ThreadPoolExecutor,as_completed
   rows={x["slug"]:x for x in native}
   for x in compact["articles"]:
-    if not isinstance(x,dict) or not SLUG.fullmatch(str(x.get("slug",""))) or x.get("country") not in ("SA","AE"):continue
+    if not isinstance(x,dict) or not valid_public_slug(x.get("slug")) or x.get("country") not in ("SA","AE"):continue
     if x.get("status") in ("draft","scheduled") or x.get("indexable") is False:continue
     rows.setdefault(x["slug"],x)
   known=set(copied)
