@@ -71,5 +71,13 @@ for(const [name,agent] of [['GPTBOT','%GPTBot%'],['GOOGLEBOT','%Googlebot%'],['O
 }
 await query('GPTBOT_504','',{userAgent_like:'%GPTBot%',edgeResponseStatus:504},1);
 await query('GPTBOT_204','',{userAgent_like:'%GPTBot%',edgeResponseStatus:204},1);
+await query('METHODS','dimensions { clientRequestHTTPMethod }',{},10);
+for(const [label,prefix] of [['ARTICLES','/articles/%'],['SVG','/assets/coupon-svg/%'],['API','/api/%']]){
+  await query('STATUS_504_'+label,'',{clientRequestPath_like:prefix,edgeResponseStatus:504},1);
+  await query('STATUS_204_'+label,'',{clientRequestPath_like:prefix,edgeResponseStatus:204},1);
+}
+await query('GOOGLEBOT_504','',{userAgent_like:'%Googlebot%',edgeResponseStatus:504},1);
+await query('OAI_SEARCHBOT_504','',{userAgent_like:'%OAI-SearchBot%',edgeResponseStatus:504},1);
+
 
 console.log('NDN_QUOTA_TRIAGE_READ_ONLY=true');
