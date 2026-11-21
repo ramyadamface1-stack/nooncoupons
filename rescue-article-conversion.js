@@ -84,18 +84,35 @@ export function renderCouponAction(country='SA',english=false,placement='top'){
 export function renderRelatedArticles(items,slug,country,english=false){
   const source=Array.isArray(items)?items:[];
   const current=String(slug||''),market=country==='AE'?'AE':'SA';
-  const generic=new Set(['noon','saudi','arabia','uae','emirates','english','guide','guides','coupon','coupons','discount','promo','code','codes','price','prices','shopping','review','reviews','best','offers','offer','latest','today','نون','السعودية','الإمارات','الامارات','كوبون','خصم','دليل','شراء','مقارنة','عروض','السعر','أفضل','افضل','منتج','منتجات','الشراء','التسوق']);
+  // Checkout-intent and location words can appear on completely unrelated
+  // products ("final price" on a console, a laptop and skincare). None alone
+  // establishes topical relevance for an internal "related article" link.
+  const generic=new Set(['noon','saudi','arabia','uae','emirates','english','guide','guides','coupon','coupons','discount','promo','code','codes','price','prices','shopping','review','reviews','best','offers','offer','latest','today','final','total','checkout','eligibility','eligible','budget','decision','conditions','condition','seller','sellers','return','returns','shipping','delivery','comparison','compare','model','cart','payment','purchase','buying','buy','smart','help','working','online','mobile','desktop','sharjah','dubai','abu','dhabi','ain','ras','khaimah','nooncom','نون','السعودية','الإمارات','الامارات','كوبون','خصم','دليل','شراء','مقارنة','عروض','السعر','أفضل','افضل','منتج','منتجات','الشراء','التسوق']);
   const words=s=>String(s||'').toLowerCase().split(/[^a-z0-9\u0600-\u06ff]+/).filter(x=>x.length>=4&&!generic.has(x));
+  const consoleFamily=text=>{
+    const value=String(text||'').toLowerCase().replace(/[_\s]+/g,'-');
+    if(/(?:^|-)nintendo-switch(?:-2)?(?:-|$)/.test(value))return 'nintendo-switch';
+    if(/(?:^|-)(?:ps5(?:-pro)?|playstation-5(?:-pro)?)(?:-|$)/.test(value))return 'playstation-5';
+    if(/(?:^|-)xbox-series-[xs](?:-|$)/.test(value))return 'xbox-series';
+    return '';
+  };
+  const family=english?consoleFamily(current):'';
   const focus=new Set(words(current)),seen=new Set(),choices=[];
   for(const x of source){
     if(!x?.slug||x.slug===current||seen.has(x.slug)||x.status!=='published'||x.indexable===false||x.slug.startsWith('en-')!==Boolean(english))continue;
-    const isAE=x.country==='AE'||x.slug.startsWith('en-')||/الإمارات/.test(x.slug);
-    if(isAE!==(market==='AE'))continue;
+    const itemMarket=x.country==='SA'?'SA':x.country==='AE'?'AE':
+      (x.slug.startsWith('en-')||/الإمارات/.test(x.slug)?'AE':'SA');
+    if(itemMarket!==market)continue;
+    // A console query must not recommend unrelated laptops, skincare or
+    // general checkout pages merely because their buying-intent terms match.
+    const sameFamily=Boolean(family&&consoleFamily(String(x.title||'')+' '+x.slug)===family);
+    if(family&&!sameFamily)continue;
     seen.add(x.slug);
     const shared=new Set(words(String(x.title||'')+' '+x.slug).filter(w=>focus.has(w)));
-    // Zero overlap means a random cross-product link: avoid noisy SEO.
-    if(!shared.size)continue;
-    choices.push({x,score:shared.size});
+    // Keep PS5 ↔ PlayStation 5 aliases related even when token overlap is zero;
+    // otherwise an intent-only match never justifies a related link.
+    if(!shared.size&&!sameFamily)continue;
+    choices.push({x,score:shared.size+(sameFamily?3:0)});
   }
   choices.sort((a,b)=>b.score-a.score||String(b.x.publishedAt||b.x.createdAt||'').localeCompare(String(a.x.publishedAt||a.x.createdAt||'')));
   const rows=choices.slice(0,4);
