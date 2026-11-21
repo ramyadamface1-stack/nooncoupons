@@ -1,0 +1,52 @@
+name: NoonDealsNow - Protect Article GET From Empty-Agent 504 Flood
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Apply or disable precisely the empty-agent article GET rule
+        required: true
+        type: choice
+        options: [apply, disable]
+        default: apply
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/noondealsnow-empty-ua-article-guard.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+      CF_ACCOUNT: e4c35f8a50a7b2e4cfb9d6c534962603
+      NDN_EMPTY_UA_ARTICLE_MODE: ${{ inputs.mode || 'apply' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate and apply or disable the exact owned rule
+        run: |
+          node --check scripts/ndn-empty-ua-article-guard.mjs
+          node scripts/ndn-empty-ua-article-guard.mjs
+      - name: Verify no-agent GET blocked only for public articles
+        if: env.NDN_EMPTY_UA_ARTICLE_MODE == 'apply'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /articles/ndn-empty-agent-check /en/articles/ndn-empty-agent-check; do
+            code=''
+            for i in 1 2 3 4 5; do
+              code=$(curl -sS --max-time 15 -H 'User-Agent:' -o /tmp/ndn-ua-check -w '%{http_code}' "https://noondealsnow.com$path" || true)
+              echo "EMPTY_UA_PROBE=$path;TRY=$i;HTTP=$code"
+              if [ "$code" = 403 ]; then break;fi
+              sleep 2
+            done
+            test "$code" = 403
+          done
+          echo 'NDN_EMPTY_UA_ARTICLE_403_VERIFIED=true'
