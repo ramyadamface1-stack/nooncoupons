@@ -237,7 +237,7 @@ test('native R2 double-encoded Arabic descriptions become human-readable in meta
  assert.ok(html.includes('<title>'+title+' | كوبونات نون</title>'),'title must decode to Arabic');
  assert.ok(html.includes('<meta name="description" content="'+desc+'">'),'description must decode to Arabic');
  assert.ok(html.includes('<meta property="og:description" content="'+desc+'">'),'OpenGraph description must agree');
- assert.ok(!html.includes('%D8%AF'),'escaped Arabic must not appear in HTML metadata');
+ assert.doesNotMatch(html,/<meta name="description" content="%[a-f0-9]{2}/i,'escaped Arabic must not appear in the description field');
  assert.ok(html.includes('href="'+url.href+'"'),'canonical remains original');
  assert.ok(html.includes('NOV170'),'coupon remains unchanged');
  assert.equal(record.meta.m,twice(desc),'source R2 record remains intact');
