@@ -24,7 +24,11 @@ for(const slug of snap.cachedArticleSlugs){
   const html=await result.text();
   if(!html.includes('<html')||!html.includes('<link rel="canonical" href="'+url.href+'"')||
       !html.includes('<meta name="robots" content="index,follow,max-image-preview:large">'))continue;
-  await writeFile(resolve(root,'articles',slug+'.html'),html,'utf8');
+  if(!html.includes('</head>')||!html.includes('<article'))continue;
+  // This marker is a verifiable property of a locally rendered, metadata-
+  // validated R2 source. Worker-generated pages retain their own header.
+  const stamped=html.replace('</head>','<meta name="ndn-static-native-article" content="approved-r2-original-v1"></head>');
+  await writeFile(resolve(root,'articles',slug+'.html'),stamped,'utf8');
   built.push(slug);
 }
 const cached=new Set(built);

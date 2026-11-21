@@ -52,6 +52,18 @@ def main():
     target.append(row)
     market_counts[market]+=1
     if all(n>=75 for n in market_counts.values()):break
+  # The four native article URLs are used by the live production smoke.
+  # Include them as real, verified R2 fragments even if newer publications
+  # push them outside the 75-per-market latest-window.
+  priority_slugs=["saudi-buyer-baseus-powerbank-multiport-power-budget-sharing-nov170-2026-n6","uae-buyer-baseus-powerbank-multiport-power-budget-sharing-nov188-2026-n6","saudi-buyer-hp-laptop-ssd-replacement-panel-access-nov170-2026-n10","uae-buyer-xiaomi-phone-nfc-wallet-regional-compatibility-nov188-2026-n10"]
+  native_by_slug={row["slug"]:row for row in native}
+  requested={row["slug"] for row in target}
+  for slug in priority_slugs:
+    row=native_by_slug.get(slug)
+    if row is None:fail("PRIORITY_R2_NATIVE_ARTICLE_MISSING_FROM_LEDGER_"+slug)
+    if slug not in requested:
+      target.append(row)
+      requested.add(slug)
   metadata={};copied=[];missing=[];denied=[]
   STAGE.mkdir(parents=True,exist_ok=True)
   for row in target:
@@ -73,6 +85,8 @@ def main():
       copied.append(slug)
     except Exception as err:
       missing.append(slug)
+  for slug in priority_slugs:
+    if slug not in copied:fail("PRIORITY_R2_NATIVE_ARTICLE_INVALID_"+slug)
   if len(copied)<24:fail("TOO_FEW_NATIVE_FRAGMENTS_"+str(len(copied)))
   if min(sum(1 for x in target if x["country"]==c and x["slug"] in copied) for c in ("SA","AE"))<12:
     fail("MARKET_STATIC_COVERAGE_TOO_LOW")
