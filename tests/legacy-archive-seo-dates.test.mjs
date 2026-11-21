@@ -276,7 +276,7 @@ test('real legacy route corrects American Tourister backpack advice but keeps me
  const oldIntro='فابدأ بصلاحية American Tourister Backpacks السعر النهائي بعد تجربة الكود لـالرياضة ثم راجع اللون والبائع والشحن. وفي هذا الدليل نركز على مع أولوية سهولة الاستخدام.';
  const oldAdvice='قبل التفكير في القسيمة، ثبّت ما تحتاجه فعلًا في American Tourister Backpacks السعر النهائي بعد تجربة الكود. في حالة الرياضة، ركّز أولًا على المقاس والخامة، ثم راجع القصة.';
  const faq={'@context':'https://schema.org','@type':'FAQPage',mainEntity:[{'@type':'Question',name:'هل الكوبون مضمون؟',acceptedAnswer:{'@type':'Answer',text:'تحقق من إجمالي سلة نون الإمارات.'}}]};
- const original='<article><h1>'+heading+'</h1><p class="direct-answer">الخلاصة العملية: '+oldIntro+' جرّب NOV153 على سلة ثابتة في نون الإمارات، واجعل الإجمالي النهائي هو المرجع بدل أي ادعاء غير موثق عن نسبة الخصم.</p>'+
+ const original='<article data-market="AE" data-coupon="NOV153"><h1>'+heading+'</h1><p class="direct-answer">الخلاصة العملية: '+oldIntro+' جرّب NOV153 على سلة ثابتة في نون الإمارات، واجعل الإجمالي النهائي هو المرجع بدل أي ادعاء غير موثق عن نسبة الخصم.</p>'+
  '<p>'+oldAdvice+'</p><a href="https://noondealsnow.com/categories">أقسام نون</a>'+
  '<script type="application/ld+json">'+JSON.stringify(faq)+'</script></article>';
  let writes=0;
@@ -289,6 +289,8 @@ test('real legacy route corrects American Tourister backpack advice but keeps me
  for(const text of ['سعة حقيبة الظهر','راحة حمل الحقيبة','توزيع الجيوب'])assert.ok(html.includes(text));
  assert.doesNotMatch(html,/لـالرياضة|نركز على مع|في حالة الرياضة/);
  assert.ok(html.includes('data-rescue-copy="NOV188"'));
+ assert.match(html,/<article[^>]*data-market="AE"[^>]*data-coupon="NOV188"/);
+ assert.doesNotMatch(html,/<article[^>]*data-market="AE"[^>]*data-coupon="NOV153"/);
  assert.ok(html.includes('<link rel="canonical" href="'+url+'">'));
  assert.ok(html.includes('href="https://noondealsnow.com/categories"'));
  const schemas=[...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map(v=>JSON.parse(v[1]));

@@ -33,9 +33,10 @@ export function normalizeArabicUaeMentions(source,country='SA',english=false){
 }
 // Public QA found two specific legacy Arabic UAE articles with clothing
 // advice incorrectly applied to backpacks or malformed "لـهدية" sentences.
-// Repair the exact previously verified prose in visible text nodes ONLY.
-// Restrict this to the two audited slugs, never all brand articles. Preserve
-// scripts, structured data, hrefs, markup, the coupon and original R2 bytes.
+// Repair exact verified prose in visible text nodes only, and normalize
+// ONE observed stale article data-coupon attribute to the already-rendered
+// primary UAE code. Never alter a coupon link, source R2, schema or scripts.
+// Restrict this to the two audited slugs, never all brand articles.
 export function repairAuditedLegacyBuyerGuidance(html,slug,country='SA',english=false){
  const source=String(html??'');
  if(country!=='AE'||english)return source;
@@ -70,7 +71,15 @@ export function repairAuditedLegacyBuyerGuidance(html,slug,country='SA',english=
  ];
  return source.split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>|<[^>]+>)/gi)
   .map(part=>{
-   if(part.startsWith('<'))return part;
+   if(part.startsWith('<')){
+    // This one audited backpack document advertised NOV153 in metadata while
+    // its visible copy buttons and primary coupon already use NOV188.
+    // Align the existing root article attribute; other articles are untouched.
+    if(backpack&&/^<article\b/i.test(part)&&/\bdata-market=(["'])AE\1/i.test(part))
+      return part.replace(/\bdata-coupon=(["'])NOV153\1/i,
+        (_all,quote)=>'data-coupon='+quote+primaryCodeForMarket('AE')+quote);
+    return part;
+   }
    let clean=part;
    for(const [oldText,newText] of pairs)clean=clean.replaceAll(oldText,newText);
    return clean.replaceAll('سوق uae','سوق الإمارات');
