@@ -11,7 +11,7 @@ test('no missing market root, category, or buying-intent pages under quota exhau
  assert.equal(PUBLIC_CATEGORIES.length,42);
  assert.equal(report.categoryPages,84);
  assert.equal(report.keywordGuides,10);
- assert.equal(report.generatedPages,100);
+ assert.equal(report.generatedPages,105);
  for(const m of ['saudi','uae']){
    const coupon=m==='saudi'?'NOV170':'NOV188';
    for(const p of ['/'+m+'/categories','/'+m+'/noon-coupon-code','/'+m+'/shopping-guide']){
