@@ -323,7 +323,7 @@ export async function prioritySitemap(env,origin){
     const marketRows=english.filter(a=>a.country===country);
     if(!marketRows.length)continue;
     englishPages.push({loc:origin+'/en/'+market,lastmod:null});
-    englishPages.push({loc:origin+'/en/'+market+'/noon-coupon-code',lastmod:marketRows.map(sitemapArticleLastmod).filter(Boolean).sort().slice(-1)[0]||null});
+    englishPages.push({loc:origin+'/en/'+market+'/noon-coupon-code',lastmod:marketRows.map(a=>sitemapArticleLastmod(a)).filter(Boolean).sort().slice(-1)[0]||null});
     const byCategory=new Map();
     for(const a of marketRows){if(a.categoryKey)byCategory.set(a.categoryKey,(byCategory.get(a.categoryKey)||0)+1)}
     for(const [categoryKey,count] of byCategory)if(englishCategoryIndexable(market,categoryKey,count))englishPages.push({loc:origin+'/en/'+market+'/category/'+encodeURIComponent(categoryKey),lastmod:null});
@@ -335,7 +335,7 @@ export async function prioritySitemap(env,origin){
       ];
       for(const [key,pattern] of productHubs){
         const matches=marketRows.filter(a=>pattern.test(String(a.title||'')+' '+String(a.primaryKeyword||'')));
-        if(matches.length>=2)englishPages.push({loc:origin+'/en/uae/product/'+key,lastmod:matches.map(sitemapArticleLastmod).filter(Boolean).sort().slice(-1)[0]||null});
+        if(matches.length>=2)englishPages.push({loc:origin+'/en/uae/product/'+key,lastmod:matches.map(a=>sitemapArticleLastmod(a)).filter(Boolean).sort().slice(-1)[0]||null});
       }
     }
   }
