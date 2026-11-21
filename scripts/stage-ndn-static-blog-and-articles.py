@@ -81,7 +81,7 @@ def main():
   rows={x["slug"]:x for x in native}
   for x in compact["articles"]:
     if not isinstance(x,dict) or not SLUG.fullmatch(str(x.get("slug",""))) or x.get("country") not in ("SA","AE"):continue
-    if x.get("status")!="published" or x.get("indexable") is False:continue
+    if x.get("status") in ("draft","scheduled") or x.get("indexable") is False:continue
     rows.setdefault(x["slug"],x)
   known=set(copied)
   missing_all=[]
@@ -115,7 +115,7 @@ def main():
   verified=sorted(known)
   public_native=[x for x in ledger["articles"] if x.get("slug") in known]
   public_compact=[x for x in compact["articles"] if x.get("slug") in known and
-    x.get("status")=="published" and x.get("indexable") is not False]
+    x.get("status") not in ("draft","scheduled") and x.get("indexable") is not False]
   source_rows=len(rows)
   print("NDN_FULL_PUBLISHED_R2_HEAD_CHECK="+str(len(known))+"/"+str(source_rows)+
     ";MISSING="+str(len(failed_head))+";SA="+str(sum(rows[s]["country"]=="SA" for s in known))+

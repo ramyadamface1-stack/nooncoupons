@@ -8,7 +8,7 @@ test('static blog uses published R2 articles, not the stale 8-guide template',()
  const cached=new Set(a.cachedArticleSlugs);
  for(const path of ['blog','blog/saudi','blog/uae']){
   const html=readFileSync('.ndn-static-assets/'+path+'.html','utf8');
-  assert.match(html,/<meta name="ndn-verified-r2-article-listing" content="v1">/);
+  assert.match(html,/<meta name="ndn-verified-r2-article-listing" content="v2">/);
   assert.match(html,/<meta name="robots" content="index,follow,max-image-preview:large">/);
   const cards=[...html.matchAll(/<article class="card[^"]*">/g)];
   const slugs=[...new Set([...html.matchAll(/href="\/articles\/([a-z0-9-]{16,120})"/g)].map(x=>x[1]))];
