@@ -1,0 +1,69 @@
+name: NoonDealsNow - Diagnose Cloudflare Worker 1027 Quota (Read Only)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/diagnose-ndn-workers-1027.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  quotas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    env:
+      CF_ACCOUNT: e4c35f8a50a7b2e4cfb9d6c534962603
+      CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read Cloudflare request use and diagnose public Error 1027 (no mutations)
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          const summary=process.env.GITHUB_STEP_SUMMARY;
+          const note=s=>{console.log(s);if(summary)appendFileSync(summary,s+'\n')};
+          note('## Cloudflare Workers Free plan - read-only quota diagnosis');
+          if(!process.env.CF_TOKEN){note('Cloudflare token missing: cannot inspect current account usage');process.exit(0)}
+          const now=new Date(),start=new Date(now);start.setUTCHours(0,0,0,0);
+          note('UTC window: '+start.toISOString()+' to '+now.toISOString());
+          note('The documented 1027 error means Workers daily request quota exhausted; quota resets at 00:00 UTC.');
+          const query=`query Invocations($accountTag: string, $from: string, $to: string, $script: string) {
+            viewer { accounts(filter: {accountTag: $accountTag}) {
+              workersInvocationsAdaptive(limit: 5000,filter:{scriptName:$script,datetime_geq:$from,datetime_leq:$to}) {
+                dimensions { scriptName status }
+                sum { requests errors subrequests }
+              }
+            }}
+          }`;
+          const names=['noondealsnow-production-new','noondealsnow-ai-direct-r2','noondealsnow-ai-scheduler-v2','noondealsnow-migration-staging'];
+          note('| Worker | Requests in returned analytics rows | Errors | Rows |');
+          note('|---|---:|---:|---:|');
+          for(const script of names){
+            try{
+              const response=await fetch('https://api.cloudflare.com/client/v4/graphql',{method:'POST',
+                headers:{authorization:'Bearer '+process.env.CF_TOKEN,'content-type':'application/json'},
+                body:JSON.stringify({query,variables:{accountTag:process.env.CF_ACCOUNT,from:start.toISOString(),to:now.toISOString(),script}}),
+                signal:AbortSignal.timeout(15000)});
+              const json=await response.json();
+              if(!response.ok||json.errors?.length)throw Error('analytics API blocked or unlicensed HTTP '+response.status+' '+String(json.errors?.[0]?.message||'').slice(0,70));
+              const rows=json?.data?.viewer?.accounts?.[0]?.workersInvocationsAdaptive;
+              if(!Array.isArray(rows))throw Error('no account analytics visible');
+              const n=rows.reduce((acc,x)=>acc+Number(x.sum?.requests||0),0);
+              const e=rows.reduce((acc,x)=>acc+Number(x.sum?.errors||0),0);
+              note('| '+script+' | '+n.toLocaleString('en-US')+' | '+e.toLocaleString('en-US')+' | '+rows.length+' |');
+              if(rows.length===5000)note('WARNING '+script+' is capped at 5000 rows, not an exact full-day total');
+            }catch(err){note('| '+script+' | unavailable | unavailable | '+String(err.message).slice(0,95)+' |')}
+          }
+          note('Worker invoice/usage total across the whole account must be checked in Cloudflare dashboard; row-level analytics may be sampled or truncated.');
+          JS
+          status=$(curl -sS --max-time 12 -o /tmp/ndn-1027-body -w '%{http_code}' 'https://noondealsnow.com/?ndn_quota_probe=readonly' || true)
+          echo "PUBLIC_HOMEPAGE_HTTP=$status"
+          if grep -q 'Error 1027' /tmp/ndn-1027-body; then
+            echo 'PUBLIC_ERROR_1027_CONFIRMED=TRUE'
+            echo 'Public homepage currently blocked by Workers daily request limit, not WAF user-agent challenge.' >> "$GITHUB_STEP_SUMMARY"
+          fi
