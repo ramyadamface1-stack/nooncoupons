@@ -61,6 +61,9 @@ jobs:
       - name: Verify original R2 rescue renderer preserves Arabic/English article and image sitemap XML
         run: python3 -m unittest discover -s tests -p 'test_ndn_static_rescue_sitemaps.py' -v
 
+      - name: Verify zero-Worker priority, English, hub and image XML using original exported renderers
+        run: python3 -m unittest discover -s tests -p 'test_ndn_static_discovery_sitemaps.py' -v
+
       - name: Test safe bounded real article crawl probe without making network calls
         run: python3 -m unittest discover -s tests -p 'test_ndn_live_article_crawl_smoke.py' -v
 
