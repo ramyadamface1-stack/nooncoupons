@@ -126,3 +126,36 @@ test('public archive menus do not advertise the currently unavailable catalog pa
  assert.match(source,/<a href="\/blog\/archive">/);
  assert.match(source,/<a href="\/blog\/archive\/english">/);
 });
+
+test('legacy Arabic UAE titles, intro and FAQ schema say نون الإمارات without altering URLs or stored R2',async()=>{
+ const slug='american-tourister-arabic-uae-legacy';
+ const src='<article><p>مقارنة حقائب السفر في نون uae مع مراجعة الشحن.</p>'+
+  '<h1>American Tourister Backpacks السعر النهائي على نون uae</h1>'+
+  '<p>قارن حقائب السفر بين البائعين في نون uae. جرّب NOV188 في السلة قبل الدفع.</p>'+
+  '<a href="https://noondealsnow.com/uae">نون uae</a>'+
+  '<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@type':'FAQPage',
+   mainEntity:[{'@type':'Question',name:'ما شروط نون uae؟',acceptedAnswer:{'@type':'Answer',text:'راجع سلة نون uae.'}}]})+'</script>'+
+  '</article>';
+ const env={R2_RESCUE_READONLY_ENABLED:'false',CONTENT_FINAL:{async get(key){
+  return key==='articles/'+slug+'.html'?{text:async()=>src,customMetadata:{status:'published',c:'AE',at:'2026-10-14T06:32:32.875Z'}}:null;
+ }}};
+ const u='https://noondealsnow.com/articles/'+slug;
+ const res=await nativeBoundLegacyPublicFastResponse(new Request(u),env);
+ assert.equal(res?.status,200);
+ const html=await res.text();
+ assert.match(html,/<h1>American Tourister Backpacks السعر النهائي على نون الإمارات<\/h1>/);
+ assert.match(html,/<title>American Tourister Backpacks السعر النهائي على نون الإمارات/);
+ assert.match(html,/<meta name="description" content="[^"]*نون الإمارات/);
+ assert.match(html,/href="https:\/\/noondealsnow.com\/uae">نون الإمارات<\/a>/);
+ assert.doesNotMatch(html,/نون uae/i);
+ assert.match(html,/rel="canonical" href="https:\/\/noondealsnow.com\/articles\/american-tourister-arabic-uae-legacy"/);
+ assert.match(html,/data-rescue-copy="NOV188"/);
+ const schemas=[...html.matchAll(/<script\b[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi)].map(m=>JSON.parse(m[1]));
+ const article=schemas.find(x=>x['@type']==='Article');
+ const faq=schemas.find(x=>x['@type']==='FAQPage');
+ assert.ok(article&&faq);
+ assert.match(article.headline,/نون الإمارات/);
+ assert.match(faq.mainEntity[0].name,/نون الإمارات/);
+ assert.match(faq.mainEntity[0].acceptedAnswer.text,/نون الإمارات/);
+ assert.equal(src.includes('نون uae'),true,'original source stays unmodified');
+});
