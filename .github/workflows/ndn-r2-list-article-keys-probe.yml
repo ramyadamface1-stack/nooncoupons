@@ -37,9 +37,9 @@ jobs:
             obj=c.get_object(Bucket=b,Key='bulk/public-compact-v1.json')
             rows=json.loads(obj['Body'].read()).get('articles',[])
             lengths=[len(str(x.get('slug') or '')) for x in rows if isinstance(x,dict)]
-          print('COMPACT_SLUG_LENGTHS='+str({'min':min(lengths),'max':max(lengths),'over120':sum(x>120 for x in lengths),
-            'badcharacters':sum(not re.fullmatch(r'[a-z0-9-]+',str(x.get('slug') or '')) for x in rows if isinstance(x,dict))}),flush=True)
-          print('COMPACT_PUBLIC_ROWS='+str(len(rows))+
+            print('COMPACT_SLUG_LENGTHS='+str({'min':min(lengths),'max':max(lengths),'over120':sum(x>120 for x in lengths),
+              'badcharacters':sum(not re.fullmatch(r'[a-z0-9-]+',str(x.get('slug') or '')) for x in rows if isinstance(x,dict))}),flush=True)
+            print('COMPACT_PUBLIC_ROWS='+str(len(rows))+
               ';STATUS_COUNTS='+str(collections.Counter(str(x.get('status','MISSING')) for x in rows if isinstance(x,dict)))+
               ';PUBLISHED_AT_PRESENT='+str(sum(bool(x.get('publishedAt')) for x in rows if isinstance(x,dict))),flush=True)
           except Exception as e:
