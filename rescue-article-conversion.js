@@ -86,6 +86,47 @@ export function repairAuditedLegacyBuyerGuidance(html,slug,country='SA',english=
   }).join('');
 }
 
+// Editorial-safe display repair for the old published Arabic data-blueprint
+// templates only. R2 source, URLs, coupon codes, attributes and scripts stay
+// unchanged. The category-specific advice below is a check list, not a claim
+// about any seller, available model, product specification or coupon eligibility.
+export function repairLegacyArabicBlueprintText(html,slug,country='SA',english=false){
+ const raw=String(html??'');
+ if(english||!['SA','AE'].includes(country)||
+    !/<article\b[^>]*\bdata-blueprint=["']\d+["']/i.test(raw)||
+    !/(?:لـ(?:الرياضة|هدية|السفر|مناسبة|مبتدئ|التنقل|تمارين منزلية|وجبات سريعة|العمل|الدراسة)|نون\s+saudi\b|عند\s+(?:عند|قبل)\s+|نركز على مع أولوية|في حالة [^،.]{1,32}، ركّز)/i.test(raw))return raw;
+ const key=String(slug||'').toLowerCase();
+ const bag=/(?:backpacks|luggage|bags|الحقائب|حقيبة|حقائب|شنط)/i.test(key);
+ const shoes=/(?:shoes|sneakers|الأحذية|احذية)/i.test(key);
+ const camping=/(?:camping|التخييم)/i.test(key);
+ const decor=/(?:decor|الديكور)/i.test(key);
+ const focused=bag?'عند اختيار الحقيبة، راجع السعة والخامة والتقسيم الداخلي وراحة الحمل قبل مقارنة السعر.'
+  :shoes?'عند اختيار حذاء، راجع المقاس والخامة وراحة الاستخدام وسياسة الإرجاع قبل مقارنة السعر.'
+  :camping?'عند اختيار معدات التخييم، راجع الوزن والخامة وسهولة التخزين ومتطلبات الاستخدام قبل مقارنة السعر.'
+  :decor?'عند اختيار ديكور، راجع الأبعاد والخامة وطريقة التركيب وملاءمة المكان قبل مقارنة السعر.'
+  :null;
+ const scenario='(?:الرياضة|هدية|السفر|مناسبة|مبتدئ|التنقل|تمارين منزلية|وجبات سريعة|العمل|الدراسة)';
+ const lead=new RegExp('فابدأ\\s+بصلاحية\\s+([^،.؛!؟]{3,160}?)\\s+لـ'+scenario+'\\s+ثم\\s+راجع','gu');
+ const awkward=new RegExp('لـ'+scenario+'(?=[\\s،.؛!؟]|$)','gu');
+ return raw.split(/(<script\b[^>]*>[\s\S]*?<\/script>|<style\b[^>]*>[\s\S]*?<\/style>|<[^>]+>)/gi).map(part=>{
+  if(part.startsWith('<'))return part;
+  let next=part;
+  if(country==='SA')next=next.replace(/نون[\s\u00a0]+saudi\b/gi,'نون السعودية');
+  next=next.replace(lead,(_all,product)=>'فابدأ بمراجعة ملاءمة '+product.trim()+' لاحتياجك ثم راجع')
+   .replace(awkward,'للاستخدام المطلوب')
+   .replace(/عند\s+عند\s+(?=تغير السعر)/gu,'عند ')
+   .replace(/عند\s+قبل\s+(?=الإرجاع)/gu,'قبل ')
+   .replace(/نركز على مع أولوية\s+([^.!؟]{3,50})\./gu,'نركز على $1.');
+  if(focused){
+   next=next.replace(/في حالة [^،.!؟]{2,35}، ركّز أولًا على [^،.!؟]{3,78}، ثم راجع القصة\./gu,focused);
+   if(bag)next=next.replaceAll('راجع القصة','راجع التقسيم الداخلي')
+    .replaceAll('نقاط القصة','نقاط التقسيم الداخلي')
+    .replaceAll('المقاس والقصة','المقاس والتقسيم الداخلي');
+  }
+  return next;
+ }).join('');
+}
+
 // R2 stores older FAQ JSON-LD under the original promotion code. The public
 // reader now displays the market primary code; keep FAQ schema in agreement
 // with the *visible* FAQ without touching canonical URLs, item IDs or source R2.
@@ -94,7 +135,9 @@ export function reconcileSourceCouponJsonLd(html,country='SA',preferredCode=null
   const tokens=/\b(?:NOV|RAMY|OPS)\d{2,4}\b/gi;
   const textualFields=new Set(['name','headline','description','text','alternateName','step','suggestedAnswer','itemText']);
   const replaceText=value=>{const current=String(value).replace(tokens,code);
-    return country==='AE'&&!english?current.replace(/نون[\s\u00a0]+uae\b/gi,'نون الإمارات'):current;
+    if(english)return current;
+    if(country==='AE')return current.replace(/نون[\s\u00a0]+uae\b/gi,'نون الإمارات');
+    return current.replace(/نون[\s\u00a0]+saudi\b/gi,'نون السعودية');
   };
   function clean(node){
     if(Array.isArray(node))return node.map(clean);
