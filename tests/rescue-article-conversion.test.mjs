@@ -230,7 +230,8 @@ test('audited backpack and gift pages replace false clothing advice only in visi
  const x=repairAuditedLegacyBuyerGuidance(a,brand,'AE',false);
  for(const text of ['سعة حقيبة الظهر','راحة حمل الحقيبة','توزيع الجيوب','حقيبتي ظهر مناسبتين','حقيبة الظهر مناسبة لاستخدامك','راحة حملها','سوق الإمارات'])
   assert.ok(x.includes(text),text);
- assert.doesNotMatch(x,/(?:لـالرياضة|نركز على مع|في حالة الرياضة|راجع القصة)/u);
+ const visible=x.replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi,'').replace(/<[^>]+>/g,'');
+ assert.doesNotMatch(visible,/(?:لـالرياضة|نركز على مع|في حالة الرياضة|راجع القصة)/u);
  assert.match(x,/<article data-coupon="NOV153"/,'no market attribute means no coupon-data rewrite');
  assert.match(x,/href="https:\/\/noondealsnow.com\/uae"/);
  assert.match(x,/<script type="application\/ld\+json">\{"text":"لـالرياضة","code":"NOV153"\}<\/script>/);
