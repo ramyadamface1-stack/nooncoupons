@@ -56,7 +56,13 @@ export function reconcileSourceCouponJsonLd(html,country='SA',preferredCode=null
 // original stored bytes, article URL and all other hrefs are unchanged.
 export function repairLegacyGuideLinks(source,country='SA'){
   const target=country==='AE'?'/uae/shopping-guide':'/saudi/shopping-guide';
-  return String(source??'').replace(/(<a\b[^>]*\bhref\s*=\s*)(["'])\/guides\/?\2/gi,(_all,attrs,quote)=>attrs+quote+target+quote);
+  // The old template also emitted an absolute same-site /guides URL.
+  // Only repair the exact known-404 destination, never other hosts,
+  // nested /guides paths or stored article/R2 bytes.
+  return String(source??'').replace(
+    /(<a\b[^>]*\bhref\s*=\s*)(["'])(?:(?:https?:\/\/(?:www\.)?noondealsnow\.com))?\/guides\/?\2/gi,
+    (_all,attrs,quote)=>attrs+quote+target+quote
+  );
 }
 
 // Repair only generic Noon homepage links stored in legacy article bodies.
