@@ -65,11 +65,15 @@ test('two separate market generators have a 30-second UAE offset and a still-ato
  assert.match(scheduler,/globalPublicationSpacingSeconds:30/);
 });
 
-test('panel metrics refresh every minute and verified R2 ledger counter snapshots refresh every five',()=>{
+test('panel metrics refresh every minute and verified R2 ledger snapshots refresh every fifteen on the free tier',()=>{
  const panel=repoText('system1-control-center.js');
  const summary=repoText('.github/workflows/noondealsnow-ai-v2-verified-summary.yml');
  assert.match(panel,/window\.setInterval\(\(\)=>\{if\(!document.hidden\)load\(\)\},60000\)/);
- assert.match(summary,/cron: '\*\/5 \* \* \* \*'/);
+ assert.ok(summary.includes("cron: '7,22,37,52 * * * *'"));
+ assert.match(summary,/lastPublishedAt/);
+ assert.match(summary,/lastHourByProvider/);
+ assert.match(summary,/last24HoursByProvider/);
+ assert.match(summary,/belowTarget60PerHour/);
  assert.match(summary,/source':'real-R2-verified-ledger'/);
  assert.match(summary,/providerCalls':0,'articleWrites':0/);
  assert.match(panel,/id="dailyGoalPublished"/);

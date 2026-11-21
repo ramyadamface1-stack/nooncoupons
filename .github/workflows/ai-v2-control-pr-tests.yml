@@ -80,6 +80,12 @@ jobs:
             tests/system1-keyword-index.test.mjs \
             tests/system1-visuals.test.mjs
 
+      - name: Build local static XML scaffolding required by dry-run (NO R2 or live mutation)
+        run: |
+          node scripts/build-ndn-static-seo-assets.mjs
+          node scripts/build-ndn-static-market-sitemaps.mjs
+          test -d .ndn-static-assets
+          echo 'AI_V2_ADMIN_DRY_RUN_ASSETS=LOCAL_COMPILE_ONLY;R2_READS=0;R2_WRITES=0'
       - name: Compile destination Cloudflare Worker with sealed-box dependencies (NO deployment)
         run: npx wrangler deploy --dry-run --config wrangler.new-account-production.jsonc --outdir /tmp/noondealsnow-ai-v2-admin-dry
       - name: Read current independent AI scheduler public health without changing it

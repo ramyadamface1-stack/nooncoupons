@@ -5,7 +5,9 @@ on:
     paths:
       - '.github/workflows/noondealsnow-ai-v2-verified-summary.yml'
   schedule:
-    - cron: '*/5 * * * *'
+    # Four best-effort read-only snapshots per hour, not 12.
+    # Does not generate or publish articles; reduces GitHub runner overhead.
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
@@ -89,6 +91,16 @@ jobs:
             'ok':True,'ledgerItems':len(items),'lastHour':windows['1h']['total'],
             'last24Hours':windows['24h']['total'],'todayCairo':windows['todayCairo']['total'],
             'dayKeyCairo':day_key,'hasLastPublished':bool(newest),
+            'lastPublishedAt':newest[1]['publishedAt'] if newest else None,
+            'lastPublishedCountry':newest[1]['country'] if newest else None,
+            'minutesSinceLastPublish':round((now-newest[0]).total_seconds()/60,1) if newest and now>=newest[0] else None,
+            'lastHourByProvider':windows['1h']['byProvider'],
+            'last24HoursByProvider':windows['24h']['byProvider'],
+            'belowTarget60PerHour':windows['1h']['total']<60,
             'source':'real-R2-verified-ledger','providerCalls':0,'articleWrites':0
           },ensure_ascii=False),flush=True)
+          if windows['1h']['total']<60:
+            print('::warning::NDN_VERIFIED_LAST_HOUR_BELOW_OWNER_TARGET_60;COUNT='+str(windows['1h']['total'])
+                  +';LAST_PUBLISHED_AT='+(newest[1]['publishedAt'] if newest else 'none'),flush=True)
+          print('NDN_VERIFIED_SUMMARY_ONLY=R2_SNAPSHOT_WRITE;ARTICLE_GENERATION=ZERO;ARTICLE_WRITES=ZERO',flush=True)
           PY
