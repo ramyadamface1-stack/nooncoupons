@@ -345,6 +345,40 @@ export function removeRedundantSourceArticleJsonLd(content){
     return '<script '+attrs+'>'+JSON.stringify(filtered).replace(/</g,'\\u003c')+'</script>';
   });
 }
+// Native R2 article bodies may already contain Article JSON-LD without a
+// publication date, despite verified metadata powering the visible <time>.
+// Align source Article schema with that metadata without making a second
+// Article node, inventing an update, or rewriting stored R2. FAQ stays intact.
+export function supplementNativeArticleJsonLd(html,{publishedAt=null,modifiedAt=null,canonical=''}={}){
+ const source=String(html??''),published=dateIso(publishedAt);
+ if(!published||!source.includes('application/ld+json'))return source;
+ const modified=dateIso(modifiedAt);
+ return source.replace(/<script\b([^>]*\btype=["']application\/ld\+json["'][^>]*)>([\s\S]*?)<\/script>/gi,(full,attrs,body)=>{
+   let record;
+   try{record=JSON.parse(body)}catch{return full}
+   let changed=false;
+   const edit=node=>{
+     if(!node||typeof node!=='object'||Array.isArray(node))return node;
+     const types=Array.isArray(node['@type'])?node['@type']:[node['@type']];
+     const article=types.includes('Article')||types.includes('BlogPosting');
+     const patch={};
+     if(article){
+       if(!node.datePublished)patch.datePublished=published;
+       if(!node.mainEntityOfPage&&canonical)patch.mainEntityOfPage=canonical;
+       if(modified&&!node.dateModified)patch.dateModified=modified;
+     }
+     let next=Object.keys(patch).length?{...node,...patch}:node;
+     if(Object.keys(patch).length)changed=true;
+     if(Array.isArray(next['@graph'])){
+       const graph=next['@graph'].map(edit);
+       if(graph.some((value,i)=>value!==next['@graph'][i]))next={...next,'@graph':graph};
+     }
+     return next;
+   };
+   const next=Array.isArray(record)?record.map(edit):edit(record);
+   return changed?'<script'+attrs+'>'+JSON.stringify(next).replace(/</g,'\\u003c')+'</script>':full;
+ });
+}
 // CPU-bounded read path for the exact articles already approved and written by
 // the native Gemini/Groq publisher. It never modifies R2, coupon or approval.
 // Legacy articles still use the full (slower) conversion pipeline below.
@@ -356,7 +390,7 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  // Do not parse or rewrite large legacy HTML in a fast-path eligibility check.
  // Archived articles use the legacy renderer below; this prevents two costly
  // full-body passes on every request and keeps R2 bytes untouched.
- const source=repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(String(obj?.body||''),{english}).html)),slug,english);
+ let source=repairLegacyGuideLinks(repairArchivedProductCategoryHtml(neutralizeUnverifiedEditorialReview(refreshArtworkUrlsInHtml(refreshLiveTemporalArticleHtml(String(obj?.body||''),{english}).html)),slug,english),country);
  if(
     source.length<4000||source.length>240000||!source.includes(code)||
     !/<article\b/i.test(source)||!/<h1\b/i.test(source))return null;
@@ -372,6 +406,7 @@ export function renderApprovedNativeAiV2Fast(obj,slug,u,english){
  const figure='<figure class="featured">'+imgTag(slug,country,code,1,title)+'</figure>';
  const published=dateIso(md.at);
  const modified=verifiedEditorialModifiedAt(md,published);
+ source=supplementNativeArticleJsonLd(source,{publishedAt:published,modifiedAt:modified,canonical});
  const publishTime=visibleEditorialDates(published,modified,english);
  const contents=figure+publishTime+'<article class="rescue-article" data-market="'+country+'">'+
    renderCouponAction(country,english,'top')+source+
