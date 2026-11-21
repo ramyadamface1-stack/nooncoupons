@@ -36,6 +36,22 @@ class CrawlSmokeTests(unittest.TestCase):
             BASE + "/sitemap-audit-articles-0.xml",
         ])
 
+    def test_old_bulk_archive_root_only_first_party_and_no_duplicates(self):
+        old = [
+            BASE + "/sitemap-articles-2026-10-18-0.xml",
+            BASE + "/sitemap-articles-2026-10-17-25.xml",
+        ]
+        self.assertEqual(mod.canonical_bulk_sitemap_paths(
+            index([BASE + "/sitemap-pages.xml", old[0],
+                   BASE + "/sitemap-ai-v2.xml", old[1]])), old)
+        self.assertEqual(mod.canonical_bulk_sitemap_paths(
+            index([BASE + "/sitemap-ai-v2.xml"])), [])
+        with self.assertRaisesRegex(ValueError, "DUPLICATE"):
+            mod.canonical_bulk_sitemap_paths(index([old[0], old[0]]))
+        with self.assertRaisesRegex(ValueError, "UNSAFE_FOREIGN"):
+            mod.canonical_bulk_sitemap_paths(
+                index([old[0], "https://evil.example/sitemap-articles-2026-10-17-0.xml"]))
+
     def test_native_ai_root_all_shards_and_strict_order(self):
         paths = [BASE + f"/sitemap-ai-v2-{n}.xml" for n in range(1, 6)]
         self.assertEqual(mod.ai_v2_shard_paths(index(paths)), paths)
