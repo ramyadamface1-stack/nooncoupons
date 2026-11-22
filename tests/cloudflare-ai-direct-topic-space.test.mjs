@@ -31,6 +31,7 @@ test('N11 scoped articles keep product-specific buyer intent instead of generic 
    assert.ok(scoped.topic.includes(original.brand),scoped.topic);
    assert.ok(scoped.topic.includes(original.country==='AE'?'Noon UAE NOV188':'نون السعودية NOV170'),scoped.topic);
    assert.ok(scoped.topic.includes(original.country==='AE'?'replacement':'تنظيف'),scoped.topic);
+   if(original.country==='AE')assert.match(scoped.topic,/replacement sealing/,'retain whole product-specific words');
    assert.ok(!scoped.topic.includes('(existing accessories)'),scoped.topic);
    assert.match(scoped.slug,new RegExp('-'+DIRECT_TOPIC_SCOPES[i-1].id+'-nov'+(original.country==='AE'?'188':'170')+'-2026-n11$'));
    assert.ok(scoped.slug!==original.slug);
