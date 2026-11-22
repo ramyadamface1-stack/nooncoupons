@@ -13,6 +13,20 @@ const market={
 const seo=[
  {m:'saudi',slug:'first-order',key:'كود خصم نون السعودية للطلب الأول',short:'تعرّف على طريقة اختبار أهلية حساب الطلب الأول دون افتراض خصم ثابت.',
  parts:[['شروط الحساب','الحساب الجديد ليس بالضرورة طلبًا مؤهلًا. اقرأ رسالة الكوبون وشروط الطلب الأول داخل نون السعودية، ولا تنشئ حسابات للتحايل على عروض مخصصة.'],['السلة الأولى','ضع المنتج الذي تحتاجه فقط، وسجّل سعره الأصلي واسم البائع ورسوم الشحن ثم استخدم NOV170. ارتفاع قيمة السلة لمجرد بلوغ حد غير موثق ليس توفيرًا.'],['التحقق من السعر','قارن نفس المنتجات والكمية والعنوان وطريقة الدفع قبل الكود وبعده؛ لا تعتبر اختلاف السلتين دليلًا على عمل الرمز.'],['الطلب والتوصيل','تحقق من عنوان السعودية وسياسة الإرجاع ووقت التوصيل ومجموع الرسوم قبل اعتماد أول عملية شراء.']]},
+ {m:'saudi',slug:'existing-customers',key:'كود خصم نون السعودية للعملاء الحاليين',short:'كيف تختبر NOV170 على حساب استخدمته سابقًا، وتعرف سبب رفض الكود دون وعود بخصم مضمون.',
+ parts:[
+ ['هل يمكن للعميل الحالي استخدام كود NOV170؟','NOV170 هو كود نون السعودية المدرج في هذا الموقع، وليس عرضًا نؤكد قبوله لكل حساب. لو سبق أن اشتريت من نون، افتح حسابك الحالي ومتجر السعودية، وحدد عنوان التوصيل وسلة فعلية. اكتب الكود كما هو في خانة الكوبون، ثم اقرأ الرد الظاهر من نون: قد تقبل السلة الرمز، أو يظهر شرط لا ينطبق على الحساب أو المنتج أو طريقة الدفع. لا يمكن استنتاج أهلية العملاء الحاليين من كون الرمز منشورًا في موقع كوبونات.'],
+ ['طريقة تحقق عادلة دون تغيير الحساب','جهز سلة تحتوي على المنتجات التي تنوي شراءها بالفعل؛ سجّل أرقام الموديلات والكمية والبائع والتوصيل. راجع الإجمالي قبل تطبيق NOV170، ثم طبقه على نفس السلة. لا تسجل حسابات جديدة للتحايل على عروض الطلب الأول ولا تضف منتجات لا تحتاجها. إذا ظهرت رسالة رفض، احتفظ بالنص المعروض وراجع تفاصيل الحملة في نون، ولا تعتبر سعر منتج آخر أو عرض بائع مختلف دليلًا على نسبة الخصم.'],
+ ['لماذا قد لا يظهر خصم مع الحساب القديم؟','يمكن أن تختلف العروض حسب الفئة والمنتج والبائع والحد الأدنى والموقع والحساب وطريقة الدفع ومدة الحملة؛ هذه عوامل يجب التحقق منها في شروط المتجر، وليست شروطًا نؤكد انطباقها على NOV170 تحديدًا. أحيانًا يلتبس الرصيد المسترد لاحقًا مع الخصم الفوري. تحقق هل انخفض إجمالي الدفع الآن أم ظهرت مكافأة أو رصيد منفصل بشروط محددة. إذا لم يتغير الإجمالي فلا نسمي ذلك توفيرًا محققًا.'],
+ ['ماذا تفعل إذا رفضت السلة الكود؟','أولًا تأكد أنك على نون السعودية وأنك كتبت NOV170 دون مسافات. ثانيًا راجع أن المنتج والبائع وعنوان التوصيل متطابقون مع شروط العرض الظاهرة أمامك. ثالثًا اقرأ رسالة الرفض بدقة، وتحقق من العروض التلقائية أو البنكية التي قد تتعارض مع القسيمة. لا تفترض أن مسح الكاش أو تغيير الحساب يحل المشكلة. يمكنك فتح دليل «الكوبون لا يعمل» ومراجعة خدمة عملاء نون من الموقع الرسمي إذا احتجت تفسيرًا محددًا.'],
+ ['كيف تختار أفضل إجمالي حتى لو الكود غير مؤهل؟','ثبت المنتج نفسه والمقاس والضمان والبائع ورسوم الشحن، ثم قارن الإجمالي الذي ستدفعه فعليًا بخيار آخر أو عرض مباشر. احسب التوصيل والتركيب والملحقات الضرورية، وسياسة الإرجاع، وأي رصيد مسترد منفصل. اختيار العرض الأقل تكلفة في السلة الثابتة أدق من الاعتماد على عبارة «خصم حتى» أو نسبة غير موثقة.'],
+ ],
+ faq:[
+ ['هل NOV170 صالح لكل عملاء نون الحاليين؟','الكود مدرج للسعودية من مالك الموقع، لكن لا نؤكد قبول كل حساب أو سلة. رسالة نون والإجمالي النهائي هما الفيصل.'],
+ ['هل أحتاج حسابًا جديدًا للحصول على NOV170؟','لا نوصي بإنشاء حساب آخر لتجاوز شروط العروض. استخدم حسابك الحالي واقرأ شروط القسيمة في المتجر.'],
+ ['هل الكاش باك يعني أن السعر انخفض الآن؟','ليس بالضرورة. افصل بين خصم فوري يظهر في إجمالي السلة ورصيد أو مكافأة قد يخضعان لشروط وموعد صرف.']
+ ]
+ },
  {m:'saudi',slug:'mobile-phones',key:'كود خصم نون السعودية للجوالات',short:'مقارنة الهاتف والنسخة والضمان والبائع قبل تجربة NOV170.',
  parts:[['الموديل الدقيق','راجع رقم الموديل والسعة والرام ودعم الشبكات وتفاصيل النسخة الإقليمية؛ اسم السلسلة وحده لا يكفي لمقارنة هاتفين.'],['البائع والضمان','قارن مصدر البيع وحالة الجهاز ونوع الضمان وشروط الإرجاع في صفحة المنتج قبل شراء جوال بسعر منخفض.'],['الملحقات','لا تفترض وجود شاحن أو سماعات أو واقي شاشة في الصندوق. اقرأ المحتويات وأضف تكلفة الضروري منها إلى مقارنة الأسعار.'],['تجربة الرمز','طبّق NOV170 في سلة نون السعودية نفسها بعد تثبيت الموديل والبائع. السعر النهائي بالريال هو المؤشر وليس نسبة غير موثقة.']]},
  {m:'saudi',slug:'home-appliances',key:'كود خصم نون السعودية للأجهزة المنزلية',short:'اختيار الأجهزة حسب الأبعاد والتركيب والصيانة والتكلفة النهائية.',
@@ -25,6 +39,20 @@ const seo=[
  parts:[['العمر والمقاس','اعتمد على إرشادات الشركة عن الوزن والعمر والمقاس، خصوصًا الحفاضات والمقاعد والعربات.'],['الخامات والسلامة','تحقق من طريقة الاستخدام والتنظيف ومتطلبات السلامة بدل الاعتماد على صور المنتج.'],['العبوات','قارن العدد وسعر القطعة وتكلفة التوصيل، ولا تكدس مقاسًا قد يصبح غير مناسب.'],['اختبار NOV170','ضع المنتجات الملائمة أولًا، ثم جرّب الكود في السلة وتأكد من السعر النهائي وشروط الإرجاع.']]},
  {m:'uae',slug:'first-order',key:'Noon UAE first order promo code',short:'Check first-order eligibility and the final UAE checkout total.',
  parts:[['Account eligibility','A newly created account is not proof that a promotion applies. Read Noon UAE checkout terms and avoid changing accounts to bypass any restrictions.'],['An intentional first basket','Select what you actually need, note the initial price and shipping, and avoid adding unnecessary items to reach an unverified threshold.'],['Test NOV188 once','Enter the owner-listed UAE code in the coupon field. Compare the same products and delivery address before and after applying it.'],['Finalize in AED','Check VAT display, delivery, seller and return conditions before treating the basket as a good deal.']]},
+ {m:'uae',slug:'existing-customers',key:'Noon UAE promo code for existing customers',short:'A practical NOV188 checkout test for returning UAE shoppers without unsupported eligibility claims.',
+ parts:[
+ ['Can an existing Noon UAE customer use NOV188?','NOV188 is the UAE coupon listed by this website. A code being listed does not establish that it is accepted for every returning account. If you have ordered from Noon before, stay in your existing account, open the official UAE storefront and set your delivery address. Add the products you genuinely intend to buy, then enter NOV188 in the coupon field. The checkout response determines whether your basket is eligible. Never mistake a first-order promotion, a bank-only deal, or a wallet reward for a blanket returning-customer discount.'],
+ ['How to compare the same basket before and after a code','Record the exact product model, quantity, selected seller and delivery address. Review the AED payable total before applying NOV188; then test the code without changing the basket. If Noon confirms a reduction, compare the actual final total including relevant shipping or service charges. Do not claim an advertised discount percentage is verified simply because a banner appears on a third-party site. Adding unwanted items to satisfy an unconfirmed minimum spend can make the order more expensive.'],
+ ['Why may a returning customer see an ineligible message?','Eligibility might depend on campaign terms, account history, included categories, selected seller, region, minimum basket value, payment method or timing. Those are possible variables to check, not asserted restrictions for NOV188. Read the exact response from Noon and the promotion terms relevant to your cart. Do not treat creating a replacement account as a solution to restrictions on first-order offers, and avoid trusting coupon listings that promise universal acceptance without evidence.'],
+ ['What if you already have a cashback or bank offer?','Distinguish an immediate price reduction from cashback or a delayed wallet credit. A coupon can change the current AED total, while a separate reward may be issued later subject to terms. Check whether offers can be combined in the official checkout before estimating savings; do not simply add advertised percentages. When comparing options, keep the product configuration, seller and delivery charges consistent so you can identify the lowest genuine payable total.'],
+ ['Where should you go after a rejected NOV188 attempt?','Double-check that you are on the UAE storefront, copied the characters correctly and selected the intended delivery address. Read the rejection text; then review seller, product and payment-method conditions on Noon. If it remains unclear, consult the official store help pages or support. Our general coupon troubleshooting guide explains the checks to make without promising that the code will work for a specific returning account.'],
+ ],
+ faq:[
+ ['Is NOV188 guaranteed for existing Noon UAE customers?','No universal approval is claimed. NOV188 is the owner-listed UAE code; eligibility and actual savings are determined by official checkout.'],
+ ['Can I use a bank offer and NOV188 together?','Combination depends on the terms shown by Noon and the bank. Compare the final payable amount rather than assuming both offers stack.'],
+ ['Does cashback mean my AED total fell immediately?','Not always. Check whether the offer is an instant reduction or a later credit, including any applicable conditions.']
+ ]
+ },
  {m:'uae',slug:'electronics',key:'Noon UAE electronics promo code',short:'Match device models, warranties and accessories before testing NOV188.',
  parts:[['Exact product identity','Match the model number, storage, ports, network support, included accessories and regional version of every device.'],['Warranty and seller','Check seller identity, warranty scope and returns. A low price does not make two different conditions equivalent.'],['Bundle comparison','Only count accessories you would otherwise purchase. Add delivery and any disclosed setup costs.'],['Coupon test','Use NOV188 at the official UAE checkout. No category-wide eligibility or percentage is promised.']]},
  {m:'uae',slug:'beauty',key:'Noon UAE perfume and beauty coupon code',short:'Compare formula, volume, concentration, seller and final AED price.',
@@ -142,18 +170,19 @@ for(const s of seo){
  const how=isArabic?
   '<h2>كيف تقارن الكود والعرض المباشر؟</h2><p>ثبّت عنوان التوصيل والبائع والكمية والموديل، وسجّل الإجمالي قبل إدخال الكود. بعدها جرّب NOV170 داخل متجر نون السعودية، ولا تعتبر أي رقم من خارج صفحة الدفع دليلاً على التوفير الفعلي. لا تضف منتجًا لا تحتاجه فقط لاستخدام الرمز. راجع أيضًا رسوم الشحن والإرجاع قبل إنهاء العملية.</p><h2>متى تختار عرضًا بديلًا؟</h2><p>لو كان الخصم المباشر يعطي إجماليًا أقل، راجع أن المنتجات والمواصفات والضمان متطابقة، وأن خدمة ما بعد البيع تلبي احتياجك. القرار الأفضل هو أقل تكلفة إجمالية لمنتج مناسب وليس أكبر نسبة مكتوبة في إعلان.</p>':
   '<h2>Coupon versus direct offer: the fair test</h2><p>Keep the seller, delivery address, quantity and exact product model unchanged. Record the total before entering the code and then try NOV188 in the Noon UAE checkout. Do not infer a saving from an external percentage claim. Include delivery and any mandatory service fees. Do not add unnecessary items only to reach an unverified promotion threshold.</p><h2>When to choose an alternative offer</h2><p>If a direct price is lower, compare identical specifications, seller support, return rights and warranty coverage. The most valuable purchase is a suitable product at the best final payable amount, not the largest advertised percentage.</p>';
- const faq=isArabic?[
+ const faq=s.faq||(isArabic?[
   ['هل NOV170 مضمون لهذه الفئة؟','الأهلية يحددها المتجر داخل سلة نون السعودية، ولا نعرض ضمانًا على فئة كاملة.'],
   ['هل أحتاج لتغيير البائع؟','تغيير البائع قد يغيّر السعر والضمان والشحن. قارن كل عرض بشكل مستقل.'],
   ['كيف أحسب الوفر الحقيقي؟','قارن الإجمالي قبل وبعد الكود على نفس المنتجات مع رسوم التوصيل.']]:
   [['Is NOV188 guaranteed for this category?','No universal eligibility is claimed. Only the official UAE checkout can confirm it.'],
    ['Can the seller affect the final price?','Yes. Seller, delivery, warranty and returns can change the real cost.'],
-   ['How should I calculate actual savings?','Compare the unchanged cart total before and after the code, including delivery.']];
+   ['How should I calculate actual savings?','Compare the unchanged cart total before and after the code, including delivery.']]);
  const imgPath='/assets/coupon-svg/seo-'+m+'-'+s.slug+'/1.svg';
  const svg=couponSvg({title:s.key,country:isArabic?'SA':'AE',coupon:codeNow,brand:'noon',variant:1});
  const imageDest=resolve(root,imgPath.slice(1));await mkdir(dirname(imageDest),{recursive:true});await writeFile(imageDest,svg,'utf8');
  const body='<article class="box"><img src="'+imgPath+'" width="1600" height="1000" alt="'+E(s.key)+' — '+codeNow+'" loading="eager" style="width:100%;height:auto" />'+
   '<h2>'+(isArabic?'ملخص القرار':'Buying decision overview')+'</h2><p>'+E(intro)+'</p>'+sections+how+
+  (s.slug==='existing-customers'?'<p><a href="/guide/coupon-not-working">'+(isArabic?'حل مشكلة رفض الكوبون':'What to check when a coupon is rejected')+'</a> · <a href="'+guideUrl({m,slug:'first-order'})+'">'+(isArabic?'شروط الطلب الأول':'First-order eligibility')+'</a> · <a href="/coupon-verification">'+(isArabic?'منهجية التحقق من العروض':'How coupon conditions are reviewed')+'</a></p>':'')+
   '<h2>'+(isArabic?'أدلة مشابهة للسوق نفسه':'Explore other guides in this market')+'</h2><ul>'+guideLinks(m)+'</ul></article>';
  await save(p,page(m,p,title,s.short,body,{faq,kind:'Article'}));generated++;
 }
@@ -320,6 +349,8 @@ const prioritizedKeywords={
   {q:'كود خصم نون السعودية NOV170 وطريقة استخدامه',gsc:'كود خصم نون السعودية',
    href:'/saudi-arabia/noon-coupon-code',intent:'الاستعداد للدفع',
    detail:'صفحة الكوبون السعودية الأساسية: نسخ الرمز واختيار السوق وفحص إجمالي سلة نون.'},
+  {q:'كود نون السعودية للعملاء الحاليين: كيف أعرف أهلية حسابي؟',href:'/saudi/buying-guide/existing-customers',
+   intent:'استخدام الرمز على حساب قديم',detail:'خطوات تجربة NOV170 على نفس السلة، وقراءة سبب الرفض والفرق بين الخصم الفوري والكاش باك دون ادعاء ضمان الأهلية.'},
   {q:'كود نون للطلب الأول: شروط حساب جديد',href:'/saudi/buying-guide/first-order',
    intent:'تأهيل أول عملية شراء',detail:'الفرق بين الحساب الجديد والطلب المؤهل وكيف تقارن رسوم التوصيل عند أول طلب.'},
   {q:'اختيار غسالة أو ثلاجة نون: الشحن والتركيب',href:'/saudi/buying-guide/home-appliances',
@@ -330,6 +361,9 @@ const prioritizedKeywords={
    intent:'شراء مستلزمات متكررة',detail:'الكمية والمقاس والسلامة وسعر القطعة، ثم فحص أثر كود السعودية في السلة.'}
  ],
  uae:[
+  {q:'Noon UAE code for existing customers: eligibility and checkout',
+   href:'/uae/buying-guide/existing-customers',intent:'Returning customer checkout',
+   detail:'Check whether NOV188 applies to your current account, compare identical carts and distinguish cashback from instant savings.'},
   {q:'Noon UAE first order promo code: eligibility checklist',
    href:'/uae/buying-guide/first-order',intent:'First purchase checkout',
    detail:'How to confirm first-order conditions, seller and the final AED total without assuming guaranteed savings.'},
