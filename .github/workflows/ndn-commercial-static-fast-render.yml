@@ -48,7 +48,7 @@ jobs:
           node --test tests/ndn-static-all-brand-hubs.test.mjs
           node --test tests/ndn-legacy-commercial-static.test.mjs
           node scripts/build-ndn-commercial-sitemap.mjs
-          node --test tests/ndn-commercial-sitemap.test.mjs tests/ndn-commercial-static.test.mjs
+          node --test tests/ndn-commercial-sitemap.test.mjs
           node --test tests/ndn-static-trust-pages.test.mjs
           node --input-type=module <<'NODE'
           import {readFileSync,existsSync} from 'node:fs';
@@ -63,6 +63,13 @@ jobs:
             const html=readFileSync(path,'utf8');
             if(!html.includes('id="ndn-static-ga4"')||!html.includes('<h1>'))throw Error('BAD_HTML '+p);
           }
+          for(const [m,c,other] of [['saudi','NOV170','NOV188'],['uae','NOV188','NOV170']]){
+            const html=readFileSync('.ndn-static-assets/'+m+'/golden-keywords.html','utf8');
+            if(!html.includes('data-code="'+c+'"')||html.includes('data-code="'+other+'"'))throw Error('GOLDEN_CROSS_MARKET_COUPON_'+m);
+            if(!html.includes('/'+m+'/brand/apple')||!existsSync('.ndn-static-assets/'+m+'/brand/apple.html'))throw Error('GOLDEN_GUIDE_MISSING_'+m);
+          }
+          const gold=readFileSync('.ndn-static-assets/golden-keywords.html','utf8');
+          if(!gold.includes('ndn-public-golden-keywords')||!gold.includes('index,follow,max-image-preview:large'))throw Error('GOLDEN_LEGACY_NOINDEX_OVERRIDE');
           const home=readFileSync('.ndn-static-assets/index.html','utf8');
           if(!home.includes('id="commercial-buying-intent"'))throw Error('MISSING_HOME_SECTION');
           console.log('NDN_FAST_MARKET_BUILD_PASS='+JSON.stringify(r));
