@@ -24,5 +24,9 @@ test('historical conversion and keyword URLs cannot return Worker 1027',()=>{
  const qa=readFileSync(root+'/guide/noon-yellow-friday.html','utf8');
  assert.ok(qa.includes('"@type":"FAQPage"'));
  const gold=readFileSync(root+'/golden-keywords.html','utf8');
- assert.ok(gold.includes('<meta name="robots" content="noindex,follow">'));
+ assert.ok(gold.includes('<meta name="robots" content="index,follow,max-image-preview:large">'));
+ assert.ok(gold.includes('ndn-public-golden-keywords'));
+ assert.ok(gold.includes('NOV170')&&gold.includes('NOV188'));
+ assert.ok(gold.includes('href="/saudi/golden-keywords"'));
+ assert.ok(gold.includes('href="/uae/golden-keywords"'));
 });
