@@ -50,7 +50,7 @@ export function directTopicAt(topics,index){
  // Reserve enough room for *two complete* buyer-intent words where possible.
  const words=focus.split(/\s+/).filter(Boolean);
  const minFocus=Math.max(12,Math.min(30,words.slice(0,2).join(' ').length));
- const lead=leads.find(x=>x.length<=maxHead-minFocus)||'';
+ const lead=leads.find(x=>x.length<=maxHead-minFocus-1)||'';
  const specific=trimTitle(focus,maxHead-lead.length);
  const fallback=trimTitle(String(original.topic||'').split(' | ')[0],maxHead);
  const head=specific.length>=8?lead+specific:fallback;
