@@ -48,6 +48,7 @@ jobs:
           node --test tests/ndn-static-all-brand-hubs.test.mjs
           node --test tests/ndn-legacy-commercial-static.test.mjs
           node scripts/build-ndn-commercial-sitemap.mjs
+          node --test tests/blog-premium-ui.test.mjs
           node --test tests/ndn-commercial-sitemap.test.mjs
           node --test tests/ndn-static-trust-pages.test.mjs
           node --input-type=module <<'NODE'
