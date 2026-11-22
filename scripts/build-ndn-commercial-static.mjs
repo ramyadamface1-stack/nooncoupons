@@ -393,7 +393,7 @@ for(const m of ['saudi','uae']){
  await save(path,html);generated++;
 }
 {
- const path='/golden-keywords',title='الكلمات المفتاحية والفرص التجارية لنون السعودية والإمارات | أدلة شراء مخصصة';
+ const path='/golden-keywords',title='الكلمات المفتاحية الذهبية: فرص بحث لنون السعودية والإمارات | أدلة شراء مخصصة';
  const desc='اختيارات مبنية على نية البحث وبيانات Search Console المتاحة، بدون تكرار أسماء البراندات أو اختلاق حجم البحث. السعودية NOV170 والإمارات NOV188.';
  const section=(m)=>{
  const ar=isSA(m);
