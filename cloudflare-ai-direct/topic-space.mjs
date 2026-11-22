@@ -20,7 +20,8 @@ function trimTitle(text,max){
  if(input.length<=max)return input;
  const sliced=input.slice(0,max);
  const boundary=sliced.lastIndexOf(' ');
- return (boundary>=Math.max(16,max-22)?sliced.slice(0,boundary):sliced).trim();
+ // Avoid truncated keywords such as "replacement sealin" in SERP titles.
+ return (boundary>=5?sliced.slice(0,boundary):sliced).trim();
 }
 export function directTopicAt(topics,index){
  if(!Array.isArray(topics)||!Number.isSafeInteger(index)||index<0||topics.length===0)
@@ -44,8 +45,12 @@ export function directTopicAt(topics,index){
  const maxHead=72-suffix.length-marker.length;
  const focus=String(original.queryModifier||'').trim();
  const brand=String(original.brand||'').trim(),category=String(original.category||'').trim();
- const leads=[brand+' '+category+': ',brand+': ',category+': '];
- const lead=leads.find(x=>x.length<=maxHead-12)||'';
+ const shortCategory=category.split(/\s+/).filter(Boolean).slice(-1)[0]||category;
+ const leads=[brand+' '+category+': ',brand+' '+shortCategory+': ',brand+': ',category+': '];
+ // Reserve enough room for *two complete* buyer-intent words where possible.
+ const words=focus.split(/\s+/).filter(Boolean);
+ const minFocus=Math.max(12,Math.min(30,words.slice(0,2).join(' ').length));
+ const lead=leads.find(x=>x.length<=maxHead-minFocus)||'';
  const specific=trimTitle(focus,maxHead-lead.length);
  const fallback=trimTitle(String(original.topic||'').split(' | ')[0],maxHead);
  const head=specific.length>=8?lead+specific:fallback;
