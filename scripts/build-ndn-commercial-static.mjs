@@ -204,6 +204,85 @@ for(const m of ['saudi','uae']){
 }
 
 
+
+// Two additional distinct, query-specific guides fill gaps observed in GSC
+// (Samsung S26 Ultra) and on official Noon UAE listings (Mini LED TV).
+// They contain practical comparisons, no copied product descriptions or
+// fabricated prices, ratings, volume, organic difficulty or coupon savings.
+const specialistBuyerGuides=[
+ {m:'saudi',slug:'samsung-s26-ultra',
+ title:'سامسونج S26 Ultra على نون السعودية: النسخة والضمان قبل الخصم | NOV170',
+ desc:'دليل شراء Samsung Galaxy S26 Ultra على نون السعودية: نسخة الشرق الأوسط، الضمان، التخزين وملحقات العلبة، قبل تجربة NOV170.',
+ topic:'سامسونج S26 Ultra نسخة الشرق الأوسط على نون السعودية',
+ sections:[
+ ['ما الذي تتأكد منه قبل مقارنة سعر S26 Ultra؟',
+ 'عندما تبحث عن Samsung Galaxy S26 Ultra على نون السعودية، ابدأ برقم الموديل الكامل ونسخة المنطقة بدل الاعتماد على اسم S26 Ultra فقط. اعرف إن كان العرض لنفس الإصدار وسعة التخزين ولون الجهاز والحالة المذكورة في وصف البائع. السعر الأرخص لا يعني أن العرضين متطابقان. وجود شارة «نسخة الشرق الأوسط» أو «دولي» في بعض العناوين يستلزم قراءة مواصفات السلعة الفعلية قبل أي مقارنة.'],
+ ['نسخة الشرق الأوسط والشبكات وeSIM',
+ 'تأكد من دعم شبكات الجوال التي تستخدمها، وخيارات الشريحة الفعلية أو الإلكترونية المذكورة في صفحة المنتج، وتوافق ميزات الاتصال مع شبكة بلدك. لا تفترض أن نسخة دولة أخرى مطابقة لنسخة السعودية أو أن كل هاتف يحمل الاسم التجاري نفسه يوفر كل ميزة. اقرأ ما يقدمه البائع عن رقم الموديل والشريحة والاتصال قبل الاعتماد على صور الإعلان.'],
+ ['سعة 256 و512 جيجابايت: قارن حسب الاستخدام لا الاسم',
+ 'احسب احتياجك للصور والفيديوهات والتطبيقات والملفات الكبيرة قبل اختيار السعة. ثم قارن سعتين فقط عندما تكون بقية مواصفات النسخة وحالة الجهاز والضمان والبائع متطابقة. لا تفترض توافر سعة بعينها ولا فرق سعر ثابت؛ تتغير الخيارات والعروض حسب اللحظة. انتبه أن لون الهاتف أو الباقة المرفقة قد يغيّر السعر المعروض.'],
+ ['من يقدم الضمان وما سياسة الإرجاع؟',
+ 'راجع اسم البائع الظاهر في نون السعودية، والجهة المسؤولة عن الضمان، ومدة تغطيته وشروطه، وسياسة إرجاع الإلكترونيات لهذا العرض تحديدًا. لا تُسوِّ بين «ضمان البائع» و«الضمان المحلي» دون تفاصيل مكتوبة. احتفظ بوصف السلعة وفاتورة الطلب؛ وفي حالة وجود مشكلة راجع مسار الدعم داخل حساب المتجر وشروط البائع.'],
+ ['هل الشاحن وواقي الشاشة موجودان في العلبة؟',
+ 'لا تُضف قيمة الشاحن أو السماعات أو غلاف الحماية إلى حساب التوفير إلا إذا كانت ضمن محتويات العرض فعلًا. اقرأ «محتويات العلبة» في صفحة المنتج ولا تعتمد على صورة تسويقية عامة. إذا كنت تحتاج ملحقًا متوافقًا، قارن سعره وحده مع تكلفة العرض؛ فقد يكون الهاتف أقل سعرًا لكنه يتطلب ملحقات منفصلة.'],
+ ['كيف تقارن العرض المباشر مع كود NOV170؟',
+ 'بعد اختيار النسخة الصحيحة والبائع والتخزين واللون وعنوان التوصيل، احتفظ بنفس السلة والكمية ورسوم الشحن. سجّل الإجمالي ثم جرّب NOV170 في نون السعودية. الأهلية والخصم النهائي يحددهما المتجر عند الدفع، ولا نعطي هنا نسبة مضمونة أو وعدًا بأن الكود يشمل الموديل. لو ظهر عرض مباشر أفضل على سلة مطابقة فاختر الإجمالي الأنسب.'],
+ ['تحقق من المصدر الرسمي قبل الشراء',
+ 'استخدم صفحة الهواتف الذكية في نون السعودية لتبحث عن نفس رقم الموديل والتفاصيل الحالية، ثم انتقل إلى صفحة الكوبون السعودية في موقعنا إذا احتجت رمز NOV170. الدليل هنا لتحديد الأسئلة المهمة، وليس تقييم استخدام شخصي أو اختبار فعلي لبطارية الهاتف أو الكاميرا.']
+ ],
+ faq:[
+  ['هل NOV170 يعطي خصمًا على Samsung S26 Ultra؟','نعرض NOV170 بوصفه كود السعودية المعتمد في الموقع، لكن قبول الموديل وقيمة التوفير يتحددان داخل سلة نون.'],
+  ['هل نسخة الشرق الأوسط مثل النسخة العالمية؟','لا تفترض التطابق؛ ارجع إلى رقم الموديل ومواصفات الاتصال والضمان المذكورة في صفحة كل منتج.'],
+  ['كيف أقارن عروض 256 و512 جيجابايت؟','اختر احتياجك للتخزين، ثم قارِن نفس الإصدار والضمان والبائع ورسوم التوصيل قبل الاختبار.']
+ ],
+ source:'https://www.noon.com/saudi-ar/electronics-and-mobiles/mobiles-and-accessories/mobiles-20905/smartphones/'
+ },
+ {m:'uae',slug:'mini-led-tv',
+ title:'Noon UAE Mini LED TV Buying Guide: 55 vs 65 Inch, Warranty and NOV188',
+ desc:'Compare 55-inch and 65-inch Mini LED TVs on Noon UAE: room fit, 4K refresh rate, UAE model warranty and installation cost before trying NOV188.',
+ topic:'Noon UAE Mini LED TV size and installation buying guide',
+ sections:[
+ ['Start with the room, not the size printed in a flash deal',
+ 'A 55-inch and 65-inch television serve different spaces. Measure available wall width, cabinet depth, seating distance and the path by which the delivery team can bring the TV into your home. A larger diagonal is not automatically a better purchase. Compare the viewing conditions and the content you actually watch rather than an advertised percentage saving.'],
+ ['Mini LED, QD-Mini LED, 4K and refresh rate are separate decisions',
+ 'Mini LED usually describes the screen backlighting technology; it is not a promise of identical panel quality across brands. Check the exact model number, claimed resolution, native refresh support and the inputs you need for a game console or streaming box. Some listings combine promotional terms in a title; verify detailed specifications before comparing two TVs as equivalent.'],
+ ['What does 55 versus 65 inches change?',
+ 'The larger diagonal may offer a more immersive image from a suitable sofa position, but it requires more physical space and may affect mounting requirements. Check the stand width if using furniture and the wall-mount pattern when choosing a bracket. Do not assume installation or a bracket is included because an image shows the TV on a wall.'],
+ ['Compare speakers, HDMI connections and gaming compatibility',
+ 'If you own a soundbar, game console or AV receiver, confirm HDMI port capabilities, eARC support if needed, supported video formats and physical cable access. Promotional graphics often focus on brightness and picture quality while omitting connection details. A TV that requires an additional adapter, mount or soundbar may cost more than the displayed checkout price.'],
+ ['UAE model version, warranty, seller and returns',
+ 'Compare the actual model suffix or regional version, the legal seller, included accessories and local warranty service terms. Read the return policy applicable to TVs and the condition of the box on delivery. If you want wall mounting, ask who performs the installation and whether that service is priced separately. Delivery location and floor access may also affect the total.'],
+ ['How to compare a UAE sale with NOV188',
+ 'Choose two offers that meet the same specifications. Keep seller, model version, delivery address, quantity and installation options consistent. Record the AED total before trying NOV188 at the official Noon UAE checkout. The site lists NOV188 for the UAE, but does not guarantee that a TV qualifies or that any fixed discount will apply. The final payable amount controls your decision.'],
+ ['Where to verify currently offered TVs',
+ 'Use the official Noon UAE electronics category to review models and offer details as they appear at shopping time. This buying guide avoids claiming a fixed price or a permanent stock position; both change. Follow the UAE coupon link for the correct market rather than applying the Saudi NOV170 code by mistake.']
+ ],
+ faq:[
+  ['Does NOV188 apply to all Mini LED TVs?','Eligibility varies by the store checkout conditions. Try it on the exact UAE basket and compare its payable AED total.'],
+  ['Is a 65-inch Mini LED TV always better?','No. Room fit, viewing distance, panel features, warranty and installation needs can make a 55-inch model the more suitable choice.'],
+  ['Are TV wall-mount brackets included on Noon UAE?','Do not assume they are included. Check the specific listing, package contents and any installation service separately.']
+ ],
+ source:'https://www.noon.com/uae-en/electronics/'
+ }
+];
+for(const t of specialistBuyerGuides){
+ const m=t.m,ar=isSA(m),path=guideUrl(t),coupon=code(m);
+ const image='/assets/coupon-svg/seo-'+m+'-'+t.slug+'/1.svg';
+ const svg=couponSvg({title:t.topic,country:ar?'SA':'AE',coupon,brand:'noon',variant:1});
+ const imgPath=resolve(root,image.slice(1));
+ await mkdir(dirname(imgPath),{recursive:true});await writeFile(imgPath,svg,'utf8');
+ const content='<article class="box"><img src="'+E(image)+'" alt="'+E(t.topic)+' — '+coupon+
+  '" width="1600" height="1000" loading="eager" style="width:100%;height:auto">'+
+ '<p><strong>'+(ar?'دليل قرار شراء متخصص':'A decision-specific buying guide')+'</strong> — '+E(t.desc)+'</p>'+
+ t.sections.map(([h,v])=>'<section><h2>'+E(h)+'</h2><p>'+E(v)+'</p></section>').join('')+
+ '<p><a rel="noopener sponsored" target="_blank" href="'+E(t.source)+'">'+
+ (ar?'تحقق من التفاصيل المحدثة على نون السعودية الرسمي':'Verify current models at the official Noon UAE store')+'</a></p>'+
+ '<p><a href="/'+m+'/golden-keywords">'+(ar?'شاهد فرص الشراء والكلمات الأخرى للسعودية':'Other UAE buyer search guides')+'</a> · '+
+ '<a href="/'+m+'/categories">'+(ar?'كل الأقسام':'Categories')+'</a></p></article>';
+ await save(path,page(m,path,t.title,t.desc,content,{kind:'Article',faq:t.faq}));
+ generated++;
+}
+
 // Evidence-gated keyword hub, not a generated brand-name permutation index.
 // GSC: sc-domain:noondealsnow.com, 2026-10-23 through 2026-11-19, 128
 // whole-site impressions and 1 click. The following selected query rows are
