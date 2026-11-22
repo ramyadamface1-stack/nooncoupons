@@ -90,6 +90,10 @@ on:
       - 'tests/remote-existing-r2-binding.test.mjs'
       - 'tests/complete-blog-listing.test.mjs'
       - 'r2-public-cache-policy.js'
+      - 'live-blog-window.js'
+      - 'blog-premium-ui.js'
+      - 'tests/ndn-live-blog-window.test.mjs'
+      - 'tests/blog-premium-ui.test.mjs'
       - 'premium-entry.js'
       - 'r2-remote-existing-bucket.js'
       - 'complete-blog-listing.js'
@@ -349,6 +353,8 @@ jobs:
 
       - name: Check native gate and authenticated secret manager regressions
         run: node --test tests/native-bound-ai-v2-fast.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs
+      - name: Verify live R2 journal discovery is safe, bounded and market-specific
+        run: node --test tests/ndn-live-blog-window.test.mjs tests/blog-premium-ui.test.mjs
       - name: Prevent incorrect AI-readable NOV coupon market mappings
         run: node --test tests/nov-llms-canonical-source.test.mjs
 
@@ -533,6 +539,26 @@ jobs:
             echo "PUBLIC_GOLDEN_KEYWORD_STATIC_LIVE=$path;HTTP=$code;CANONICAL=PASS;INDEXABLE=PASS"
           done
           echo 'NEW_PRODUCTION_POST_DEPLOY_SMOKE=PASS'
+
+      - name: Verify new indexable live R2 blog routes after deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /blog/latest /blog/latest/saudi /blog/latest/uae; do
+            ok=0
+            for attempt in 1 2 3; do
+              status=$(curl -sS --max-time 20 -D /tmp/ndn-live-blog-headers -o /tmp/ndn-live-blog-body -w '%{http_code}' \
+                -H 'User-Agent: NoonDealsNow-live-journal-post-deploy' "https://noondealsnow.com$path" || true)
+              if [ "$status" = 200 ] &&
+                 grep -Fqi 'x-live-blog: approved-r2-journal-v1' /tmp/ndn-live-blog-headers &&
+                 grep -Fq '<link rel="canonical" href="https://noondealsnow.com'$path'">' /tmp/ndn-live-blog-body &&
+                 grep -Fq '<article class="card"' /tmp/ndn-live-blog-body; then ok=1;break;fi
+              sleep 3
+            done
+            echo "NDN_LIVE_JOURNAL_PATH=$path;HTTP=$status;READ_ONLY=TRUE;INDEXABLE=$ok"
+            test "$ok" = 1
+          done
+          echo 'NDN_APPROVED_R2_LIVE_BLOG=VERIFIED;STATIC_ARCHIVE_UNCHANGED=TRUE'
 
       - name: Verify original Saudi and UAE articles load under Worker quota exhaustion
         shell: bash

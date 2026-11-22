@@ -1,0 +1,42 @@
+name: NoonDealsNow Live R2 Blog Readonly Quality Gate
+on:
+  pull_request:
+    paths:
+      - 'live-blog-window.js'
+      - 'discovery-entry.js'
+      - 'blog-premium-ui.js'
+      - 'r2-public-cache-policy.js'
+      - 'tests/ndn-live-blog-window.test.mjs'
+      - 'tests/blog-premium-ui.test.mjs'
+      - '.github/workflows/ndn-live-blog-readonly-pr-gate.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  live-blog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check new route has no added publishing or storage mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check live-blog-window.js
+          node --check discovery-entry.js
+          node --check blog-premium-ui.js
+          node --check r2-public-cache-policy.js
+          if grep -Eq '\.put\(|\.delete\(|\.list\(|\bfetch\(' live-blog-window.js; then
+            echo "::error::live journal route unexpectedly writes/scans/requests external services"
+            exit 1
+          fi
+          grep -Fq '"run_worker_first": false' wrangler.new-account-production.jsonc
+          grep -Fq "blog/latest-live-v1.json" live-blog-window.js
+      - name: Verify source integrity, market SEO, snippet escaping and no R2 scans
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/ndn-live-blog-window.test.mjs tests/blog-premium-ui.test.mjs
+          echo 'NDN_LIVE_R2_JOURNAL_TESTS=PASS;STATIC_ARCHIVE=UNTOUCHED;PROVIDER_CALLS=ZERO'
