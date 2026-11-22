@@ -94,7 +94,7 @@ async function getObject(env,key,cacheMs=0){
 }
 async function getJson(env,key){const result=await getObject(env,key,key==='blog/latest-live-v1.json'?15000:120000);return result?JSON.parse(result.body):null}
 
-const rescueImageUrl=(slug,country='SA',coupon='',variant=1,title='')=>'/assets/coupon-svg/'+encodeURIComponent(String(slug))+'/'+variant+'.svg?v=11&country='+encodeURIComponent(country==='AE'?'AE':'SA')+(coupon?'&coupon='+encodeURIComponent(String(coupon)):'')+(title?'&kw='+encodeURIComponent(String(title).slice(0,120)):'');
+const rescueImageUrl=(slug,country='SA',coupon='',variant=1,title='')=>'/assets/coupon-svg/'+encodeURIComponent(String(slug))+'/'+variant+'.svg?v=12&country='+encodeURIComponent(country==='AE'?'AE':'SA')+(coupon?'&coupon='+encodeURIComponent(String(coupon)):'')+(title?'&kw='+encodeURIComponent(String(title).slice(0,120)):'');
 const marketOf=a=>a?.country==='AE'||/^en-/.test(String(a?.slug||''))||/\buae\b|الإمارات/i.test(String(a?.slug||''))?'AE':'SA';
 const dateIso=s=>{const d=new Date(s||'');return Number.isFinite(d.getTime())?d.toISOString():null};
 const dateLabel=s=>{try{return new Intl.DateTimeFormat('ar-EG',{dateStyle:'medium',timeStyle:'short',timeZone:'Africa/Cairo'}).format(new Date(s))}catch{return ''}};
@@ -362,7 +362,7 @@ export function nativeCompleteSearchSnippet(source,title,english=false){
  return candidate.length>=55&&candidate.length<=170&&/[.!?]$/.test(candidate)?candidate:null;
 }
 export function refreshArtworkUrlsInHtml(html){
-  return String(html||'').replace(/(\/assets\/coupon-svg\/[^"'\s<>]+\/[1-5]\.svg\?)v=\d+/g,'$1v=11');
+  return String(html||'').replace(/(\/assets\/coupon-svg\/[^"'\s<>]+\/[1-5]\.svg\?)v=\d+/g,'$1v=12');
 }
 const topicLinks=(country='SA',english=false)=>{
   const market=country==='AE'?'uae':'saudi';

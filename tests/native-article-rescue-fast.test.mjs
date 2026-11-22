@@ -86,7 +86,7 @@ test('high-impression Search Console pages get honest English snippet updates wi
  assert.ok(html.includes('href="/blog/archive/english"'),'English archive remains available');
  assert.ok(!html.includes('href="/uae/noon-coupon-code"'),'no Arabic coupon landing from English article');
  assert.ok(!html.includes('href="/en/uae/categories"'),'never link to known 404');
- assert.match(html,/v=11&amp;country=AE&amp;coupon=NOV188/);
+ assert.match(html,/v=12&amp;country=AE&amp;coupon=NOV188/);
  assert.match(html,/width="1600" height="1000"/);
  assert.ok(html.includes(original),'R2 article body must not be rewritten');
  assert.equal(rescueGscSnippet('an-old-unchanged-page','Original','Existing',true).optimized,false);
@@ -95,7 +95,7 @@ test('high-impression Search Console pages get honest English snippet updates wi
 test('legacy image query versions are refreshed in HTML without altering article routes or coupons',()=>{
   const source='<img src="/assets/coupon-svg/saudi-guide/2.svg?v=9&amp;coupon=NOV170&amp;country=SA"><a href="/articles/saudi-guide">Read</a>';
   const html=refreshArtworkUrlsInHtml(source);
-  assert.match(html,/\/2\.svg\?v=11&amp;coupon=NOV170/);
+  assert.match(html,/\/2\.svg\?v=12&amp;coupon=NOV170/);
   assert.match(html,/href="\/articles\/saudi-guide"/);
   assert.ok(!html.includes('v=9'));
   assert.equal(refreshArtworkUrlsInHtml(html),html);

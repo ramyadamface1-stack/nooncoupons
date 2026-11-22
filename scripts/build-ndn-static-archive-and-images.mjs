@@ -2,6 +2,7 @@
 // Source: verified, published, READ-ONLY destination R2 ledger + compact legacy.
 // This is only public display build, never AI generation / scheduling / R2 writes.
 import app from '../auto-platform.js';
+import {blogPremiumHero,blogCardCategory} from '../blog-premium-ui.js';
 import {couponSvg} from '../svg-engine.js';
 import {normalizeMarketCoupon} from '../approved-coupons.js';
 import {readFile,writeFile,mkdir,readdir,stat} from 'node:fs/promises';
@@ -97,7 +98,7 @@ for(const [base,items] of allSeries){
       return '<article class="card'+(n===1&&i===0?' leadCard':'')+'">'+
         '<a class="thumb" href="'+anchor+'"><img src="'+src+'" alt="'+esc(a.title)+' - نون '+market+
         '" width="1600" height="1000" loading="'+(i<3?'eager':'lazy')+'" decoding="async"></a>'+
-        '<div class="cardBody"><div class="cardMeta"><span class="tag">'+market+'</span><time datetime="'+esc(at)+'">نُشر '+esc(published)+' بتوقيت القاهرة</time></div>'+
+        '<div class="cardBody"><div class="cardMeta"><span class="tag">'+market+'</span><span class="cardTopic">'+esc(blogCardCategory(a.title,a.slug))+'</span><time datetime="'+esc(at)+'">نُشر '+esc(published)+' بتوقيت القاهرة</time></div>'+
         '<h2><a href="'+anchor+'">'+esc(a.title)+'</a></h2><p>'+esc(a.description.slice(0,180))+'</p>'+
         '<div class="cardFoot"><a class="cardAuthor" href="/authors/editorial-team">فريق تحرير كوبونات نون</a>'+
         '<a class="read" href="'+anchor+'">اقرأ الدليل ←</a></div></div></article>';
@@ -136,10 +137,9 @@ for(const [base,items] of allSeries){
       '<meta name="ndn-verified-r2-article-listing" content="v2">'+
       '<meta name="ndn-static-snapshot-date" content="'+esc(snap.createdAt)+'">'+schema+style+'</head><body>'+
       headUntil+
-      '<section class="hero"><div class="w"><small>أدلة التسوق قبل الدفع</small><h1>'+
-      esc(pageTitle)+'</h1><p>'+esc(desc)+'</p><div class="heroActions">'+marketLinks+
-      '</div><div class="pageMeta">الصفحة '+n+' من '+pages+' · '+items.length+
-      ' مقال منشور في '+label+' · <a href="/blog/archive/all">كل المقالات المحفوظة</a></div></div></section>'+
+      blogPremiumHero({title:pageTitle,description:desc,articles:items.length,pages,page:n,
+        market:base.endsWith('saudi')?'SA':base.endsWith('uae')?'AE':'ALL',
+        latestPublishedAt:current[0]?.publishedAt||current[0]?.createdAt||''})+
       '<main class="w"><section class="grid">'+cards+'</section>'+nav+'</main></body></html>';
     if(!html.includes('href="/articles/')||!html.includes('src="/assets/coupon-svg/'))
       throw Error('NDN_INCOMPLETE_PAGE_'+base+'_'+n);
