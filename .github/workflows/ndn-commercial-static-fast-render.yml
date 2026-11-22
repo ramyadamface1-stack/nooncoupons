@@ -46,9 +46,10 @@ jobs:
           import {readFileSync,existsSync} from 'node:fs';
           import {PUBLIC_CATEGORIES} from './index.js';
           const r=JSON.parse(readFileSync('.ndn-blog-staging/market-seo-report.json','utf8'));
-          if(r.generatedPages!==105||r.keywordGuides!==10||r.categoryPages!==84)throw Error(JSON.stringify(r));
+          if(r.generatedPages!==108||r.keywordGuides!==10||r.categoryPages!==84)throw Error(JSON.stringify(r));
           for(const p of ['/saudi/categories','/uae/categories','/saudi/noon-coupon-code','/uae/noon-coupon-code',
-                          '/saudi/buying-guide/mobile-phones','/uae/buying-guide/beauty']){
+                          '/saudi/buying-guide/mobile-phones','/uae/buying-guide/beauty',
+                          '/golden-keywords','/saudi/golden-keywords','/uae/golden-keywords']){
             const path='.ndn-static-assets'+p+'.html';
             if(!existsSync(path))throw Error('MISSING '+path);
             const html=readFileSync(path,'utf8');
