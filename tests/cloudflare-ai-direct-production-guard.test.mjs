@@ -115,3 +115,15 @@ test('unreadable and unclassified inventory remains fail-closed rather than sile
  assert.equal(result.quarantined,0);
  await assert.rejects(()=>inspectNativeReadyStock(bucket,{maxCleanup:100}),/INVALID_READY_INVENTORY_ARGUMENT/);
 });
+
+// Direct Worker and production site are both Cloudflare Workers; without this
+// compatibility flag the native POST or the follow-up live GET can return 1042
+// despite a real article being published, stranding the queue as UNKNOWN.
+test('first-party native publish and public live verification traverse Cloudflare Worker routes',()=>{
+ const config=JSON.parse(readFileSync(new URL('../cloudflare-ai-direct/wrangler.jsonc',import.meta.url),'utf8'));
+ assert.equal(config.name,'noondealsnow-ai-direct-r2');
+ assert.ok(config.compatibility_flags.includes('global_fetch_strictly_public'));
+ assert.match(source,/fetch\('https:\/\/noondealsnow\.com\/api\/internal\/ai-v2\/publish'/);
+ assert.match(source,/const path='https:\/\/noondealsnow\.com\/articles\/'\+record\.topic\.slug/);
+ assert.match(source,/if\(await verifyLive\(record\)\)/);
+});
