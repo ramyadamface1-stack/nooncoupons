@@ -1,0 +1,54 @@
+name: Audit NoonDealsNow Conflicting Article Bytes Readonly
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-article-conflict-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NOON_OLD_R2_ACCESS_KEY_ID: ${{ secrets.NOON_OLD_R2_ACCESS_KEY_ID }}
+      NOON_OLD_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_OLD_R2_SECRET_ACCESS_KEY }}
+      NOON_NEW_R2_ACCESS_KEY_ID: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      NOON_NEW_R2_SECRET_ACCESS_KEY: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Locate existing conflicts and compare SHA256, modification timestamps, metadata (NO WRITES)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u - <<'PY'
+          import os,json,boto3,hashlib
+          from botocore.config import Config
+          bucket="nooncoupons-content-v2"
+          def connect(label,aid):
+              return boto3.client("s3",region_name="auto",endpoint_url="https://"+aid+".r2.cloudflarestorage.com",aws_access_key_id=os.environ["NOON_"+label+"_R2_ACCESS_KEY_ID"].strip(),aws_secret_access_key=os.environ["NOON_"+label+"_R2_SECRET_ACCESS_KEY"].strip(),config=Config(max_pool_connections=12,retries={"max_attempts":4,"mode":"standard"}))
+          src=connect("OLD","c82274152a942dea53044eae7153cfd7")
+          dst=connect("NEW","e4c35f8a50a7b2e4cfb9d6c534962603")
+          def objects(client):
+              data={}
+              for page in client.get_paginator("list_objects_v2").paginate(Bucket=bucket,Prefix="articles/",PaginationConfig={"PageSize":1000}):
+                  for row in page.get("Contents",[]):
+                      if row["Key"].endswith(".html"):data[row["Key"]]={"size":row["Size"],"modified":str(row["LastModified"]),"etag":row.get("ETag")}
+              return data
+          a,b=objects(src),objects(dst)
+          conflicts=sorted(k for k in a.keys() & b.keys() if a[k]["size"]!=b[k]["size"])
+          print("SOURCE_ARTICLE_TOTAL="+str(len(a)),flush=True)
+          print("DEST_ARTICLE_TOTAL="+str(len(b)),flush=True)
+          print("MISSING="+str(len(a.keys()-b.keys())),flush=True)
+          print("CONFLICTS="+str(len(conflicts)),flush=True)
+          for i,key in enumerate(conflicts):
+              results={}
+              for label,client,inventory in (("OLD",src,a),("NEW",dst,b)):
+                  res=client.get_object(Bucket=bucket,Key=key)
+                  try:body=res["Body"].read(8*1024*1024+1)
+                  finally:res["Body"].close()
+                  results[label]={"size":len(body),"sha256":hashlib.sha256(body).hexdigest(),"lastModified":inventory[key]["modified"],"metadata":res.get("Metadata",{}),"contentType":res.get("ContentType")}
+              print("CONFLICT_"+str(i+1)+"="+json.dumps({"key":key,"OLD":results["OLD"],"NEW":results["NEW"]},ensure_ascii=False),flush=True)
+          print("READ_ONLY=true",flush=True)
+          PY

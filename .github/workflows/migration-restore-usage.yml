@@ -1,0 +1,41 @@
+name: Diagnose New Cloudflare Restore Usage Readonly
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-restore-usage.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  usage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      CF_TOKEN: ${{ secrets.NOON_NEW_CF_API_TOKEN }}
+    steps:
+      - name: Read new Worker recent invocation usage and error rates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error,datetime
+          now=datetime.datetime.now(datetime.timezone.utc)
+          begin=now-datetime.timedelta(hours=3)
+          variables={'accountTag':'e4c35f8a50a7b2e4cfb9d6c534962603','startDate':begin.isoformat().replace('+00:00','Z'),'endDate':now.isoformat().replace('+00:00','Z')}
+          query='query DOUsage($accountTag: string!, $startDate: Time!, $endDate: Time!) { viewer { accounts(filter: {accountTag: $accountTag}) { workersInvocationsAdaptive(limit: 1000, filter: {datetime_geq: $startDate, datetime_leq: $endDate, scriptName: "noondealsnow-migration-staging"}) { sum { requests errors } dimensions { datetimeHour status } } } } }'
+          r=urllib.request.Request('https://api.cloudflare.com/client/v4/graphql',method='POST',headers={'Authorization':'Bearer '+os.environ['CF_TOKEN'].strip(),'Content-Type':'application/json'},data=json.dumps({'query':query,'variables':variables}).encode())
+          try:
+              with urllib.request.urlopen(r,timeout=20) as response:
+                  data=json.load(response)
+                  print('ANALYTICS_HTTP='+str(response.status))
+          except urllib.error.HTTPError as err:
+              print('ANALYTICS_HTTP='+str(err.code))
+              try:data=json.loads(err.read(15000))
+              except:data={}
+          if data.get('errors'):print('ANALYTICS_ERRORS='+json.dumps([str(x.get('message'))[:200] for x in data['errors'][:6]]))
+          obj=(data.get('data') or {}).get('viewer') or {}
+          accounts=obj.get('accounts') or []
+          rows=(accounts[0] if accounts else {}).get('workersInvocationsAdaptive') or []
+          print('STAGING_ROWS='+str(len(rows)))
+          for x in rows[-48:]:print('STAGING_USAGE '+json.dumps({'date':x.get('dimensions',{}).get('datetimeHour'),'status':x.get('dimensions',{}).get('status'),'requests':x.get('sum',{}).get('requests'),'errors':x.get('sum',{}).get('errors')}))
+          PY

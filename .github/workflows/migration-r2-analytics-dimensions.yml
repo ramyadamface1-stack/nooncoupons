@@ -1,0 +1,37 @@
+name: Inspect R2 Analytics Attribution Fields Read Only
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-r2-analytics-dimensions.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    env:
+      TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+    steps:
+      - name: Read allowed R2 operation analytics dimensions (no data mutation)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          query='query IntrospectR2Dims { __type(name:"AccountR2OperationsAdaptiveGroupsDimensions") { name fields { name } } }'
+          req=urllib.request.Request('https://api.cloudflare.com/client/v4/graphql',method='POST',headers={'Authorization':'Bearer '+os.environ['TOKEN'].strip(),'Content-Type':'application/json'},data=json.dumps({'query':query}).encode())
+          try:
+              with urllib.request.urlopen(req,timeout=18) as r:status=r.status;data=json.load(r)
+          except urllib.error.HTTPError as e:
+              status=e.code
+              try:data=json.loads(e.read(5000))
+              except:data={}
+          print('R2_INTROSPECT_HTTP='+str(status),flush=True)
+          if data.get('errors'):print('R2_INTROSPECT_ERRORS='+json.dumps([str(x.get('message',''))[:220] for x in data['errors'][:3]]),flush=True)
+          info=(data.get('data') or {}).get('__type') or {}
+          names=[x['name'] for x in (info.get('fields') or []) if 'name' in x]
+          print('R2_OPERATION_DIMENSION_NAMES='+json.dumps(names),flush=True)
+          print('HAS_ATTRIBUTION_FIELDS='+json.dumps([x for x in names if any(n in x.lower() for n in ('key','token','access','user','client','auth','credential','source','actor'))]),flush=True)
+          print('READ_ONLY=true')
+          PY

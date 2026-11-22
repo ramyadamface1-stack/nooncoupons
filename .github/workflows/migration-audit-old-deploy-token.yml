@@ -1,0 +1,45 @@
+name: Audit Old NoonDealsNow Deployment Token Permissions
+on:
+  push:
+    branches: [migration/preflight-inspection-20261018]
+    paths: ['.github/workflows/migration-audit-old-deploy-token.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TOKEN: ${{ secrets.CLOUDFLARE_NOONCOUPONS_DEPLOY_TOKEN1 }}
+    steps:
+      - name: Verify old token can read Worker script and zone routes (no writes)
+        run: |
+          python3 - <<'PY'
+          import os,json,urllib.request,urllib.error
+          root='https://api.cloudflare.com/client/v4'
+          token=os.environ.get('TOKEN','').strip()
+          checks=[
+            ('worker_script','/accounts/c82274152a942dea53044eae7153cfd7/workers/scripts/nooncoupons'),
+            ('worker_deployments','/accounts/c82274152a942dea53044eae7153cfd7/workers/scripts/nooncoupons/deployments'),
+            ('dns_records','/zones/6f4cd_invalid/dns_records')
+          ]
+          # Old zone id is resolved rather than hardcoded.
+          def read(p):
+            req=urllib.request.Request(root+p,headers={'Authorization':'Bearer '+token,'Accept':'application/json'})
+            try:
+              with urllib.request.urlopen(req,timeout=15) as response:
+                response.read(200)
+                return response.status
+            except urllib.error.HTTPError as ex:
+              return ex.code
+            except Exception:
+              return 'request_failed'
+          zreq=urllib.request.Request(root+'/zones?name=noondealsnow.com&account.id=c82274152a942dea53044eae7153cfd7',headers={'Authorization':'Bearer '+token})
+          with urllib.request.urlopen(zreq,timeout=15) as f:zones=json.load(f).get('result',[])
+          if len(zones)!=1:raise RuntimeError('old_zone_not_found')
+          checks[-1]=('dns_records','/zones/'+zones[0]['id']+'/dns_records?per_page=1')
+          for label,path in checks:
+            print('OLD_TOKEN_'+label.upper()+'_HTTP='+str(read(path)),flush=True)
+          print('NOTE=Read permission probe only; ability to publish is not confirmed by read access.',flush=True)
+          PY
