@@ -6,8 +6,8 @@ import {BRANDS} from '../commerce-taxonomy.js';
 import {resolve} from 'node:path';
 const origin='https://noondealsnow.com',root=resolve('.ndn-static-assets');
 const slugRoutes={
- saudi:['first-order','mobile-phones','home-appliances','electronics','perfumes-beauty','baby'],
- uae:['first-order','electronics','beauty','home-appliances']
+ saudi:['first-order','existing-customers','mobile-phones','home-appliances','electronics','perfumes-beauty','baby'],
+ uae:['first-order','existing-customers','electronics','beauty','home-appliances']
 };
 const allBrandSlugs=Object.keys(BRANDS).filter(slug=>/^[a-z0-9-]+$/.test(slug)&&BRANDS[slug]?.label);
 if(allBrandSlugs.length!==30)throw Error('COMMERCIAL_SITEMAP_BRAND_COUNT_CHANGED');
