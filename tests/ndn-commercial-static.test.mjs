@@ -138,3 +138,36 @@ test('each newly discovered keyword has a non-template, detailed and crawlable a
   assert.ok(!html.includes('data-code="'+(coupon==='NOV170'?'NOV188':'NOV170')+'"'));
  }
 });
+
+
+test('returning customer intent pages answer actual checkout questions without false guarantees or market mixing',()=>{
+ for(const [market,coupon,other,language] of [
+  ['saudi','NOV170','NOV188','<html lang="ar-SA" dir="rtl">'],
+  ['uae','NOV188','NOV170','<html lang="en-AE" dir="ltr">']
+ ]){
+  const url='/'+market+'/buying-guide/existing-customers',html=page(url);
+  assert.ok(html.includes(language),market);
+  assert.ok(html.includes('<link rel="canonical" href="https://noondealsnow.com'+url+'">'),market);
+  assert.ok(html.includes('<meta name="robots" content="index,follow,max-image-preview:large">'),market);
+  assert.ok(html.includes('data-code="'+coupon+'"')&&html.includes('data-shop-click="'+coupon+'"'),market);
+  assert.ok(!html.includes('data-code="'+other+'"'),market);
+  assert.ok(html.includes('"@type":"FAQPage"')&&html.includes('"@type":"Article"'),market);
+  assert.ok(html.includes('/guide/coupon-not-working'),market);
+  assert.ok(html.includes('/'+market+'/buying-guide/first-order'),market);
+  assert.ok(html.includes('/coupon-verification'),market);
+  assert.ok((html.match(/<h2>/g)||[]).length>=8,market);
+  assert.ok(html.length>7000,market);
+  assert.ok(!/100% guaranteed|خصم مضمون|verified percentage|خصم يصل إلى 90%/i.test(html),market);
+  assert.ok(html.includes('href="https://www.noon.com/'+(market==='saudi'?'saudi-ar/':'uae-en/')+'"'),market);
+  const svg=base+'/assets/coupon-svg/seo-'+market+'-existing-customers/1.svg';
+  assert.ok(existsSync(svg),market);
+  assert.ok(readFileSync(svg,'utf8').includes(coupon),market);
+  const marketHome=page('/'+market+'/noon-coupon-code');
+  assert.ok(marketHome.includes('href="'+url+'"'),market);
+  const hub=page('/'+market+'/golden-keywords');
+  assert.ok(hub.includes('href="'+url+'"'),market);
+ }
+ const home=readFileSync(base+'/index.html','utf8');
+ assert.ok(home.includes('href="/saudi/buying-guide/existing-customers"'));
+ assert.ok(home.includes('href="/uae/buying-guide/existing-customers"'));
+});
