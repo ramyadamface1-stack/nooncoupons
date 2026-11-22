@@ -123,7 +123,19 @@ test('first-party native publish and public live verification traverse Cloudflar
  const config=JSON.parse(readFileSync(new URL('../cloudflare-ai-direct/wrangler.jsonc',import.meta.url),'utf8'));
  assert.equal(config.name,'noondealsnow-ai-direct-r2');
  assert.ok(config.compatibility_flags.includes('global_fetch_strictly_public'));
- assert.match(source,/fetch\('https:\/\/noondealsnow\.com\/api\/internal\/ai-v2\/publish'/);
+ assert.match(source,/siteFetch\(env,'https:\/\/noondealsnow\.com\/api\/internal\/ai-v2\/publish'/);
  assert.match(source,/const path='https:\/\/noondealsnow\.com\/articles\/'\+record\.topic\.slug/);
- assert.match(source,/if\(await verifyLive\(record\)\)/);
+ assert.match(source,/if\(await verifyLive\(record,env\)\)/);
+});
+
+test('native site service binding is explicit and never repeats an uncertain publish POST',()=>{
+ const config=JSON.parse(readFileSync(new URL('../cloudflare-ai-direct/wrangler.jsonc',import.meta.url),'utf8'));
+ assert.deepEqual(config.services,[{binding:'SITE_PUBLIC',service:'noondealsnow-production-new'}]);
+ assert.match(source,/function siteFetch\(env,url,init\)/);
+ assert.match(source,/env\.SITE_PUBLIC\.fetch\(new Request\(url,init\)\)/);
+ assert.match(source,/if\(!env\.SITE_PUBLIC\?\.fetch\)return logState\(env,\{phase:'SITE_SERVICE_BINDING_MISSING_PAUSED'\}\)/);
+ assert.match(source,/lastLiveVerification:await jsonGet\(env,ROOT\+'last-live-verification\.json'\)/);
+ assert.match(source,/containsRawKeys:false/);
+ assert.match(source,/continue; \/\/ Never resend an uncertain POST/);
+ assert.doesNotMatch(source,/actions\/workflows|api\.github\.com/);
 });
