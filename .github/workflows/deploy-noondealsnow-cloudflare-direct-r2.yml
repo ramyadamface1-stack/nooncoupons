@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - 'cloudflare-ai-direct/**'
+      - 'automation/ai-v2/article-batch.mjs'
+      - 'automation/ai-v2/native-article.mjs'
+      - 'automation/ai-v2/native-arabic-article.mjs'
       - '.github/workflows/deploy-noondealsnow-cloudflare-direct-r2.yml'
   workflow_dispatch:
 permissions:
@@ -41,7 +44,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --test tests/cloudflare-ai-direct-canary.test.mjs tests/cloudflare-ai-direct-production-guard.test.mjs tests/cloudflare-ai-direct-single-flight.test.mjs
+          node --test tests/cloudflare-ai-direct-canary.test.mjs tests/cloudflare-ai-direct-production-guard.test.mjs tests/cloudflare-ai-direct-single-flight.test.mjs tests/ai-v2-article-batch.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-native-arabic-article.test.mjs
           echo 'DIRECT_PRODUCTION_SAFETY_TESTS=PASS;NO_PROVIDER_CALLS_IN_CI=TRUE'
       - name: Confirm fresh direct-native article was genuinely published before cutover
         shell: bash
