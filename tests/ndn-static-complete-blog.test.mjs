@@ -16,6 +16,10 @@ test('every physically verified published R2 article is listed exactly once per 
      const html=readFileSync(root+path+'.html','utf8');
      assert.ok(html.includes('<link rel="canonical" href="https://noondealsnow.com'+path+'">'),path);
      assert.ok(html.includes('ndn-verified-r2-article-listing'),path);
+     assert.ok(html.includes('data-blog-premium="v1"'),path);
+     assert.equal((html.match(/class="blogHeroAside"/g)||[]).length,1,'balanced hero missing '+path);
+     assert.equal((html.match(/aria-label="Quick shopping navigation"/g)||[]).length,0,'duplicate navbar '+path);
+     assert.equal((html.match(/class="cardTopic"/g)||[]).length,Math.min(15,audit.markets[base]-(n-1)*15),path);
      const slugs=[...html.matchAll(/href="\/articles\/([^"]+)"/g)].map(x=>decodeURIComponent(x[1]));
      assert.equal(slugs.length,3*Math.min(15,audit.markets[base]-(n-1)*15),path);
      const uniq=new Set(slugs);
@@ -25,6 +29,8 @@ test('every physically verified published R2 article is listed exactly once per 
        counts[country].add(slug);
        const svg=readFileSync(root+'/assets/coupon-svg/'+slug+'/1.svg','utf8');
        assert.ok(svg.includes('<svg')&&svg.includes('</svg>'));
+       assert.ok(svg.includes('data-noon-cover="coupon-first-v12"'),slug);
+       assert.ok(svg.includes('font-size="136"'),slug);
      }
      assert.ok(!html.includes('href="/blog?page='),'query_only_pagination_link '+path);
    }
