@@ -42,66 +42,69 @@ function decor(i,t){
   return `<g opacity=".17" stroke="${t.ink}" stroke-width="12">${Array.from({length:8},(_,n)=>`<path d="M${-70+n*190} 760L${260+n*190} 0"/>`).join('')}</g>`;
 }
 
+// v12: coupon-first 1600x1000 artwork. Deterministic and portable SVG;
+// all old featured SVGs are regenerated from the verified R2 listing at deploy.
+// The Saudi rendition carries the owner's requested Arabic headline, while
+// the UAE en-AE variant remains English. Neither promises a discount amount.
 export function couponSvg({coupon='NOV170',country='SA',variant=1,brand='noon',title=''}) {
-  const i=Math.max(1,Math.min(5,Number(variant)||1));
-  const t=THEMES[i-1];
-  const countryName=countryLabel(country);
-  const cc=countryAccent(country);
-  const code=esc(coupon);
-  const brandText=esc(brand);
-  const family=(titleSeed(title)+i)%4;
-  const titleCfg=[
-    {x:795,y:286,max:28,sizes:[50,44]},
-    {x:405,y:286,max:26,sizes:[48,42]},
-    {x:600,y:250,max:28,sizes:[48,42]},
-    {x:600,y:250,max:30,sizes:[46,40]}
-  ][family];
-  const englishTitle=englishArtworkTitle(title);
-  const topicLines=wrapTitle(englishTitle,titleCfg.max).slice(0,2).map(esc);
-  const titleSvg=topicLines.map((line,idx)=>`<text x="${titleCfg.x}" y="${titleCfg.y+idx*66}" text-anchor="middle" font-size="${titleCfg.sizes[idx]||40}" font-weight="900" fill="${t.ink}">${line}</text>`).join('');
-  const codeCfg=[
-    {x:70,y:244,w:330,h:255},
-    {x:800,y:244,w:330,h:255},
-    {x:435,y:390,w:330,h:235},
-    {x:70,y:410,w:1020,h:150}
-  ][family];
-  const codeInner=family===3
-    ?`<text x="${codeCfg.w-35}" y="44" text-anchor="end" font-size="17" font-weight="800" fill="${t.muted}">TRY THIS CODE</text><rect x="35" y="28" width="300" height="88" rx="17" fill="${t.accent}"/><text x="185" y="87" text-anchor="middle" font-size="49" font-weight="900" letter-spacing="3" fill="#111">${code}</text><text x="${codeCfg.w-35}" y="88" text-anchor="end" font-size="16" font-weight="800" fill="${t.ink}">Check your cart total</text>`
-    :`<text x="${codeCfg.w/2}" y="58" text-anchor="middle" font-size="18" font-weight="800" fill="${t.muted}">TRY THIS CODE</text><rect x="38" y="82" width="${codeCfg.w-76}" height="92" rx="17" fill="${t.accent}"/><text x="${codeCfg.w/2}" y="143" text-anchor="middle" font-size="52" font-weight="900" letter-spacing="3" fill="#111">${code}</text><text x="${codeCfg.w/2}" y="${family===2?205:207}" text-anchor="middle" font-size="16" font-weight="800" fill="${t.ink}">Check your cart total</text>`;
-  const footerY=family===3?610:family===2?660:620;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1200 750" preserveAspectRatio="xMidYMid meet" overflow="hidden" role="img" aria-labelledby="title desc">
-<title id="title">${esc(englishTitle)} - ${code}</title>
-<desc id="desc">Noon ${esc(countryName)} shopping guide with code ${code}. Confirm eligibility and the final cart total.</desc>
-<rect width="1200" height="760" rx="34" fill="${t.bg}"/>
-${decor(i,t)}
-<rect x="34" y="34" width="1132" height="692" rx="30" fill="${t.panel}" stroke="${t.ink}" stroke-opacity=".09"/>
-<g font-family="Arial, Tahoma, Helvetica, sans-serif">
-  <g transform="translate(70 66)">
-    <rect width="215" height="54" rx="17" fill="${t.bg}" stroke="${t.ink}" stroke-opacity=".18"/>
-    <circle cx="29" cy="27" r="13" fill="${cc}"/>
-    <text x="54" y="36" font-size="22" font-weight="800" fill="${t.ink}">${esc(countryName)}</text>
-  </g>
-  <text x="1090" y="105" text-anchor="end" font-size="38" font-weight="900" fill="${t.ink}">${brandText}</text>
-  <rect x="920" y="72" width="48" height="48" rx="14" fill="${t.accent}"/>
-  <text x="944" y="106" text-anchor="middle" font-size="24" font-weight="900" fill="#111">N</text>
-
-  <text x="${family===0?795:family===1?405:600}" y="${family===2?190:214}" text-anchor="middle" font-size="20" font-weight="800" fill="${t.muted}">NOON SHOPPING GUIDE</text>
-  ${titleSvg}
-
-  <g transform="translate(${codeCfg.x} ${codeCfg.y})">
-    <rect width="${codeCfg.w}" height="${codeCfg.h}" rx="24" fill="${t.bg}" stroke="${t.ink}" stroke-opacity=".12"/>
-    ${codeInner}
-  </g>
-
-  ${family<2?`<line x1="70" y1="${footerY-60}" x2="1090" y2="${footerY-60}" stroke="${t.ink}" stroke-opacity=".12"/>`:''}
-  <text x="1090" y="${footerY}" text-anchor="end" font-size="19" font-weight="800" fill="${t.ink}">Independent Noon shopping guide</text>
-  <text x="1090" y="${footerY+37}" text-anchor="end" font-size="16" fill="${t.muted}">${esc(countryName)} - Final savings depend on checkout</text>
-  <g transform="translate(70 ${footerY-25})">
-    <rect width="230" height="62" rx="18" fill="${t.ink}"/>
-    <text x="115" y="40" text-anchor="middle" font-size="20" font-weight="900" fill="${t.panel}">COPY CODE</text>
-  </g>
-</g>
-</svg>`;
+ const v=Math.max(1,Math.min(5,Number(variant)||1));
+ const sa=country!=='AE',countryName=sa?'Saudi Arabia':'UAE',marketName=sa?'السعودية':'UAE';
+ const code=esc(coupon),topic=englishArtworkTitle(title);
+ const headline=sa?'كوبون خصم نون':'NOON DISCOUNT COUPON';
+ const tones=[
+  {dark:'#101c2d',shade:'#1d3550',soft:'#f5f7fc'},
+  {dark:'#111827',shade:'#273449',soft:'#fffcef'},
+  {dark:'#123344',shade:'#22576b',soft:'#f1fbff'},
+  {dark:'#2a233d',shade:'#453764',soft:'#f9f5ff'},
+  {dark:'#192b2a',shade:'#285450',soft:'#f3faf4'}
+ ][v-1];
+ const lines=wrapTitle(topic,25).slice(0,2);
+ const topicMarkup=lines.map((line,i)=>'<text x="1240" y="'+(554+i*54)+'" text-anchor="middle" font-size="'+(i===0?39:34)+'" font-weight="850" fill="#162339">'+esc(line)+'</text>').join('');
+ const headlineSize=sa?96:69;
+ const accent=sa?'#14834b':'#cc2835';
+ return '<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid meet" overflow="hidden" role="img" aria-labelledby="premiumTitle premiumDesc" data-noon-cover="coupon-first-v12">'+
+  '<title id="premiumTitle">'+esc(topic)+' — '+code+' | Noon '+countryName+' Coupon</title>'+
+  '<desc id="premiumDesc">'+esc(countryName)+' Noon shopping coupon artwork. Use '+code+' and confirm eligibility at the store checkout.</desc>'+
+  '<defs><linearGradient id="coverBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="'+tones.dark+'"/><stop offset="1" stop-color="'+tones.shade+'"/></linearGradient>'+
+  '<filter id="coverShadow"><feDropShadow dx="0" dy="14" stdDeviation="21" flood-opacity=".17"/></filter>'+
+  '<pattern id="fineDots" width="34" height="34" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="2" fill="#fff" opacity=".14"/></pattern></defs>'+
+  '<rect width="1600" height="1000" fill="'+tones.soft+'"/>'+
+  '<path d="M0 0H1600V150H0Z" fill="#feee00"/>'+
+  '<path d="M0 895H1600V1000H0Z" fill="'+tones.dark+'"/>'+
+  '<g font-family="Tahoma, Arial, sans-serif">'+
+  // Brand and country are clear even in 320px mobile thumbnail.
+  '<g transform="translate(78 36)"><rect width="68" height="68" rx="19" fill="'+tones.dark+'"/>'+
+  '<text x="34" y="50" text-anchor="middle" font-size="45" font-weight="950" fill="#feee00">N</text></g>'+
+  '<text x="166" y="91" font-size="46" font-weight="950" fill="'+tones.dark+'">noon</text>'+
+  '<text x="518" y="89" font-size="25" font-weight="800" fill="'+tones.dark+'">DEALS NOW</text>'+
+  '<rect x="1255" y="38" width="270" height="70" rx="35" fill="'+tones.dark+'"/>'+
+  '<circle cx="1300" cy="73" r="13" fill="'+accent+'"/>'+
+  '<text x="1395" y="85" font-size="27" text-anchor="middle" font-weight="850" fill="#fff">'+countryName+'</text>'+
+  // The coupon is a legible yellow ticket, not a tiny secondary caption.
+  '<rect x="65" y="193" width="995" height="660" rx="45" fill="url(#coverBg)" filter="url(#coverShadow)"/>'+
+  '<rect x="82" y="210" width="960" height="625" rx="35" fill="url(#fineDots)"/>'+
+  '<text x="562" y="271" text-anchor="middle" font-size="28" font-weight="850" letter-spacing="3" fill="#feee00">NOON DEALS NOW</text>'+
+  '<text x="562" y="411" text-anchor="middle" font-size="'+headlineSize+'" font-weight="950" fill="#ffffff"'+
+  (sa?' direction="rtl" unicode-bidi="plaintext"':'')+'>'+headline+'</text>'+
+  '<text x="563" y="465" text-anchor="middle" font-size="26" font-weight="700" fill="#d9e2ec">'+
+  (sa?'NOON DISCOUNT COUPON':'Noon UAE Shopping & Coupon Guide')+'</text>'+
+  '<rect x="177" y="512" width="771" height="220" rx="33" fill="#feee00"/>'+
+  '<rect x="188" y="522" width="749" height="200" rx="27" fill="none" stroke="'+tones.dark+'" stroke-width="4" stroke-dasharray="14 13"/>'+
+  '<circle cx="177" cy="622" r="26" fill="'+tones.dark+'"/><circle cx="948" cy="622" r="26" fill="'+tones.dark+'"/>'+
+  '<text x="562" y="663" text-anchor="middle" font-size="136" font-weight="950" letter-spacing="4" fill="'+tones.dark+'">'+code+'</text>'+
+  '<text x="562" y="787" text-anchor="middle" font-size="22" font-weight="800" fill="#e8f1fb">CHECK THE FINAL CART TOTAL AT NOON</text>'+
+  // Editorial topic distinguishes articles without burying the coupon.
+  '<rect x="1095" y="203" width="430" height="640" rx="38" fill="#fff" stroke="#dfe5ee" stroke-width="3"/>'+
+  '<rect x="1131" y="244" width="358" height="77" rx="18" fill="#feee00"/>'+
+  '<text x="1310" y="294" text-anchor="middle" font-size="28" font-weight="950" fill="'+tones.dark+'">NOON COUPON</text>'+
+  '<text x="1310" y="402" text-anchor="middle" font-size="30" font-weight="850" fill="#344054">'+esc(marketName)+'</text>'+
+  '<path d="M1140 446H1480" stroke="#e2e8f0" stroke-width="3"/>'+
+  topicMarkup+
+  '<rect x="1171" y="690" width="277" height="88" rx="20" fill="'+tones.dark+'"/>'+
+  '<text x="1310" y="746" text-anchor="middle" font-size="29" font-weight="950" fill="#fff">NOON '+countryName+'</text>'+
+  '<text x="85" y="956" font-size="25" font-weight="800" fill="#fff">NoonDealsNow.com</text>'+
+  '<text x="1518" y="956" text-anchor="end" font-size="21" fill="#d4dbe6">Independent coupon guide • Terms at checkout</text>'+
+  '</g></svg>';
 }
 
 function wrapTitle(title,max=48){
@@ -111,17 +114,7 @@ function wrapTitle(title,max=48){
 }
 
 export function featuredSvg({title='Noon coupon guide',coupon='NOV170',country='SA',brand='noon'}){
-  const label=esc(countryLabel(country));const cc=countryAccent(country);const code=esc(coupon);const brandText=esc(brand);const artworkTitle=englishArtworkTitle(title);const lines=wrapTitle(artworkTitle,31).slice(0,3).map(esc);
-  const text=lines.map((l,i)=>`<text x="515" y="${330+i*70}" text-anchor="middle" font-size="${i===0?52:48}" font-weight="900" fill="#111827">${l}</text>`).join('');
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid meet" overflow="hidden" role="img" aria-labelledby="ft fd">
-<title id="ft">${esc(artworkTitle)}</title><desc id="fd">Noon ${label} editorial image with code ${code}. Confirm final savings at checkout.</desc>
-<defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFDE7"/><stop offset="1" stop-color="#FFF"/></linearGradient><filter id="shadow"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-opacity=".12"/></filter></defs>
-<rect width="1600" height="1000" fill="url(#bg)"/><circle cx="1430" cy="130" r="250" fill="#FEEE00" opacity=".35"/><circle cx="1460" cy="780" r="300" fill="#111" opacity=".045"/><path d="M0 800 C260 660 390 920 690 780 S1160 650 1600 760V1000H0Z" fill="#FEEE00" opacity=".24"/>
-<g font-family="Arial, Helvetica, sans-serif"><g transform="translate(78 68)"><rect width="290" height="72" rx="22" fill="#fff" stroke="#111" stroke-opacity=".22" stroke-dasharray="9 7"/><circle cx="38" cy="36" r="18" fill="${cc}"/><text x="72" y="46" font-size="30" font-weight="800" fill="#111">${label}</text></g>
-<text x="1510" y="120" text-anchor="end" font-size="62" font-weight="900" fill="#111">${brandText}</text><circle cx="1325" cy="94" r="38" fill="#FEEE00"/><path d="M1307 77a27 27 0 1 0 36 39" fill="none" stroke="#111" stroke-width="10" stroke-linecap="round"/>
-<text x="515" y="245" text-anchor="middle" font-size="27" font-weight="800" fill="#6B7280">NOON SHOPPING GUIDE</text>${text}
-<g transform="translate(1040 230)" filter="url(#shadow)"><rect width="440" height="500" rx="42" fill="#fff"/><text x="220" y="120" text-anchor="middle" font-size="76" font-weight="900" fill="#111">NOON</text><g transform="translate(268 55) rotate(-5)"><rect width="130" height="68" rx="16" fill="#FEEE00"/><text x="65" y="47" text-anchor="middle" font-size="31" font-weight="900" fill="#111">GUIDE</text></g><text x="220" y="175" text-anchor="middle" font-size="27" font-weight="800" fill="#111">NOON COUPON</text><rect x="42" y="215" width="356" height="172" rx="26" fill="#FFFBE0" stroke="#111" stroke-width="4" stroke-dasharray="14 10"/><rect x="73" y="247" width="294" height="78" rx="15" fill="#FEEE00"/><text x="220" y="302" text-anchor="middle" font-size="52" font-weight="900" fill="#111">${code}</text><text x="220" y="357" text-anchor="middle" font-size="15" font-weight="800" fill="#111">Check the final cart total</text><rect x="75" y="418" width="135" height="54" rx="16" fill="#111"/><text x="142" y="453" text-anchor="middle" font-size="21" font-weight="800" fill="#fff">COPY</text><rect x="230" y="418" width="135" height="54" rx="16" fill="#FEEE00"/><text x="297" y="453" text-anchor="middle" font-size="19" font-weight="900" fill="#111">SHOP NOON</text></g>
-<text x="80" y="830" font-size="25" font-weight="700" fill="#475467">Compare the listing - Try the code - Check before paying</text></g></svg>`;
+ return couponSvg({title,coupon,country,brand,variant:2});
 }
 
 export function svgAlt({coupon,country,variant}){
@@ -130,4 +123,4 @@ export function svgAlt({coupon,country,variant}){
 
 export function noonUrl(){return 'https://www.noon.com/';}
 
-export const SVG_LAYOUT_INFO={version:11,couponCanvas:[1600,1000],featuredCanvas:[1600,1000],safeAreaPx:70,preserveAspectRatio:'xMidYMid meet',titleAnchoring:'middle'};
+export const SVG_LAYOUT_INFO={version:12,couponCanvas:[1600,1000],featuredCanvas:[1600,1000],safeAreaPx:70,preserveAspectRatio:'xMidYMid meet',titleAnchoring:'middle'};
