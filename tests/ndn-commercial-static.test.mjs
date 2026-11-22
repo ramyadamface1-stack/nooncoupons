@@ -11,7 +11,7 @@ test('no missing market root, category, or buying-intent pages under quota exhau
  assert.equal(PUBLIC_CATEGORIES.length,42);
  assert.equal(report.categoryPages,84);
  assert.equal(report.keywordGuides,10);
- assert.equal(report.generatedPages,105);
+ assert.equal(report.generatedPages,108);
  for(const m of ['saudi','uae']){
    const coupon=m==='saudi'?'NOV170':'NOV188';
    for(const p of ['/'+m+'/categories','/'+m+'/noon-coupon-code','/'+m+'/shopping-guide']){
@@ -57,4 +57,36 @@ test('homepage sells with correct Saudi coupon, non-duplicated analytics, and wo
    assert.ok(html.includes('Quick shopping navigation'),p);
    assert.ok(html.includes('id="ndn-static-ga4"')||html.includes('id="rescue-site-analytics"'),p);
  }
+});
+
+test('golden keyword hub is public, static, country-safe and routes every intent to a detailed guide',()=>{
+ const index=page('/golden-keywords');
+ assert.ok(index.includes('<html lang="ar-SA" dir="rtl">'));
+ assert.ok(index.includes('<meta name="ndn-public-golden-keywords"'));
+ assert.ok(index.includes('<meta name="robots" content="index,follow,max-image-preview:large">'));
+ assert.ok(index.includes('<link rel="canonical" href="https://noondealsnow.com/golden-keywords">'));
+ assert.ok(index.includes('الكلمات المفتاحية الذهبية'));
+ assert.ok(index.includes('NOV170')&&index.includes('NOV188'));
+ assert.ok(index.includes('دون')||index.includes('ليست ترتيبًا'));
+ for(const market of ['saudi','uae']){
+  const path='/'+market+'/golden-keywords',country=page(path);
+  const code=market==='saudi'?'NOV170':'NOV188',other=market==='saudi'?'NOV188':'NOV170';
+  assert.ok(country.includes('<link rel="canonical" href="https://noondealsnow.com'+path+'">'));
+  assert.ok(country.includes('<meta name="robots" content="index,follow,max-image-preview:large">'));
+  assert.ok(country.includes('data-code="'+code+'"'));
+  assert.ok(!country.includes('data-code="'+other+'"'));
+  assert.ok(country.includes('id="ndn-static-ga4"'));
+  assert.ok(country.includes('/'+market+'/brand/apple'));
+  assert.ok(country.includes('/'+market+'/brand/samsung'));
+  const guide=market==='saudi'?'mobile-phones':'beauty';
+  assert.ok(country.includes('/'+market+'/buying-guide/'+guide));
+  assert.ok(existsSync(base+'/'+market+'/buying-guide/'+guide+'.html'));
+  assert.ok(existsSync(base+'/'+market+'/brand/apple.html'));
+  assert.ok(existsSync(base+'/'+market+'/brand/samsung.html'));
+  assert.ok(index.includes('href="'+path+'"'));
+ }
+ const home=readFileSync(base+'/index.html','utf8');
+ assert.ok(home.includes('href="/golden-keywords"'));
+ assert.ok(home.includes('صفحة الكلمات المفتاحية الذهبية'));
+ for(const p of ['/blog','/blog/saudi','/blog/uae'])assert.ok(page(p).includes('href="/golden-keywords"'),p);
 });
