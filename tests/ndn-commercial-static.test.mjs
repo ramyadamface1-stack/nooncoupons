@@ -54,7 +54,10 @@ test('homepage sells with correct Saudi coupon, non-duplicated analytics, and wo
  assert.equal((home.match(/id="ndn-static-ga4"/g)||[]).length,1);
  for(const p of ['/blog','/blog/saudi','/blog/uae','/blog/page/2']){
    const html=page(p);
-   assert.ok(html.includes('Quick shopping navigation'),p);
+   assert.ok(html.includes('data-blog-premium="v1"'),p);
+   assert.ok(html.includes('aria-label="روابط الموقع الرئيسية"'),p);
+   assert.equal((html.match(/aria-label="Quick shopping navigation"/g)||[]).length,0,'duplicate_header_'+p);
+   assert.ok(html.includes('href="/golden-keywords"'),p);
    assert.ok(html.includes('id="ndn-static-ga4"')||html.includes('id="rescue-site-analytics"'),p);
  }
 });
