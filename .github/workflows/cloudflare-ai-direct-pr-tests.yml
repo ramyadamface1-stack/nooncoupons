@@ -32,7 +32,7 @@ jobs:
           node --check cloudflare-ai-direct/keys.mjs
           node --check cloudflare-ai-direct/rpc-entry.mjs
           node --check cloudflare-ai-direct/pack-existing-keys.mjs
-          node --test tests/cloudflare-ai-direct-canary.test.mjs tests/cloudflare-ai-direct-production-guard.test.mjs tests/cloudflare-ai-direct-single-flight.test.mjs tests/ai-v2-article-batch.test.mjs
+          node --test tests/cloudflare-ai-direct-canary.test.mjs tests/cloudflare-ai-direct-production-guard.test.mjs tests/cloudflare-ai-direct-single-flight.test.mjs tests/ai-v2-article-batch.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-native-arabic-article.test.mjs
       - name: Bundle independent R2 Worker without deploying
         run: |
           npm install --no-audit --no-fund --ignore-scripts
