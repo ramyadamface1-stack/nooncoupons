@@ -59,8 +59,6 @@ export function directTopicAt(topics,index){
   '-'+scope.id+'-$1-2026-n11');
  if(!head||title.length<28||title.length>72||slug===original.slug||slug.length>120)
   return null;
- const brand=String(original.brand||'');
- const focus=String(original.queryModifier||'');
  const sections=lang==='en'?[
   'Why '+scope.en+' matters when assessing '+focus,
   'What '+brand+' model facts to confirm for '+scope.en,
