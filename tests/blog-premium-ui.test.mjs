@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {BLOG_PREMIUM_CSS,blogPremiumHero,blogCardCategory,BLOG_PREMIUM_INFO} from '../blog-premium-ui.js';
 import {couponSvg,featuredSvg,SVG_LAYOUT_INFO} from '../svg-engine.js';
+import {spawnSync} from 'node:child_process';
 
 test('professional blog presents two actual market coupons, a balanced hero and only one region filter',()=>{
  const sample=blogPremiumHero({title:'مدونة كوبونات نون',description:'دليل الشراء',articles:9736,pages:650,page:2,market:'SA',latestPublishedAt:'2026-11-22T18:36:00Z'});
@@ -38,6 +39,17 @@ test('all five premium cover variants show a giant code and correct Arabic/Engli
   assert.ok(svg.includes(code));
   assert.match(svg,market==='SA'?/كوبون خصم نون/:/NOON DISCOUNT COUPON/);
   assert.doesNotMatch(svg,/discount up to|verified savings|10% off/i);
+  assert.doesNotMatch(svg,/&(?!amp;|lt;|gt;|quot;|apos;|#(?:\d+|x[0-9a-f]+);)/i,'invalid SVG XML entity in '+market+' variant '+i);
  }
  assert.match(featuredSvg({country:'SA',coupon:'NOV170'}),/كوبون خصم نون/);
+});
+
+test('Every market and SVG theme parses as actual well-formed XML, even with an ampersand in the subject',()=>{
+ const validate="import sys, xml.etree.ElementTree as ET; r=ET.fromstring(sys.stdin.read()); assert r.tag.endswith('svg'); assert r.attrib['width']=='1600'; assert r.attrib['height']=='1000'";
+ for(const country of ['SA','AE'])for(let variant=1;variant<=5;variant++){
+  const code=country==='SA'?'NOV170':'NOV188';
+  const svg=couponSvg({country,variant,coupon:code,title:'Noon TV & Audio, seller verification'});
+  const parsed=spawnSync('python3',['-c',validate],{input:svg,encoding:'utf8',timeout:5000});
+  assert.equal(parsed.status,0,country+' variant '+variant+': '+parsed.stderr);
+ }
 });

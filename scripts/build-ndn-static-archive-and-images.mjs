@@ -50,6 +50,11 @@ for(const a of details.values()){
   const svg=couponSvg({title:a.title,coupon:a.code,country:a.country,variant:1,brand:'noon'});
   if(!svg.startsWith('<svg')||!svg.includes('width="1600"')||
      !svg.includes(a.code)||!svg.includes('</svg>'))throw Error('NDN_BAD_FEATURED_SVG_'+a.slug);
+  // Chrome rejects even HTTP-200 SVGs when an ampersand is not an XML entity.
+  // Validate every published article cover before Cloudflare upload, not just
+  // the handful seen in unit tests (the 2026-11-22 UAE image regression).
+  if(/&(?!amp;|lt;|gt;|quot;|apos;|#(?:\d+|x[0-9a-f]+);)/i.test(svg))
+    throw Error('NDN_INVALID_SVG_XML_ENTITY_'+a.slug);
   const dest=resolve(assetDir,a.slug,'1.svg');
   await mkdir(dirname(dest),{recursive:true});
   await writeFile(dest,svg,'utf8');
