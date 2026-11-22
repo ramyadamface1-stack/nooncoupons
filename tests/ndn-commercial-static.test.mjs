@@ -11,7 +11,7 @@ test('no missing market root, category, or buying-intent pages under quota exhau
  assert.equal(PUBLIC_CATEGORIES.length,42);
  assert.equal(report.categoryPages,84);
  assert.equal(report.keywordGuides,10);
- assert.equal(report.generatedPages,108);
+ assert.equal(report.generatedPages,110);
  for(const m of ['saudi','uae']){
    const coupon=m==='saudi'?'NOV170':'NOV188';
    for(const p of ['/'+m+'/categories','/'+m+'/noon-coupon-code','/'+m+'/shopping-guide']){
@@ -76,13 +76,13 @@ test('golden keyword hub is public, static, country-safe and routes every intent
   assert.ok(country.includes('data-code="'+code+'"'));
   assert.ok(!country.includes('data-code="'+other+'"'));
   assert.ok(country.includes('id="ndn-static-ga4"'));
-  assert.ok(country.includes('/'+market+'/brand/apple'));
-  assert.ok(country.includes('/'+market+'/brand/samsung'));
+  assert.ok(country.includes('/'+market+'/buying-guide/'+(market==='saudi'?'samsung-s26-ultra':'mini-led-tv')));
+  assert.ok(country.includes('/'+market+'/categories')||country.includes('/'+market+'/buying-guide/first-order'));
   const guide=market==='saudi'?'mobile-phones':'beauty';
   assert.ok(country.includes('/'+market+'/buying-guide/'+guide));
   assert.ok(existsSync(base+'/'+market+'/buying-guide/'+guide+'.html'));
-  assert.ok(existsSync(base+'/'+market+'/brand/apple.html'));
-  assert.ok(existsSync(base+'/'+market+'/brand/samsung.html'));
+  assert.ok(existsSync(base+'/'+market+'/buying-guide/'+(market==='saudi'?'samsung-s26-ultra':'mini-led-tv')+'.html'));
+  assert.ok(country.includes('لا تتوفر')||country.includes('have not yet been measured'));
   assert.ok(index.includes('href="'+path+'"'));
  }
  const home=readFileSync(base+'/index.html','utf8');
