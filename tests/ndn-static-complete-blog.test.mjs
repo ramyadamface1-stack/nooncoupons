@@ -17,6 +17,17 @@ test('every physically verified published R2 article is listed exactly once per 
      assert.ok(html.includes('<link rel="canonical" href="https://noondealsnow.com'+path+'">'),path);
      assert.ok(html.includes('ndn-verified-r2-article-listing'),path);
      assert.ok(html.includes('data-blog-premium="v1"'),path);
+     if(country==='AE'){
+       assert.ok(html.includes('<html lang="en-AE" dir="ltr">'),'UAE index language '+path);
+       assert.ok(html.includes('"inLanguage":"en-AE"'),'UAE JSON-LD language '+path);
+       assert.ok(html.includes('Noon UAE Shopping Guides'),path);
+       assert.ok(html.includes('Read guide'),path);
+       assert.ok(html.includes('Published guides'),path);
+       assert.ok(!html.includes('aria-label="تصفح المقالات حسب الدولة"'),path);
+     }else{
+       assert.ok(html.includes('<html lang="ar-SA" dir="rtl">'),'SA and all-blog language '+path);
+     }
+
      assert.equal((html.match(/class="blogHeroAside"/g)||[]).length,1,'balanced hero missing '+path);
      assert.equal((html.match(/aria-label="Quick shopping navigation"/g)||[]).length,0,'duplicate navbar '+path);
      assert.equal((html.match(/class="cardTopic"/g)||[]).length,Math.min(15,audit.markets[base]-(n-1)*15),path);
