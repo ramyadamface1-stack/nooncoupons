@@ -1,6 +1,7 @@
 // Commercial public routes, independent from daily Cloudflare Worker request quota.
 // This file does not change any R2 article body, coupon validity or generator state.
 import {PUBLIC_CATEGORIES as categories} from '../index.js';
+import {BRANDS} from '../commerce-taxonomy.js';
 import {couponSvg} from '../svg-engine.js';
 import {mkdir,readFile,writeFile,readdir} from 'node:fs/promises';
 import {resolve,dirname} from 'node:path';
@@ -33,7 +34,7 @@ const seo=[
  parts:[['Dimensions','Measure installation space, ventilation and access routes before comparing appliances.'],['Capacity and utility','Compare capacity, energy information and programmes against real household usage, not only promotional headlines.'],['Service and delivery','Look for installation, shipping, warranty and local support terms that could change the true total cost.'],['NOV188 at checkout','Try the owner-listed code on the UAE cart, and base the purchase on the final AED amount.']]}
 ];
 const E=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const NAV='<nav aria-label="Quick shopping navigation" style="display:flex!important;flex-wrap:wrap;gap:12px;padding:10px 3vw;background:#fff;border-bottom:1px solid #e1e6ef;font:700 13px Tahoma,Arial"><a href="/saudi/noon-coupon-code">كوبونات السعودية</a><a href="/uae/noon-coupon-code">كوبونات الإمارات</a><a href="/saudi/categories">أقسام السعودية</a><a href="/uae/categories">أقسام الإمارات</a><a href="/brands">البراندات</a><a href="/blog">المدونة</a></nav>';
+const NAV='<nav aria-label="Quick shopping navigation" style="display:flex!important;flex-wrap:wrap;gap:12px;padding:10px 3vw;background:#fff;border-bottom:1px solid #e1e6ef;font:700 13px Tahoma,Arial"><a href="/saudi/noon-coupon-code">كوبونات السعودية</a><a href="/uae/noon-coupon-code">كوبونات الإمارات</a><a href="/saudi/categories">أقسام السعودية</a><a href="/uae/categories">أقسام الإمارات</a><a href="/brands">البراندات</a><a href="/blog">المدونة</a><a href="/golden-keywords">الكلمات الذهبية</a></nav>';
 const css='<style>*{box-sizing:border-box}body{margin:0;color:#172033;background:#f8fafc;font-family:Tahoma,Arial,sans-serif;line-height:1.85}a{color:#1558c0;text-underline-offset:3px}.w{width:min(1120px,94%);margin:auto}.hero{padding:30px 0;background:#fff;border-bottom:1px solid #e5e9f0}.hero h1{font-size:clamp(26px,4vw,42px);line-height:1.45}.muted{color:#526175}.columns{display:grid;grid-template-columns:minmax(0,2fr) minmax(250px,1fr);gap:22px}.box{padding:20px;background:#fff;border:1px solid #dfe5ef;border-radius:16px;margin:17px 0}.box h2{margin:8px 0;line-height:1.5}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.linkcard{display:block;background:#fff;padding:17px;border:1px solid #e2e7ef;border-radius:14px;text-decoration:none;color:#182438}.linkcard:hover{border-color:#8258d8}.linkcard strong{display:block}.btn{display:inline-block;padding:10px 16px;background:#6028cc;color:#fff;border:0;border-radius:12px;font-weight:bold;text-decoration:none;cursor:pointer}.btn.alt{background:#152033}.code{font-size:26px;letter-spacing:2px;border:2px dashed #b790e3;background:#f4ecff;border-radius:12px;padding:7px 17px;display:inline-block;direction:ltr;font-weight:900}.notice{background:#fff8df;border-right:3px solid #e0b225;padding:13px}.links a{display:block;margin:9px 0}.faq details{padding:12px;border:1px solid #e4e7ed;margin:10px 0;border-radius:10px}footer{background:#111827;color:#fff;padding:25px 0;margin-top:40px}footer a{color:#fff}@media(max-width:800px){.grid,.columns{grid-template-columns:1fr}.box{padding:14px}}</style>';
 const dirs={
  saudi:{name:'السعودية',desc:'تصفح كود نون السعودية NOV170 وأدلة الشراء وتقسيمات الجوالات والأجهزة والعطور.',lang:'ar-SA',dir:'rtl'},
@@ -202,13 +203,93 @@ for(const m of ['saudi','uae']){
  const dst=resolve(root,p.slice(1)+'.html');
  await mkdir(dirname(dst),{recursive:true});await writeFile(dst,html,'utf8');generated++;
 }
+
+// Public commercial keyword navigation is STATIC, not the old private noindex
+// search-intent diagnostic. Existing detailed buyer guides + brand pages own
+// their individual intents, so we do not fabricate new articles or demand data.
+const goldenBrands=Object.entries(BRANDS)
+  .filter(([slug,b])=>/^[a-z0-9-]+$/.test(slug)&&b?.label);
+if(goldenBrands.length!==30)throw Error('GOLDEN_KEYWORD_BRAND_INVENTORY_CHANGED');
+const goldenNote='الأولوية هنا تحريرية ومبنية على نية الشراء، وليست ترتيبًا حسب حجم بحث أو مبيعات مقاسة. لا نؤكد نسبة خصم أو سعرًا ثابتًا، والنتيجة النهائية من سلة نون.';
+const goldenIntro={
+ saudi:'كلمات وموضوعات شراء نون السعودية — كوبون NOV170. افتح دليلًا تفصيليًا للمنتج أو البراند، قارن الموديل والضمان والشحن، ثم جرّب الرمز في السلة.',
+ uae:'Noon UAE high-intent shopping guides — promo code NOV188. Open a detailed category or brand guide, compare the exact product, seller and delivery, then check the final AED total.'
+};
+const goldenCards=(m)=>{
+ const ar=isSA(m),marketKey=m,codeNow=code(m);
+ const guides=seo.filter(t=>t.m===m).map(t=>({
+  text:t.key,url:guideUrl(t),detail:t.short,kind:ar?'دليل فئة مفصل':'Detailed category guide'
+ }));
+ const brands=goldenBrands.map(([slug,b])=>({
+  text:(ar?'كود نون السعودية '+b.label:'Noon UAE '+b.label+' promo code')+' '+codeNow,
+  url:'/'+m+'/brand/'+slug,
+  detail:ar?'دليل '+b.label+' للموديلات والضمان والبائع والتكلفة النهائية قبل تجربة '+codeNow+'.':
+   'Compare '+b.label+' products, model compatibility, seller, warranty and AED checkout total before trying '+codeNow+'.',
+  kind:ar?'دليل براند مفصل':'Detailed brand guide'
+ }));
+ const cards=[...guides,...brands];
+ return {count:cards.length,html:cards.map(item=>
+  '<article class="box" style="margin:12px 0"><small>'+E(item.kind)+'</small>'+
+  '<h3 style="margin:5px 0"><a href="'+E(item.url)+'">'+E(item.text)+'</a></h3>'+
+  '<p>'+E(item.detail)+'</p><a href="'+E(item.url)+'">'+(ar?'اقرأ الدليل التفصيلي ←':'Read the detailed guide →')+'</a></article>').join(''),
+  urls:cards.map(item=>item.url)};
+};
+for(const m of ['saudi','uae']){
+ const ar=isSA(m),path='/'+m+'/golden-keywords';
+ const grouped=goldenCards(m),detailCode=code(m);
+ const title=ar?'الكلمات المفتاحية الذهبية لنون السعودية | دليل شراء وكوبون '+detailCode:
+   'Noon UAE High-Intent Shopping Keywords | '+detailCode+' Buyer Guides';
+ const desc=goldenIntro[m];
+ const list='<section class="box"><h2>'+(ar?'ابدأ من فئة أو براند':'Browse category and brand shopping intents')+'</h2>'+
+   '<p>'+(ar?goldenNote:
+   'These are editorial purchase-intent topics, not verified search-volume rankings. Savings depend on the final Noon UAE checkout.')+
+   '</p><p><a href="/golden-keywords">'+(ar?'جميع الكلمات للسعودية والإمارات':'All Saudi and UAE keyword guides')+'</a></p></section>'+
+   '<section aria-label="'+(ar?'أدلة مفصلة':'Detailed keyword guides')+'">'+grouped.html+'</section>'+
+   '<section class="box"><h2>'+(ar?'أسئلة قبل الدفع':'Frequently asked questions before checkout')+'</h2><p>'+
+   (ar?'هل الكود مضمون لكل براند؟ لا. قارن المنتج نفسه والسعر النهائي، وأدخل NOV170 في سلة نون السعودية لترى نتيجة الأهلية.':
+   'Does NOV188 work for every brand? Eligibility is decided by the UAE checkout, not a generic article. Compare the same cart before and after.')+
+   '</p></section>';
+ let html=page(m,path,title,desc,list);
+ const graph={'@context':'https://schema.org','@type':'ItemList',name:title,
+   itemListElement:grouped.urls.map((url,i)=>({'@type':'ListItem',position:i+1,url:origin+url}))};
+ html=html.replace('</head>','<script type="application/ld+json">'+JSON.stringify(graph).replace(/</g,'\\u003c')+'</script></head>');
+ await save(path,html);generated++;
+}
+{
+ const path='/golden-keywords',title='الكلمات المفتاحية الذهبية لنون السعودية والإمارات | أدلة الشراء والكوبونات';
+ const desc='خريطة كلمات تجارية وأدلة شراء مفصلة لنون السعودية NOV170 ونون الإمارات NOV188، مع روابط فئات وبراندات واضحة للعثور على المنتج الصحيح.';
+ const sa=goldenCards('saudi'),ae=goldenCards('uae');
+ const marketBlock=(m,data)=>{
+  const ar=isSA(m);
+  return '<section class="box" id="'+m+'"><h2>'+(ar?'الكلمات الذهبية لنون السعودية — NOV170':'Noon UAE shopping keywords — NOV188')+'</h2>'+
+   '<p>'+E(goldenIntro[m])+'</p>'+couponAction(m)+
+   '<p><a href="/'+m+'/golden-keywords">'+(ar?'افتح الصفحة السعودية كاملة':'Open all UAE keyword guides')+'</a> · '+
+   '<a href="/blog/'+m+'">'+(ar?'مقالات السعودية':'UAE articles')+'</a> · <a href="/'+m+'/categories">'+
+   (ar?'أقسام السعودية':'UAE categories')+'</a></p><div dir="'+(ar?'rtl':'ltr')+'">'+data.html+'</div></section>';
+ };
+ const content='<section class="box"><h2>كيف تستخدم الكلمات قبل الشراء؟</h2><p>'+E(goldenNote)+
+   ' اختر الدولة أولًا، ثم افتح الدليل المفصل للبراند أو فئة المنتج. لكل رابط موضوع محدد بدل تكرار صفحات عامة بنفس الكلمة.</p>'+
+   '<p><a href="#saudi">السعودية NOV170</a> · <a href="#uae">الإمارات NOV188</a></p></section>'+
+   marketBlock('saudi',sa)+marketBlock('uae',ae)+
+   '<section class="box"><h2>أسئلة شائعة</h2><p><strong>هل هذه أعلى كلمات بحثًا؟</strong> لا ندّعي حجم بحث أو ترتيبًا مؤكّدًا دون بيانات Search Console وقياس الطلب. هذه موضوعات تجارية اخترناها لتحسين رحلة الشراء.</p>'+
+   '<p><strong>هل الكوبون نفسه صالح للبلدين؟</strong> لا. صفحة السعودية تعرض NOV170، والإمارات NOV188، وشروط السلة تحدد النتيجة.</p></section>';
+ let html=page('saudi',path,title,desc,content);
+ const graph={'@context':'https://schema.org','@type':'CollectionPage',url:origin+path,
+  name:title,description:desc,inLanguage:'ar-SA',
+  hasPart:[{'@type':'CollectionPage',url:origin+'/saudi/golden-keywords'},
+   {'@type':'CollectionPage',url:origin+'/uae/golden-keywords'}]};
+ html=html.replace('</head>','<meta name="ndn-public-golden-keywords" content="intent-guides-v1"><script type="application/ld+json">'+JSON.stringify(graph).replace(/</g,'\\u003c')+'</script></head>');
+ await save(path,html);generated++;
+}
+console.log('NDN_GOLDEN_PUBLIC_PAGES=3;GUIDES_BY_COUNTRY=36,34;STATIC_NO_WORKER=TRUE;KEYWORD_VOLUME_UNCLAIMED=TRUE');
+
 const slogan='<section class="section" id="commercial-buying-intent"><div class="shell"><div class="head"><h2>كود خصم نون السعودية NOV170 — أقسام وأدلة التسوق</h2>'+
  '<p>اختر فئتك، قارن السعر النهائي، انسخ الكود من الصفحة الرئيسية ثم راجع قبوله في سلة نون السعودية.</p></div>'+
  '<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px">'+
  '<a class="guide" href="/saudi/noon-coupon-code"><h3>كوبون نون السعودية NOV170</h3><p>الطريقة الصحيحة لاستخدام الكود قبل الدفع.</p></a>'+
  '<a class="guide" href="/saudi/categories"><h3>أقسام نون السعودية</h3><p>الجوالات والإلكترونيات والأجهزة المنزلية والجمال.</p></a>'+
  '<a class="guide" href="/uae/noon-coupon-code"><h3>كوبونات نون الإمارات NOV188</h3><p>كود الإمارات المنفصل وروابط المقالات المرتبطة.</p></a>'+
- '</div><h3>أدلة شراء بنية البحث العالية</h3><div class="chips">'+
+ '</div><p><a href="/golden-keywords" style="color:#1558c0;font-weight:900">صفحة الكلمات المفتاحية الذهبية للسعودية والإمارات</a></p><h3>أدلة شراء بنية البحث العالية</h3><div class="chips">'+
  seo.map(s=>'<a style="display:inline-block;padding:8px 11px;margin:5px;background:#fff;border:1px solid #ddd;border-radius:12px;color:#1558c0" href="'+guideUrl(s)+'">'+E(s.key)+'</a>').join('')+'</div></div></section>';
 const rootFile=resolve(root,'index.html');
 const home=await readFile(rootFile,'utf8');
