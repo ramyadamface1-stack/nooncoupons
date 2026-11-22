@@ -210,14 +210,37 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
   return logState(env,{phase:'READY_CREATED',market,slug:topic.slug,provider:chosen.provider,readyKey,calls});
  });
 }
-async function verifyLive(record){
+// Canonical site routes run in a separate Worker on the same account.
+// An explicit service binding bypasses zone self-fetch/rate-limit ambiguity.
+// Never retry a native POST after an ambiguous outcome.
+function siteFetch(env,url,init){
+ return env?.SITE_PUBLIC?.fetch
+  ?env.SITE_PUBLIC.fetch(new Request(url,init))
+  :fetch(url,init);
+}
+async function verifyLive(record,env){
  const path='https://noondealsnow.com/articles/'+record.topic.slug;
+ const via=env?.SITE_PUBLIC?.fetch?'service-binding':'public-fetch';
+ let diagnostic={reason:'ARTICLE_UNVERIFIED',http:null};
  try{
-  const response=await fetch(path,{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(16000)});
-  if(!response.ok)return false;
-  const body=await response.text();
-  return body.includes(record.topic.coupon)&&body.includes('<article');
- }catch{return false}
+  const response=await siteFetch(env,path,{headers:{'cache-control':'no-cache'},signal:AbortSignal.timeout(16000)});
+  diagnostic.http=response.status;
+  if(response.ok){
+   const body=await response.text();
+   if(body.includes(record.topic.coupon)&&body.includes('<article')){
+    diagnostic.reason='LIVE_VERIFIED';
+   }else diagnostic.reason='ARTICLE_MARKERS_MISSING';
+  }else diagnostic.reason='ARTICLE_HTTP_NOT_OK';
+ }catch(e){
+  diagnostic.reason='ARTICLE_FETCH_FAILED';
+  diagnostic.errorName=['TypeError','AbortError','TimeoutError'].includes(e?.name)?e.name:'UNKNOWN';
+ }
+ // Small redacted operational result for remote diagnosis, no body or keys.
+ try{
+  await jsonPut(env,ROOT+'last-live-verification.json',{
+   at:utc(),slug:record.topic.slug,via,...diagnostic,containsRawKeys:false});
+ }catch{}
+ return diagnostic.reason==='LIVE_VERIFIED';
 }
 async function publishOne(env,p,{onlySlug=null}={}){
  if(!p.enabled)return {ok:false,reason:'PAUSED'};
@@ -241,7 +264,7 @@ async function publishOne(env,p,{onlySlug=null}={}){
    if(record.state!=='READY')continue;
    const exists=await env.CONTENT_FINAL.head('articles/'+record.topic.slug+'.html');
    if(exists){
-    if(await verifyLive(record)){
+    if(await verifyLive(record,env)){
      await env.CONTENT_FINAL.delete(item.key);
      return {ok:true,reason:'ALREADY_LIVE_VERIFIED',slug:record.topic.slug};
     }
@@ -253,7 +276,7 @@ async function publishOne(env,p,{onlySlug=null}={}){
    await jsonPut(env,item.key,record);
    let response,answer;
    try{
-    response=await fetch('https://noondealsnow.com/api/internal/ai-v2/publish',{
+    response=await siteFetch(env,'https://noondealsnow.com/api/internal/ai-v2/publish',{
      method:'POST',headers:{authorization:'Bearer '+env.SITE_PUBLISH_TOKEN,'content-type':'application/json'},
      body:JSON.stringify({topic:record.topic,article:record.article,checkpoint:record.checkpoint}),
      signal:AbortSignal.timeout(45000)});
@@ -262,7 +285,7 @@ async function publishOne(env,p,{onlySlug=null}={}){
     return {ok:false,reason:'PUBLISH_TRANSPORT_UNKNOWN',slug:record.topic.slug};
    }
    if(answer?.ok===true&&response.ok){
-    if(await verifyLive(record)){
+    if(await verifyLive(record,env)){
      await jsonPut(env,ROOT+'checkpoint/'+record.topic.slug+'.json',{state:'LIVE_VERIFIED',slug:record.topic.slug,publishedAt:utc()});
      await env.CONTENT_FINAL.delete(item.key);
      return {ok:true,reason:'LIVE_VERIFIED',slug:record.topic.slug};
@@ -288,7 +311,7 @@ async function publishOne(env,p,{onlySlug=null}={}){
    // Spread read-only verification across unknown records; always probing
    // the first record can starve the other unresolved articles forever.
    const {key,record}=unresolved[minute%unresolved.length];
-   if(await verifyLive(record)){
+   if(await verifyLive(record,env)){
     await jsonPut(env,ROOT+'checkpoint/'+record.topic.slug+'.json',
      {state:'LIVE_VERIFIED',slug:record.topic.slug,publishedAt:utc()});
     await env.CONTENT_FINAL.delete(key);
@@ -516,6 +539,7 @@ export async function directTick(env,{scheduledAt=Date.now()}={}){
  // identical owner-reviewed coupon catalog; one may deploy before the other.
  if(p.ownerCatalogUpdatedAt!==COUPON_REGISTRY_INFO.catalogUpdatedAt)
   return logState(env,{phase:'SITE_COUPON_CATALOG_DEPLOY_PENDING'});
+ if(!env.SITE_PUBLIC?.fetch)return logState(env,{phase:'SITE_SERVICE_BINDING_MISSING_PAUSED'});
  const minute=Math.floor(Number(scheduledAt)/60000);
  // Publish independently from generation, with one bounded native POST
  // opportunity per scheduled minute at a deterministic +35s offset.
@@ -628,6 +652,8 @@ export async function directStatus(env){
    env.DIRECT_AI_STAGE==='canary-groq-generation'?'GROQ_CANARY_ONLY':
    env.DIRECT_AI_STAGE==='canary-gemini-generation'?'GEMINI_CANARY_ONLY':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
   dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,directStage:env.DIRECT_AI_STAGE||'unset',
+  siteServiceBindingConfigured:Boolean(env.SITE_PUBLIC?.fetch),
+  lastLiveVerification:await jsonGet(env,ROOT+'last-live-verification.json'),
   freeOnly:true,readyCount:ready.readyCount,
   readyCountExact:ready.truncated!==true,
   uncertainPublicationCount:ready.unknownCount,

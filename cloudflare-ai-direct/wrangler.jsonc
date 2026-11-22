@@ -21,5 +21,11 @@
       "binding": "CONTENT_FINAL",
       "bucket_name": "nooncoupons-content-v2"
     }
+  ],
+  "services": [
+    {
+      "binding": "SITE_PUBLIC",
+      "service": "noondealsnow-production-new"
+    }
   ]
 }
