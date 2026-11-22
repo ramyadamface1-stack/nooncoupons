@@ -21,6 +21,20 @@ test('professional blog presents two actual market coupons, a balanced hero and 
  assert.match(BLOG_PREMIUM_CSS,/\.card\.leadCard/);
  assert.equal(BLOG_PREMIUM_INFO.staticSafe,true);
 });
+test('UAE premium hero and category cards are genuinely English and market-specific',()=>{
+ const h=blogPremiumHero({title:'Noon UAE Shopping Guides',description:'Compare UAE deals and seller terms.',articles:5000,pages:334,page:3,market:'AE',latestPublishedAt:'2026-11-22T18:30:00Z'});
+ assert.match(h,/Noon UAE Shopping Guides/);
+ assert.match(h,/Latest article:/);
+ assert.match(h,/Published guides/);
+ assert.match(h,/Noon UAE coupon/);
+ assert.match(h,/Page 3 of 334/);
+ assert.match(h,/Browse articles by market/);
+ assert.match(h,/Independent coupon guide/);
+ assert.equal(blogCardCategory('TP-Link Smart cameras','uae-buyer-smart-camera','AE'),'Buying guides');
+ assert.equal(blogCardCategory('Samsung Galaxy phone','uae-buyer-phone','AE'),'Phones & mobile');
+ assert.equal(blogCardCategory('Camera night vision','uae-buyer-smart-camera','SA'),'أدلة الشراء');
+ assert.ok(h.indexOf('href="/uae/noon-coupon-code"')<h.indexOf('href="/saudi/noon-coupon-code"'),'UAE coupon must be primary');
+});
 test('article cards classify the actual topic without inventing sales or duplicate pages',()=>{
  assert.equal(blogCardCategory('جوال سامسونج S26 Ultra','saudi-buyer-samsung-galaxy'),'جوالات وهواتف');
  assert.equal(blogCardCategory('Perfumes Noon UAE','uae-buyer-perfume'),'العطور والجمال');
