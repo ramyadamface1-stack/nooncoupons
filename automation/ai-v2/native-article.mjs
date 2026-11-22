@@ -102,5 +102,5 @@ export function buildEnglishAiV2Article(topic,sections){
   additions+='</section>';
   html=html.replace('<section class="faq">',additions+'<section class="faq">');
  }
- return {topic:{...topic,code,kw:title,brandKey:brand.toLowerCase().replace(/[^a-z0-9]+/g,'-'),intent:'buying-guidance'},article:{slug,title,metaDescription:description,country:'AE',coupon:code,primaryKeyword:title,language:'en',blueprint:'ai-v2-original-english',faq,contextualLinks:[],html}};
+ return {topic:{...topic,code,kw:title,brandKey:brand.toLowerCase().replace(/[^a-z0-9]+/g,'-'),intent:'buying-guidance'},article:{slug,title,metaDescription:description,country:'AE',coupon:code,primaryKeyword:title,language:'en',blueprint:'ai-v2-original-english',faq,contextualLinks:['/en/uae','/en/uae/noon-coupon-code','/uae/golden-keywords','/uae/categories','/blog/uae'],html}};
 }
