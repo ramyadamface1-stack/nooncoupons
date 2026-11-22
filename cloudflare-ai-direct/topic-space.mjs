@@ -1,5 +1,5 @@
 // Lazily expand existing, already grounded N11 buyer questions into
-// six genuinely distinct ownership decision lenses per market.
+// six distinct practical buyer questions; avoid unsupported seller guarantees per market.
 // Generates one topic on demand; does not materialize thousands of objects
 // during a Free Workers Cron invocation (10 ms CPU budget).
 export const DIRECT_TOPIC_SPACE_VERSION='n11-scoped-v1';
@@ -9,7 +9,7 @@ export const DIRECT_TOPIC_SCOPES=Object.freeze([
  {id:'h3',en:'upkeep and replacement',ar:'الصيانة والاستبدال'},
  {id:'h4',en:'simple controls',ar:'سهولة التحكم'},
  {id:'h5',en:'existing accessories',ar:'التوافق مع الملحقات'},
- {id:'h6',en:'seller verification',ar:'التحقق من البائع'}
+ {id:'h6',en:'warranty and returns',ar:'الضمان والإرجاع'}
 ]);
 export function directTopicSpaceLength(topics){
  if(!Array.isArray(topics))throw Error('INVALID_DIRECT_TOPICS');
