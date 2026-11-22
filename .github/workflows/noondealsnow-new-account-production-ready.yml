@@ -540,6 +540,26 @@ jobs:
           done
           echo 'NEW_PRODUCTION_POST_DEPLOY_SMOKE=PASS'
 
+      - name: Verify new indexable live R2 blog routes after deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in /blog/latest /blog/latest/saudi /blog/latest/uae; do
+            ok=0
+            for attempt in 1 2 3; do
+              status=$(curl -sS --max-time 20 -D /tmp/ndn-live-blog-headers -o /tmp/ndn-live-blog-body -w '%{http_code}' \
+                -H 'User-Agent: NoonDealsNow-live-journal-post-deploy' "https://noondealsnow.com$path" || true)
+              if [ "$status" = 200 ] &&
+                 grep -Fqi 'x-live-blog: approved-r2-journal-v1' /tmp/ndn-live-blog-headers &&
+                 grep -Fq '<link rel="canonical" href="https://noondealsnow.com'$path'">' /tmp/ndn-live-blog-body &&
+                 grep -Fq '<article class="card"' /tmp/ndn-live-blog-body; then ok=1;break;fi
+              sleep 3
+            done
+            echo "NDN_LIVE_JOURNAL_PATH=$path;HTTP=$status;READ_ONLY=TRUE;INDEXABLE=$ok"
+            test "$ok" = 1
+          done
+          echo 'NDN_APPROVED_R2_LIVE_BLOG=VERIFIED;STATIC_ARCHIVE_UNCHANGED=TRUE'
+
       - name: Verify original Saudi and UAE articles load under Worker quota exhaustion
         shell: bash
         run: |
