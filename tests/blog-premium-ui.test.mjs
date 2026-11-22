@@ -15,6 +15,7 @@ test('professional blog presents two actual market coupons, a balanced hero and 
  assert.match(sample,/توقيت القاهرة/);
  assert.match(sample,/href="\/blog\/saudi" aria-current="page" class="active"/);
  assert.match(sample,/href="\/golden-keywords"/);
+ assert.match(sample,/href="\/blog\/latest\/saudi"/);
  assert.ok(!/تم التحقق|موثق|خصم مضمون/.test(sample));
  assert.match(BLOG_PREMIUM_CSS,/grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
  assert.match(BLOG_PREMIUM_CSS,/@media\(max-width:570px\)/);
@@ -29,6 +30,7 @@ test('UAE premium hero and category cards are genuinely English and market-speci
  assert.match(h,/Noon UAE coupon/);
  assert.match(h,/Page 3 of 334/);
  assert.match(h,/Browse articles by market/);
+ assert.match(h,/href="\/blog\/latest\/uae"/);
  assert.match(h,/Independent coupon guide/);
  assert.equal(blogCardCategory('TP-Link Smart cameras','uae-buyer-smart-camera','AE'),'Buying guides');
  assert.equal(blogCardCategory('Samsung Galaxy phone','uae-buyer-phone','AE'),'Phones & mobile');
