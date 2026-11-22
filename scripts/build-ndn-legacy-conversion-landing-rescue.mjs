@@ -17,7 +17,7 @@ const nav='<nav class="ndn-restored-legacy-nav" style="display:flex;gap:13px;fle
   '<a href="/">الرئيسية</a><a href="/saudi/noon-coupon-code">كوبونات السعودية NOV170</a>'+
   '<a href="/uae/noon-coupon-code">كوبونات الإمارات NOV188</a>'+
   '<a href="/saudi/categories">أقسام السعودية</a><a href="/uae/categories">أقسام الإمارات</a><a href="/blog">المدونة</a>'+
-  '<a href="/editorial-policy">السياسة التحريرية</a></nav>';
+  '<a href="/golden-keywords">الكلمات الذهبية</a><a href="/editorial-policy">السياسة التحريرية</a></nav>';
 const escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const stable=async(path,html,opts={})=>{
   if(!/^\/[a-z0-9-]+(?:\/[a-z0-9-]+){0,2}$/.test(path))throw Error('NDN_LEGACY_UNSAFE_URL_'+path);
@@ -61,7 +61,16 @@ await stable(oldCoupon,legacyCoupon);
 const brand=brandDirectoryResponse(new Request(origin+'/brands'));
 if(!brand||brand.status!==200)throw Error('NDN_LEGACY_BRANDS_SOURCE_UNAVAILABLE');
 await stable('/brands',await brand.text());
-await stable('/golden-keywords',goldenKeywordsHub(origin));
+// Keep the new indexable buyer-keyword hub. Never let emergency recovery
+// overwrite it with the retired internal noindex search-intent map.
+let publicGolden=null;
+try{publicGolden=await readFile(resolve(root,'golden-keywords.html'),'utf8')}catch{}
+if(publicGolden?.includes('name="ndn-public-golden-keywords"')){
+ if(!publicGolden.includes('<meta name="robots" content="index,follow,max-image-preview:large">')||
+    !publicGolden.includes('NOV170')||!publicGolden.includes('NOV188'))
+  throw Error('NDN_PUBLIC_GOLDEN_KEYWORD_STATIC_INVALID');
+ await stable('/golden-keywords',publicGolden);
+}else await stable('/golden-keywords',goldenKeywordsHub(origin));
 for(const path of ['/coupon/noon-discount-50','/guide/noon-yellow-friday','/guide/noon-refund-credit']){
  const response=keywordLanding(path,origin);
  if(!response||response.status!==200)throw Error('NDN_LEGACY_KEYWORD_SOURCE_MISSING_'+path);
