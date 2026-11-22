@@ -90,6 +90,10 @@ on:
       - 'tests/remote-existing-r2-binding.test.mjs'
       - 'tests/complete-blog-listing.test.mjs'
       - 'r2-public-cache-policy.js'
+      - 'live-blog-window.js'
+      - 'blog-premium-ui.js'
+      - 'tests/ndn-live-blog-window.test.mjs'
+      - 'tests/blog-premium-ui.test.mjs'
       - 'premium-entry.js'
       - 'r2-remote-existing-bucket.js'
       - 'complete-blog-listing.js'
@@ -349,6 +353,8 @@ jobs:
 
       - name: Check native gate and authenticated secret manager regressions
         run: node --test tests/native-bound-ai-v2-fast.test.mjs tests/ai-v2-global-capacity.test.mjs tests/ai-v2-publishing-cadence.test.mjs tests/ai-v2-native-publish-bridge.test.mjs tests/ai-v2-publication-ledger.test.mjs tests/ai-v2-native-arabic-article.test.mjs tests/ai-v2-github-secrets.test.mjs tests/ai-v2-runtime-telemetry.test.mjs tests/ai-v2-admin-console.test.mjs tests/admin-login-credentials.test.mjs tests/system1-admin.test.mjs tests/system1-keyword-index.test.mjs tests/system1-visuals.test.mjs
+      - name: Verify live R2 journal discovery is safe, bounded and market-specific
+        run: node --test tests/ndn-live-blog-window.test.mjs tests/blog-premium-ui.test.mjs
       - name: Prevent incorrect AI-readable NOV coupon market mappings
         run: node --test tests/nov-llms-canonical-source.test.mjs
 
