@@ -12,6 +12,11 @@ test('English native article has valid schema, canonical market, coupon, FAQ and
  assert.match(result.article.html,/<article lang="en" dir="ltr"/);
  assert.equal((result.article.html.match(/<details>/g)||[]).length,4);
  assert.equal(result.article.faq.length,4);
+ assert.ok(result.article.html.includes('href="/en/uae/noon-coupon-code"'));
+ assert.ok(result.article.html.includes('href="/uae/golden-keywords"'));
+ assert.ok(result.article.html.includes('href="/uae/categories"'));
+ assert.equal(result.article.contextualLinks.length,5);
+ assert.ok(!result.article.contextualLinks.includes('/categories'));
  const candidate={...result,checkpoint:{state:'PREPARED_FOR_NATIVE_AUDIT',articleId:'a'.repeat(24)}};
  assert.equal(validateAiV2NativePayload(candidate).ok,true);
 });

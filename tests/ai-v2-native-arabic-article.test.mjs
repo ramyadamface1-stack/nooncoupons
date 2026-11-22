@@ -16,6 +16,11 @@ test('Saudi article renderer has market-lock, 4 images, 5 nav links, verified so
  assert.ok(n.article.metaDescription.includes('NOV170'));
  assert.ok(n.article.metaDescription.length<=160);
  assert.equal(n.article.country,'SA');
+ assert.ok(n.article.html.includes('href="/saudi/golden-keywords"'));
+ assert.ok(n.article.html.includes('href="/saudi/categories"'));
+ assert.ok(n.article.html.includes('href="/saudi/noon-coupon-code"'));
+ assert.ok(!n.article.html.includes('href="/categories"'));
+ assert.equal(n.article.contextualLinks.length,5);
  assert.equal(validateAiV2NativePayload({...n,checkpoint:{state:'PREPARED_FOR_NATIVE_AUDIT',articleId:'a'.repeat(24)}}).ok,true);
  assert.ok((n.article.html.match(/<img\b/g)||[]).length>=4);
  assert.ok((n.article.html.match(/<details>/g)||[]).length>=4);

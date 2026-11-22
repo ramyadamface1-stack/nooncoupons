@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {batchArticlePrompt,parseArticleBatch} from '../automation/ai-v2/article-batch.mjs';
+import {batchArticlePrompt,parseArticleBatch,editorialSellerClaimReason} from '../automation/ai-v2/article-batch.mjs';
 const topic={country:'AE',brand:'Anker',category:'USB hubs',coupon:'NOV188',
  topic:'Noon UAE Anker hub ports comparison',sections:['USB ports','Monitor output','Power','Warranty','Cart eligibility']};
 const section=i=>'<h2>'+topic.sections[i]+'</h2>'+Array.from({length:3},()=>'<p>'+('Verify model compatibility, seller terms and final checkout conditions before purchasing this exact product. '.repeat(7))+'</p>').join('');
@@ -39,4 +39,21 @@ test('batch prompt expressly forbids unverifiable fixed discount and guarantee c
  assert.match(prompt,/DIFFERENT concrete buyer decision/);
  assert.match(prompt,/without inventing the values/);
  assert.ok(prompt.includes(topic.coupon));
+});
+
+test('unsupported seller authenticity claims cannot enter new articles, while accurate disclaimers remain allowed',()=>{
+ const en='Seller verification ensures a genuine, factory-standard product for every order.';
+ const ar='التحقق من البائع يضمن الحصول على منتج أصلي مطابق للمواصفات.';
+ assert.equal(editorialSellerClaimReason(en),'BATCH_UNVERIFIED_SELLER_GUARANTEE');
+ assert.equal(editorialSellerClaimReason(ar),'BATCH_UNVERIFIED_SELLER_GUARANTEE');
+ assert.equal(editorialSellerClaimReason('Seller verification does not guarantee authenticity.'),null);
+ assert.equal(editorialSellerClaimReason('التحقق من البائع لا يضمن الحصول على منتج أصلي.'),null);
+ assert.equal(editorialSellerClaimReason('Check seller documentation and model details at checkout.'),null);
+ const bad=Array.from({length:5},(_,i)=>section(i)).join('\n')+'<p>'+en+'</p>';
+ assert.equal(parseArticleBatch(bad).reason,'BATCH_UNVERIFIED_SELLER_GUARANTEE');
+ const repetitive=Array.from({length:5},(_,i)=>section(i)).join('\n')+'<p>'+('seller verification. '.repeat(11))+'</p>';
+ assert.equal(parseArticleBatch(repetitive).reason,'BATCH_SELLER_TEMPLATE_REPETITION');
+ const prompt=batchArticlePrompt(topic);
+ assert.match(prompt,/automatically guarantees/);
+ assert.match(prompt,/hands-on testing/);
 });
