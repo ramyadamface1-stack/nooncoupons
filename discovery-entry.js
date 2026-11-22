@@ -12,6 +12,7 @@ import {bulkTick,getGeneratorStatus,updateGeneratorStatus} from './admin-runtime
 import {runCouponR2MigrationBatch,readCouponR2MigrationState,runCouponR2AuditBatch,readCouponR2AuditState} from './coupon-r2-migration.js';
 import {replaceUnapprovedCouponTokens,APPROVED_COUPON_CODES} from './approved-coupons.js';
 import {readRecentPublicManifest} from './r2-public-manifest.js';
+import {liveBlogResponse} from './live-blog-window.js';
 import {publicEdgeCacheEligible,publicEdgeTtlSeconds,publicEdgePolicyRevision} from './r2-public-cache-policy.js';
 import {runArticleCorpusAuditBatch,readArticleCorpusAuditState,runArticleCollisionOwnerBatch,readArticleCollisionOwnerState,readArticleDiscoveryState} from './article-corpus-audit.js';
 export {ControlPlane,GeneratorControl} from './brand-runtime.js';
@@ -660,6 +661,13 @@ const discoveryEntrypoint={
     // Check canonical public Cloudflare Cache API BEFORE cross-account R2 GET.
     // Without this, every article visit and bot crawl incurs new-account R2 Class B reads.
     const edgeHit=await edgePageCacheGet(req,u);if(edgeHit)return edgeHit;
+    // Static /blog and every deep archive page stay quota-independent.
+    // The dedicated /blog/latest routes read exactly one approved R2 journal.
+    // On missing/unavailable journal return a truthful 503; never invent posts.
+    if(req.method==='GET'&&u.pathname.startsWith('/blog/latest')){
+      const recent=await liveBlogResponse(req,env);
+      if(recent)return edgePageCachePut(req,u,recent,ctx);
+    }
     // Always expose one truthful, tiny, market-specific coupon reference guide.
     // Some older static/edge llms.txt responses omitted NOV170 and NOV188;
     // this avoids a second, conflicting source for crawlers.
