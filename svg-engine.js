@@ -87,7 +87,7 @@ export function couponSvg({coupon='NOV170',country='SA',variant=1,brand='noon',t
   '<text x="562" y="411" text-anchor="middle" font-size="'+headlineSize+'" font-weight="950" fill="#ffffff"'+
   (sa?' direction="rtl" unicode-bidi="plaintext"':'')+'>'+headline+'</text>'+
   '<text x="563" y="465" text-anchor="middle" font-size="26" font-weight="700" fill="#d9e2ec">'+
-  (sa?'NOON DISCOUNT COUPON':'Noon UAE Shopping & Coupon Guide')+'</text>'+
+  (sa?'NOON DISCOUNT COUPON':'Noon UAE Shopping &amp; Coupon Guide')+'</text>'+
   '<rect x="177" y="512" width="771" height="220" rx="33" fill="#feee00"/>'+
   '<rect x="188" y="522" width="749" height="200" rx="27" fill="none" stroke="'+tones.dark+'" stroke-width="4" stroke-dasharray="14 13"/>'+
   '<circle cx="177" cy="622" r="26" fill="'+tones.dark+'"/><circle cx="948" cy="622" r="26" fill="'+tones.dark+'"/>'+
