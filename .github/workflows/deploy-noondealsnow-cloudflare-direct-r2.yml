@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - 'cloudflare-ai-direct/**'
+      - 'automation/ai-v2/article-batch.mjs'
+      - 'automation/ai-v2/native-article.mjs'
+      - 'automation/ai-v2/native-arabic-article.mjs'
       - '.github/workflows/deploy-noondealsnow-cloudflare-direct-r2.yml'
   workflow_dispatch:
 permissions:
