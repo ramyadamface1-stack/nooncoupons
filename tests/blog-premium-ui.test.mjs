@@ -38,6 +38,7 @@ test('all five premium cover variants show a giant code and correct Arabic/Engli
   assert.ok(svg.includes(code));
   assert.match(svg,market==='SA'?/كوبون خصم نون/:/NOON DISCOUNT COUPON/);
   assert.doesNotMatch(svg,/discount up to|verified savings|10% off/i);
+  assert.doesNotMatch(svg,/&(?!amp;|lt;|gt;|quot;|apos;|#(?:\d+|x[0-9a-f]+);)/i,'invalid SVG XML entity in '+market+' variant '+i);
  }
  assert.match(featuredSvg({country:'SA',coupon:'NOV170'}),/كوبون خصم نون/);
 });
