@@ -592,7 +592,11 @@ function edgePageCachePut(req,u,res,ctx){
   if(!edgePageCacheEligible(req,u)||!res?.ok)return res;
   const type=(res.headers.get('content-type')||'').toLowerCase(),cc=(res.headers.get('cache-control')||'').toLowerCase();
   if(!(type.includes('text/html')||type.includes('application/xml')||type.includes('text/xml'))||res.headers.has('set-cookie')||cc.includes('private')||cc.includes('no-store'))return res;
-  const h=new Headers(res.headers);h.delete('content-length');h.set('cache-control','public, max-age=30, s-maxage='+publicEdgeTtlSeconds(u.pathname)+', stale-while-revalidate=600');h.set('x-edge-page-cache','MISS');h.set('x-edge-policy',publicEdgePolicyRevision(u.pathname,EDGE_CACHE_POLICY_REVISION));
+  const h=new Headers(res.headers);h.delete('content-length');
+  // Live discovery must never serve a ten-minute-old stale R2 journal.
+  const liveJournal=u.pathname.startsWith('/blog/latest');
+  h.set('cache-control','public, max-age='+(liveJournal?0:30)+', s-maxage='+publicEdgeTtlSeconds(u.pathname)+', stale-while-revalidate='+(liveJournal?0:600));
+  h.set('x-edge-page-cache','MISS');h.set('x-edge-policy',publicEdgePolicyRevision(u.pathname,EDGE_CACHE_POLICY_REVISION));
   const out=new Response(res.body,{status:res.status,statusText:res.statusText,headers:h});
   ctx?.waitUntil?.(caches.default.put(edgePageCacheKey(u),out.clone()));
   return out;
