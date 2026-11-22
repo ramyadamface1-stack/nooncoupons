@@ -33,11 +33,23 @@ export function directTopicAt(topics,index){
  const code=original.country==='AE'?'NOV188':'NOV170';
  const lang=original.country==='AE'?'en':'ar';
  const suffix=lang==='en'?' | Noon UAE NOV188':' | نون السعودية NOV170';
- const label=lang==='en'?' ('+scope.en+')':' ('+scope.ar+')';
- const titleHead=String(original.topic||'').split(' | ')[0];
- const maxHead=72-suffix.length-label.length;
- const head=trimTitle(titleHead,maxHead);
- const title=head+label+suffix;
+ // Preserve the buyer's actual product question in every expanded H1.
+ // Repeating only a broad scope label across dozens of models causes near-
+ // identical titles, even though the stored slug and article focus differ.
+ // The short scope marker still distinguishes six future buying decisions.
+ const scopeShort=lang==='en'
+  ?{h1:'daily',h2:'setup',h3:'care',h4:'controls',h5:'fit',h6:'returns'}[scope.id]
+  :{h1:'يومي',h2:'إعداد',h3:'صيانة',h4:'تحكم',h5:'ملحقات',h6:'ضمان'}[scope.id];
+ const marker=' · '+scopeShort;
+ const maxHead=72-suffix.length-marker.length;
+ const focus=String(original.queryModifier||'').trim();
+ const brand=String(original.brand||'').trim(),category=String(original.category||'').trim();
+ const leads=[brand+' '+category+': ',brand+': ',category+': '];
+ const lead=leads.find(x=>x.length<=maxHead-12)||'';
+ const specific=trimTitle(focus,maxHead-lead.length);
+ const fallback=trimTitle(String(original.topic||'').split(' | ')[0],maxHead);
+ const head=specific.length>=8?lead+specific:fallback;
+ const title=head+marker+suffix;
  const slug=String(original.slug||'').replace(/-(nov170|nov188)-2026-n11$/,
   '-'+scope.id+'-$1-2026-n11');
  if(!head||title.length<28||title.length>72||slug===original.slug||slug.length>120)
