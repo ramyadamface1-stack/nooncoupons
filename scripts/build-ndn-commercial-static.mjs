@@ -446,7 +446,7 @@ const files=(await readdir(root,{recursive:true})).filter(x=>/^(?:blog[\/]|blog\
 let updated=0;
 for(const name of files){
  const file=resolve(root,name),html=await readFile(file,'utf8');
- if(html.includes('Quick shopping navigation')||html.includes('class="ndn-commercial-shortcuts"'))continue;
+ if(name==='blog.html'||name.startsWith('blog/')||html.includes('data-blog-premium="v1"')||html.includes('Quick shopping navigation')||html.includes('class="ndn-commercial-shortcuts"'))continue;
  if(!html.includes('</header>'))continue;
  await writeFile(file,html.replace('</header>','</header>'+NAV),'utf8');updated++;
 }
