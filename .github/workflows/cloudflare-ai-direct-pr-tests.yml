@@ -3,6 +3,12 @@ on:
   pull_request:
     paths:
       - 'cloudflare-ai-direct/**'
+      - 'automation/ai-v2/article-batch.mjs'
+      - 'automation/ai-v2/native-article.mjs'
+      - 'automation/ai-v2/native-arabic-article.mjs'
+      - 'tests/ai-v2-article-batch.test.mjs'
+      - 'tests/ai-v2-native-article.test.mjs'
+      - 'tests/ai-v2-native-arabic-article.test.mjs'
       - 'tests/cloudflare-ai-direct-canary.test.mjs'
       - 'tests/cloudflare-ai-direct-production-guard.test.mjs'
       - 'tests/cloudflare-ai-direct-single-flight.test.mjs'
