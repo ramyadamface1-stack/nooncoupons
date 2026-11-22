@@ -73,7 +73,7 @@ export async function liveBlogResponse(req,env,{now=Date.now()}={}){
   const local=a.country==='AE',label=english?(local?'Noon UAE':'Noon Saudi Arabia'):(local?'نون الإمارات':'نون السعودية');
   const at=displayDate(a.publishedAt,english),alt=a.title+' — '+label+' '+a.code;
   return '<article class="card" lang="'+(local?'en-AE':'ar-SA')+'" dir="'+(local?'ltr':'rtl')+'">'+
-   '<a href="'+a.href+'" class="cover"><img src="'+esc(a.image).replace(/&/g,'&amp;')+
+   '<a href="'+a.href+'" class="cover"><img src="'+esc(a.image)+
    '" width="1600" height="1000" alt="'+esc(alt)+'" loading="'+(i===0?'eager':'lazy')+'" decoding="async"></a>'+
    '<div class="copy"><small>'+esc(label)+' · <time datetime="'+a.publishedAt+'">'+esc(at)+'</time></small>'+
    '<h2><a href="'+a.href+'">'+esc(a.title)+'</a></h2>'+
