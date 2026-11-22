@@ -74,6 +74,7 @@ let pageFiles=0;
 const routing=(base,n)=>n===1?base:base+'/page/'+n;
 const pathMap={};
 for(const [base,items] of allSeries){
+  const isUaePage=base==='/blog/uae';
   const pages=Math.ceil(items.length/PER_PAGE);
   if(pages<1)throw Error('NDN_EMPTY_MARKET_'+base);
   pathMap[base]=pages;
@@ -89,24 +90,24 @@ for(const [base,items] of allSeries){
     const url=origin+routing(base,n);
     const before=n>1?routing(base,n-1):'';
     const after=n<pages?routing(base,n+1):'';
-    const pageTitle=base==='/blog'?'مدونة كوبونات نون':base.endsWith('saudi')?'مدونة نون السعودية':'مدونة نون الإمارات';
-    const title=n===1?pageTitle+' | أحدث المقالات المنشورة':pageTitle+' | صفحة '+n;
-    const desc='دليل المقالات المنشورة عن كوبونات نون وطرق التوفير: '+items.length+
-      ' مقالًا موزعة على '+pages+' صفحة، 15 مقالًا في كل صفحة.';
+    const pageTitle=isUaePage?'Noon UAE Shopping Guides':base==='/blog'?'مدونة كوبونات نون':'مدونة نون السعودية';
+    const title=n===1?pageTitle+(isUaePage?' | Latest buyer guides':' | أحدث المقالات المنشورة'):pageTitle+(isUaePage?' | Page ':' | صفحة ')+n;
+    const desc=isUaePage?'Independent Noon UAE buying guides and NOV188 coupon advice: '+items.length+' published guides across '+pages+' pages, 15 guides per page.':
+      'دليل المقالات المنشورة عن كوبونات نون وطرق التوفير: '+items.length+' مقالًا موزعة على '+pages+' صفحة، 15 مقالًا في كل صفحة.';
     const cards=current.map((a,i)=>{
-      const market=a.country==='SA'?'السعودية':'الإمارات';
+      const market=isUaePage?'UAE':a.country==='SA'?'السعودية':'الإمارات';
       const at=a.publishedAt||a.createdAt||a.updatedAt||'';
-      const published=at&&Number.isFinite(Date.parse(at))?new Intl.DateTimeFormat('ar-EG',{
+      const published=at&&Number.isFinite(Date.parse(at))?new Intl.DateTimeFormat(isUaePage?'en-GB':'ar-EG',{
         day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',timeZone:'Africa/Cairo'}).format(new Date(at)):'';
       const src='/assets/coupon-svg/'+encodeURIComponent(a.slug)+'/1.svg';
       const anchor='/articles/'+encodeURIComponent(a.slug);
       return '<article class="card'+(n===1&&i===0?' leadCard':'')+'">'+
-        '<a class="thumb" href="'+anchor+'"><img src="'+src+'" alt="'+esc(a.title)+' - نون '+market+
+        '<a class="thumb" href="'+anchor+'"><img src="'+src+'" alt="'+esc(a.title)+' - '+(isUaePage?'Noon ':'نون ')+market+
         '" width="1600" height="1000" loading="'+(i<3?'eager':'lazy')+'" decoding="async"></a>'+
-        '<div class="cardBody"><div class="cardMeta"><span class="tag">'+market+'</span><span class="cardTopic">'+esc(blogCardCategory(a.title,a.slug))+'</span><time datetime="'+esc(at)+'">نُشر '+esc(published)+' بتوقيت القاهرة</time></div>'+
+        '<div class="cardBody"><div class="cardMeta"><span class="tag">'+market+'</span><span class="cardTopic">'+esc(blogCardCategory(a.title,a.slug,isUaePage?'AE':'SA'))+'</span><time datetime="'+esc(at)+'">'+(isUaePage?'Published ':'نُشر ')+esc(published)+(isUaePage?' (Cairo time)':' بتوقيت القاهرة')+'</time></div>'+ 
         '<h2><a href="'+anchor+'">'+esc(a.title)+'</a></h2><p>'+esc(a.description.slice(0,180))+'</p>'+
-        '<div class="cardFoot"><a class="cardAuthor" href="/authors/editorial-team">فريق تحرير كوبونات نون</a>'+
-        '<a class="read" href="'+anchor+'">اقرأ الدليل ←</a></div></div></article>';
+        '<div class="cardFoot"><a class="cardAuthor" href="/authors/editorial-team">'+(isUaePage?'Noon Deals Now Editorial':'فريق تحرير كوبونات نون')+'</a>'+ 
+        '<a class="read" href="'+anchor+'">'+(isUaePage?'Read guide →':'اقرأ الدليل ←')+'</a></div></div></article>';
     }).join('');
     const visible=new Set(current.map(a=>a.slug));
     if(visible.size!==current.length)throw Error('NDN_DUPLICATE_ARTICLE_ON_PAGE_'+base+'_'+n);
@@ -115,13 +116,13 @@ for(const [base,items] of allSeries){
     }).filter(x=>x<=pages);
     const itemLinks=pagination.map(i=>'<a'+(i===n?' class="current" aria-current="page"':'')+
       ' href="'+routing(base,i)+'">'+i+'</a>').join('');
-    const nav='<nav class="pagination" aria-label="صفحات المدونة">'+
-      (before?'<a rel="prev" href="'+before+'">السابق</a>':'')+
+    const nav='<nav class="pagination" aria-label="'+(isUaePage?'Blog pages':'صفحات المدونة')+'">'+ 
+      (before?'<a rel="prev" href="'+before+'">'+(isUaePage?'Previous':'السابق')+'</a>':'')+
       (n>4?'<a href="'+base+'">1</a>':'')+itemLinks+
       (n<pages-3?'<a href="'+routing(base,pages)+'">'+pages+'</a>':'')+
-      (after?'<a rel="next" href="'+after+'">التالي</a>':'')+'</nav>';
+      (after?'<a rel="next" href="'+after+'">'+(isUaePage?'Next':'التالي')+'</a>':'')+'</nav>';
     const mainSchema={'@context':'https://schema.org','@graph':[
-      {'@type':'CollectionPage','@id':url+'#page',name:title,url,inLanguage:'ar',
+      {'@type':'CollectionPage','@id':url+'#page',name:title,url,inLanguage:isUaePage?'en-AE':'ar-SA',
        mainEntity:{'@id':url+'#list'}},
       {'@type':'ItemList','@id':url+'#list',numberOfItems:current.length,
        itemListElement:current.map((a,i)=>({'@type':'ListItem',
@@ -132,7 +133,7 @@ for(const [base,items] of allSeries){
     const marketLinks='<a href="/blog">الكل</a><a href="/blog/saudi">مقالات السعودية</a>'+
       '<a href="/blog/uae">مقالات الإمارات</a><a href="/blog/archive/all">الأرشيف القديم</a>';
     const label=base==='/blog'?'كل المقالات':base==='/blog/saudi'?'السعودية':'الإمارات';
-    const html='<!doctype html><html lang="ar" dir="rtl"><head>'+
+    const html='<!doctype html><html lang="'+(isUaePage?'en-AE':'ar-SA')+'" dir="'+(isUaePage?'ltr':'rtl')+'"><head>'+ 
       '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
       '<title>'+esc(title)+'</title><meta name="description" content="'+esc(desc)+'">'+
       '<meta name="robots" content="index,follow,max-image-preview:large">'+
