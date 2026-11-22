@@ -126,7 +126,7 @@ export function blogMarketOffers(market){
 // as the article page; otherwise use the existing market-safe default.
 function blogImageSrc(slug,country,coupon){
  const market=country==='AE'?'AE':'SA',code=normalizeMarketCoupon(coupon,market);
- return '/assets/coupon-svg/'+encodeURIComponent(slug)+'/1.svg?v=11&coupon='+encodeURIComponent(code)+'&country='+market;
+ return '/assets/coupon-svg/'+encodeURIComponent(slug)+'/1.svg?v=12&coupon='+encodeURIComponent(code)+'&country='+market;
 }
 function newLink(path,after){return path+'?after='+encodeURIComponent(after)}
 async function readJson(env,key){
