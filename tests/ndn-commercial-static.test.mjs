@@ -11,7 +11,7 @@ test('no missing market root, category, or buying-intent pages under quota exhau
  assert.equal(PUBLIC_CATEGORIES.length,42);
  assert.equal(report.categoryPages,84);
  assert.equal(report.keywordGuides,10);
- assert.equal(report.generatedPages,108);
+ assert.equal(report.generatedPages,110);
  for(const m of ['saudi','uae']){
    const coupon=m==='saudi'?'NOV170':'NOV188';
    for(const p of ['/'+m+'/categories','/'+m+'/noon-coupon-code','/'+m+'/shopping-guide']){
@@ -76,17 +76,60 @@ test('golden keyword hub is public, static, country-safe and routes every intent
   assert.ok(country.includes('data-code="'+code+'"'));
   assert.ok(!country.includes('data-code="'+other+'"'));
   assert.ok(country.includes('id="ndn-static-ga4"'));
-  assert.ok(country.includes('/'+market+'/brand/apple'));
-  assert.ok(country.includes('/'+market+'/brand/samsung'));
+  assert.ok(country.includes('/'+market+'/buying-guide/'+(market==='saudi'?'samsung-s26-ultra':'mini-led-tv')));
+  assert.ok(country.includes('/'+market+'/categories')||country.includes('/'+market+'/buying-guide/first-order'));
   const guide=market==='saudi'?'mobile-phones':'beauty';
   assert.ok(country.includes('/'+market+'/buying-guide/'+guide));
   assert.ok(existsSync(base+'/'+market+'/buying-guide/'+guide+'.html'));
-  assert.ok(existsSync(base+'/'+market+'/brand/apple.html'));
-  assert.ok(existsSync(base+'/'+market+'/brand/samsung.html'));
+  assert.ok(existsSync(base+'/'+market+'/buying-guide/'+(market==='saudi'?'samsung-s26-ultra':'mini-led-tv')+'.html'));
+  assert.ok(country.includes('لا تتوفر')||country.includes('have not yet been measured'));
   assert.ok(index.includes('href="'+path+'"'));
  }
  const home=readFileSync(base+'/index.html','utf8');
  assert.ok(home.includes('href="/golden-keywords"'));
  assert.ok(home.includes('صفحة الكلمات المفتاحية الذهبية'));
  for(const p of ['/blog','/blog/saudi','/blog/uae'])assert.ok(page(p).includes('href="/golden-keywords"'),p);
+});
+
+test('golden keyword page has actual observed query evidence and no cloned brand coupon index',()=>{
+ const report=JSON.parse(readFileSync('.ndn-blog-staging/golden-keyword-evidence-report.json','utf8'));
+ assert.equal(report.version,2);
+ assert.equal(report.monthlySearchVolumeMeasured,false);
+ assert.equal(report.organicKeywordDifficultyMeasured,false);
+ assert.equal(report.sa.length,9);
+ assert.equal(report.ae.length,6);
+ for(const group of [report.sa,report.ae]){
+  assert.equal(new Set(group.map(x=>x.target)).size,group.length,'duplicate page targets');
+  for(const row of group){
+   assert.ok(row.query.length>15);
+   assert.ok(row.target.startsWith('/'));
+   assert.ok(existsSync(base+row.target+'.html')||row.target.startsWith('/articles/'),row.target);
+  }
+ }
+ const observed=report.sa.filter(x=>x.gscEvidence);
+ assert.equal(observed.length,5);
+ assert.ok(observed.some(x=>x.observedKeyword==='noon s26 ultra'&&x.gscEvidence.impressions===2));
+ const index=page('/golden-keywords');
+ assert.ok(index.includes('س26')||index.includes('S26 Ultra'));
+ assert.ok(index.includes('الجمعة الصفراء نون'));
+ assert.ok(index.includes('Noon UAE Mini LED TV'));
+ assert.ok(!index.includes('كود نون السعودية Huawei NOV170'));
+ assert.ok(!index.includes('/saudi/brand/honor'));
+ assert.ok(index.includes('غير متاح')||index.includes('لا تتوفر'));
+});
+test('each newly discovered keyword has a non-template, detailed and crawlable article with its own artwork',()=>{
+ for(const [market,slug,coupon] of [['saudi','samsung-s26-ultra','NOV170'],['uae','mini-led-tv','NOV188']]){
+  const route='/'+market+'/buying-guide/'+slug,html=page(route);
+  assert.ok(html.includes('href="https://noondealsnow.com'+route+'"'));
+  assert.ok(html.includes('index,follow,max-image-preview:large'));
+  assert.ok(html.includes('data-code="'+coupon+'"'));
+  assert.ok(html.includes('"@type":"Article"'));
+  assert.ok(html.includes('"@type":"FAQPage"'));
+  assert.ok((html.match(/<h2>/g)||[]).length>=7);
+  assert.ok(html.includes('https://www.noon.com/'));
+  const svg=base+'/assets/coupon-svg/seo-'+market+'-'+slug+'/1.svg';
+  assert.ok(existsSync(svg));
+  assert.ok(readFileSync(svg,'utf8').includes(coupon));
+  assert.ok(!html.includes('data-code="'+(coupon==='NOV170'?'NOV188':'NOV170')+'"'));
+ }
 });
