@@ -18,7 +18,8 @@ const routes=[
  ...['saudi','uae'].flatMap(m=>[
   '/'+m+'/categories',(m==='saudi'?'/saudi-arabia/noon-coupon-code':'/uae/noon-coupon-code'),'/'+m+'/shopping-guide',
   ...allBrandSlugs.map(slug=>'/'+m+'/brand/'+slug),
-  ...slugRoutes[m].map(slug=>'/'+m+'/buying-guide/'+slug)
+  ...slugRoutes[m].map(slug=>'/'+m+'/buying-guide/'+slug),
+  '/'+m+'/buying-guide/'+(m==='saudi'?'samsung-s26-ultra':'mini-led-tv')
  ])
 ];
 if(new Set(routes).size!==routes.length)throw Error('COMMERCIAL_SITEMAP_DUPLICATE_ROUTES');
