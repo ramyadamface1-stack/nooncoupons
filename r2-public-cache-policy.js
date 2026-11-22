@@ -1,6 +1,6 @@
 // Public-only cache guard: a verified canonical route and strictly harmless tracking state.
 // Auth/admin/API requests and content-changing query parameters always bypass this cache.
-const STATIC_PUBLIC=new Set(['/','/coupons','/blog','/blog/saudi','/blog/uae','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide','/en/coupons','/en/uae/saving-guide','/en/saudi','/en/uae']);
+const STATIC_PUBLIC=new Set(['/','/coupons','/blog','/blog/saudi','/blog/uae','/blog/latest','/blog/latest/saudi','/blog/latest/uae','/saudi','/uae','/saudi/categories','/uae/categories','/saudi/shopping-guide','/uae/shopping-guide','/en/coupons','/en/uae/saving-guide','/en/saudi','/en/uae']);
 const ANALYTICS_COOKIE=/^(?:_ga(?:_[A-Za-z0-9]+)?|_gid|_gat(?:_[A-Za-z0-9]+)?|_gcl_au|_fbp|_fbc|__utm[a-z]+)$/;
 const TRACKING_QUERY=/^(?:utm_[a-z0-9_]+|gclid|fbclid|msclkid|igshid)$/i;
 export function publicRouteKind(path){
@@ -73,6 +73,7 @@ export function publicEdgeTtlSeconds(path){
   // The live recent/new article sitemaps keep their short refresh intervals.
   if(/^\/sitemap-rescue-(?:articles|images|english|english-images)-\d{1,4}\.xml$/.test(path))return 86400;
   if((path.replace(/\/+$/,'')||'/')==='/sitemap-live-recent.xml')return 60;
+  if(['/blog/latest','/blog/latest/saudi','/blog/latest/uae'].includes(path.replace(/\/+$/,'')||'/'))return 45;
   if(['/blog','/blog/saudi','/blog/uae'].includes(path.replace(/\/+$/,'')||'/'))return 30;
   const kind=publicRouteKind(path);
   return kind==='article'?600:kind==='xml'?900:300;
