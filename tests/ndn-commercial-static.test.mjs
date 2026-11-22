@@ -3,15 +3,15 @@ import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import {PUBLIC_CATEGORIES} from '../index.js';
 const base='.ndn-static-assets';
-const slugs=['first-order','mobile-phones','home-appliances','electronics','perfumes-beauty','baby'];
-const ae=['first-order','electronics','beauty','home-appliances'];
+const slugs=['first-order','existing-customers','mobile-phones','home-appliances','electronics','perfumes-beauty','baby'];
+const ae=['first-order','existing-customers','electronics','beauty','home-appliances'];
 const report=JSON.parse(readFileSync('.ndn-blog-staging/market-seo-report.json','utf8'));
 const page=path=>readFileSync(base+path+'.html','utf8');
 test('no missing market root, category, or buying-intent pages under quota exhaustion',()=>{
  assert.equal(PUBLIC_CATEGORIES.length,42);
  assert.equal(report.categoryPages,84);
- assert.equal(report.keywordGuides,10);
- assert.equal(report.generatedPages,110);
+ assert.equal(report.keywordGuides,12);
+ assert.equal(report.generatedPages,112);
  for(const m of ['saudi','uae']){
    const coupon=m==='saudi'?'NOV170':'NOV188';
    for(const p of ['/'+m+'/categories','/'+m+'/noon-coupon-code','/'+m+'/shopping-guide']){
@@ -101,8 +101,8 @@ test('golden keyword page has actual observed query evidence and no cloned brand
  assert.equal(report.version,2);
  assert.equal(report.monthlySearchVolumeMeasured,false);
  assert.equal(report.organicKeywordDifficultyMeasured,false);
- assert.equal(report.sa.length,9);
- assert.equal(report.ae.length,6);
+ assert.equal(report.sa.length,10);
+ assert.equal(report.ae.length,7);
  for(const group of [report.sa,report.ae]){
   assert.equal(new Set(group.map(x=>x.target)).size,group.length,'duplicate page targets');
   for(const row of group){
@@ -137,4 +137,37 @@ test('each newly discovered keyword has a non-template, detailed and crawlable a
   assert.ok(readFileSync(svg,'utf8').includes(coupon));
   assert.ok(!html.includes('data-code="'+(coupon==='NOV170'?'NOV188':'NOV170')+'"'));
  }
+});
+
+
+test('returning customer intent pages answer actual checkout questions without false guarantees or market mixing',()=>{
+ for(const [market,coupon,other,language] of [
+  ['saudi','NOV170','NOV188','<html lang="ar-SA" dir="rtl">'],
+  ['uae','NOV188','NOV170','<html lang="en-AE" dir="ltr">']
+ ]){
+  const url='/'+market+'/buying-guide/existing-customers',html=page(url);
+  assert.ok(html.includes(language),market);
+  assert.ok(html.includes('<link rel="canonical" href="https://noondealsnow.com'+url+'">'),market);
+  assert.ok(html.includes('<meta name="robots" content="index,follow,max-image-preview:large">'),market);
+  assert.ok(html.includes('data-code="'+coupon+'"')&&html.includes('data-shop-click="'+coupon+'"'),market);
+  assert.ok(!html.includes('data-code="'+other+'"'),market);
+  assert.ok(html.includes('"@type":"FAQPage"')&&html.includes('"@type":"Article"'),market);
+  assert.ok(html.includes('/guide/coupon-not-working'),market);
+  assert.ok(html.includes('/'+market+'/buying-guide/first-order'),market);
+  assert.ok(html.includes('/coupon-verification'),market);
+  assert.ok((html.match(/<h2>/g)||[]).length>=8,market);
+  assert.ok(html.length>7000,market);
+  assert.ok(!/100% guaranteed|خصم مضمون|verified percentage|خصم يصل إلى 90%/i.test(html),market);
+  assert.ok(html.includes('href="https://www.noon.com/'+(market==='saudi'?'saudi-ar/':'uae-en/')+'"'),market);
+  const svg=base+'/assets/coupon-svg/seo-'+market+'-existing-customers/1.svg';
+  assert.ok(existsSync(svg),market);
+  assert.ok(readFileSync(svg,'utf8').includes(coupon),market);
+  const marketHome=page('/'+market+'/noon-coupon-code');
+  assert.ok(marketHome.includes('href="'+url+'"'),market);
+  const hub=page('/'+market+'/golden-keywords');
+  assert.ok(hub.includes('href="'+url+'"'),market);
+ }
+ const home=readFileSync(base+'/index.html','utf8');
+ assert.ok(home.includes('href="/saudi/buying-guide/existing-customers"'));
+ assert.ok(home.includes('href="/uae/buying-guide/existing-customers"'));
 });
