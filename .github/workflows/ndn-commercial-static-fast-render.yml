@@ -54,10 +54,11 @@ jobs:
           import {readFileSync,existsSync} from 'node:fs';
           import {PUBLIC_CATEGORIES} from './index.js';
           const r=JSON.parse(readFileSync('.ndn-blog-staging/market-seo-report.json','utf8'));
-          if(r.generatedPages!==108||r.keywordGuides!==10||r.categoryPages!==84)throw Error(JSON.stringify(r));
+          if(r.generatedPages!==110||r.keywordGuides!==10||r.categoryPages!==84)throw Error(JSON.stringify(r));
           for(const p of ['/saudi/categories','/uae/categories','/saudi/noon-coupon-code','/uae/noon-coupon-code',
                           '/saudi/buying-guide/mobile-phones','/uae/buying-guide/beauty',
-                          '/golden-keywords','/saudi/golden-keywords','/uae/golden-keywords']){
+                          '/golden-keywords','/saudi/golden-keywords','/uae/golden-keywords',
+                          '/saudi/buying-guide/samsung-s26-ultra','/uae/buying-guide/mini-led-tv']){
             const path='.ndn-static-assets'+p+'.html';
             if(!existsSync(path))throw Error('MISSING '+path);
             const html=readFileSync(path,'utf8');
@@ -66,7 +67,8 @@ jobs:
           for(const [m,c,other] of [['saudi','NOV170','NOV188'],['uae','NOV188','NOV170']]){
             const html=readFileSync('.ndn-static-assets/'+m+'/golden-keywords.html','utf8');
             if(!html.includes('data-code="'+c+'"')||html.includes('data-code="'+other+'"'))throw Error('GOLDEN_CROSS_MARKET_COUPON_'+m);
-            if(!html.includes('/'+m+'/brand/apple')||!existsSync('.ndn-static-assets/'+m+'/brand/apple.html'))throw Error('GOLDEN_GUIDE_MISSING_'+m);
+            const specialist=m==='saudi'?'samsung-s26-ultra':'mini-led-tv';
+            if(!html.includes('/'+m+'/buying-guide/'+specialist)||!existsSync('.ndn-static-assets/'+m+'/buying-guide/'+specialist+'.html'))throw Error('GOLDEN_GUIDE_MISSING_'+m);
           }
           const gold=readFileSync('.ndn-static-assets/golden-keywords.html','utf8');
           if(!gold.includes('ndn-public-golden-keywords')||!gold.includes('index,follow,max-image-preview:large'))throw Error('GOLDEN_LEGACY_NOINDEX_OVERRIDE');
