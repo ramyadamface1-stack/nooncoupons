@@ -55,7 +55,9 @@ test('homepage sells with correct Saudi coupon, non-duplicated analytics, and wo
  for(const p of ['/blog','/blog/saudi','/blog/uae','/blog/page/2']){
    const html=page(p);
    assert.ok(html.includes('data-blog-premium="v1"'),p);
-   assert.ok(html.includes('aria-label="روابط الموقع الرئيسية"'),p);
+   const navigationLabel=p==='/blog/uae'? 'aria-label="Main navigation"':'aria-label="روابط الموقع الرئيسية"';
+   assert.ok(html.includes(navigationLabel),p);
+   if(p==='/blog/uae')assert.ok(html.includes('<html lang="en-AE" dir="ltr">'),p);
    assert.equal((html.match(/aria-label="Quick shopping navigation"/g)||[]).length,0,'duplicate_header_'+p);
    assert.ok(html.includes('href="/golden-keywords"'),p);
    assert.ok(html.includes('id="ndn-static-ga4"')||html.includes('id="rescue-site-analytics"'),p);
