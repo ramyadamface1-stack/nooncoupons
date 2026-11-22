@@ -109,5 +109,5 @@ test('live pages are explicit 45-second-cacheable public routes; original blog s
  }
  assert.equal(publicEdgeTtlSeconds('/blog'),30);
  assert.equal(publicEdgeCacheEligible(new Request('https://noondealsnow.com/blog?page=2')),false);
- assert.equal(publicRouteKind('/api/admin'),'null'===null?null:null);
+ assert.equal(publicRouteKind('/api/admin'),null);
 });
