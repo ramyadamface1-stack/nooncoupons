@@ -579,7 +579,9 @@ test('direct scoped N11 content no longer auto-publishes generic seller guarante
  const scoped=directTopicAt([original],index);
  assert.equal(DIRECT_TOPIC_SCOPES.at(-1).en,'warranty and returns');
  assert.equal(DIRECT_TOPIC_SCOPES.at(-1).ar,'الضمان والإرجاع');
- assert.ok(scoped.topic.includes('warranty and returns'));
+ assert.ok(scoped.topic.includes('returns'), 'compact H1 must name the scope');
+ assert.ok(scoped.sections[0].includes('warranty and returns'), 'buyer guide retains complete warranty and returns focus');
+ assert.ok(scoped.topic.includes('night vision'), 'specific product question must survive in H1');
  assert.ok(!scoped.topic.includes('seller verification'));
  assert.ok(scoped.slug.includes('-h6-nov188-2026-n11'));
  assert.deepEqual(directTopicAt([original],0),original,'original and published topic identity remains unchanged');

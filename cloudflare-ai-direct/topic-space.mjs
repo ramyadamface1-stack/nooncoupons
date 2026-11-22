@@ -20,7 +20,8 @@ function trimTitle(text,max){
  if(input.length<=max)return input;
  const sliced=input.slice(0,max);
  const boundary=sliced.lastIndexOf(' ');
- return (boundary>=Math.max(16,max-22)?sliced.slice(0,boundary):sliced).trim();
+ // Avoid truncated keywords such as "replacement sealin" in SERP titles.
+ return (boundary>=5?sliced.slice(0,boundary):sliced).trim();
 }
 export function directTopicAt(topics,index){
  if(!Array.isArray(topics)||!Number.isSafeInteger(index)||index<0||topics.length===0)
@@ -33,17 +34,31 @@ export function directTopicAt(topics,index){
  const code=original.country==='AE'?'NOV188':'NOV170';
  const lang=original.country==='AE'?'en':'ar';
  const suffix=lang==='en'?' | Noon UAE NOV188':' | نون السعودية NOV170';
- const label=lang==='en'?' ('+scope.en+')':' ('+scope.ar+')';
- const titleHead=String(original.topic||'').split(' | ')[0];
- const maxHead=72-suffix.length-label.length;
- const head=trimTitle(titleHead,maxHead);
- const title=head+label+suffix;
+ // Preserve the buyer's actual product question in every expanded H1.
+ // Repeating only a broad scope label across dozens of models causes near-
+ // identical titles, even though the stored slug and article focus differ.
+ // The short scope marker still distinguishes six future buying decisions.
+ const scopeShort=lang==='en'
+  ?{h1:'daily',h2:'setup',h3:'care',h4:'controls',h5:'fit',h6:'returns'}[scope.id]
+  :{h1:'يومي',h2:'إعداد',h3:'صيانة',h4:'تحكم',h5:'ملحقات',h6:'ضمان'}[scope.id];
+ const marker=' · '+scopeShort;
+ const maxHead=72-suffix.length-marker.length;
+ const focus=String(original.queryModifier||'').trim();
+ const brand=String(original.brand||'').trim(),category=String(original.category||'').trim();
+ const shortCategory=category.split(/\s+/).filter(Boolean).slice(-1)[0]||category;
+ const leads=[brand+' '+category+': ',brand+' '+shortCategory+': ',brand+': ',category+': '];
+ // Reserve enough room for *two complete* buyer-intent words where possible.
+ const words=focus.split(/\s+/).filter(Boolean);
+ const minFocus=Math.max(12,Math.min(30,words.slice(0,2).join(' ').length));
+ const lead=leads.find(x=>x.length<=maxHead-minFocus-1)||'';
+ const specific=trimTitle(focus,maxHead-lead.length);
+ const fallback=trimTitle(String(original.topic||'').split(' | ')[0],maxHead);
+ const head=specific.length>=8?lead+specific:fallback;
+ const title=head+marker+suffix;
  const slug=String(original.slug||'').replace(/-(nov170|nov188)-2026-n11$/,
   '-'+scope.id+'-$1-2026-n11');
  if(!head||title.length<28||title.length>72||slug===original.slug||slug.length>120)
   return null;
- const brand=String(original.brand||'');
- const focus=String(original.queryModifier||'');
  const sections=lang==='en'?[
   'Why '+scope.en+' matters when assessing '+focus,
   'What '+brand+' model facts to confirm for '+scope.en,
