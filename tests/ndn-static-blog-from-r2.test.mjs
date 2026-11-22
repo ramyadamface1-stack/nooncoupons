@@ -8,6 +8,9 @@ test('static blog uses published R2 articles, not the stale 8-guide template',()
  const cached=new Set(a.cachedArticleSlugs);
  for(const path of ['blog','blog/saudi','blog/uae']){
   const html=readFileSync('.ndn-static-assets/'+path+'.html','utf8');
+  assert.ok(html.includes('data-blog-premium="v1"'),path);
+  assert.ok(html.includes('href="/golden-keywords"'),path);
+  assert.equal((html.match(/aria-label="Quick shopping navigation"/g)||[]).length,0,'duplicate header '+path);
   assert.match(html,/<meta name="ndn-verified-r2-article-listing" content="v2">/);
   assert.match(html,/<meta name="robots" content="index,follow,max-image-preview:large">/);
   const cards=[...html.matchAll(/<article class="card[^"]*">/g)];
