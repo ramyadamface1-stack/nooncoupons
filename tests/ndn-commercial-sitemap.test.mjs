@@ -5,8 +5,8 @@ const root='.ndn-static-assets',origin='https://noondealsnow.com';
 test('commercial and trust sitemaps list only confirmed indexable canonical pages',()=>{
  const xml=readFileSync(root+'/sitemap-commercial.xml','utf8');
  const urls=[...xml.matchAll(/<loc>([^<>]+)<\/loc>/g)].map(m=>m[1]);
- assert.equal(urls.length,81);
- assert.equal(new Set(urls).size,81);
+ assert.equal(urls.length,84);
+ assert.equal(new Set(urls).size,84);
  for(const url of urls){
   assert.ok(url.startsWith(origin+'/'),url);
   const path=url.slice(origin.length);
@@ -16,6 +16,7 @@ test('commercial and trust sitemaps list only confirmed indexable canonical page
  }
  assert.ok(urls.includes(origin+'/editorial-policy'));
  assert.ok(urls.includes(origin+'/brands'));
+ for(const path of ['/golden-keywords','/saudi/golden-keywords','/uae/golden-keywords'])assert.ok(urls.includes(origin+path),path);
  for(const brand of ['apple','samsung','xiaomi','nike','dyson','loreal','versace']){
    for(const country of ['saudi','uae'])assert.ok(urls.includes(origin+'/'+country+'/brand/'+brand),country+'/'+brand);
  }

@@ -13,6 +13,14 @@ on:
       - 'tests/ndn-commercial-sitemap.test.mjs'
       - 'scripts/build-ndn-static-trust-pages.mjs'
       - 'tests/ndn-static-trust-pages.test.mjs'
+  pull_request:
+    paths:
+      - 'scripts/build-ndn-commercial-static.mjs'
+      - 'scripts/build-ndn-commercial-sitemap.mjs'
+      - 'scripts/build-ndn-static-all-brand-hubs.mjs'
+      - 'tests/ndn-commercial-static.test.mjs'
+      - 'tests/ndn-commercial-sitemap.test.mjs'
+      - '.github/workflows/ndn-commercial-static-fast-render.yml'
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
@@ -46,14 +54,22 @@ jobs:
           import {readFileSync,existsSync} from 'node:fs';
           import {PUBLIC_CATEGORIES} from './index.js';
           const r=JSON.parse(readFileSync('.ndn-blog-staging/market-seo-report.json','utf8'));
-          if(r.generatedPages!==105||r.keywordGuides!==10||r.categoryPages!==84)throw Error(JSON.stringify(r));
+          if(r.generatedPages!==108||r.keywordGuides!==10||r.categoryPages!==84)throw Error(JSON.stringify(r));
           for(const p of ['/saudi/categories','/uae/categories','/saudi/noon-coupon-code','/uae/noon-coupon-code',
-                          '/saudi/buying-guide/mobile-phones','/uae/buying-guide/beauty']){
+                          '/saudi/buying-guide/mobile-phones','/uae/buying-guide/beauty',
+                          '/golden-keywords','/saudi/golden-keywords','/uae/golden-keywords']){
             const path='.ndn-static-assets'+p+'.html';
             if(!existsSync(path))throw Error('MISSING '+path);
             const html=readFileSync(path,'utf8');
             if(!html.includes('id="ndn-static-ga4"')||!html.includes('<h1>'))throw Error('BAD_HTML '+p);
           }
+          for(const [m,c,other] of [['saudi','NOV170','NOV188'],['uae','NOV188','NOV170']]){
+            const html=readFileSync('.ndn-static-assets/'+m+'/golden-keywords.html','utf8');
+            if(!html.includes('data-code="'+c+'"')||html.includes('data-code="'+other+'"'))throw Error('GOLDEN_CROSS_MARKET_COUPON_'+m);
+            if(!html.includes('/'+m+'/brand/apple')||!existsSync('.ndn-static-assets/'+m+'/brand/apple.html'))throw Error('GOLDEN_GUIDE_MISSING_'+m);
+          }
+          const gold=readFileSync('.ndn-static-assets/golden-keywords.html','utf8');
+          if(!gold.includes('ndn-public-golden-keywords')||!gold.includes('index,follow,max-image-preview:large'))throw Error('GOLDEN_LEGACY_NOINDEX_OVERRIDE');
           const home=readFileSync('.ndn-static-assets/index.html','utf8');
           if(!home.includes('id="commercial-buying-intent"'))throw Error('MISSING_HOME_SECTION');
           console.log('NDN_FAST_MARKET_BUILD_PASS='+JSON.stringify(r));

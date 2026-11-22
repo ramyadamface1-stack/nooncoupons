@@ -504,7 +504,7 @@ jobs:
         run: |
           set -euo pipefail
           BASE='https://noondealsnow.com'
-          for path in / /coupons /blog /blog/saudi /blog/uae /saudi/categories /uae/categories /saudi/brand/apple /uae/brand/samsung /en/uae/noon-coupon-code /sitemap-ai-v2.xml; do
+          for path in / /coupons /blog /blog/saudi /blog/uae /golden-keywords /saudi/golden-keywords /uae/golden-keywords /saudi/categories /uae/categories /saudi/brand/apple /uae/brand/samsung /en/uae/noon-coupon-code /sitemap-ai-v2.xml; do
             ok=0
             for attempt in 1 2 3; do
               code=$(curl -sS --max-time 22 -o /tmp/ndn-smoke-body -w '%{http_code}' \
@@ -514,6 +514,23 @@ jobs:
             done
             echo "POST_DEPLOY_SMOKE_PATH=$path;HTTP=$code;PASS=$ok"
             test "$ok" = 1
+          done
+          # Each keyword page must be the *new* canonical static edition, not
+          # the old dynamic internal noindex map or an HTTP 429 Worker quota page.
+          for path in /golden-keywords /saudi/golden-keywords /uae/golden-keywords; do
+            code=$(curl -sS --max-time 20 -o /tmp/ndn-golden-live -w '%{http_code}' "$BASE$path" || true)
+            test "$code" = 200
+            grep -Fq '<link rel="canonical" href="https://noondealsnow.com'$path'">' /tmp/ndn-golden-live
+            grep -Fq '<meta name="robots" content="index,follow,max-image-preview:large">' /tmp/ndn-golden-live
+            if [ "$path" = /golden-keywords ]; then
+              grep -Fq 'ndn-public-golden-keywords' /tmp/ndn-golden-live
+              grep -Fq 'NOV170' /tmp/ndn-golden-live
+              grep -Fq 'NOV188' /tmp/ndn-golden-live
+            else
+              if [ "$path" = /saudi/golden-keywords ]; then coupon=NOV170; else coupon=NOV188; fi
+              grep -Fq 'data-code="'$coupon'"' /tmp/ndn-golden-live
+            fi
+            echo "PUBLIC_GOLDEN_KEYWORD_STATIC_LIVE=$path;HTTP=$code;CANONICAL=PASS;INDEXABLE=PASS"
           done
           echo 'NEW_PRODUCTION_POST_DEPLOY_SMOKE=PASS'
 

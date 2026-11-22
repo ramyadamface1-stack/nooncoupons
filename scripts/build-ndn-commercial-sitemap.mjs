@@ -12,6 +12,7 @@ const slugRoutes={
 const allBrandSlugs=Object.keys(BRANDS).filter(slug=>/^[a-z0-9-]+$/.test(slug)&&BRANDS[slug]?.label);
 if(allBrandSlugs.length!==30)throw Error('COMMERCIAL_SITEMAP_BRAND_COUNT_CHANGED');
 const routes=[
+ '/golden-keywords','/saudi/golden-keywords','/uae/golden-keywords',
  '/brands',
  '/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer',
  ...['saudi','uae'].flatMap(m=>[
@@ -58,7 +59,10 @@ if(!llms.includes('## Country-specific coupon buying guides')){
  '- '+origin+'/saudi/categories\n'+
  '- '+origin+'/uae/categories\n'+
  '- '+origin+'/editorial-policy\n'+
- '- '+origin+'/coupon-verification\n';
+ '- '+origin+'/coupon-verification\n'+
+ '- '+origin+'/golden-keywords (editorial high-intent buyer guide index; not measured search volume)\n'+
+ '- '+origin+'/saudi/golden-keywords (SA market NOV170)\n'+
+ '- '+origin+'/uae/golden-keywords (UAE market NOV188)\n';
  await writeFile(llmsPath,llms,'utf8');
 }
 console.log('NDN_STATIC_COMMERCIAL_SITEMAP_URLS='+routes.length+
