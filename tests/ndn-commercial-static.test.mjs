@@ -3,15 +3,15 @@ import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import {PUBLIC_CATEGORIES} from '../index.js';
 const base='.ndn-static-assets';
-const slugs=['first-order','mobile-phones','home-appliances','electronics','perfumes-beauty','baby'];
-const ae=['first-order','electronics','beauty','home-appliances'];
+const slugs=['first-order','existing-customers','mobile-phones','home-appliances','electronics','perfumes-beauty','baby'];
+const ae=['first-order','existing-customers','electronics','beauty','home-appliances'];
 const report=JSON.parse(readFileSync('.ndn-blog-staging/market-seo-report.json','utf8'));
 const page=path=>readFileSync(base+path+'.html','utf8');
 test('no missing market root, category, or buying-intent pages under quota exhaustion',()=>{
  assert.equal(PUBLIC_CATEGORIES.length,42);
  assert.equal(report.categoryPages,84);
- assert.equal(report.keywordGuides,10);
- assert.equal(report.generatedPages,110);
+ assert.equal(report.keywordGuides,12);
+ assert.equal(report.generatedPages,112);
  for(const m of ['saudi','uae']){
    const coupon=m==='saudi'?'NOV170':'NOV188';
    for(const p of ['/'+m+'/categories','/'+m+'/noon-coupon-code','/'+m+'/shopping-guide']){
@@ -101,8 +101,8 @@ test('golden keyword page has actual observed query evidence and no cloned brand
  assert.equal(report.version,2);
  assert.equal(report.monthlySearchVolumeMeasured,false);
  assert.equal(report.organicKeywordDifficultyMeasured,false);
- assert.equal(report.sa.length,9);
- assert.equal(report.ae.length,6);
+ assert.equal(report.sa.length,10);
+ assert.equal(report.ae.length,7);
  for(const group of [report.sa,report.ae]){
   assert.equal(new Set(group.map(x=>x.target)).size,group.length,'duplicate page targets');
   for(const row of group){
