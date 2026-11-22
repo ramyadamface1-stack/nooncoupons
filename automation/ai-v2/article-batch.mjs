@@ -25,14 +25,14 @@ export function batchArticlePrompt(topic){
 // feed or independent test is supplied to this task, so such claims cannot
 // be published. Explicit negative statements ("does not guarantee") are fine.
 export function editorialSellerClaimReason(raw){
- const text=String(raw||'').replace(/<[^>]*>/g,' ').replace(/\\s+/g,' ');
+ const text=String(raw||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ');
  const patterns=[
   /(?:seller verification|verified seller|verifying the seller|trusted seller)[^.!?]{0,190}?(?:guarantee(?:s|d)?|ensure(?:s|d)?|prove(?:s|d)?|certif(?:ies|ied)|factory-standard|authenticity)/gi,
   /(?:التحقق من (?:هوية )?البائع|البائع الموثوق|البائع المعتمد)[^.؟!]{0,160}?(?:يضمن|تضمن|يؤكد|يكفل|أصلي|الأصالة)/g
  ];
  for(const re of patterns)for(const m of text.matchAll(re)){
-  if(/\\b(?:does not|cannot|never|not)\\s+(?:automatically\\s+)?(?:guarantee|ensure|prove|certify)\\b/i.test(m[0])||
-     /(?:لا|لم|لن)\\s+(?:يضمن|تضمن|يؤكد|يكفل)/.test(m[0]))continue;
+  if(/\b(?:does not|cannot|never|not)\s+(?:automatically\s+)?(?:guarantee|ensure|prove|certify)\b/i.test(m[0])||
+     /(?:لا|لم|لن)\s+(?:يضمن|تضمن|يؤكد|يكفل)/.test(m[0]))continue;
   return 'BATCH_UNVERIFIED_SELLER_GUARANTEE';
  }
  const repeated=(text.match(/seller verification|التحقق من البائع/gi)||[]).length;
