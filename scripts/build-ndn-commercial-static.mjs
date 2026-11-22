@@ -1,7 +1,6 @@
 // Commercial public routes, independent from daily Cloudflare Worker request quota.
 // This file does not change any R2 article body, coupon validity or generator state.
 import {PUBLIC_CATEGORIES as categories} from '../index.js';
-import {BRANDS} from '../commerce-taxonomy.js';
 import {couponSvg} from '../svg-engine.js';
 import {mkdir,readFile,writeFile,readdir} from 'node:fs/promises';
 import {resolve,dirname} from 'node:path';
@@ -204,84 +203,152 @@ for(const m of ['saudi','uae']){
  await mkdir(dirname(dst),{recursive:true});await writeFile(dst,html,'utf8');generated++;
 }
 
-// Public commercial keyword navigation is STATIC, not the old private noindex
-// search-intent diagnostic. Existing detailed buyer guides + brand pages own
-// their individual intents, so we do not fabricate new articles or demand data.
-const goldenBrands=Object.entries(BRANDS)
-  .filter(([slug,b])=>/^[a-z0-9-]+$/.test(slug)&&b?.label);
-if(goldenBrands.length!==30)throw Error('GOLDEN_KEYWORD_BRAND_INVENTORY_CHANGED');
-const goldenNote='الأولوية هنا تحريرية ومبنية على نية الشراء، وليست ترتيبًا حسب حجم بحث أو مبيعات مقاسة. لا نؤكد نسبة خصم أو سعرًا ثابتًا، والنتيجة النهائية من سلة نون.';
-const goldenIntro={
- saudi:'كلمات وموضوعات شراء نون السعودية — كوبون NOV170. افتح دليلًا تفصيليًا للمنتج أو البراند، قارن الموديل والضمان والشحن، ثم جرّب الرمز في السلة.',
- uae:'Noon UAE high-intent shopping guides — promo code NOV188. Open a detailed category or brand guide, compare the exact product, seller and delivery, then check the final AED total.'
+
+// Evidence-gated keyword hub, not a generated brand-name permutation index.
+// GSC: sc-domain:noondealsnow.com, 2026-10-23 through 2026-11-19, 128
+// whole-site impressions and 1 click. The following selected query rows are
+// first-party impressions, NOT Google monthly search volume or organic KD.
+// Semrush/HYPD volume and difficulty providers unavailable on 2026-11-22.
+// Keep unmeasured editorial ideas explicitly unverified, never fabricate KD.
+const keywordEvidence={
+ period:'2026-10-23/2026-11-19',
+ source:'Google Search Console, web search, 28 settled days',
+ volumeMeasured:false,organicDifficultyMeasured:false,
+ observed:{
+  'كود خصم نون السعودية':{impressions:1,position:70},
+  'عروض نون للجوالات':{impressions:1,position:26},
+  'الجمعة الصفراء نون':{impressions:1,position:1},
+  'نون استرجاع الرصيد':{impressions:2,position:60},
+  'noon s26 ultra':{impressions:2,position:19}
+ }
 };
-const goldenCards=(m)=>{
- const ar=isSA(m),marketKey=m,codeNow=code(m);
- const guides=seo.filter(t=>t.m===m).map(t=>({
-  text:t.key,url:guideUrl(t),detail:t.short,kind:ar?'دليل فئة مفصل':'Detailed category guide'
- }));
- const brands=goldenBrands.map(([slug,b])=>({
-  text:(ar?'كود نون السعودية '+b.label:'Noon UAE '+b.label+' promo code')+' '+codeNow,
-  url:'/'+m+'/brand/'+slug,
-  detail:ar?'دليل '+b.label+' للموديلات والضمان والبائع والتكلفة النهائية قبل تجربة '+codeNow+'.':
-   'Compare '+b.label+' products, model compatibility, seller, warranty and AED checkout total before trying '+codeNow+'.',
-  kind:ar?'دليل براند مفصل':'Detailed brand guide'
- }));
- const cards=[...guides,...brands];
- return {count:cards.length,html:cards.map(item=>
-  '<article class="box" style="margin:12px 0"><small>'+E(item.kind)+'</small>'+
-  '<h3 style="margin:5px 0"><a href="'+E(item.url)+'">'+E(item.text)+'</a></h3>'+
-  '<p>'+E(item.detail)+'</p><a href="'+E(item.url)+'">'+(ar?'اقرأ الدليل التفصيلي ←':'Read the detailed guide →')+'</a></article>').join(''),
-  urls:cards.map(item=>item.url)};
+// Each entry represents a distinct intent and a UNIQUE, implemented article
+// target. Do not auto-permute 30 brand names into 60 near-identical cards.
+const prioritizedKeywords={
+ saudi:[
+  {q:'عروض نون للجوالات: كيف تقارن النسخة والضمان؟',gsc:'عروض نون للجوالات',
+   href:'/saudi/buying-guide/mobile-phones',intent:'مقارنة قبل شراء جوال',
+   detail:'مقارنة رقم الموديل ونسخة الشرق الأوسط والبائع والضمان قبل فحص السعر النهائي في السعودية.'},
+  {q:'سامسونج S26 Ultra على نون: فرق النسخ وسعة التخزين',gsc:'noon s26 ultra',
+   href:'/saudi/buying-guide/samsung-s26-ultra',intent:'شراء موديل محدد',
+   detail:'متى تختلف النسخة الإقليمية، وماذا تفحص في الضمان ومحتويات العلبة قبل تجربة الكود؟'},
+  {q:'كيفية معرفة رصيد نون المسترجع من الكوبون',gsc:'نون استرجاع الرصيد',
+   href:'/guide/noon-refund-credit',intent:'فهم الرصيد بعد الطلب',
+   detail:'مكان الرصيد المعلق ووقت اعتماده والفرق بين رصيد الحساب والتخفيض المباشر.'},
+  {q:'الجمعة الصفراء نون: كوبون أم عرض مباشر؟',gsc:'الجمعة الصفراء نون',
+   href:'/guide/noon-yellow-friday',intent:'مقارنة عروض موسمية',
+   detail:'طريقة مقارنة عرض الجمعة الصفراء والكوبون على نفس السلة دون الخلط بينهما.'},
+  {q:'كود خصم نون السعودية NOV170 وطريقة استخدامه',gsc:'كود خصم نون السعودية',
+   href:'/saudi-arabia/noon-coupon-code',intent:'الاستعداد للدفع',
+   detail:'صفحة الكوبون السعودية الأساسية: نسخ الرمز واختيار السوق وفحص إجمالي سلة نون.'},
+  {q:'كود نون للطلب الأول: شروط حساب جديد',href:'/saudi/buying-guide/first-order',
+   intent:'تأهيل أول عملية شراء',detail:'الفرق بين الحساب الجديد والطلب المؤهل وكيف تقارن رسوم التوصيل عند أول طلب.'},
+  {q:'اختيار غسالة أو ثلاجة نون: الشحن والتركيب',href:'/saudi/buying-guide/home-appliances',
+   intent:'شراء جهاز منزلي',detail:'أبعاد مكان التركيب والسعة ورسوم الخدمة والضمان؛ لا يعتمد القرار على نسبة الخصم فقط.'},
+  {q:'كود نون للعطور: تركيز العطر وسعر الملليلتر',href:'/saudi/buying-guide/perfumes-beauty',
+   intent:'مقارنة العبوات',detail:'قارن التركيز والحجم والبائع وسياسة الإرجاع بدل مقارنة عبوتين مختلفتين.'},
+  {q:'نون مستلزمات الأطفال: مقاس الحفاضات وسعر القطعة',href:'/saudi/buying-guide/baby',
+   intent:'شراء مستلزمات متكررة',detail:'الكمية والمقاس والسلامة وسعر القطعة، ثم فحص أثر كود السعودية في السلة.'}
+ ],
+ uae:[
+  {q:'Noon UAE first order promo code: eligibility checklist',
+   href:'/uae/buying-guide/first-order',intent:'First purchase checkout',
+   detail:'How to confirm first-order conditions, seller and the final AED total without assuming guaranteed savings.'},
+  {q:'Noon UAE Mini LED TV: 55 vs 65 inch buying checklist',
+   href:'/uae/buying-guide/mini-led-tv',intent:'Compare a specific TV purchase',
+   detail:'Room distance, 4K/refresh support, model generation, UAE warranty, wall mounting and final cart cost.'},
+  {q:'Noon UAE electronics: regional warranty and model match',
+   href:'/uae/buying-guide/electronics',intent:'Electronics purchase decision',
+   detail:'Verify exact device identity, accessories, local warranty and delivery before trying NOV188.'},
+  {q:'Noon UAE beauty offers: perfume size and formula',
+   href:'/uae/buying-guide/beauty',intent:'Compare fragrances or skincare',
+   detail:'Compare concentration, ml, formula, seller and returns instead of ranking by advertised percentage.'},
+  {q:'Noon UAE washing machines: installation and delivery costs',
+   href:'/uae/buying-guide/home-appliances',intent:'Appliance purchase decision',
+   detail:'Check dimensions, installation service, energy rating and local support in the payable AED total.'},
+  {q:'Noon UAE JBL speakers: AUX support and headphone latency',
+   href:'/articles/uae-buyer-jbl-speaker-auxiliary-input-headphone-latency-h5-nov188-2026-n11',
+   intent:'Check speaker compatibility',
+   detail:'A published product-specific guide to input ports, headphone latency and accessories.'}
+ ]
+};
+const keywordTile=(t,m,source)=>{
+ const ar=isSA(m),observed=t.gsc&&keywordEvidence.observed[t.gsc];
+ return '<article class="linkcard" style="height:100%;display:flex;flex-direction:column;gap:8px">'+
+ '<small style="font-weight:700;color:#475569">'+E(t.intent)+'</small>'+
+ '<h3 style="margin:0;font-size:18px;line-height:1.55"><a href="'+E(t.href)+'">'+E(t.q)+'</a></h3>'+
+ '<p style="margin:0;flex:1;color:#475569">'+E(t.detail)+'</p>'+
+ '<small style="color:#475569">'+
+ (observed?(ar?'رُصدت صيغة البحث في Search Console':'Observed in Search Console'):
+    (ar?'فرصة تحريرية مرشحة للقياس':'Editorial candidate — search demand unmeasured'))+
+ '</small><a href="'+E(t.href)+'" style="font-weight:800">'+
+ (ar?'افتح الدليل المختص':'Read the specific guide')+'</a></article>';
+};
+const keywordHtml=(m)=>prioritizedKeywords[m].map(t=>keywordTile(t,m)).join('');
+const evidenceText='هذه عبارات مرتبطة بنية شراء واضحة. ظهرت بعض صيغها في Google Search Console، بينما بقية الموضوعات مرشحة للتحقق. لا تتوفر حاليًا بيانات دقيقة لحجم البحث الشهري أو درجة صعوبة SEO في السعودية والإمارات؛ لذلك لا نصف أي كلمة بأنها الأعلى بحثًا أو الأقل منافسة دون قياس مستقل.';
+const keywordContent=(m)=>{
+ const ar=isSA(m);
+ return '<section class="box"><h2>'+(ar?'كيف اختيرت الكلمات؟':'How were these search intents chosen?')+'</h2><p>'+
+ (ar?evidenceText:'Each topic covers a different purchase decision, rather than changing a brand name in one repeated coupon template. Monthly search volume and organic keyword difficulty have not yet been measured. These are editorial hypotheses, not guaranteed high-volume low-competition rankings.')+
+ '</p><p><a href="/golden-keywords">'+(ar?'شوف خريطة السوقين':'Explore the full keyword roadmap')+'</a> · '+
+ '<a href="/blog/'+m+'">'+(ar?'أحدث مقالات السعودية':'Latest UAE articles')+'</a></p></section>'+
+ '<section><h2>'+(ar?'كلمات شراء ودليل مستقل لكل نية':'Distinct buyer-intent guides')+'</h2>'+
+ '<div class="grid">'+keywordHtml(m)+'</div></section>'+
+ '<section class="box"><h2>'+(ar?'الخطوة الأخيرة قبل الشراء':'Before you place an order')+'</h2><p>'+
+ (ar?'اختر المنتج وفق احتياجك، وثبّت الموديل والبائع والكمية والشحن، ثم جرّب NOV170 في سلة نون السعودية. نسبة الخصم ليست مؤكدة سلفًا.':
+ 'Keep model, seller, quantity, delivery and return terms consistent; then try NOV188 at the official Noon UAE checkout. No universal saving is promised.')+
+ '</p></section>';
 };
 for(const m of ['saudi','uae']){
- const ar=isSA(m),path='/'+m+'/golden-keywords';
- const grouped=goldenCards(m),detailCode=code(m);
- const title=ar?'الكلمات المفتاحية الذهبية لنون السعودية | دليل شراء وكوبون '+detailCode:
-   'Noon UAE High-Intent Shopping Keywords | '+detailCode+' Buyer Guides';
- const desc=goldenIntro[m];
- const list='<section class="box"><h2>'+(ar?'ابدأ من فئة أو براند':'Browse category and brand shopping intents')+'</h2>'+
-   '<p>'+(ar?goldenNote:
-   'These are editorial purchase-intent topics, not verified search-volume rankings. Savings depend on the final Noon UAE checkout.')+
-   '</p><p><a href="/golden-keywords">'+(ar?'جميع الكلمات للسعودية والإمارات':'All Saudi and UAE keyword guides')+'</a></p></section>'+
-   '<section aria-label="'+(ar?'أدلة مفصلة':'Detailed keyword guides')+'">'+grouped.html+'</section>'+
-   '<section class="box"><h2>'+(ar?'أسئلة قبل الدفع':'Frequently asked questions before checkout')+'</h2><p>'+
-   (ar?'هل الكود مضمون لكل براند؟ لا. قارن المنتج نفسه والسعر النهائي، وأدخل NOV170 في سلة نون السعودية لترى نتيجة الأهلية.':
-   'Does NOV188 work for every brand? Eligibility is decided by the UAE checkout, not a generic article. Compare the same cart before and after.')+
-   '</p></section>';
- let html=page(m,path,title,desc,list);
- const graph={'@context':'https://schema.org','@type':'ItemList',name:title,
-   itemListElement:grouped.urls.map((url,i)=>({'@type':'ListItem',position:i+1,url:origin+url}))};
- html=html.replace('</head>','<script type="application/ld+json">'+JSON.stringify(graph).replace(/</g,'\\u003c')+'</script></head>');
+ const path='/'+m+'/golden-keywords',ar=isSA(m);
+ const title=ar?'فرص كلمات نون السعودية: الجوالات والكوبونات والطلب الأول | NOV170':
+  'Noon UAE Buyer Search Guides: First Order, TVs, Electronics | NOV188';
+ const desc=ar?'دليل مخصص لعبارات شراء نون السعودية: عروض الجوالات، رصيد نون، الجمعة الصفراء، سامسونج S26 Ultra والطلب الأول؛ محتوى مستقل لكل سؤال.':
+  'Explore distinct Noon UAE buying topics: first-order eligibility, Mini LED TVs, electronics warranties, beauty and appliances. Real guide links, NOV188.';
+ let html=page(m,path,title,desc,keywordContent(m));
+ const rows=prioritizedKeywords[m];
+ const ld={'@context':'https://schema.org','@type':'ItemList',name:title,
+  numberOfItems:rows.length,itemListElement:rows.map((t,i)=>({'@type':'ListItem',position:i+1,
+   name:t.q,url:origin+t.href}))};
+ html=html.replace('</head>','<script type="application/ld+json">'+JSON.stringify(ld).replace(/</g,'\\u003c')+'</script></head>');
  await save(path,html);generated++;
 }
 {
- const path='/golden-keywords',title='الكلمات المفتاحية الذهبية لنون السعودية والإمارات | أدلة الشراء والكوبونات';
- const desc='خريطة كلمات تجارية وأدلة شراء مفصلة لنون السعودية NOV170 ونون الإمارات NOV188، مع روابط فئات وبراندات واضحة للعثور على المنتج الصحيح.';
- const sa=goldenCards('saudi'),ae=goldenCards('uae');
- const marketBlock=(m,data)=>{
-  const ar=isSA(m);
-  return '<section class="box" id="'+m+'"><h2>'+(ar?'الكلمات الذهبية لنون السعودية — NOV170':'Noon UAE shopping keywords — NOV188')+'</h2>'+
-   '<p>'+E(goldenIntro[m])+'</p>'+couponAction(m)+
-   '<p><a href="/'+m+'/golden-keywords">'+(ar?'افتح الصفحة السعودية كاملة':'Open all UAE keyword guides')+'</a> · '+
-   '<a href="/blog/'+m+'">'+(ar?'مقالات السعودية':'UAE articles')+'</a> · <a href="/'+m+'/categories">'+
-   (ar?'أقسام السعودية':'UAE categories')+'</a></p><div dir="'+(ar?'rtl':'ltr')+'">'+data.html+'</div></section>';
+ const path='/golden-keywords',title='الكلمات المفتاحية والفرص التجارية لنون السعودية والإمارات | أدلة شراء مخصصة';
+ const desc='اختيارات مبنية على نية البحث وبيانات Search Console المتاحة، بدون تكرار أسماء البراندات أو اختلاق حجم البحث. السعودية NOV170 والإمارات NOV188.';
+ const section=(m)=>{
+ const ar=isSA(m);
+ return '<section class="box" id="'+m+'"><h2>'+(ar?'السعودية — فرص بحث مرتبطة بـNOV170':'UAE — purchase intents with NOV188')+'</h2>'+
+ '<p>'+(ar?'موضوعات منفصلة عن الجوالات والطلب الأول والرصيد والتسوق الموسمي، مع الربط المباشر بالدليل المتخصص.':
+   'Specific questions about eligible first orders, TV selection, warranties, skincare and appliances.')+'</p>'+
+ '<p><a href="/'+m+'/golden-keywords">'+(ar?'جميع فرص السعودية':'All UAE buying topics')+'</a> · '+
+ '<a href="/blog/'+m+'">'+(ar?'مقالات السعودية':'UAE articles')+'</a></p>'+
+ '<div class="grid" dir="'+(ar?'rtl':'ltr')+'">'+keywordHtml(m)+'</div></section>';
  };
- const content='<section class="box"><h2>كيف تستخدم الكلمات قبل الشراء؟</h2><p>'+E(goldenNote)+
-   ' اختر الدولة أولًا، ثم افتح الدليل المفصل للبراند أو فئة المنتج. لكل رابط موضوع محدد بدل تكرار صفحات عامة بنفس الكلمة.</p>'+
-   '<p><a href="#saudi">السعودية NOV170</a> · <a href="#uae">الإمارات NOV188</a></p></section>'+
-   marketBlock('saudi',sa)+marketBlock('uae',ae)+
-   '<section class="box"><h2>أسئلة شائعة</h2><p><strong>هل هذه أعلى كلمات بحثًا؟</strong> لا ندّعي حجم بحث أو ترتيبًا مؤكّدًا دون بيانات Search Console وقياس الطلب. هذه موضوعات تجارية اخترناها لتحسين رحلة الشراء.</p>'+
-   '<p><strong>هل الكوبون نفسه صالح للبلدين؟</strong> لا. صفحة السعودية تعرض NOV170، والإمارات NOV188، وشروط السلة تحدد النتيجة.</p></section>';
- let html=page('saudi',path,title,desc,content);
- const graph={'@context':'https://schema.org','@type':'CollectionPage',url:origin+path,
-  name:title,description:desc,inLanguage:'ar-SA',
-  hasPart:[{'@type':'CollectionPage',url:origin+'/saudi/golden-keywords'},
-   {'@type':'CollectionPage',url:origin+'/uae/golden-keywords'}]};
- html=html.replace('</head>','<meta name="ndn-public-golden-keywords" content="intent-guides-v1"><script type="application/ld+json">'+JSON.stringify(graph).replace(/</g,'\\u003c')+'</script></head>');
+ const main='<section class="box"><h2>مش كل كلمة فيها «نون» فرصة ذهبية</h2><p>'+E(evidenceText)+'</p>'+
+ '<p>بدل 60 عنوانًا متشابهًا، اخترنا موضوعات مختلفة ووصلنا كل موضوع بدليله المتخصص. يمكنك الانتقال للدولة المناسبة دون اختلاط الكوبونات.</p>'+
+ '<p><a href="#saudi">فرص السعودية</a> · <a href="#uae">UAE opportunities</a> · <a href="/editorial-policy">السياسة التحريرية</a></p>'+
+ '<p><strong>مصدر الرصد:</strong> '+E(keywordEvidence.source)+'. مصدر قياس صعوبة الكلمات وحجم البحث: غير متاح بعد.</p></section>'+
+ section('saudi')+section('uae')+
+ '<section class="box"><h2>الأسئلة الشائعة</h2><p><strong>هل هذه أعلى الكلمات بحثًا وأقلها منافسة؟</strong> لا يمكن تأكيد ذلك دون أرقام حجم البحث وصعوبة SEO للسوق السعودي والإماراتي؛ المعروض الآن فرص أولية واضحة النية.</p>'+
+ '<p><strong>هل الصفحات مكررة؟</strong> لا نعيد نفس قالب البراند؛ كل رابط يتناول قرارًا مختلفًا عند الشراء أو مشكلة خاصة بالكوبون.</p></section>';
+ let html=page('saudi',path,title,desc,main);
+ const ld={'@context':'https://schema.org','@type':'CollectionPage',name:title,url:origin+path,
+  description:desc,inLanguage:'ar-SA',
+  hasPart:['saudi','uae'].map(m=>({'@type':'CollectionPage',url:origin+'/'+m+'/golden-keywords'}))};
+ html=html.replace('</head>','<meta name="ndn-public-golden-keywords" content="evidence-gated-v2"><script type="application/ld+json">'+JSON.stringify(ld).replace(/</g,'\\u003c')+'</script></head>');
  await save(path,html);generated++;
 }
-console.log('NDN_GOLDEN_PUBLIC_PAGES=3;GUIDES_BY_COUNTRY=36,34;STATIC_NO_WORKER=TRUE;KEYWORD_VOLUME_UNCLAIMED=TRUE');
+await writeFile('.ndn-blog-staging/golden-keyword-evidence-report.json',
+ JSON.stringify({version:2,source:keywordEvidence.source,range:keywordEvidence.period,
+ monthlySearchVolumeMeasured:false,organicKeywordDifficultyMeasured:false,
+ sa:prioritizedKeywords.saudi.map(t=>({query:t.q,observedKeyword:t.gsc||null,target:t.href,
+  gscEvidence:t.gsc?keywordEvidence.observed[t.gsc]:null})),
+ ae:prioritizedKeywords.uae.map(t=>({query:t.q,observedKeyword:null,target:t.href,
+  gscEvidence:null}))},null,2),'utf8');
+console.log('NDN_GOLDEN_PUBLIC_PAGES=3;SA_INTENTS='+prioritizedKeywords.saudi.length+
+ ';AE_INTENTS='+prioritizedKeywords.uae.length+
+ ';REPEATED_BRAND_TITLES=0;SEARCH_VOLUME_FABRICATED=FALSE;ORGANIC_KD_FABRICATED=FALSE');
 
 const slogan='<section class="section" id="commercial-buying-intent"><div class="shell"><div class="head"><h2>كود خصم نون السعودية NOV170 — أقسام وأدلة التسوق</h2>'+
  '<p>اختر فئتك، قارن السعر النهائي، انسخ الكود من الصفحة الرئيسية ثم راجع قبوله في سلة نون السعودية.</p></div>'+
