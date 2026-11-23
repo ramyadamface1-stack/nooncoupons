@@ -90,7 +90,9 @@ function page(m,path,title,desc,body,{indexable=true,faq=[],kind='WebPage'}={}){
   ...(faq.length?[{'@type':'FAQPage',mainEntity:faq.map(([q,a])=>({'@type':'Question',name:q,acceptedAnswer:{'@type':'Answer',text:a}}))}]:[])
  ]};
  const schema='<script type="application/ld+json">'+JSON.stringify(structured).replace(/</g,'\\u003c')+'</script>';
- const faqHtml=faq.length?'<section class="box faq"><h2>'+(isSA(m)?'الأسئلة الشائعة':'Frequently asked questions')+'</h2>'+
+ // Canonical coupon hubs show the same answers inline as editorial sections.
+ // Their FAQ schema reuses that visible text; do not print the Q&A twice.
+ const faqHtml=faq.length&&!body.includes('data-ndn-aeo="market-answer-first-v1"')?'<section class="box faq"><h2>'+(isSA(m)?'الأسئلة الشائعة':'Frequently asked questions')+'</h2>'+
   faq.map(([q,a])=>'<details><summary>'+E(q)+'</summary><p>'+E(a)+'</p></details>').join('')+'</section>':'';
  const side='<aside><section class="box"><h2>'+(isSA(m)?'روابط مفيدة':'Useful links')+'</h2><div class="links">'+
   '<a href="'+baseUrl(m)+'">'+(isSA(m)?'كود خصم نون السعودية '+code(m):'Noon UAE code '+code(m))+'</a>'+
