@@ -33,6 +33,8 @@ on:
       - 'scripts/build-ndn-static-root-sitemap.py'
       - 'scripts/build-ndn-static-ai-v2-sitemaps.py'
       - 'scripts/build-ndn-static-bulk-article-sitemaps.py'
+      - 'scripts/prune-empty-bulk-sitemap-references.py'
+      - 'tests/test_ndn_prune_empty_bulk_sitemaps.py'
       - 'scripts/stage-ndn-static-rescue-inputs.py'
       - 'scripts/render-ndn-static-rescue-sitemaps.mjs'
       - 'scripts/stage-ndn-static-discovery-inputs.py'
@@ -247,6 +249,11 @@ jobs:
           print('NDN_HISTORIC_BULK_STATIC_SHARD_INTEGRITY=PASS;CANONICAL_SHARDS='+str(len(expected))+';ARTICLE_URL_ENTRIES='+str(urls))
           print('R2_OBJECT_LIST_CALLS=0;R2_WRITES=0;ARTICLE_GENERATION=0;WORKERS_FREE_ASSET_FILES='+str(len(list(root.iterdir()))))
           PY
+          # Every referenced legacy shard was fully built and checked above.
+          # Exclude only PROVEN zero-URL XML leaves from the root sitemap index;
+          # retain the files, all article HTML, R2 objects and historical slugs.
+          python3 -m unittest discover -s tests -p 'test_ndn_prune_empty_bulk_sitemaps.py' -v
+          python3 scripts/prune-empty-bulk-sitemap-references.py
 
       - name: Prebuild R2 rescue Arabic/English article, image and catalog XML from ORIGINAL renderer
         shell: bash
