@@ -90,7 +90,9 @@ function page(m,path,title,desc,body,{indexable=true,faq=[],kind='WebPage'}={}){
   ...(faq.length?[{'@type':'FAQPage',mainEntity:faq.map(([q,a])=>({'@type':'Question',name:q,acceptedAnswer:{'@type':'Answer',text:a}}))}]:[])
  ]};
  const schema='<script type="application/ld+json">'+JSON.stringify(structured).replace(/</g,'\\u003c')+'</script>';
- const faqHtml=faq.length?'<section class="box faq"><h2>'+(isSA(m)?'الأسئلة الشائعة':'Frequently asked questions')+'</h2>'+
+ // Canonical coupon hubs show the same answers inline as editorial sections.
+ // Their FAQ schema reuses that visible text; do not print the Q&A twice.
+ const faqHtml=faq.length&&!body.includes('data-ndn-aeo="market-answer-first-v1"')?'<section class="box faq"><h2>'+(isSA(m)?'الأسئلة الشائعة':'Frequently asked questions')+'</h2>'+
   faq.map(([q,a])=>'<details><summary>'+E(q)+'</summary><p>'+E(a)+'</p></details>').join('')+'</section>':'';
  const side='<aside><section class="box"><h2>'+(isSA(m)?'روابط مفيدة':'Useful links')+'</h2><div class="links">'+
   '<a href="'+baseUrl(m)+'">'+(isSA(m)?'كود خصم نون السعودية '+code(m):'Noon UAE code '+code(m))+'</a>'+
@@ -121,6 +123,58 @@ const published=archived.objects?.['_ops/ai-v2-publication-ledger-v1.json']?.art
 const cached=new Set(archived.cachedArticleSlugs||[]);
 const latest=(m,n=3)=>published.filter(x=>x.country===(isSA(m)?'SA':'AE')&&cached.has(x.slug)).slice(0,n);
 const recentLinks=m=>latest(m).map(x=>'<li><a href="/articles/'+E(x.slug)+'">'+E(x.slug.replace(/-/g,' '))+'</a></li>').join('');
+// The one canonical coupon hub per country directly answers commercial search
+// queries instead of proliferating near-identical "best code today" pages.
+// Display every FAQ answer verbatim in HTML before putting it into JSON-LD.
+// This does NOT claim to have tested coupon acceptance for a given customer.
+const couponHubQuestions={
+ saudi:[
+  ['ما كود خصم نون السعودية الموجود هنا؟',
+   'كود نون السعودية المدرج على Noon Deals Now هو NOV170. افتح سلة نون السعودية الرسمية، وثبّت المنتج والبائع والكمية وعنوان الشحن، ثم أدخل الكود. قيمة الخصم وأهلية المنتجات والحساب يحددهما المتجر عند الدفع.'],
+  ['هل يمكن للعميل الحالي استخدام NOV170؟',
+   'يمكن للعميل الحالي تجربة NOV170 على حسابه المعتاد دون تغيير بياناته. لا نؤكد أن العرض متاح لكل حساب أو طلب؛ اقرأ رسالة نون داخل السلة. راجع دليل العملاء الحاليين إذا كانت هناك رسالة رفض أو التباس في الشروط.'],
+  ['هل NOV170 مخصص لأول طلب فقط؟',
+   'لا نفترض أن الكود مخصص لكل الطلبات الأولى أو أنه مقبول تلقائيًا للحساب الجديد. افتح دليل الطلب الأول وتحقق من شروط الحملة والمنتج وطريقة الدفع المعروضة في نون السعودية قبل الشراء.'],
+  ['لماذا قد لا يظهر خصم عند إدخال الكود؟',
+   'قد تختلف أهلية العروض حسب الحساب والبائع والفئة والحد الأدنى وطريقة الدفع ووقت الحملة؛ هذه عوامل للفحص وليست شروطًا مؤكدة لكود NOV170. اقرأ رسالة الرفض، وتحقق من السوق الصحيح، ثم قارن الإجمالي على نفس السلة.'],
+  ['هل الكاش باك يساوي الخصم الفوري في نون؟',
+   'لا. الخصم الفوري يظهر في قيمة الدفع الحالية عند قبوله، أما الرصيد أو المكافأة المستردة فقد تخضع لشروط وموعد اعتماد مختلفين. لا تجمع نسب العروض افتراضيًا؛ قارن المبلغ النهائي الذي ستدفعه الآن.']
+ ],
+ uae:[
+  ['What is the Noon UAE promo code shown here?',
+   'Noon Deals Now lists NOV188 as its UAE coupon. Open the official Noon UAE basket, keep the exact product, seller, quantity and address unchanged, and enter NOV188. The store checkout decides eligibility and the amount, if any, saved.'],
+  ['Can existing Noon UAE customers try NOV188?',
+   'Returning customers can test NOV188 in their existing account, but this page does not promise that every returning account or cart qualifies. Read the checkout message and refer to our dedicated existing-customer guide for a controlled comparison.'],
+  ['Does NOV188 automatically apply to first orders?',
+   'A new account or first purchase does not by itself confirm promotion eligibility. Review the official UAE checkout conditions, seller, product and selected payment method before expecting a first-order saving.'],
+  ['Why does a Noon UAE coupon fail at checkout?',
+   'Check the UAE storefront and copied code first. Campaign terms may depend on account, product, seller, basket value, payment method or date; these are possibilities to verify rather than claimed restrictions for NOV188. Use the checkout message to understand the result.'],
+  ['Is Noon UAE cashback the same as instant savings?',
+   'No. An instant coupon reduction changes the current AED payable total if accepted. Cashback or wallet credits can be separate benefits with their own timing and terms. Do not add percentages from unrelated promotions when comparing two baskets.']
+ ]
+};
+const couponHubAnswers=(m)=>{
+ const ar=isSA(m),answers=couponHubQuestions[m];
+ const paths=[
+  [guideUrl({m,slug:'existing-customers'}),ar?'كود نون للعملاء الحاليين':'Existing-customer coupon guide'],
+  [guideUrl({m,slug:'first-order'}),ar?'دليل الطلب الأول':'First-order eligibility guide'],
+  ['/guide/coupon-not-working',ar?'أسباب رفض الكوبون':'Why a coupon may fail'],
+  ['/guide/noon-refund-credit',ar?'الفرق بين الرصيد المسترد والخصم':'Cashback and wallet-credit basics'],
+  ['/coupon-verification',ar?'منهجية التحقق من أكواد نون':'How coupon information is reviewed']
+ ];
+ const intro=ar?
+ 'الإجابة السريعة: كود نون السعودية المدرج هنا هو NOV170. اختر منتجاتك من نون السعودية الرسمي وجرّب الرمز في سلة ثابتة؛ لا توجد نسبة خصم أو أهلية مضمونة لكل عميل أو منتج.':
+ 'Quick answer: the UAE coupon listed here is NOV188. Test it on the official Noon UAE checkout using an unchanged basket; no fixed savings rate or universal customer eligibility is promised.';
+ return '<section class="box" id="coupon-quick-answers" data-ndn-aeo="market-answer-first-v1">'+
+ '<h2>'+(ar?'الإجابة المباشرة عن كود خصم نون السعودية':'Noon UAE promo code: direct answers')+'</h2>'+
+ '<p><strong>'+E(intro)+'</strong></p>'+
+ answers.map(([q,a])=>'<section><h3>'+E(q)+'</h3><p>'+E(a)+'</p></section>').join('')+
+ '<h3>'+(ar?'روابط تكمّل الإجابة قبل الدفع':'Specific guides before checkout')+'</h3><ul>'+
+ paths.map(([href,label])=>'<li><a href="'+href+'">'+E(label)+'</a></li>').join('')+'</ul>'+
+ '<p><a href="'+(ar?'https://www.noon.com/saudi-ar/':'https://www.noon.com/uae-en/')+
+ '" rel="noopener sponsored" target="_blank">'+(ar?'راجع سلة نون السعودية الرسمية':'Check the official Noon UAE checkout')+
+ '</a> · <a href="/editorial-policy">'+(ar?'السياسة التحريرية':'Editorial policy')+'</a></p></section>';
+};
 let generated=0;
 for(const m of ['saudi','uae']){
  const isArabic=isSA(m),codeNow=code(m);
@@ -130,10 +184,9 @@ for(const m of ['saudi','uae']){
  const body='<section class="box"><h2>'+(isArabic?'كيف تختبر كود نون السعودية؟':'How to test NOV188 in Noon UAE')+'</h2><p>'+
   (isArabic?'حدد عنوان التوصيل في السعودية، واختر منتجات تحتاجها فعلًا، ثم أدخل NOV170 في خانة الكوبون. قارن الإجمالي النهائي بالريال السعودي قبل الكود وبعده مع ثبات السلة والبائع ورسوم الشحن.':
   'Choose the UAE storefront and delivery address, place products you actually need into the cart, then enter NOV188. Compare the final AED amount before and after applying it without changing products, seller or delivery details.')+
-  '</p><h2>'+(isArabic?'أدلة شراء مرتبطة بالكود':'Buyer guides related to the code')+'</h2><ul>'+guideLinks(m)+'</ul>'+
+  '</p>'+couponHubAnswers(m)+'<h2>'+(isArabic?'أدلة شراء مرتبطة بالكود':'Buyer guides related to the code')+'</h2><ul>'+guideLinks(m)+'</ul>'+
   '<h2>'+(isArabic?'مقالات منشورة من نفس السوق':'Real articles from the same market')+'</h2><ul>'+recentLinks(m)+'</ul></section>';
- const faq=isArabic?[['هل NOV170 كود للسعودية؟','نعم، هو كود السوق السعودي المدرج من مالك الموقع، والأهلية تحددها سلة نون.'],['هل هناك نسبة مؤكدة؟','لا نزعم نسبة ثابتة أو مدة سريان دون بيانات موثقة.']]:
- [['Is NOV188 the UAE code?','It is the owner-listed UAE code. Checkout determines eligibility.'],['Is a fixed saving guaranteed?','No. Only the payable total in the official checkout can confirm a saving.']];
+ const faq=couponHubQuestions[m];
  await save(baseUrl(m),page(m,baseUrl(m),title,desc,body,{faq}));generated++;
  const catPath='/'+m+'/categories',catTitle=isArabic?'أقسام نون السعودية | كوبون NOV170 ودليل المنتجات':'Noon UAE shopping categories | NOV188 and buyer guides';
  const cards=categories.map(c=>'<a class="linkcard" href="/'+m+'/category/'+c[0]+'"><strong>'+E(c[1])+'</strong><small>'+E(c[2])+'</small></a>').join('');
@@ -469,7 +522,13 @@ const slogan='<section class="section" id="commercial-buying-intent"><div class=
  '<a class="guide" href="/saudi/noon-coupon-code"><h3>كوبون نون السعودية NOV170</h3><p>الطريقة الصحيحة لاستخدام الكود قبل الدفع.</p></a>'+
  '<a class="guide" href="/saudi/categories"><h3>أقسام نون السعودية</h3><p>الجوالات والإلكترونيات والأجهزة المنزلية والجمال.</p></a>'+
  '<a class="guide" href="/uae/noon-coupon-code"><h3>كوبونات نون الإمارات NOV188</h3><p>كود الإمارات المنفصل وروابط المقالات المرتبطة.</p></a>'+
- '</div><p><a href="/golden-keywords" style="color:#1558c0;font-weight:900">صفحة الكلمات المفتاحية الذهبية للسعودية والإمارات</a></p><h3>أدلة شراء بنية البحث العالية</h3><div class="chips">'+
+ '</div><p><strong>أسئلة الكوبونات قبل الشراء:</strong> '+
+ '<a href="/saudi/buying-guide/existing-customers">كود نون السعودية للعملاء الحاليين</a> · '+
+ '<a href="/saudi/buying-guide/first-order">الطلب الأول في السعودية</a> · '+
+ '<a href="/uae/buying-guide/existing-customers" lang="en">Noon UAE for existing customers</a> · '+
+ '<a href="/uae/buying-guide/first-order" lang="en">Noon UAE first order</a> · '+
+ '<a href="/guide/coupon-not-working">لماذا قد يرفض نون الكود؟</a></p>'+
+ '<p><a href="/golden-keywords" style="color:#1558c0;font-weight:900">صفحة الكلمات المفتاحية الذهبية للسعودية والإمارات</a></p><h3>أدلة شراء بنية البحث العالية</h3><div class="chips">'+
  seo.map(s=>'<a style="display:inline-block;padding:8px 11px;margin:5px;background:#fff;border:1px solid #ddd;border-radius:12px;color:#1558c0" href="'+guideUrl(s)+'">'+E(s.key)+'</a>').join('')+'</div></div></section>';
 const rootFile=resolve(root,'index.html');
 const home=await readFile(rootFile,'utf8');
