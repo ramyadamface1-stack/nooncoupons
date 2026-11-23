@@ -66,7 +66,7 @@ export async function auditIndexability({origin=ORIGIN,fetcher=fetch,maxPages=MA
    const xml=await readXml(url,'urls');
    const urls=locs(xml).filter(u=>safe(u,origin)&&new URL(u).pathname.startsWith('/articles/'));
    sources.push({type:'ai-v2',sitemap:url,totalInShard:urls.length});
-   candidates.push(...sample(urls,5));
+   candidates.push(...sample(urls,4));
   }
  }catch(e){warnings.push('AI_V2_SOURCE_'+String(e.message||e).slice(0,100))}
  try{
