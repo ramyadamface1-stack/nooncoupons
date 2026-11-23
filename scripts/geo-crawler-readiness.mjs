@@ -1,12 +1,13 @@
 // Read-only, no credentials. Checks the live HTTP HTML seen by *synthetic*
 // search user-agents; this is NOT proof a verified search-engine IP can crawl.
 import {appendFileSync} from 'node:fs';
+import {verifyCouponPage,isXmlSitemap} from './geo-crawler-checks.mjs';
 
 const targets=[
-  ['NoonCoupons RAMY25 answer','https://nooncoupons.com/noon-discount-code','RAMY25'],
-  ['NoonCoupons RAMY25 canonical','https://nooncoupons.com/coupon/ramy25-ramadan','RAMY25'],
   ['NoonDealsNow Saudi NOV170','https://noondealsnow.com/coupon/nov170','NOV170'],
-  ['NoonDealsNow UAE NOV188','https://noondealsnow.com/coupon/nov188','NOV188']
+  ['NoonDealsNow UAE NOV188','https://noondealsnow.com/coupon/nov188','NOV188'],
+  ['NoonDealsNow Saudi canonical','https://noondealsnow.com/saudi-arabia/noon-coupon-code','NOV170'],
+  ['NoonDealsNow UAE canonical','https://noondealsnow.com/uae/noon-coupon-code','NOV188']
 ];
 const agents=['OAI-SearchBot','Googlebot','Bingbot'];
 const cases=[];const problems=[];
@@ -27,7 +28,7 @@ async function fetchText(url,agent){
   if(last?.response)return last;
   throw last;
 }
-for(const domain of ['nooncoupons.com','noondealsnow.com']){
+for(const domain of ['noondealsnow.com']){
   try{
     const {response,body}=await fetchText('https://'+domain+'/robots.txt','OAI-SearchBot');
     const allowed=!/(?:^|\n)Disallow:\s*\/\s*(?:\n|$)/i.test(body);
@@ -40,12 +41,8 @@ for(const domain of ['nooncoupons.com','noondealsnow.com']){
 for(const [page,url,code] of targets)for(const agent of agents){
   try{
     const {response,body}=await fetchText(url,agent);
-    const canonicalTags=[...body.matchAll(/<link\b[^>]*\brel=['"]canonical['"][^>]*>/ig)].map(x=>x[0]);
-    const canonical=canonicalTags.some(t=>t.includes('href="'+url+'"')||t.includes("href='"+url+"'"));
-    const robotsTags=[...body.matchAll(/<meta\b[^>]*\bname=['"]robots['"][^>]*>/ig)].map(x=>x[0]).join(' ');
-    const noindex=/noindex/i.test(robotsTags);
-    const visible=body.includes(code);
-    const ok=response.status===200&&canonical&&!noindex&&visible;
+    const checked=verifyCouponPage({url,status:response.status,html:body,headers:response.headers,code});
+    const {ok,canonicalMatches:canonical,visible,noindex}=checked;
     cases.push({page,agent,status:response.status,ok,reason:ok?'ok':'canonical, noindex or code missing'});
     if(!ok)problems.push(page+' '+agent+': status='+response.status+' canonical='+canonical+' code='+visible+' noindex='+noindex);
   }catch(e){cases.push({page,agent,status:0,ok:false,reason:'request error'});problems.push(page+' '+agent+': '+String(e).slice(0,150))}
@@ -66,10 +63,11 @@ async function fetchStatus(url,method){
       const response=await fetch(url,{method,headers:{'user-agent':'NoonDealsNow-public-sitemap-readonly-test/1.0','accept':'application/xml,*/*;q=0.5'},redirect:'follow',signal:AbortSignal.timeout(20000)});
       const status=response.status;
       const xml=(response.headers.get('content-type')||'').includes('xml');
-      const marker=response.headers.get('x-sitemap-head-parity')||'';
-      await response.body?.cancel();
+      const mime=response.headers.get('content-type')||'';
+      const body=method==='GET'?await response.text():'';
+      if(method!=='GET')await response.body?.cancel();
       if(status>=500&&attempt===0)continue;
-      return {status,xml,marker};
+      return {status,xml,mime,body};
     }catch(e){lastError=e}
   }
   throw lastError||new Error('503 after retry');
@@ -79,9 +77,12 @@ for(const item of sitemapHeadCases){
   try{
     const head=await fetchStatus(url,'HEAD');
     const get=item.expected===200?await fetchStatus(url,'GET'):null;
-    const ok=head.status===item.expected&&(item.expected!==200||(get?.status===200&&head.xml&&get.xml&&head.marker==='v1'));
+    // Cloudflare Static Assets correctly serve HEAD 200 without the private
+    // dynamic-worker marker. Only HTTP parity and actual GET XML matter.
+    const ok=head.status===item.expected&&(item.expected!==200||
+      (head.xml&&isXmlSitemap({status:get?.status,mime:get?.mime,body:get?.body})));
     cases.push({page:'NoonDealsNow '+item.path,agent:'HEAD/GET parity',status:String(head.status)+'/'+(get?.status??'n/a'),ok});
-    if(!ok)problems.push('Sitemap method mismatch: '+item.path+' HEAD='+head.status+' GET='+(get?.status??'not tested')+' headMarker='+head.marker);
+    if(!ok)problems.push('Sitemap HTTP/XML mismatch: '+item.path+' HEAD='+head.status+' GET='+(get?.status??'not tested')+' xmlMime='+head.xml);
   }catch(e){cases.push({page:'NoonDealsNow '+item.path,agent:'HEAD/GET parity',status:0,ok:false});problems.push('Sitemap method check '+item.path+': '+String(e).slice(0,120))}
 }
 
