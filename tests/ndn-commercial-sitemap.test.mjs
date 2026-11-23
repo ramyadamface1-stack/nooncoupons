@@ -6,7 +6,7 @@ test('commercial and trust sitemaps list only confirmed indexable canonical page
  const xml=readFileSync(root+'/sitemap-commercial.xml','utf8');
  const urls=[...xml.matchAll(/<loc>([^<>]+)<\/loc>/g)].map(m=>m[1]);
  assert.equal(urls.length,89);
- assert.equal(new Set(urls).size,88);
+ assert.equal(new Set(urls).size,89);
  for(const url of urls){
   assert.ok(url.startsWith(origin+'/'),url);
   const path=url.slice(origin.length);
