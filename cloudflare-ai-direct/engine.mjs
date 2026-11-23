@@ -8,6 +8,7 @@ import {buildEnglishAiV2Article} from '../automation/ai-v2/native-article.mjs';
 import {listDirectKeys} from './keys.mjs';
 import {providerOutcomeAction} from './provider-response.mjs';
 import {planDirectProviderWindow} from './provider-window.mjs';
+import {inspectDirectProviderEligibility} from './provider-eligibility.mjs';
 import {directTopicAt,directTopicSpaceLength,DIRECT_TOPIC_SPACE_VERSION} from './topic-space.mjs';
 import {withDirectLease} from './lease.mjs';
 import {DIRECT_READY_TARGET,planGenerationMarkets,planQuotaCooldown} from './production-guard.mjs';
@@ -89,6 +90,27 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
   if(!keys.gemini.length&&!keys.groq.length)return logState(env,{phase:'KEYS_MISSING',market});
   if(preferredProvider==='groq'&&!keys.groq.length&&!allowFallback)
    return logState(env,{phase:'GROQ_KEYS_MISSING',market});
+  // CRITICAL: inspect local 401/403 and 429 cooldowns BEFORE taking a new
+  // identity or writing REQUEST_SENT. Otherwise every idle minute burns an
+  // original question despite ZERO available free AI capacity.
+  const keyCursor=ROOT+'provider-rotation/'+market+'.json';
+  const previousKeys=await jsonGet(env,keyCursor);
+  const window=planDirectProviderWindow({gemini:keys.gemini.length,groq:keys.groq.length},{
+   market,previous:previousKeys,maxAttempts:maxProviderAttempts,preferredProvider,allowFallback});
+  let eligibleKeys;
+  try{
+   eligibleKeys=await inspectDirectProviderEligibility(env.CONTENT_FINAL,keys,window,{fingerprint});
+  }catch{
+   return logState(env,{phase:'PROVIDER_KEY_PREFLIGHT_UNAVAILABLE',market});
+  }
+  if(!eligibleKeys.eligible.length){
+   // Rotate past cooled/rejected credentials on the next minute instead of
+   // pinning the same expired window. No topic cursor or checkpoint touched.
+   const saved=await jsonPut(env,keyCursor,{...window.next,at:utc()});
+   if(!saved)return logState(env,{phase:'PROVIDER_ROTATION_WRITE_UNCONFIRMED',market});
+   return logState(env,{phase:'PROVIDER_KEYS_COOLING_OR_REJECTED',market,
+    keyWindow:eligibleKeys.diagnostics,topicReserved:false,providerCalls:0});
+  }
   const previous=await jsonGet(env,cursorKey,{next:0});
   const space=directTopicSpaceLength(topics);
   // Upgrade old N11 cursors directly to fresh append-only scoped topics.
@@ -144,15 +166,11 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
   // An independently persisted cursor per provider ensures Groq is selected
   // for AE whenever configured; neither provider can starve behind the other.
   // Reserve all three candidate slots BEFORE making the first provider POST.
-  const keyCursor=ROOT+'provider-rotation/'+market+'.json';
-  const previousKeys=await jsonGet(env,keyCursor);
-  const window=planDirectProviderWindow({gemini:keys.gemini.length,groq:keys.groq.length},{
-    market,previous:previousKeys,maxAttempts:maxProviderAttempts,preferredProvider,allowFallback});
   const advanced=await jsonPut(env,keyCursor,{...window.next,at:utc()});
   if(!advanced)return logState(env,{phase:'KEY_ROTATION_WRITE_UNCONFIRMED',market});
   const models=['gemini-3.1-flash-lite','gemini-3.5-flash-lite','gemini-3.8-flash'];
   let result=null,chosen=null,calls=0;
-  for(const selected of window.attempts){
+  for(const selected of eligibleKeys.eligible){
    const entry={provider:selected.provider,key:keys[selected.provider][selected.keyIndex]};
    const model=entry.provider==='groq'?'openai/gpt-oss-120b':
     models[(start+selected.keyIndex)%models.length];
