@@ -13,6 +13,7 @@ const allBrandSlugs=Object.keys(BRANDS).filter(slug=>/^[a-z0-9-]+$/.test(slug)&&
 if(allBrandSlugs.length!==30)throw Error('COMMERCIAL_SITEMAP_BRAND_COUNT_CHANGED');
 const routes=[
  '/golden-keywords','/saudi/golden-keywords','/uae/golden-keywords',
+ '/saudi/category/mobiles',
  '/brands',
  '/editorial-policy','/coupon-verification','/authors/editorial-team','/disclaimer',
  ...['saudi','uae'].flatMap(m=>[
