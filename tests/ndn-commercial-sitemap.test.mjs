@@ -5,7 +5,7 @@ const root='.ndn-static-assets',origin='https://noondealsnow.com';
 test('commercial and trust sitemaps list only confirmed indexable canonical pages',()=>{
  const xml=readFileSync(root+'/sitemap-commercial.xml','utf8');
  const urls=[...xml.matchAll(/<loc>([^<>]+)<\/loc>/g)].map(m=>m[1]);
- assert.equal(urls.length,88);
+ assert.equal(urls.length,89);
  assert.equal(new Set(urls).size,88);
  for(const url of urls){
   assert.ok(url.startsWith(origin+'/'),url);
@@ -24,6 +24,7 @@ test('commercial and trust sitemaps list only confirmed indexable canonical page
  for(const brand of ['apple','samsung','xiaomi','nike','dyson','loreal','versace']){
    for(const country of ['saudi','uae'])assert.ok(urls.includes(origin+'/'+country+'/brand/'+brand),country+'/'+brand);
  }
+ assert.ok(urls.includes(origin+'/saudi/category/mobiles'));
  assert.ok(urls.includes(origin+'/saudi-arabia/noon-coupon-code'));
  assert.ok(!urls.includes(origin+'/saudi/noon-coupon-code'));// duplicate route consolidates to historic canonical
  assert.ok(urls.includes(origin+'/uae/noon-coupon-code'));
