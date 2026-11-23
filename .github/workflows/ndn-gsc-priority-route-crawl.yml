@@ -1,0 +1,46 @@
+name: NDN GSC Commercial URL HTTP Recovery (Read Only)
+
+on:
+  schedule:
+    # One bounded daily snapshot, no article generation or R2 writes.
+    - cron: '15 9 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/ndn-gsc-recovery-priority-probe.mjs'
+      - 'tests/ndn-gsc-priority-probe.test.mjs'
+      - '.github/workflows/ndn-gsc-priority-route-crawl.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/ndn-gsc-recovery-priority-probe.mjs'
+      - 'tests/ndn-gsc-priority-probe.test.mjs'
+      - '.github/workflows/ndn-gsc-priority-route-crawl.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          node --check scripts/ndn-gsc-recovery-priority-probe.mjs
+          node --test tests/ndn-gsc-priority-probe.test.mjs
+  live-priority-urls:
+    if: github.event_name != 'pull_request'
+    needs: offline-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test real previously impression-bearing URL responses, canonical and noindex
+        run: node scripts/ndn-gsc-recovery-priority-probe.mjs
