@@ -215,10 +215,19 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
    // A 5xx may follow a model completion or quota consumption. Never
    // automatically resend the same prompt with a different key/provider.
    if(action==='QUARANTINE_UNKNOWN'){
+    // A 5xx may have consumed provider capacity even though its output is
+    // unknown. Quarantine THIS article identity forever and suspend the
+    // selected provider key for a bounded exponential window; do not spend
+    // another unique buyer topic every subsequent minute during an outage.
     await jsonPut(env,checkpointKey,{...initial,state:'UNKNOWN_REQUEST_OUTCOME',
      provider:entry.provider,model,providerCalls:calls,lastRequestStatus:result.http,at:utc()});
+    const previousOutage=await jsonGet(env,cooldownKey);
+    const backoff=planQuotaCooldown(entry.provider,
+     Math.max(0,Number(previousOutage?.failures||0)));
+    const stored=await jsonPut(env,cooldownKey,{...backoff,provider:entry.provider,
+     keyRef,reason:'PROVIDER_TEMPORARY_5XX',http:result.http,at:utc()});
     return logState(env,{phase:'PROVIDER_HTTP_OUTCOME_UNKNOWN',market,
-     provider:entry.provider,http:result.http,calls});
+     provider:entry.provider,http:result.http,calls,providerBackoffSaved:Boolean(stored)});
    }
    break;
   }
