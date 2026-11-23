@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - 'cloudflare-ai-direct/**'
+      - 'automation/ai-v2/topic-refresh-n12.mjs'
+      - 'tests/cloudflare-ai-direct-n12-recovery.test.mjs'
       - 'automation/ai-v2/article-batch.mjs'
       - 'automation/ai-v2/native-article.mjs'
       - 'automation/ai-v2/native-arabic-article.mjs'
@@ -32,6 +34,7 @@ jobs:
           set -euo pipefail
           test -n "${CLOUDFLARE_API_TOKEN:-}" || exit 20
           node -e "const fs=require('fs');const c=JSON.parse(fs.readFileSync('cloudflare-ai-direct/wrangler.jsonc','utf8')); if(c.name!=='noondealsnow-ai-direct-r2'||c.vars.DIRECT_AI_STAGE!=='production'||c.triggers.crons.length!==1||c.triggers.crons[0]!=='* * * * *')process.exit(21)"
+          node --check automation/ai-v2/topic-refresh-n12.mjs
           node --check cloudflare-ai-direct/engine.mjs
           node --check cloudflare-ai-direct/production-guard.mjs
           node --check cloudflare-ai-direct/provider-window.mjs
@@ -44,7 +47,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --test tests/cloudflare-ai-direct-canary.test.mjs tests/cloudflare-ai-direct-production-guard.test.mjs tests/cloudflare-ai-direct-single-flight.test.mjs tests/cloudflare-ai-direct-topic-space.test.mjs tests/ai-v2-article-batch.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-native-arabic-article.test.mjs
+          node --test tests/cloudflare-ai-direct-canary.test.mjs tests/cloudflare-ai-direct-production-guard.test.mjs tests/cloudflare-ai-direct-single-flight.test.mjs tests/cloudflare-ai-direct-topic-space.test.mjs tests/cloudflare-ai-direct-n12-recovery.test.mjs tests/ai-v2-article-batch.test.mjs tests/ai-v2-native-article.test.mjs tests/ai-v2-native-arabic-article.test.mjs
           echo 'DIRECT_PRODUCTION_SAFETY_TESTS=PASS;NO_PROVIDER_CALLS_IN_CI=TRUE'
       - name: Confirm fresh direct-native article was genuinely published before cutover
         shell: bash
