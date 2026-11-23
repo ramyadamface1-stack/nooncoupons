@@ -8,6 +8,7 @@ on:
       - 'scripts/build-ndn-static-seo-assets.mjs'
       - 'scripts/build-ndn-quota-static-fallback.mjs'
       - 'scripts/build-ndn-commercial-static.mjs'
+      - 'tests/ndn-market-coupon-aeo-static.test.mjs'
       - 'scripts/build-ndn-legacy-conversion-landing-rescue.mjs'
       - 'scripts/build-ndn-static-all-brand-hubs.mjs'
       - 'tests/ndn-static-all-brand-hubs.test.mjs'
@@ -346,7 +347,7 @@ jobs:
           node --test tests/ndn-static-all-brand-hubs.test.mjs
           node --test tests/ndn-legacy-commercial-static.test.mjs
           node scripts/build-ndn-commercial-sitemap.mjs
-          node --test tests/ndn-commercial-sitemap.test.mjs
+          node --test tests/ndn-commercial-sitemap.test.mjs tests/ndn-market-coupon-aeo-static.test.mjs
           node --test tests/ndn-commercial-static.test.mjs tests/ndn-static-trust-pages.test.mjs
           node --test tests/ndn-static-blog-from-r2.test.mjs tests/ndn-static-complete-blog.test.mjs tests/ndn-complete-r2-archive.test.mjs
           echo 'LIVE_BLOG_SOURCE=R2_VERIFIED_PUBLICATIONS;NO_FAKE_GUIDE_ONLY_BLOG=TRUE'
