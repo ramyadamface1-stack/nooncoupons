@@ -20,6 +20,12 @@ test('HTTP 5xx, noindex and canonical drift are visible as technical flags',asyn
  const valid=await checkOne('/coupons',102,'commercial',async()=>new Response(html(base+'/coupons'),{status:200,headers}));
  assert.equal(valid.result,'PASS');
 });
+test('intentional legacy English UAE canonical/noindex is a normalized alias, not a false failure',async()=>{
+ const alias=await checkOne('/en/uae/noon-coupon-code',48,'commercial',async()=>
+  new Response('<html><head><meta name="robots" content="noindex,follow"><link rel="canonical" href="'+base+'/uae/noon-coupon-code"></head><body><h1>Noon UAE coupon</h1></body></html>',{status:200,headers}));
+ assert.equal(alias.result,'EXPECTED_CANONICAL_ALIAS');
+ assert.deepEqual(alias.reasons,[]);
+});
 test('mocked end-to-end audit makes zero writes and preserves original URLs',async()=>{
  let calls=0;
  const mock=async url=>{

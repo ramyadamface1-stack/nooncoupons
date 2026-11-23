@@ -204,14 +204,56 @@ for(const m of ['saudi','uae']){
  await save(shopPath,page(m,shopPath,shopTitle,dirs[m].desc,shopBody));generated++;
  for(const c of categories){
   const p='/'+m+'/category/'+c[0];
-  const cTitle=isArabic?'دليل '+c[1]+' على نون السعودية | '+codeNow:'Noon UAE '+c[1]+' | '+codeNow;
-  const content='<section class="box"><h2>'+E(c[1])+'</h2><p>'+E(c[2])+'</p><h2>'+(isArabic?'قبل أن تختار':'Before choosing')+'</h2><ol>'+
+  const highValueSaudiMobiles=m==='saudi'&&c[0]==='mobiles';
+  const cTitle=highValueSaudiMobiles?'كود خصم نون للجوالات السعودية NOV170 | دليل الاختيار والضمان':
+   (isArabic?'دليل '+c[1]+' على نون السعودية | '+codeNow:'Noon UAE '+c[1]+' | '+codeNow);
+  let content='<section class="box"><h2>'+E(c[1])+'</h2><p>'+E(c[2])+'</p><h2>'+(isArabic?'قبل أن تختار':'Before choosing')+'</h2><ol>'+
    [isArabic?'حدد الموديل والقياسات والمواصفات أو الكمية الدقيقة.':'Match exact model, size, quantity and compatibility.',
     isArabic?'قارن البائع والضمان وسياسة الإرجاع.':'Check seller, warranty and product-specific returns.',
     isArabic?'احسب الشحن والرسوم قبل تجربة الكود.':'Include shipping and disclosed extra fees.',
     isArabic?'اختبر '+codeNow+' داخل سلة المتجر واحكم على الإجمالي.':'Test '+codeNow+' in the UAE checkout, then compare the final total.'
    ].map(s=>'<li>'+E(s)+'</li>').join('')+'</ol><h2>'+(isArabic?'أدلة شراء ذات صلة':'Related detailed guides')+'</h2><ul>'+guideLinks(m)+'</ul></section>';
-  await save(p,page(m,p,cTitle,dirs[m].desc,content,{indexable:false}));generated++;
+  if(highValueSaudiMobiles){
+   // GSC owner-export 2026-11-23: this precise landing had 62 impressions
+   // and ~10.85 average position. It was deliberately noindex while generic;
+   // only the uniquely edited page earns indexability, not the other 83.
+   content='<section class="box" data-ndn-editorial="saudi-mobiles-v1">'+
+    '<h2>كيف تختار جوالًا مناسبًا من نون السعودية قبل تجربة NOV170؟</h2>'+
+    '<p>قبل تصفح الهواتف حدد ميزانيتك القصوى، وطريقة استخدامك، والميزات التي لا يمكن الاستغناء عنها. شخص يصور الفيديوهات الطويلة له احتياج مختلف عن شخص يستخدم المكالمات والتطبيقات اليومية. لا تبدأ بالاسم التجاري أو أعلى رقم تخزين؛ ابدأ بما تحتاج إليه ثم طابقه مع المواصفات الحقيقية للنسخة المعروضة.</p>'+
+    '<p>الأسعار وتوفر الأجهزة والبائعون تتغير داخل نون، لذلك لا نعرض هنا أرقام أسعار مؤقتة أو نسبة توفير مضمونة. الأهم أن تقارن عرضين متطابقين في رقم الموديل والنسخة والحالة والسعة، ثم تتحقق من السعر النهائي عند الدفع.</p>'+
+    '<figure style="margin:18px 0"><img src="/assets/coupon-svg/seo-saudi-mobile-phones/1.svg" width="800" height="500" loading="lazy" alt="Noon Saudi mobile phone buying guide with coupon NOV170" style="max-width:100%;height:auto;border-radius:14px"></figure>'+
+    '<h2>الفرق الحقيقي بين 128 و256 و512 جيجابايت</h2>'+
+    '<p>افحص المساحة المستخدمة على هاتفك الحالي وحجم ملفات الصور والفيديو والألعاب. شراء سعة أعلى قد يكون منطقيًا إن كنت تسجل فيديو كثيرًا أو تحتفظ بملفات كبيرة دون نقلها؛ وقد لا يفيدك إذا كنت تعتمد على تخزين سحابي وتطبيقات قليلة. عند مقارنة السعات، ثبت بقية البيانات: رقم الموديل، حالة الجهاز، اللون، البائع والضمان. لا تعتبر هاتف 128 جيجابايت أرخص من نسخة 256 جيجابايت بالطريقة نفسها التي تقارن بها العرضين المتطابقين.</p>'+
+    '<h2>النسخة السعودية والدولية والشريحة الإلكترونية</h2>'+
+    '<p>اسم السلسلة وحده لا يؤكد تطابق نسخ البلد أو المزايا. اقرأ رقم الموديل الكامل والنسخة الإقليمية وما يذكره البائع عن الشبكات وخيارات الشرائح. إن كانت eSIM مهمة لك، تحقق من توفرها في الإصدار المحدد وتوافقها مع شركتك، بدل الاعتماد على إعلان عام لطراز مشابه. وقد يختلف نطاق الضمان باختلاف جهة البيع والنسخة؛ لذلك راجع المعلومات المكتوبة قبل دفع أي مبلغ.</p>'+
+    '<h2>قائمة مقارنة واحدة تمنع الأخطاء الشائعة</h2>'+
+    '<div style="overflow-x:auto"><table style="width:100%;min-width:520px;border-collapse:collapse"><thead><tr><th scope="col" style="border:1px solid #dfe5ef;padding:8px;text-align:right">العنصر</th><th scope="col" style="border:1px solid #dfe5ef;padding:8px;text-align:right">التحقق قبل الشراء</th></tr></thead><tbody>'+
+    '<tr><td style="border:1px solid #dfe5ef;padding:8px">هوية الجهاز</td><td style="border:1px solid #dfe5ef;padding:8px">رقم الموديل، النسخة، التخزين، اللون والحالة</td></tr>'+
+    '<tr><td style="border:1px solid #dfe5ef;padding:8px">الشبكات والشرائح</td><td style="border:1px solid #dfe5ef;padding:8px">التوافق المحلي ودعم الشريحة الإلكترونية عند الحاجة</td></tr>'+
+    '<tr><td style="border:1px solid #dfe5ef;padding:8px">الضمان والبائع</td><td style="border:1px solid #dfe5ef;padding:8px">اسم البائع، الجهة الضامنة، خدمة الصيانة والإرجاع</td></tr>'+
+    '<tr><td style="border:1px solid #dfe5ef;padding:8px">الإجمالي</td><td style="border:1px solid #dfe5ef;padding:8px">السعر مع التوصيل والملحقات الضرورية قبل وبعد الكود</td></tr>'+
+    '</tbody></table></div>'+
+    '<h2>الضمان والإرجاع ومحتويات علبة الجوال</h2>'+
+    '<p>اطلب مقارنة البائع والنسخة والضمان بنفس الاهتمام بالسعر. اقرأ من الذي يتحمل خدمة الضمان وفي أي بلد، وفترة وشروط التغطية، وسياسة إرجاع الإلكترونيات على صفحة السلعة نفسها. لا تعتبر ضمان البائع مساويًا للضمان المحلي دون إثبات. راجع أيضًا هل الهاتف جديد أو مجدد، وما الذي تتضمنه العلبة. لا تفترض وجود شاحن أو غطاء لمجرد ظهوره في الصور؛ أضف تكاليف الإكسسوارات الضرورية إلى مقارنة إجمالي الطلب.</p>'+
+    '<h2>هل يعمل كود خصم NOV170 على هواتف نون؟</h2>'+
+    '<p>NOV170 هو كود السعودية المدرج في قائمة الأكواد المعتمدة لدى مالك الموقع. لا نؤكد قبوله لكل هاتف أو حساب أو بائع، ولا ننسب إليه نسبة خصم محددة. عند الاختبار استخدم متجر نون السعودية والعنوان نفسه، وضع الهاتف بالنسخة والسعة والبائع المحددين في السلة. سجّل إجمالي الدفع قبل إدخال الكود، ثم أدخل NOV170 واقرأ رسالة نون. إذا كان إجمالي السلة بعد الاختبار أقل وبنفس المحتويات، يمكنك مقارنة الفرق الحقيقي؛ أما الرفض أو عدم التغير فلا يعني تحقق أي توفير.</p>'+
+    '<p>قارن أيضًا أي عرض مباشر مع نتيجة الكوبون من دون إضافة منتجات لا تحتاجها أو تغيير البائع. إذا ظهر رصيد مسترد لاحقًا، لا تخلطه بالخصم الفوري: راجع شروط الرصيد وموعد استحقاقه بشكل منفصل.</p>'+
+    '<h2>أدلة ومصادر مرتبطة</h2><ul>'+
+    '<li><a href="/saudi/buying-guide/mobile-phones">دليل كود نون للجوالات وطريقة المقارنة</a></li>'+
+    '<li><a href="/saudi/buying-guide/samsung-s26-ultra">دليل نسخة Samsung Galaxy S26 Ultra والضمان</a></li>'+
+    '<li><a href="/saudi-arabia/noon-coupon-code">الصفحة الأساسية لكود نون السعودية NOV170</a></li>'+
+    '<li><a href="/coupon-verification">منهجية التحقق من الكوبونات في الموقع</a></li>'+
+    '<li><a href="https://www.noon.com/saudi-ar/electronics-and-mobiles/mobiles-and-accessories/mobiles-20905/smartphones/" rel="noopener noreferrer">صفحة الهواتف الذكية في نون السعودية للتحقق من المواصفات والسعر والتوافر</a></li>'+
+    '</ul></section>';
+  }
+  const faq=highValueSaudiMobiles?[
+   ['هل كود NOV170 يعمل مع كل الجوالات؟','لا يوجد ضمان لأهلية كل جوال أو حساب. تحقق من شروط نون الفعلية ورسالة قبول الكود وإجمالي السلة.'],
+   ['هل الهاتف الدولي مثل النسخة السعودية؟','ليس بالضرورة. قارن رقم الموديل ودعم الشبكات والشريحة ونطاق الضمان في وصف كل عرض.'],
+   ['كيف أقارن سعر جوال بسعة 256 و512 جيجابايت؟','ثبت نسخة الجهاز والحالة والبائع والضمان أولًا، ثم قارن السعر النهائي للسعتين حسب احتياجك للتخزين.']
+  ]:[];
+  const specialDesc='دليل جوالات نون السعودية: مقارنة الموديل والتخزين والنسخة الإقليمية والضمان والبائع والتكلفة النهائية، قبل تجربة NOV170.';
+  await save(p,page(m,p,cTitle,highValueSaudiMobiles?specialDesc:dirs[m].desc,
+   content,{indexable:highValueSaudiMobiles,faq}));generated++;
  }
 }
 for(const s of seo){
