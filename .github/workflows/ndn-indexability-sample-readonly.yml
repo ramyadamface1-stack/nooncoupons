@@ -1,0 +1,58 @@
+name: NoonDealsNow - Sample Live Article Indexability (Read Only)
+
+on:
+  schedule:
+    # Bounded diagnostic only; no generation, Cloudflare Cron or R2 writes.
+    - cron: '41 6 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'scripts/ndn-article-indexability-sample.mjs'
+      - 'scripts/geo-crawler-checks.mjs'
+      - 'tests/ndn-indexability-contract.test.mjs'
+      - '.github/workflows/ndn-indexability-sample-readonly.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/ndn-article-indexability-sample.mjs'
+      - 'scripts/geo-crawler-checks.mjs'
+      - 'tests/ndn-indexability-contract.test.mjs'
+      - '.github/workflows/ndn-indexability-sample-readonly.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate pure indexability and crawler checks
+        run: |
+          node --check scripts/geo-crawler-checks.mjs
+          node --check scripts/ndn-article-indexability-sample.mjs
+          node --test tests/ndn-indexability-contract.test.mjs
+
+  audit-live:
+    if: github.event_name != 'pull_request'
+    needs: offline-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Sample indexable HTML of real sitemap article URLs, no writes
+        run: node scripts/ndn-article-indexability-sample.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ndn-indexability-sample
+          path: ndn-indexability-sample.json
+          if-no-files-found: warn
+          retention-days: 7
