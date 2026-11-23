@@ -25,7 +25,18 @@ test('no missing market root, category, or buying-intent pages under quota exhau
    for(const c of PUBLIC_CATEGORIES){
      const p='/'+m+'/category/'+c[0];
      assert.ok(existsSync(base+p+'.html'),p);
-     assert.ok(page(p).includes('<meta name="robots" content="noindex,follow">'),p);
+     if(m==='saudi'&&c[0]==='mobiles'){
+      const pageContent=page(p);
+      assert.ok(pageContent.includes('<meta name="robots" content="index,follow,max-image-preview:large">'),p);
+      assert.ok(pageContent.includes('data-ndn-editorial="saudi-mobiles-v1"'),p);
+      assert.ok(pageContent.includes('https://www.noon.com/saudi-ar/'),p);
+      assert.ok(pageContent.includes('/saudi/buying-guide/mobile-phones'),p);
+      assert.ok(pageContent.includes('/saudi-arabia/noon-coupon-code'),p);
+      assert.ok(pageContent.includes('NOV170')&&!pageContent.includes('data-code="NOV188"'),p);
+      assert.ok(pageContent.includes('"@type":"FAQPage"'),p);
+      assert.ok(pageContent.includes('/assets/coupon-svg/seo-saudi-mobile-phones/1.svg'),p);
+      assert.ok(pageContent.length>6000,p);
+     }else assert.ok(page(p).includes('<meta name="robots" content="noindex,follow">'),p);
    }
    const topics=m==='saudi'?slugs:ae;
    for(const slug of topics){
