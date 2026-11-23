@@ -24,7 +24,10 @@ test('static blog uses published R2 articles, not the stale 8-guide template',()
   }
   assert.ok(html.includes('<link rel="canonical" href="https://noondealsnow.com/'+path+'"'));
   if(path==='blog/saudi')assert.ok(html.includes('مدونة نون السعودية'));
-  if(path==='blog/uae')assert.ok(html.includes('مدونة نون الإمارات'));
+  if(path==='blog/uae'){
+   assert.ok(html.includes('<html lang="en-AE" dir="ltr">'),'UAE blog must remain English LTR');
+   assert.ok(html.includes('Noon UAE Shopping Guides'),'UAE country blog heading');
+  }
  }
  const home=readFileSync('.ndn-static-assets/index.html','utf8');
  assert.ok(home.includes('id="latest-published-articles"'));
