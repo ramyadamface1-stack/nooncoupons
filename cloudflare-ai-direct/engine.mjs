@@ -1,6 +1,7 @@
 // Direct Cloudflare Cron → Gemini/Groq → encrypted/private R2 → native publish.
 // No GitHub URL, token, workflow, dispatch or browser-held generation loop.
 import {eleventhEditorialTopicWave} from '../automation/ai-v2/topic-refresh-n11.mjs';
+import {twelfthEditorialTopicWave,N12_TOPIC_CATALOG_VERSION} from '../automation/ai-v2/topic-refresh-n12.mjs';
 import {batchArticlePrompt,parseArticleBatch} from '../automation/ai-v2/article-batch.mjs';
 import {buildSaudiAiV2Article} from '../automation/ai-v2/native-arabic-article.mjs';
 import {buildEnglishAiV2Article} from '../automation/ai-v2/native-article.mjs';
@@ -21,6 +22,10 @@ const out=(value,status=200)=>new Response(JSON.stringify(value),{status,headers
 const utc=()=>new Date().toISOString();
 const topicByMarket={SA:eleventhEditorialTopicWave.filter(x=>x.country==='SA'),
   AE:eleventhEditorialTopicWave.filter(x=>x.country==='AE')};
+// N12 gets its own cursor; the legacy N11 scoped cursor and slug identity
+// stay immutable, including all earlier Cloudflare checkpoint reservations.
+const freshByMarket={SA:twelfthEditorialTopicWave.filter(x=>x.country==='SA'),
+  AE:twelfthEditorialTopicWave.filter(x=>x.country==='AE')};
 const couponGate=market=>couponStatus({code:PRIMARY_COUPON_BY_MARKET[market],country:market});
 async function jsonGet(env,key,fallback=null){
  try{const obj=await env.CONTENT_FINAL.get(key);return obj?await obj.json():fallback}catch{return fallback}
@@ -75,7 +80,7 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
   if(env.DIRECT_AI_STAGE==='production'&&!coupon.publishAllowed)return logState(env,{phase:'COUPON_OWNER_REVIEW_REQUIRED',market,
    reason:coupon.reason,coupon:coupon.code,reviewDueAt:coupon.reviewDueAt});
   const topics=topicByMarket[market],cursorKey=ROOT+'cursor/'+market+'.json';
-  if(!topics.length)return logState(env,{phase:'WAITING_TOPICS',market});
+  if(!topics.length&&!freshByMarket[market].length)return logState(env,{phase:'WAITING_TOPICS',market});
   // Verify Cloudflare-side credentials BEFORE reserving any topic/checkpoint.
   // Without keys, a canary must not permanently burn an article identity.
   let keys;
@@ -91,9 +96,35 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
   const oldNext=Number(previous?.next||0);
   const start=previous?.space===DIRECT_TOPIC_SPACE_VERSION&&Number.isSafeInteger(oldNext)&&oldNext>=0
    ?oldNext%space:topics.length;
-  let topic=null,position=null,slot=null;
-  // Eight cheap R2 HEADs at most, no content fetch and no mass enumeration.
-  for(let step=0;step<8;step++){
+  let topic=null,position=null,slot=null,topicWave='N11';
+  // Prefer N12 buyer questions, which have distinct product-specific angles
+  // and new slugs. Existing N11 IDs remain in their original array/order.
+  const freshTopics=freshByMarket[market];
+  if(freshTopics.length){
+   const freshCursorKey=ROOT+'cursor-n12/'+market+'.json';
+   const priorFresh=await jsonGet(env,freshCursorKey,{next:0,space:N12_TOPIC_CATALOG_VERSION});
+   const oldFresh=Number(priorFresh?.next||0);
+   const freshStart=priorFresh?.space===N12_TOPIC_CATALOG_VERSION&&
+      Number.isSafeInteger(oldFresh)&&oldFresh>=0?oldFresh%freshTopics.length:0;
+   let freshNext=(freshStart+8)%freshTopics.length;
+   for(let step=0;step<8;step++){
+    const index=(freshStart+step)%freshTopics.length,candidate=freshTopics[index];
+    if(!candidate)continue;
+    const published=await env.CONTENT_FINAL.head('articles/'+candidate.slug+'.html');
+    const checkpoint=await env.CONTENT_FINAL.head(ROOT+'checkpoint/'+candidate.slug+'.json');
+    if(!published&&!checkpoint){
+     topic=candidate;position=index;slot=step;topicWave='N12';
+     freshNext=(index+1)%freshTopics.length;
+     break;
+    }
+   }
+   // Advance even on an occupied 8-topic window so no single busy cluster
+   // locks the engine forever. Do not retry completed or ambiguous slots.
+   await jsonPut(env,freshCursorKey,{space:N12_TOPIC_CATALOG_VERSION,next:freshNext,at:utc()});
+  }
+  // Preserve the old bounded N11 fallback for genuinely unfinished topics.
+  // Eight cheap R2 HEADs at most per wave; no mass R2 object enumeration.
+  if(!topic)for(let step=0;step<8;step++){
    const index=(start+step)%space,candidate=directTopicAt(topics,index);
    if(!candidate)continue;
    const published=await env.CONTENT_FINAL.head('articles/'+candidate.slug+'.html');
@@ -102,10 +133,10 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
   }
   if(!topic){
    await jsonPut(env,cursorKey,{space:DIRECT_TOPIC_SPACE_VERSION,next:(start+8)%space,at:utc()});
-   return logState(env,{phase:'WAITING_TOPICS',market});
+   return logState(env,{phase:'WAITING_TOPICS',market,topicCatalog:'N12+N11',freshTopicCount:freshByMarket[market].length,legacyTopicSpace:space});
   }
   // Persist before provider POST. Ambiguous provider outcomes are never retried.
-  await jsonPut(env,cursorKey,{space:DIRECT_TOPIC_SPACE_VERSION,next:(position+1)%space,at:utc()});
+  if(topicWave==='N11')await jsonPut(env,cursorKey,{space:DIRECT_TOPIC_SPACE_VERSION,next:(position+1)%space,at:utc()});
   const checkpointKey=ROOT+'checkpoint/'+topic.slug+'.json';
   const initial={state:'REQUEST_SENT',slug:topic.slug,market,createdAt:utc(),providerCalls:0};
   const reserved=await jsonPut(env,checkpointKey,initial,{onlyIf:{etagDoesNotMatch:'*'}});
@@ -207,7 +238,7 @@ async function generate(env,market,{maxProviderAttempts=3,preferredProvider=null
   if(!stored)throw Error('READY_WRITE_NOT_CONFIRMED');
   await jsonPut(env,checkpointKey,{...initial,state:'READY',provider:chosen.provider,model:chosen.model,
     providerCalls:calls,readyKey,at:utc()});
-  return logState(env,{phase:'READY_CREATED',market,slug:topic.slug,provider:chosen.provider,readyKey,calls});
+  return logState(env,{phase:'READY_CREATED',market,slug:topic.slug,provider:chosen.provider,readyKey,calls,topicWave});
  });
 }
 // Canonical site routes run in a separate Worker on the same account.
@@ -626,6 +657,11 @@ export async function directStatus(env){
   env.DIRECT_AI_STAGE==='canary-gemini-generation'?jsonGet(env,ROOT+'canary-gemini-fresh-v1.json'):null,
   jsonGet(env,ROOT+'publication-observation.json')
  ]);
+ const lastLive=await jsonGet(env,ROOT+'last-live-verification.json');
+ const lastLiveMs=Date.parse(String(lastLive?.at||''));
+ const minuteLag=Number.isFinite(lastLiveMs)?Math.max(0,Math.round((Date.now()-lastLiveMs)/60000)):null;
+ const maximumLag=Math.max(10,Number(p?.publishingIntervalMinutes||1)*5);
+ const publishingHealthy=p?.enabled===true&&env.DIRECT_AI_STAGE==='production'&&minuteLag!==null&&minuteLag<=maximumLag;
  const canaryAttempt=row=>{
   if(!row||typeof row!=='object')return null;
   const state=['STARTED','READY_CREATED','BLOCKED'].includes(row.state)?row.state:'UNKNOWN';
@@ -653,7 +689,11 @@ export async function directStatus(env){
    env.DIRECT_AI_STAGE==='canary-gemini-generation'?'GEMINI_CANARY_ONLY':'CANARY_NOT_ACTIVE'):'POLICY_UNAVAILABLE',
   dispatchPolicy:'direct-cloudflare-ai-generation-no-github',githubRuntime:false,directStage:env.DIRECT_AI_STAGE||'unset',
   siteServiceBindingConfigured:Boolean(env.SITE_PUBLIC?.fetch),
-  lastLiveVerification:await jsonGet(env,ROOT+'last-live-verification.json'),
+  lastLiveVerification:lastLive,
+  publishingHealthy,
+  minutesSinceLastVerifiedPublish:minuteLag,
+  publicationHealthReason:!p?.enabled?'CONTROL_PAUSED':env.DIRECT_AI_STAGE!=='production'?'NOT_PRODUCTION':
+   minuteLag===null?'NO_VERIFIED_PUBLICATION':publishingHealthy?'LIVE_PUBLICATION_RECENT':'PUBLISHING_STALLED',
   freeOnly:true,readyCount:ready.readyCount,
   readyCountExact:ready.truncated!==true,
   uncertainPublicationCount:ready.unknownCount,
