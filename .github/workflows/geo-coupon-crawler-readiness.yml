@@ -9,6 +9,8 @@ on:
     paths:
       - '.github/workflows/geo-coupon-crawler-readiness.yml'
       - 'scripts/geo-crawler-readiness.mjs'
+      - 'scripts/geo-crawler-checks.mjs'
+      - 'tests/ndn-indexability-contract.test.mjs'
 
 permissions:
   contents: read
@@ -22,7 +24,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate monitor source
-        run: node --check scripts/geo-crawler-readiness.mjs
+      - name: Validate monitor source and technical crawler contracts
+        run: |
+          node --check scripts/geo-crawler-readiness.mjs
+          node --check scripts/geo-crawler-checks.mjs
+          node --test tests/ndn-indexability-contract.test.mjs
       - name: Check OAI Search, Google and Bing synthetic user-agent responses
         run: node scripts/geo-crawler-readiness.mjs
