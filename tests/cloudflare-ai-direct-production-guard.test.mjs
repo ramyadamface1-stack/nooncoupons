@@ -134,7 +134,9 @@ test('native site service binding is explicit and never repeats an uncertain pub
  assert.match(source,/function siteFetch\(env,url,init\)/);
  assert.match(source,/env\.SITE_PUBLIC\.fetch\(new Request\(url,init\)\)/);
  assert.match(source,/if\(!env\.SITE_PUBLIC\?\.fetch\)return logState\(env,\{phase:'SITE_SERVICE_BINDING_MISSING_PAUSED'\}\)/);
- assert.match(source,/lastLiveVerification:await jsonGet\(env,ROOT\+'last-live-verification\.json'\)/);
+  assert.match(source,/const lastLive=await jsonGet\(env,ROOT\+'last-live-verification\.json'\)/);
+  assert.match(source,/lastLiveVerification:lastLive/);
+  assert.match(source,/publicationHealthReason:/);
  assert.match(source,/containsRawKeys:false/);
  assert.match(source,/continue; \/\/ Never resend an uncertain POST/);
  assert.doesNotMatch(source,/actions\/workflows|api\.github\.com/);
