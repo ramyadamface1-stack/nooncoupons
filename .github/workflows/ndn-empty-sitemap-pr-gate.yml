@@ -1,0 +1,32 @@
+name: NDN Zero-URL Sitemap Root Safety Gate
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/prune-empty-bulk-sitemap-references.py'
+      - 'tests/test_ndn_prune_empty_bulk_sitemaps.py'
+      - '.github/workflows/ndn-empty-sitemap-pr-gate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/prune-empty-bulk-sitemap-references.py'
+      - 'tests/test_ndn_prune_empty_bulk_sitemaps.py'
+      - '.github/workflows/ndn-empty-sitemap-pr-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Prove empty root sitemap references only are removed, no article changes
+        run: |
+          python -m py_compile scripts/prune-empty-bulk-sitemap-references.py
+          python -m unittest discover -s tests -p 'test_ndn_prune_empty_bulk_sitemaps.py' -v
