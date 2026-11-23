@@ -55,3 +55,20 @@ test('real engine checks provider availability BEFORE creating checkpoint, respe
  assert.match(engine,/planDirectProviderWindow\(/);
  assert.doesNotMatch(engine,/api\.github\.com|actions\/workflows|GITHUB_DISPATCH_TOKEN/);
 });
+
+test('ambiguous provider 503 freezes future key selection but never retries the original unknown article',async()=>{
+ const code=readFileSync(new URL('../cloudflare-ai-direct/engine.mjs',import.meta.url),'utf8');
+ const quarantine=code.slice(code.indexOf("if(action==='QUARANTINE_UNKNOWN')"),code.indexOf("   break;",code.indexOf("if(action==='QUARANTINE_UNKNOWN')")));
+ assert.match(quarantine,/state:'UNKNOWN_REQUEST_OUTCOME'/);
+ assert.match(quarantine,/planQuotaCooldown\(entry\.provider,/);
+ assert.match(quarantine,/PROVIDER_TEMPORARY_5XX/);
+ assert.match(quarantine,/jsonPut\(env,cooldownKey/);
+ assert.match(quarantine,/PROVIDER_HTTP_OUTCOME_UNKNOWN/);
+ assert.doesNotMatch(quarantine,/providerRequest\(/);
+ const provider=fixture({cooldown:{reason:'PROVIDER_TEMPORARY_5XX',http:503,
+  until:'2026-11-23T20:45:00.000Z'}});
+ const plan=await inspectDirectProviderEligibility(provider.bucket,keys,window,{fingerprint,
+  atMs:Date.parse('2026-11-23T20:25:00Z')});
+ assert.deepEqual(plan.eligible,[window.attempts[1]]);
+ assert.equal(plan.diagnostics.cooling,1);
+});
