@@ -1,6 +1,12 @@
 name: NoonDealsNow - Verify Live Blog SVG and Deep Pagination Readonly
 on:
   workflow_dispatch:
+  schedule:
+    # Low-cost read-only check of actual blog and featured SVG files.
+    - cron: '47 5 * * *'
+  pull_request:
+    paths:
+      - '.github/workflows/ndn-verify-live-blog-svg-and-pagination.yml'
   push:
     paths:
       - '.github/workflows/ndn-verify-live-blog-svg-and-pagination.yml'
@@ -35,6 +41,19 @@ jobs:
               status,ctype,body=req(img)
               print('LIVE_IMAGE='+img[:85]+';HTTP='+str(status)+';TYPE='+ctype,flush=True)
               assert status==200 and '<svg' in body and '</svg>' in body,(img,status,ctype)
+          # Real newly published Cloudflare-native AI N12 SVGs. Historic
+          # static blog image checks above do not cover new R2 publications.
+          samples=[
+            ('/assets/coupon-svg/saudi-buyer-panasonic-shaver-q1-foil-head-replacement-model-and-inte-nov170-2026-n12/1.svg?v=12&country=SA&coupon=NOV170','NOV170'),
+            ('/assets/coupon-svg/uae-buyer-philips-air-purifier-q1-cadr-room-sizing-and-ceiling-height-nov188-2026-n12/1.svg?v=12&country=AE&coupon=NOV188','NOV188'),
+            ('/assets/coupon-svg/seo-saudi-mobile-phones/1.svg','NOV170')
+          ]
+          for image,approved in samples:
+            status,ctype,svg=req(image)
+            print('LIVE_N12_OR_COMMERCIAL_SVG='+image[:100]+';HTTP='+str(status)+';TYPE='+ctype,flush=True)
+            assert status==200 and 'svg' in ctype.lower(),(image,status,ctype)
+            assert '<svg' in svg and '</svg>' in svg and approved in svg,(image,'SVG_CONTENT_OR_APPROVED_CODE_MISSING')
+          print('LIVE_NEW_FEATURED_IMAGES=PASS;SA_AND_AE_COUPONS_VERIFIED;R2_WRITES=ZERO',flush=True)
           for path in ['/blog/page/611','/blog/saudi/page/297','/blog/uae/page/314']:
             code,ct,html=req(path)
             links=len(re.findall('<article class="card',html))
