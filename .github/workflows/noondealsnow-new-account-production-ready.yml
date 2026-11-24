@@ -45,6 +45,8 @@ on:
       - 'tests/test_ndn_static_ai_v2_sitemaps.py'
       - 'tests/test_ndn_static_root_sitemap.py'
       - 'auto-platform.js'
+      - 'blog-premium-ui.js'
+      - 'tests/blog-premium-ui.test.mjs'
       - 'admin-page.js'
       - 'system1-control-center.js'
       - 'system1-admin-data.js'

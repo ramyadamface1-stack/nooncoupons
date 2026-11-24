@@ -78,8 +78,8 @@ if(recent.length<6)throw Error('NDN_HOMEPAGE_RECENT_ARTICLES_UNAVAILABLE');
 const homepage=resolve(root,'index.html');
 const original=await readFile(homepage,'utf8');
 const section='<section class="section" id="latest-published-articles"><div class="shell">'+
-  '<h2>أحدث المقالات المنشورة</h2><p>مقالات من سجل النشر الفعلي بالموقع.</p>'+
-  '<ul style="line-height:2">'+rows+'</ul><p><a href="/blog" style="color:#1558c0;text-decoration:underline">عرض آخر 15 مقالًا في المدونة</a></p></div></section>';
+  '<h2>مقالات منشورة وقت إعداد نسخة الأرشيف</h2><p>الأرشيف الثابت يُحدَّث عند نشر نسخة جديدة من الموقع. للمقالات الجديدة فور صدورها انتقل إلى السجل المباشر.</p>'+
+  '<ul style="line-height:2">'+rows+'</ul><p><a href="/blog/latest" style="color:#1558c0;text-decoration:underline;font-weight:800">افتح أحدث المقالات المنشورة الآن</a> · <a href="/blog" style="color:#1558c0;text-decoration:underline">تصفح المدونة والأرشيف</a></p></div></section>';
 if(!original.includes('class="footer"'))throw Error('NDN_HOMEPAGE_FOOTER_NOT_FOUND');
 const final=original.replace('<footer class="footer">',section+'<footer class="footer">');
 await writeFile(homepage,final,'utf8');

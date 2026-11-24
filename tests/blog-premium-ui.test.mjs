@@ -13,6 +13,10 @@ test('professional blog presents two actual market coupons, a balanced hero and 
  assert.match(sample,/href="\/uae\/noon-coupon-code"/);
  assert.match(sample,/NOV170/);assert.match(sample,/NOV188/);
  assert.match(sample,/توقيت القاهرة/);
+ assert.match(sample,/آخر مقال وقت تحديث الأرشيف/);
+ assert.match(sample,/class="blogLiveNow"/);
+ assert.match(sample,/المقالات الجديدة تُعرض لحظة نشرها/);
+ assert.match(sample,/href="\/blog\/latest\/saudi"/);
  assert.match(sample,/href="\/blog\/saudi" aria-current="page" class="active"/);
  assert.match(sample,/href="\/golden-keywords"/);
  assert.match(sample,/href="\/blog\/latest\/saudi"/);
@@ -25,7 +29,8 @@ test('professional blog presents two actual market coupons, a balanced hero and 
 test('UAE premium hero and category cards are genuinely English and market-specific',()=>{
  const h=blogPremiumHero({title:'Noon UAE Shopping Guides',description:'Compare UAE deals and seller terms.',articles:5000,pages:334,page:3,market:'AE',latestPublishedAt:'2026-11-22T18:30:00Z'});
  assert.match(h,/Noon UAE Shopping Guides/);
- assert.match(h,/Latest article:/);
+ assert.match(h,/Latest article in this archive snapshot:/);
+ assert.match(h,/the live publication feed/);
  assert.match(h,/Published guides/);
  assert.match(h,/Noon UAE coupon/);
  assert.match(h,/Page 3 of 334/);

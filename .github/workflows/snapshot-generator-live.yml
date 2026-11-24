@@ -1,65 +1,51 @@
-name: Snapshot Live Generator
+name: NoonDealsNow Live Native Generation and Publication Monitor
 
 on:
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/ndn_verified_publication_monitor.py'
+      - 'tests/test_ndn_verified_publication_monitor.py'
+      - '.github/workflows/snapshot-generator-live.yml'
+  pull_request:
+    paths:
+      - 'scripts/ndn_verified_publication_monitor.py'
+      - 'tests/test_ndn_verified_publication_monitor.py'
+      - '.github/workflows/snapshot-generator-live.yml'
 
 permissions:
   contents: read
 
+concurrency:
+  group: ndn-native-hourly-readonly-monitor
+  cancel-in-progress: false
+
 jobs:
-  snapshot:
+  pure-contract-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Read live generator only
-        shell: bash
+      - uses: actions/checkout@v4
+      - name: Prove snapshot is based on Cloudflare direct + actual R2 ledger (no provider calls)
         run: |
           set -euo pipefail
-          URL="https://noondealsnow.com/api/generator-health?snapshot=${GITHUB_RUN_ID}-$(date +%s%N)"
-          STATS="https://noondealsnow.com/api/content-stats?snapshot=${GITHUB_RUN_ID}-$(date +%s%N)"
-          ENGLISH="https://noondealsnow.com/api/english-canary-health?light=1&snapshot=${GITHUB_RUN_ID}-$(date +%s%N)"
-          curl -fsS --retry 4 --retry-all-errors --retry-delay 1 --connect-timeout 8 --max-time 20 "$URL" -o /tmp/g.json
-          curl -fsS --retry 4 --retry-all-errors --retry-delay 1 --connect-timeout 8 --max-time 20 "$STATS" -o /tmp/s.json
-          curl -fsS --retry 4 --retry-all-errors --retry-delay 1 --connect-timeout 8 --max-time 20 "$ENGLISH" -o /tmp/e.json
-          jq -c '{ok,generatedAt:(.time // null),providers,bulk:{dailyTarget:.bulk.dailyTarget,batchSize:.bulk.batchSize,publishedToday:.bulk.publishedToday,publishedTotal:.bulk.publishedTotal,lastRun:.bulk.lastRun,lastError:.bulk.lastError,lastSkipReason:.bulk.lastSkipReason,lastTickAt:.bulk.lastTickAt,lastTickPublished:.bulk.lastTickPublished,lastQuality:.bulk.lastQuality,lastQualityFloor:.bulk.lastQualityFloor,lastWordCount:.bulk.lastWordCount,lastSlug:.bulk.lastSlug,lastBatchPublished:.bulk.lastBatchPublished,lastBatchTries:.bulk.lastBatchTries,lastBatchDurationMs:.bulk.lastBatchDurationMs,lastBatchYieldPct:.bulk.lastBatchYieldPct,lastBatchCandidateBudgetMs:.bulk.lastBatchCandidateBudgetMs,lastBatchCandidateBudgetHit:.bulk.lastBatchCandidateBudgetHit,lastBatchStageMs:.bulk.lastBatchStageMs,catchupPlan:.bulk.catchupPlan},runtime:{bulkRunningAt:.status.bulkRunningAt,bulkAutoPauseUntil:.status.bulkAutoPauseUntil,bulkNoPassStreak:.status.bulkNoPassStreak,bulkLastSkipReason:.status.bulkLastSkipReason,bulkLastTickAt:.status.bulkLastTickAt,bulkLastTickPublished:.status.bulkLastTickPublished,bulkAuditLockRunId:.status.bulkAuditLockRunId,bulkAuditLockUntil:.status.bulkAuditLockUntil,bulkCursorV2:.status.bulkCursorV2,bulkRejectedQuality:.status.bulkRejectedQuality,bulkRejectedPreAuditSemantic:.status.bulkRejectedPreAuditSemantic,bulkRejectedDuplicate:.status.bulkRejectedDuplicate,bulkRejectedGlobal:.status.bulkRejectedGlobal,bulkRejectedPreflightGlobal:.status.bulkRejectedPreflightGlobal,bulkRejectedPreflightRecent:.status.bulkRejectedPreflightRecent,bulkRejectedPreflightCluster:.status.bulkRejectedPreflightCluster,bulkLastPreflightGlobalRejectReasons:.status.bulkLastPreflightGlobalRejectReasons,bulkRejectedCoupon:.status.bulkRejectedCoupon,bulkRejectedLinks:.status.bulkRejectedLinks,bulkRejectedSchema:.status.bulkRejectedSchema,bulkRejectedIndexation:.status.bulkRejectedIndexation,bulkRejectedDemandRouting:.status.bulkRejectedDemandRouting,bulkSearchDemandPolicyVersion:.status.bulkSearchDemandPolicyVersion,bulkLastDemandRouteReasons:.status.bulkLastDemandRouteReasons,bulkLastQualityRejectReasons:.status.bulkLastQualityRejectReasons,bulkLastGlobalRejectReasons:.status.bulkLastGlobalRejectReasons,legacyUpgradePausedForConsolidation:.status.legacyUpgradePausedForConsolidation}}' /tmp/g.json
-          jq -c '{ok,publishedArticles:.liveTrackedPublished,total,arabic,english,englishByCountry,englishControlled,r2AuditSnapshot:{count:.r2Count.count,countedAt:.r2Count.countedAt,stale:.r2Count.stale,complete:.r2Count.complete,source:.r2Count.source},dailyTargetArabic,last}' /tmp/s.json
-          jq -c '{ok,lastError,lastCandidateDiagnostics,scheduler,auditLock,controlled:{target:.controlled.target,published:.controlled.published,remaining:.controlled.remaining,sa:.controlled.sa,ae:.controlled.ae,publishedToday:.controlled.publishedToday,dailyTarget:.controlled.dailyTarget,minIntervalMinutes:.controlled.minIntervalMinutes,batchSize:.controlled.batchSize,targetMarket:.controlled.targetMarket,marketPolicy:.controlled.marketPolicy,keywordMix:.controlled.keywordMix,recentRecords:((.controlled.records // []) | sort_by(.createdAt // "") | .[-20:] | map({createdAt,title,primaryKeyword,keywordTier,keywordCluster,country,profileKey,intent,slug}))}}' /tmp/e.json
-          jq -e '.ok==true and (.providers.external==false) and (.bulk.lastQuality|tonumber)>=95 and (.bulk.catchupPlan.target|tonumber)==30000 and (.bulk.catchupPlan.catchupBatchSize|tonumber)==64 and (.bulk.catchupPlan.adaptiveBatchSize|tonumber)==(.bulk.catchupPlan.effectiveBatchSize|tonumber) and (.bulk.catchupPlan.targetBatchDurationMs|tonumber)==52000 and ((.bulk.lastBatchCandidateBudgetMs|tonumber)>=5000 and (.bulk.lastBatchCandidateBudgetMs|tonumber)<=12000) and (.bulk.catchupPlan.windowHours|tonumber)==8 and (.bulk.catchupPlan.qualityThresholdFloor|tonumber)>=95' /tmp/g.json >/dev/null
-          jq -e '.ok==true and (.dailyTargetArabic|tonumber)==19200 and (.total|tonumber)==(.liveTrackedPublished|tonumber)' /tmp/s.json >/dev/null
-          jq -e '.ok==true and (.controlled.target|tonumber)==50000 and .controlled.targetMarket=="AE" and .controlled.marketPolicy=="uae-only-new-v6-batch24" and (.controlled.dailyTarget|tonumber)==4800 and (.controlled.minIntervalMinutes|tonumber)==1 and (.controlled.batchSize|tonumber)==23' /tmp/e.json >/dev/null
-          python - <<'PY'
-          import json,datetime,re
-          x=json.load(open('/tmp/e.json'))
-          rows=((x.get('controlled') or {}).get('records') or [])
-          now=datetime.datetime.now(datetime.timezone.utc)
-          recent=[]
-          for r in rows:
-              ts=r.get('createdAt')
-              if not ts: continue
-              try: dt=datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
-              except: continue
-              if (now-dt).total_seconds() <= 600: recent.append(r)
-          # No recent article is acceptable when the unique intent space is saturated.
-          banned=re.compile(r'\b(?:coupon today|offers today|deals today|discount code 2026|promo code 2026|cashback offers|free shipping)\b',re.I)
-          bad=[{'createdAt':r.get('createdAt'),'title':r.get('title'),'primaryKeyword':r.get('primaryKeyword')} for r in recent if banned.search((r.get('title') or '')+' '+(r.get('primaryKeyword') or ''))]
-          assert not bad, 'unsafe_recent_english_phrasing:'+json.dumps(bad,ensure_ascii=False)
-          print('RECENT_NEW_ENGINE_ENGLISH_PASS='+json.dumps({'count':len(recent),'latest':recent[-1] if recent else None},ensure_ascii=False))
-          PY
-          python - <<'PY'
-          import json,datetime
-          x=json.load(open('/tmp/e.json'))
-          s=x.get('scheduler') or {}
-          ts=s.get('completedAt') or s.get('startedAt')
-          assert ts, 'english_scheduler_missing'
-          dt=datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
-          age=(datetime.datetime.now(datetime.timezone.utc)-dt).total_seconds()
-          assert age <= 900, f'english_scheduler_stale:{age:.0f}s'
-          if s.get('status')=='running':
-              assert age <= 180, f'english_scheduler_running_stale:{age:.0f}s'
-          else:
-              errors=set(s.get('resultErrors') or [])
-              benign_duplicate_only=(not s.get('error')) and errors.issubset({'r2_conditional_duplicate'})
-              assert s.get('ok') is True or benign_duplicate_only, s
-          PY
+          python3 -m py_compile scripts/ndn_verified_publication_monitor.py
+          python3 -m unittest discover -s tests -p 'test_ndn_verified_publication_monitor.py' -v
+  live-native-snapshot:
+    if: github.event_name != 'pull_request'
+    needs: pure-contract-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    env:
+      R2_ACCESS: ${{ secrets.NOON_NEW_R2_ACCESS_KEY_ID }}
+      R2_SECRET: ${{ secrets.NOON_NEW_R2_SECRET_ACCESS_KEY }}
+      AWS_EC2_METADATA_DISABLED: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install read-only R2 client
+        run: python3 -m pip install --quiet --disable-pip-version-check boto3
+      - name: Verify HTTP, main coupons, live blog, latest published native HTML, and real 1h/24h cadence
+        run: python3 scripts/ndn_verified_publication_monitor.py

@@ -10,6 +10,9 @@ test('static blog uses published R2 articles, not the stale 8-guide template',()
   const html=readFileSync('.ndn-static-assets/'+path+'.html','utf8');
   assert.ok(html.includes('data-blog-premium="v1"'),path);
   assert.ok(html.includes('href="/golden-keywords"'),path);
+  const livePath=path==='blog/saudi'?'/blog/latest/saudi':path==='blog/uae'?'/blog/latest/uae':'/blog/latest';
+  assert.ok(html.includes('href="'+livePath+'"'),path+' does not link to live publications');
+  assert.ok(html.includes('blogLiveNow'),path+' missing clear snapshot-vs-live distinction');
   assert.equal((html.match(/aria-label="Quick shopping navigation"/g)||[]).length,0,'duplicate header '+path);
   assert.match(html,/<meta name="ndn-verified-r2-article-listing" content="v2">/);
   assert.match(html,/<meta name="robots" content="index,follow,max-image-preview:large">/);
@@ -31,6 +34,8 @@ test('static blog uses published R2 articles, not the stale 8-guide template',()
  }
  const home=readFileSync('.ndn-static-assets/index.html','utf8');
  assert.ok(home.includes('id="latest-published-articles"'));
+ assert.ok(home.includes('href="/blog/latest"'),'homepage must link to live newly published R2 journal');
+ assert.ok(home.includes('مقالات منشورة وقت إعداد نسخة الأرشيف'),'homepage snapshot timestamp must not misrepresent live publication');
  assert.ok(home.includes('href="/articles/'));
  assert.equal(existsSync('.ndn-static-assets/api/health.html'),false);
  assert.equal(existsSync('.ndn-static-assets/admin.html'),false);
