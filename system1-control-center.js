@@ -419,13 +419,51 @@ async function loadDirectState(){
   };
   const blockers=(Array.isArray(d.activationBlockers)?d.activationBlockers:[])
    .map(code=>labels[code]||'شرط تشغيل غير مستوفى').join('؛ ');
-  el.dataset.tone=active&&d.readyForActivation===true?'ok':'warn';
-  el.textContent=(active?'محرك Cloudflare المباشر مفعل للإنتاج':canary?
-   'محرك Cloudflare: تجربة توليد عبر Cron كل دقيقة (النشر المباشر متوقف)':
-   'محرك Cloudflare المباشر غير مفعل للإنتاج')+
-   ' | '+ready+' | '+counts+' | رمز النشر: '+(c.publishTokenConfigured===true?'موجود':'غير مجهز')+
+  // Cron activation is NOT proof of article publication. Never show a green
+  // state unless a recently LIVE_VERIFIED article exists on the public site.
+  const publishingRecently=d.publishingHealthy===true;
+  const lastVerified=d.lastLiveVerification&&d.lastLiveVerification.reason==='LIVE_VERIFIED'
+   ?d.lastLiveVerification:null;
+  const minutes=Number.isFinite(d.minutesSinceLastVerifiedPublish)?
+   Math.max(0,Math.round(d.minutesSinceLastVerifiedPublish)):null;
+  const phaseText={
+   READY_CREATED:'مقال جاهز للنشر',
+   PROVIDER_KEYS_COOLING_OR_REJECTED:'المفاتيح في انتظار الحصة أو مرفوضة',
+   PROVIDER_QUOTA:'حصة المزود مستنفدة',
+   PROVIDER_HTTP_OUTCOME_UNKNOWN:'استجابة المزود غير مؤكدة',
+   PROVIDER_NETWORK_UNKNOWN:'تعذر الاتصال بالمزود',
+   WAITING_TOPICS:'الموضوعات المؤهلة مستهلكة',
+   PROVIDER_KEY_PREFLIGHT_UNAVAILABLE:'تعذر فحص المفاتيح',
+   BATCH_QUALITY_REJECTED:'المحتوى لم يجتز بوابة الجودة',
+   ASSEMBLY_REJECTED:'تعذر تجهيز المقال',
+   READY_STOCK_BACKPRESSURE:'المخزون الحالي كاف',
+   KEY_STORAGE_UNAVAILABLE:'تعذر قراءة تخزين المفاتيح',
+   KEYS_MISSING:'لا توجد مفاتيح قابلة للقراءة'
+  };
+  const marketNow=market=>{
+   const row=d.marketGeneration&&d.marketGeneration[market];
+   const name=market==='SA'?'السعودية':'الإمارات';
+   if(!row||!row.phase)return name+': حالة التوليد غير متاحة';
+   return name+': '+(phaseText[row.phase]||row.phase)+
+    (row.provider?' ('+(row.provider==='gemini'?'Gemini':row.provider==='groq'?'Groq':'مزود')+')':'')+
+    (Number.isInteger(row.http)?' HTTP '+row.http:'');
+  };
+  const lastText=lastVerified&&lastVerified.at?
+   'آخر مقال مؤكد: '+local(lastVerified.at)+(minutes!==null?' · منذ '+fmt(minutes)+' دقيقة':''):
+   'لا يوجد تاريخ نشر مؤكد';
+  el.dataset.tone=active&&d.readyForActivation===true&&publishingRecently?'ok':'warn';
+  el.textContent=(active?(publishingRecently?
+   'محرك Cloudflare يعمل والنشر مؤكد بمقال حديث':
+   'محرك Cloudflare مفعل لكن النشر متوقف أو غير مؤكد مؤخرًا'):
+   canary?'محرك Cloudflare تجريبي، النشر المباشر غير مفعل':
+   'محرك Cloudflare غير مفعل للإنتاج')+
+   ' | '+lastText+
+   ' | '+ready+
+   ' | '+marketNow('SA')+'؛ '+marketNow('AE')+
+   ' | مفاتيح Cloudflare المسجلة: '+counts+
+   ' | رمز النشر: '+(c.publishTokenConfigured===true?'موجود':'غير مجهز')+
    (canary?' | '+marketState('SA')+'؛ '+marketState('AE'):'')+
-   (blockers?' | المطلوب: '+blockers:' | متطلبات المحرك جاهزة');
+   (blockers?' | المطلوب: '+blockers:' | جاهزية المفاتيح ليست ضمانًا للنشر');
  }catch(e){el.dataset.tone='warn';el.textContent='محرك Cloudflare المباشر: تعذر تأكيد حالته ('+e.message+')؛ لا نفترض أنه نشط.'}
 }
 async function load(){try{snapshot=await api('/api/admin/system1/summary');update()}catch(e){liveStripUnavailable('تعذر قراءة بيانات الإنتاج');setState('genState','المراقبة غير متاحة',e.message,'warn');setState('pubState','النشر غير متاح','الرقم مجهول، وليس صفرًا','warn');note('تعذر قراءة بيانات الإنتاج: '+e.message)}await loadDirectState()}

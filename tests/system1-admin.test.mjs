@@ -29,6 +29,17 @@ test('SYSTEM1 renders all ten organized tabs and separates generation/publishing
  assert.match(result.headers.get('cache-control'),/no-store/);
  assert.match(html,/id="publishInterval"/);
  assert.match(html,/id="savePublishingInterval"/);
+ // The Cloudflare native banner must distinguish activated Cron from real
+ // verified publishing and show provider failures without revealing secrets.
+ assert.match(html,/publishingRecently=d.publishingHealthy===true/);
+ assert.match(html,/minutesSinceLastVerifiedPublish/);
+ assert.match(html,/lastLiveVerification/);
+ assert.match(html,/READY_CREATED/);
+ assert.match(html,/PROVIDER_KEYS_COOLING_OR_REJECTED/);
+ assert.match(html,/PROVIDER_HTTP_OUTCOME_UNKNOWN/);
+ assert.match(html,/marketGeneration/);
+ assert.match(html,/active&&d.readyForActivation===true&&publishingRecently/);
+ assert.doesNotMatch(html,/return rawGeminiKey|return rawGroqKey/);
  assert.match(html,/value="15">15 دقائق/);
  const scripts=[...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)];
  assert.equal(scripts.length,1);

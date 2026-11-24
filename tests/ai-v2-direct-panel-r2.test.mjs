@@ -47,7 +47,12 @@ test('dashboard independently displays Cloudflare direct canary stage and refuse
  assert.match(ui,/STARTED:'بدأت المحاولة'/);
  assert.match(ui,/READY_CREATED:'مقال جاهز'/);
  assert.match(ui,/BLOCKED:'المحاولة لم تنجح'/);
- assert.match(ui,/تجربة توليد عبر Cron كل دقيقة/);
+ assert.match(ui,/محرك Cloudflare تجريبي، النشر المباشر غير مفعل/);
+ assert.match(ui,/publishingRecently=d.publishingHealthy===true/);
+ assert.match(ui,/active&&d.readyForActivation===true&&publishingRecently/);
+ assert.match(ui,/PUBLISHING_STALLED|النشر متوقف أو غير مؤكد مؤخرًا/);
+ assert.match(ui,/PROVIDER_KEYS_COOLING_OR_REJECTED/);
+ assert.match(ui,/minutesSinceLastVerifiedPublish/);
  assert.doesNotMatch(ui,/Cron لم يتم تفعيله/);
  assert.doesNotMatch(ui,/github_token_expired|github_token_permissions/);
 });
