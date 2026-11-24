@@ -61,16 +61,16 @@ jobs:
           for market,approved in [('/blog/latest/saudi','NOV170'),('/blog/latest/uae','NOV188')]:
             code,ctype,html=req(market)
             assert code==200 and 'text/html' in ctype,(market,code,ctype)
-            card=re.search(r'<article\\b[^>]*class="[^"]*card[^"]*"[^>]*>[\\s\\S]*?</article>',html,re.I)
+            card=re.search(r'<article\b[^>]*class="[^"]*card[^"]*"[^>]*>[\s\S]*?</article>',html,re.I)
             assert card is not None,(market,'LIVE_ARTICLE_CARDS_NOT_FOUND')
             content=card.group(0)
-            img=re.search(r'<img\\b[^>]*src="([^"]+)"',content,re.I)
+            img=re.search(r'<img\b[^>]*src="([^"]+)"',content,re.I)
             article=re.search(r'href="([^"]*/articles/[a-z0-9-]{16,120})"',content,re.I)
             assert img is not None and article is not None,(market,'LATEST_CARD_MISSING_IMAGE_OR_ARTICLE')
             image=unescape(img.group(1));article_url=unescape(article.group(1))
             if image.startswith(BASE):image=image[len(BASE):]
             if article_url.startswith(BASE):article_url=article_url[len(BASE):]
-            assert re.fullmatch(r'/assets/coupon-svg/[a-z0-9-]{16,120}/1\\.svg(?:\\?[^"<>]*)?',image),image
+            assert re.fullmatch(r'/assets/coupon-svg/[a-z0-9-]{16,120}/1\.svg(?:\?[^"<>]*)?',image),image
             assert re.fullmatch(r'/articles/[a-z0-9-]{16,120}',article_url),article_url
             status,svgt,svg=req(image)
             art_status,art_type,art_html=req(article_url)
