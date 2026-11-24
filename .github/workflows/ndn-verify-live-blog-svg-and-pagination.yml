@@ -54,6 +54,31 @@ jobs:
             assert status==200 and 'svg' in ctype.lower(),(image,status,ctype)
             assert '<svg' in svg and '</svg>' in svg and approved in svg,(image,'SVG_CONTENT_OR_APPROVED_CODE_MISSING')
           print('LIVE_NEW_FEATURED_IMAGES=PASS;SA_AND_AE_COUPONS_VERIFIED;R2_WRITES=ZERO',flush=True)
+          # Verify the CURRENT most recent published article and actual image
+          # in each market. The static samples above can all pass even when
+          # a new native SVG breaks tomorrow.
+          from html import unescape
+          for market,approved in [('/blog/latest/saudi','NOV170'),('/blog/latest/uae','NOV188')]:
+            code,ctype,html=req(market)
+            assert code==200 and 'text/html' in ctype,(market,code,ctype)
+            card=re.search(r'<article\b[^>]*class="[^"]*card[^"]*"[^>]*>[\s\S]*?</article>',html,re.I)
+            assert card is not None,(market,'LIVE_ARTICLE_CARDS_NOT_FOUND')
+            content=card.group(0)
+            img=re.search(r'<img\b[^>]*src="([^"]+)"',content,re.I)
+            article=re.search(r'href="([^"]*/articles/[a-z0-9-]{16,120})"',content,re.I)
+            assert img is not None and article is not None,(market,'LATEST_CARD_MISSING_IMAGE_OR_ARTICLE')
+            image=unescape(img.group(1));article_url=unescape(article.group(1))
+            if image.startswith(BASE):image=image[len(BASE):]
+            if article_url.startswith(BASE):article_url=article_url[len(BASE):]
+            assert re.fullmatch(r'/assets/coupon-svg/[a-z0-9-]{16,120}/1\.svg(?:\?[^"<>]*)?',image),image
+            assert re.fullmatch(r'/articles/[a-z0-9-]{16,120}',article_url),article_url
+            status,svgt,svg=req(image)
+            art_status,art_type,art_html=req(article_url)
+            print('LIVE_CURRENT_MARKET='+market+';LATEST_ARTICLE='+article_url+';IMAGE='+image[:90]+
+                  ';SVG_HTTP='+str(status)+';ARTICLE_HTTP='+str(art_status),flush=True)
+            assert status==200 and 'svg' in svgt.lower() and '<svg' in svg and '</svg>' in svg and approved in svg
+            assert art_status==200 and 'text/html' in art_type and '<article' in art_html and approved in art_html
+          print('LIVE_LATEST_NATIVE_SA_AE_ARTICLES_AND_THUMBNAILS=PASS;R2_WRITES=ZERO',flush=True)
           for path in ['/blog/page/611','/blog/saudi/page/297','/blog/uae/page/314']:
             code,ct,html=req(path)
             links=len(re.findall('<article class="card',html))
