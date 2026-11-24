@@ -34,6 +34,8 @@ test('static blog uses published R2 articles, not the stale 8-guide template',()
  }
  const home=readFileSync('.ndn-static-assets/index.html','utf8');
  assert.ok(home.includes('id="latest-published-articles"'));
+ assert.ok(home.includes('href="/blog/latest"'),'homepage must link to live newly published R2 journal');
+ assert.ok(home.includes('مقالات منشورة وقت إعداد نسخة الأرشيف'),'homepage snapshot timestamp must not misrepresent live publication');
  assert.ok(home.includes('href="/articles/'));
  assert.equal(existsSync('.ndn-static-assets/api/health.html'),false);
  assert.equal(existsSync('.ndn-static-assets/admin.html'),false);
